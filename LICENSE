@@ -203,7 +203,7 @@
 
 ----------------------------------------------------------------------------------------------------
 
-pulsar-client-cpp/lib/lz4/lz4.{h,c}
+lib/lz4/lz4.{h,c}
 
 LZ4 - Fast LZ compression algorithm
 Copyright (C) 2011-2015, Yann Collet.
@@ -239,7 +239,7 @@ You can contact the author at :
 
 ----------------------------------------------------------------------------------------------------
 
-pulsar-client-cpp/lib/checksum/crc32c_sw.cc
+lib/checksum/crc32c_sw.cc
 
 /* crc32c.c -- compute CRC-32C using the Intel crc32 instruction
  * Copyright (C) 2013 Mark Adler
