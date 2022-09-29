@@ -22,7 +22,7 @@
 #include <lib/LookupService.h>
 #include <lib/ClientImpl.h>
 #include <lib/Url.h>
-#include <lib/VersionInternal.h>
+#include <pulsar/Version.h>
 #include <lib/ServiceNameResolver.h>
 
 namespace pulsar {

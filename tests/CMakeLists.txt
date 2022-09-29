@@ -25,7 +25,7 @@ set(LIB_AUTOGEN_DIR ${AUTOGEN_DIR}/tests)
 file(MAKE_DIRECTORY ${LIB_AUTOGEN_DIR})
 include_directories(${LIB_AUTOGEN_DIR})
 
-set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../pulsar-client/src/test/proto)
+set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
 set(PROTO_SOURCES ${LIB_AUTOGEN_DIR}/Test.pb.cc ${LIB_AUTOGEN_DIR}/ExternalTest.pb.cc)
 add_custom_command(
     OUTPUT ${PROTO_SOURCES}
