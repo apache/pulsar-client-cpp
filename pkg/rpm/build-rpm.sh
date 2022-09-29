@@ -20,18 +20,18 @@
 
 set -e
 
-cd /pulsar
+cd /pulsar-client-cpp
 ROOT_DIR=$(pwd)
-cd $ROOT_DIR/pulsar-client-cpp/pkg/rpm
+cd $ROOT_DIR/pkg/rpm
 
-POM_VERSION=`$ROOT_DIR/src/get-project-version.py`
+POM_VERSION=`cat $ROOT_DIR/version.txt | xargs`
 
 # Sanitize VERSION by removing `-incubating` since it's not legal in RPM
 VERSION=`echo $POM_VERSION | awk -F-  '{print $1}'`
 
 mkdir -p BUILD RPMS SOURCES SPECS SRPMS
 
-cp $ROOT_DIR/target/apache-pulsar-$POM_VERSION-src.tar.gz SOURCES
+cp $ROOT_DIR/apache-pulsar-client-cpp-$POM_VERSION.tar.gz SOURCES
 
 rpmbuild -v -bb --clean \
         --define "version $VERSION" \

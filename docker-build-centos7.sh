@@ -23,15 +23,15 @@
 set -e
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pulsar-client-cpp
+cd $ROOT_DIR
 
 IMAGE="${BUILD_IMAGE_NAME:-apachepulsar/pulsar-cpp-build-centos7}"
 
 docker pull "${IMAGE}"
 
-VOLUME_OPTION=${VOLUME_OPTION:-"-v $ROOT_DIR:/pulsar"}
-COMMAND="cd /pulsar/pulsar-client-cpp && mkdir -p _builds && cd _builds &&
- /opt/cmake/cmake-3.4.0-Linux-x86_64/bin/cmake .. -DBUILD_PYTHON_WRAPPER=OFF -DBUILD_TESTS=ON && make -j8"
+VOLUME_OPTION=${VOLUME_OPTION:-"-v $ROOT_DIR:/pulsar-client-cpp"}
+COMMAND="cd /pulsar-client-cpp && mkdir -p _builds && cd _builds &&
+ /opt/cmake/cmake-3.4.0-Linux-x86_64/bin/cmake .. -DBUILD_TESTS=ON && make -j8"
 
 DOCKER_CMD="docker run -i ${VOLUME_OPTION} ${IMAGE}"
 

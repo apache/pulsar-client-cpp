@@ -28,7 +28,7 @@ License:        Apache License v2
 Name:           %{name}
 Version:        %{version}
 Release:        %{release}
-Source:         apache-pulsar-%{pom_version}-src.tar.gz
+Source:         apache-pulsar-client-cpp-%{pom_version}.tar.gz
 Prefix:         /usr
 AutoReq:        no
 
@@ -49,16 +49,13 @@ The devel package contains C++ and C API headers and `libpulsar.a`
 static library.
 
 %prep
-%setup -q -n apache-pulsar-%{pom_version}-src
+%setup -q -n apache-pulsar-client-cpp-%{pom_version}
 
 %build
-cd pulsar-client-cpp
-chmod +x $(find . -name "*.sh")
-cmake . -DBUILD_TESTS=OFF -DLINK_STATIC=ON -DBUILD_PYTHON_WRAPPER=OFF
+cmake . -DBUILD_TESTS=OFF -DLINK_STATIC=ON
 make pulsarShared pulsarSharedNossl pulsarStatic pulsarStaticWithDeps -j 3
 
 %install
-cd pulsar-client-cpp
 INCLUDE_DIR=$RPM_BUILD_ROOT/usr/include
 LIB_DIR=$RPM_BUILD_ROOT/usr/lib
 DOC_DIR=$RPM_BUILD_ROOT/usr/share/doc/pulsar-client-%{version}
