@@ -18,9 +18,11 @@
 # under the License.
 #
 
-import re, sys
+import re, sys, os
 
-version = open("version.txt").read()
+dirname = os.path.abspath(os.path.dirname(sys.argv[0]))
+version_file = os.path.join(dirname, "..", "version.txt")
+version = open(version_file).read()
 m = re.search(r'^(\d+)\.(\d+)\.(\d+)', version)
 
 version_macro = 0
