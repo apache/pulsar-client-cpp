@@ -21,10 +21,10 @@ name: CI - C++ Build - PR validation
 on:
   pull_request:
     branches:
-      - master
+      - main
   push:
     branches:
-      - master
+      - main
   workflow_dispatch:
 
 concurrency:
