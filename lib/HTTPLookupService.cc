@@ -157,7 +157,7 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
     while (++reqCount <= MAX_HTTP_REDIRECTS) {
         CURL *handle;
         CURLcode res;
-        std::string version = std::string("Pulsar-CPP-v") + _PULSAR_VERSION_INTERNAL_;
+        std::string version = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
         handle = curl_easy_init();
 
         if (!handle) {

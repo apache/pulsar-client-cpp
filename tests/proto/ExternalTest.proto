@@ -16,12 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+syntax = "proto3";
+package proto.external;
 
-/**
- * @PVM_COMMENT@
- */
-#pragma once
+option java_package = "org.apache.pulsar.client.schema.proto";
+option java_outer_classname = "ExternalTest";
 
-#define PULSAR_VERSION @PULSAR_CLIENT_VERSION_MACRO@
-
-#define PULSAR_VERSION_STR "@PULSAR_CLIENT_VERSION@"
+message ExternalMessage {
+    string stringField = 1;
+    double doubleField = 2;
+}

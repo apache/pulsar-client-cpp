@@ -19,9 +19,6 @@
 
 file(GLOB PULSAR_SOURCES *.cc *.h lz4/*.cc lz4/*.h checksum/*.cc checksum/*.h stats/*.cc stats/*.h c/*.cc c/*.h auth/*.cc auth/*.h auth/athenz/*.cc auth/athenz/*.h)
 
-execute_process(COMMAND ${CMAKE_SOURCE_DIR}/../src/get-project-version.py OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE PV)
-set (CMAKE_CXX_FLAGS " ${CMAKE_CXX_FLAGS} -D_PULSAR_VERSION_INTERNAL_=\\\"${PV}\\\"")
-
 if (NOT PROTOC_PATH)
     set(PROTOC_PATH protoc)
 endif()
@@ -36,9 +33,9 @@ set(PROTO_SOURCES ${LIB_AUTOGEN_DIR}/PulsarApi.pb.cc ${LIB_AUTOGEN_DIR}/PulsarAp
 set(PULSAR_SOURCES ${PULSAR_SOURCES} ${PROTO_SOURCES})
 ADD_CUSTOM_COMMAND(
          OUTPUT ${PROTO_SOURCES}
-         COMMAND ${PROTOC_PATH} -I ../../pulsar-common/src/main/proto ../../pulsar-common/src/main/proto/PulsarApi.proto --cpp_out=${LIB_AUTOGEN_DIR}
+         COMMAND ${PROTOC_PATH} -I ../proto ../proto/PulsarApi.proto --cpp_out=${LIB_AUTOGEN_DIR}
          DEPENDS
-         ../../pulsar-common/src/main/proto/PulsarApi.proto
+         ../proto/PulsarApi.proto
          WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
 set(LIBRARY_VERSION $ENV{PULSAR_LIBRARY_VERSION})

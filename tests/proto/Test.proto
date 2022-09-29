@@ -16,11 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef LIB_VERSION_INTERNAL_H_
-#define LIB_VERSION_INTERNAL_H_
+syntax = "proto3";
+package proto;
 
-#ifndef _PULSAR_VERSION_INTERNAL_
-#define _PULSAR_VERSION_INTERNAL_ "unknown"
-#endif
+import "ExternalTest.proto";
 
-#endif /* LIB_VERSION_INTERNAL_H_ */
+option java_package = "org.apache.pulsar.client.schema.proto";
+option java_outer_classname = "Test";
+
+enum TestEnum {
+    SHARED = 0;
+    FAILOVER = 1;
+}
+
+message SubMessage {
+    string foo = 1;
+    double bar = 2;
+    message NestedMessage {
+        string url = 1;
+        string title = 2;
+        repeated string snippets = 3;
+    }
+}
+
+message TestMessage {
+    string stringField = 1;
+    double doubleField = 2;
+    int32 intField = 6;
+    TestEnum testEnum = 4;
+    SubMessage nestedField = 5;
+    repeated string repeatedField = 10;
+    proto.external.ExternalMessage externalMessage = 11;
+}

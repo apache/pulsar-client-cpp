@@ -22,7 +22,14 @@ cmake_minimum_required(VERSION 3.4)
 project (pulsar-cpp)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake_modules")
 
-execute_process(COMMAND ${CMAKE_SOURCE_DIR}/../src/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE PVM)
+execute_process(COMMAND cat ${CMAKE_SOURCE_DIR}/version.txt OUTPUT_STRIP_TRAILING_WHITESPACE
+            OUTPUT_VARIABLE PULSAR_CLIENT_VERSION)
+message(STATUS "Pulsar Client version: ${PULSAR_CLIENT_VERSION}")
+
+execute_process(COMMAND ${CMAKE_SOURCE_DIR}/build-support/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
+        OUTPUT_VARIABLE PULSAR_CLIENT_VERSION_MACRO)
+message(STATUS "Pulsar Client version macro: ${PULSAR_CLIENT_VERSION_MACRO}")
+
 set(PVM_COMMENT "This is generated from Version.h.in by CMAKE. DO NOT EDIT DIRECTLY")
 configure_file(templates/Version.h.in include/pulsar/Version.h @ONLY)
 
@@ -221,7 +228,7 @@ else()
         find_library(LIB_SNAPPY NAMES snappy libsnappy)
     endif ()
 
-    find_package(CURL REQUIRED)
+        find_package(CURL REQUIRED)
     if (${CMAKE_VERSION} VERSION_GREATER "3.12")
         set(COMMON_LIBS ${COMMON_LIBS} CURL::libcurl)
     endif ()
