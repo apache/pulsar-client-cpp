@@ -26,8 +26,9 @@ execute_process(COMMAND cat ${CMAKE_SOURCE_DIR}/version.txt OUTPUT_STRIP_TRAILIN
             OUTPUT_VARIABLE PULSAR_CLIENT_VERSION)
 message(STATUS "Pulsar Client version: ${PULSAR_CLIENT_VERSION}")
 
-execute_process(COMMAND ${CMAKE_SOURCE_DIR}/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
+execute_process(COMMAND ${CMAKE_SOURCE_DIR}/build-support/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
         OUTPUT_VARIABLE PULSAR_CLIENT_VERSION_MACRO)
+message(STATUS "Pulsar Client version macro: ${PULSAR_CLIENT_VERSION_MACRO}")
 
 set(PVM_COMMENT "This is generated from Version.h.in by CMAKE. DO NOT EDIT DIRECTLY")
 configure_file(templates/Version.h.in include/pulsar/Version.h @ONLY)
