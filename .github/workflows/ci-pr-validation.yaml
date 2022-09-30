@@ -32,8 +32,54 @@ concurrency:
 
 jobs:
 
+  unit-tests:
+    name: Run unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Install deps
+        run: |
+            sudo apt-get install -y             \
+                libcurl4-openssl-dev            \
+                protobuf-compiler               \
+                libprotobuf-dev                 \
+                libboost-dev                    \
+                libboost-program-options-dev    \
+                libzstd-dev                     \
+                libsnappy-dev                   \
+                libgmock-dev                    \
+                libgtest-dev
+
+      - name: Install gtest-parallel
+        run: |
+          sudo curl -o /gtest-parallel https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py 
+
+      - name: CMake
+        run: cmake . -DBUILD_PERF_TOOLS=ON
+
+#      - name: Check formatting
+#        run: make check-format
+
+      - name: Build
+        run: make -j8
+
+      - name: Start Pulsar service
+        run: ./pulsar-test-service-start.sh
+
+      - name: Run unit tests
+        run: ./run-unit-tests.sh
+
+      - name: Stop Pulsar service
+        run: ./pulsar-test-service-stop.sh
+
+
   cpp-build-centos7:
     name: Build CPP Client on CentOS7
+    needs: unit-tests
     runs-on: ubuntu-20.04
     timeout-minutes: 120
 
@@ -49,6 +95,7 @@ jobs:
   cpp-build-windows:
     timeout-minutes: 120
     name: Build CPP Client on ${{ matrix.name }}
+    needs: unit-tests
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
@@ -152,6 +199,7 @@ jobs:
   deb-packaging:
     name: Build Debian Package
     runs-on: ubuntu-20.04
+    needs: unit-tests
     timeout-minutes: 120
 
     steps:
@@ -169,6 +217,7 @@ jobs:
   rpm-packaging:
     name: Build RPM Package
     runs-on: ubuntu-20.04
+    needs: unit-tests
     timeout-minutes: 120
 
     steps:
@@ -186,6 +235,7 @@ jobs:
 #  apk-packaging:
 #    name: Build Alpine Linux APK Package
 #    runs-on: ubuntu-20.04
+#    needs: unit-tests
 #    timeout-minutes: 120
 #
 #    steps:

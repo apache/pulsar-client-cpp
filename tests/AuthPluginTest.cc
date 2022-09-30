@@ -36,11 +36,9 @@ int globalTestTlsMessagesCounter = 0;
 static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
 static const std::string serviceUrlHttps = "https://localhost:8443";
 
-static const std::string caPath = "../../pulsar-broker/src/test/resources/authentication/tls/cacert.pem";
-static const std::string clientPublicKeyPath =
-    "../../pulsar-broker/src/test/resources/authentication/tls/client-cert.pem";
-static const std::string clientPrivateKeyPath =
-    "../../pulsar-broker/src/test/resources/authentication/tls/client-key.pem";
+static const std::string caPath = "../test-conf/cacert.pem";
+static const std::string clientPublicKeyPath = "../test-conf/client-cert.pem";
+static const std::string clientPrivateKeyPath =     "../test-conf/client-key.pem";
 
 static void sendCallBackTls(Result r, const MessageId& msgId) {
     ASSERT_EQ(r, ResultOk);
@@ -381,7 +379,7 @@ TEST(AuthPluginTest, testOauth2CredentialFile) {
     std::string params = R"({
         "type": "client_credentials",
         "issuer_url": "https://dev-kt-aa9ne.us.auth0.com",
-        "private_key": "../../pulsar-broker/src/test/resources/authentication/token/cpp_credentials_file.json",
+        "private_key": "../test-conf/cpp_credentials_file.json",
         "audience": "https://dev-kt-aa9ne.us.auth0.com/api/v2/"})";
 
     int expectedTokenLength = 3379;
