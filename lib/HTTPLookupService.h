@@ -46,6 +46,8 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     ServiceNameResolver& serviceNameResolver_;
     AuthenticationPtr authenticationPtr_;
     int lookupTimeoutInSeconds_;
+    std::string tlsPrivateFilePath_;
+    std::string tlsCertificateFilePath_;
     std::string tlsTrustCertsFilePath_;
     bool isUseTls_;
     bool tlsAllowInsecure_;

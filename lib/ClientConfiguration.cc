@@ -82,6 +82,22 @@ ClientConfiguration& ClientConfiguration::setValidateHostName(bool validateHostN
 
 bool ClientConfiguration::isValidateHostName() const { return impl_->validateHostName; }
 
+ClientConfiguration& ClientConfiguration::setTlsPrivateKeyFilePath(const std::string& filePath) {
+    impl_->tlsPrivateKeyFilePath = filePath;
+    return *this;
+}
+
+const std::string& ClientConfiguration::getTlsPrivateKeyFilePath() const { return impl_->tlsPrivateKeyFilePath; }
+
+ClientConfiguration& ClientConfiguration::setTlsCertificateFilePath(const std::string& filePath) {
+    impl_->tlsCertificateFilePath = filePath;
+    return *this;
+}
+
+const std::string& ClientConfiguration::getTlsCertificateFilePath() const {
+    return impl_->tlsCertificateFilePath;
+}
+
 ClientConfiguration& ClientConfiguration::setTlsTrustCertsFilePath(const std::string& filePath) {
     impl_->tlsTrustCertsFilePath = filePath;
     return *this;

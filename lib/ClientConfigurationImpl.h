@@ -32,6 +32,8 @@ struct ClientConfigurationImpl {
     int concurrentLookupRequest{50000};
     std::string logConfFilePath;
     bool useTls{false};
+    std::string tlsPrivateKeyFilePath;
+    std::string tlsCertificateFilePath;
     std::string tlsTrustCertsFilePath;
     bool tlsAllowInsecureConnection{false};
     unsigned int statsIntervalInSeconds{600};  // 10 minutes

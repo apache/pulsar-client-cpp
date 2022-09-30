@@ -228,25 +228,29 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
             return;
         }
 
+        std::string tlsCertificates = clientConfiguration.getTlsCertificateFilePath();
+        std::string tlsPrivateKey = clientConfiguration.getTlsPrivateKeyFilePath();
+
         AuthenticationDataPtr authData;
         if (authentication_->getAuthData(authData) == ResultOk && authData->hasDataForTls()) {
-            std::string tlsCertificates = authData->getTlsCertificates();
-            std::string tlsPrivateKey = authData->getTlsPrivateKey();
-
-            if (file_exists(tlsCertificates)) {
-                ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
-            } else {
+            tlsCertificates = authData->getTlsCertificates();
+            tlsPrivateKey = authData->getTlsPrivateKey();
+            if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
                 close();
                 return;
             }
-
-            if (file_exists(tlsPrivateKey)) {
-                ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
-            } else {
-                LOG_ERROR(tlsPrivateKey << ": No such tlsPrivateKey");
+            if (!file_exists(tlsCertificates)) {
+                LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
                 close();
                 return;
+            }
+            ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
+            ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
+        } else {
+            if (file_exists(tlsPrivateKey) && file_exists(tlsCertificates)) {
+                ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
+                ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
             }
         }
 

@@ -55,6 +55,8 @@ HTTPLookupService::HTTPLookupService(ServiceNameResolver &serviceNameResolver,
       serviceNameResolver_(serviceNameResolver),
       authenticationPtr_(authData),
       lookupTimeoutInSeconds_(clientConfiguration.getOperationTimeoutSeconds()),
+      tlsPrivateFilePath_(clientConfiguration.getTlsPrivateKeyFilePath()),
+      tlsCertificateFilePath_(clientConfiguration.getTlsCertificateFilePath()),
       tlsTrustCertsFilePath_(clientConfiguration.getTlsTrustCertsFilePath()),
       isUseTls_(clientConfiguration.isUseTls()),
       tlsAllowInsecure_(clientConfiguration.isTlsAllowInsecureConnection()),
@@ -231,6 +233,11 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
             if (authDataContent->hasDataForTls()) {
                 curl_easy_setopt(handle, CURLOPT_SSLCERT, authDataContent->getTlsCertificates().c_str());
                 curl_easy_setopt(handle, CURLOPT_SSLKEY, authDataContent->getTlsPrivateKey().c_str());
+            } else {
+                if (!tlsPrivateFilePath_.empty() && !tlsCertificateFilePath_.empty()) {
+                    curl_easy_setopt(handle, CURLOPT_SSLCERT, tlsCertificateFilePath_.c_str());
+                    curl_easy_setopt(handle, CURLOPT_SSLKEY, tlsPrivateFilePath_.c_str());
+                }
             }
         }
 
