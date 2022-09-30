@@ -81,7 +81,7 @@ jobs:
         with:
           path: |
             ${{ env.VCPKG_ROOT }}
-            pulsar-client-cpp/vcpkg_installed
+            vcpkg_installed
             !${{ env.VCPKG_ROOT }}/.git
             !${{ env.VCPKG_ROOT }}/buildtrees
             !${{ env.VCPKG_ROOT }}/packages
@@ -104,7 +104,6 @@ jobs:
         shell: bash
 
       - name: Install vcpkg packages
-        if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
         run: |
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }}
 
