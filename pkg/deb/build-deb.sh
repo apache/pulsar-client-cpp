@@ -77,13 +77,8 @@ ls $CPP_DIR/lib/libpulsar*
 cp -ar $CPP_DIR/include/pulsar $DEVEL_DEST_DIR/usr/include/
 cp $CPP_DIR/lib/libpulsar.a $DEVEL_DEST_DIR/usr/lib
 cp $CPP_DIR/lib/libpulsarwithdeps.a $DEVEL_DEST_DIR/usr/lib
-cp $CPP_DIR/lib/libpulsar.so.$POM_VERSION $DEST_DIR/usr/lib
-cp $CPP_DIR/lib/libpulsarnossl.so.$POM_VERSION $DEST_DIR/usr/lib
-
-pushd $DEST_DIR/usr/lib
-ln -s libpulsar.so.$POM_VERSION libpulsar.so
-ln -s libpulsarnossl.so.$POM_VERSION libpulsarnossl.so
-popd
+cp $CPP_DIR/lib/libpulsar.so $DEST_DIR/usr/lib
+cp $CPP_DIR/lib/libpulsarnossl.so $DEST_DIR/usr/lib
 
 cp $ROOT_DIR/NOTICE $DEST_DIR/usr/share/doc/pulsar-client-$VERSION
 cp $CPP_DIR/pkg/licenses/* $DEST_DIR/usr/share/doc/pulsar-client-$VERSION

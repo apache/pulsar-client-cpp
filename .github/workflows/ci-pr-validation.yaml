@@ -195,7 +195,7 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
-      - name: Build Debian packages
+      - name: Build APK packages
         run: |
-          echo "Build Debian packages"
-          BUILD_IMAGE=1 pkg/deb/docker-build-deb.sh
+          echo "Build APK packages"
+          BUILD_IMAGE=1 pkg/apk/docker-build-apk.sh
