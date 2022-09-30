@@ -1,0 +1,201 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: CI - C++ Build - PR validation
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  cpp-build-centos7:
+    name: Build CPP Client on CentOS7
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: build cpp client on centos 7
+        run: |
+          echo "Build C++ client library on CentOS 7"
+          ./docker-build-centos7.sh
+
+  cpp-build-windows:
+    timeout-minutes: 120
+    name: Build CPP Client on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 'Windows x64'
+            os: windows-2022
+            triplet: x64-windows
+            vcpkg_dir: 'C:\vcpkg'
+            suffix: 'windows-win64'
+            generator: 'Visual Studio 17 2022'
+            arch: '-A x64'
+          - name: 'Windows x86'
+            os: windows-2022
+            triplet: x86-windows
+            vcpkg_dir: 'C:\vcpkg'
+            suffix: 'windows-win32'
+            generator: 'Visual Studio 17 2022'
+            arch: '-A Win32'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Restore vcpkg and its artifacts.
+        uses: actions/cache@v2
+        id: vcpkg-cache
+        with:
+          path: |
+            ${{ env.VCPKG_ROOT }}
+            vcpkg_installed
+            !${{ env.VCPKG_ROOT }}/.git
+            !${{ env.VCPKG_ROOT }}/buildtrees
+            !${{ env.VCPKG_ROOT }}/packages
+            !${{ env.VCPKG_ROOT }}/downloads
+          key: |
+            ${{ runner.os }}-${{ matrix.triplet}}-${{ hashFiles( 'pulsar-client-cpp/vcpkg.json' ) }}
+
+      - name: Get vcpkg(windows)
+        if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        run: |
+          cd ${{ github.workspace }}
+          mkdir build -force
+          git clone https://github.com/Microsoft/vcpkg.git
+          cd vcpkg
+          .\bootstrap-vcpkg.bat
+
+      - name: remove system vcpkg(windows)
+        if: runner.os == 'Windows'
+        run: rm -rf "$VCPKG_INSTALLATION_ROOT"
+        shell: bash
+
+      - name: Install vcpkg packages
+        run: |
+          ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }}
+
+      - name: Configure (default)
+
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake \
+              -B ./build-0 \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DBUILD_TESTS=OFF \
+              -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+              -DCMAKE_BUILD_TYPE=Release \
+              -S .
+          fi
+
+      - name: Compile
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake --build ./build-0 --parallel --config Release
+          fi
+
+      - name: Configure (dynamic library only)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake \
+              -B ./build-1 \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DBUILD_TESTS=OFF \
+              -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+              -DCMAKE_BUILD_TYPE=Release \
+              -DBUILD_STATIC_LIB=OFF \
+              -S .
+          fi
+
+      - name: Compile
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake --build ./build-1 --parallel --config Release
+          fi
+
+  deb-packaging:
+    name: Build Debian Package
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build Debian packages
+        run: |
+          echo "Build Debian packages"
+          BUILD_IMAGE=1 pkg/deb/docker-build-deb.sh
+
+  rpm-packaging:
+    name: Build RPM Package
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build RPM packages
+        run: |
+          echo "Build RPM packages"
+          BUILD_IMAGE=1 pkg/rpm/docker-build-rpm.sh
+
+#  apk-packaging:
+#    name: Build Alpine Linux APK Package
+#    runs-on: ubuntu-20.04
+#    timeout-minutes: 120
+#
+#    steps:
+#      - name: checkout
+#        uses: actions/checkout@v2
+#
+#      - name: Package Pulsar source
+#        run: build-support/generate-source-archive.sh
+#
+#      - name: Build APK packages
+#        run: |
+#          echo "Build APK packages"
+#          BUILD_IMAGE=1 pkg/apk/docker-build-apk.sh

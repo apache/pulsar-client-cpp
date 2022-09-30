@@ -28,7 +28,7 @@ License:        Apache License v2
 Name:           %{name}
 Version:        %{version}
 Release:        %{release}
-Source:         apache-pulsar-%{pom_version}-src.tar.gz
+Source:         apache-pulsar-client-cpp-%{pom_version}.tar.gz
 Prefix:         /usr
 AutoReq:        no
 
@@ -49,16 +49,13 @@ The devel package contains C++ and C API headers and `libpulsar.a`
 static library.
 
 %prep
-%setup -q -n apache-pulsar-%{pom_version}-src
+%setup -q -n apache-pulsar-client-cpp-%{pom_version}
 
 %build
-cd pulsar-client-cpp
-chmod +x $(find . -name "*.sh")
-cmake . -DBUILD_TESTS=OFF -DLINK_STATIC=ON -DBUILD_PYTHON_WRAPPER=OFF
+cmake . -DBUILD_TESTS=OFF -DLINK_STATIC=ON
 make pulsarShared pulsarSharedNossl pulsarStatic pulsarStaticWithDeps -j 3
 
 %install
-cd pulsar-client-cpp
 INCLUDE_DIR=$RPM_BUILD_ROOT/usr/include
 LIB_DIR=$RPM_BUILD_ROOT/usr/lib
 DOC_DIR=$RPM_BUILD_ROOT/usr/share/doc/pulsar-client-%{version}
@@ -68,25 +65,19 @@ mkdir -p $INCLUDE_DIR $LIB_DIR $DOC_DIR $DOC_DEVEL_DIR
 cp -ar include/pulsar $INCLUDE_DIR
 cp lib/libpulsar.a $LIB_DIR
 cp lib/libpulsarwithdeps.a $LIB_DIR
-cp lib/libpulsar.so.%{pom_version} $LIB_DIR
-cp lib/libpulsarnossl.so.%{pom_version} $LIB_DIR
+cp lib/libpulsar.so $LIB_DIR
+cp lib/libpulsarnossl.so $LIB_DIR
 
 # Copy LICENSE files
-cp ../NOTICE $DOC_DIR
+cp NOTICE $DOC_DIR
 cp pkg/licenses/* $DOC_DIR
 
 cp $DOC_DIR/* $DOC_DEVEL_DIR/
 
-cd  $LIB_DIR
-ln -s libpulsar.so.%{pom_version} libpulsar.so
-ln -s libpulsarnossl.so.%{pom_version} libpulsarnossl.so
-
 %files
 %defattr(-,root,root)
 /usr/lib/libpulsar.so
-/usr/lib/libpulsar.so.%{pom_version}
 /usr/lib/libpulsarnossl.so
-/usr/lib/libpulsarnossl.so.%{pom_version}
 /usr/share/doc/pulsar-client-%{version}
 
 %files devel

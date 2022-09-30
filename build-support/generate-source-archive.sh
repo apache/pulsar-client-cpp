@@ -18,12 +18,10 @@
 # under the License.
 #
 
-set -ex
+ROOT_DIR=$(git rev-parse --show-toplevel)
 
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../.. &> /dev/null && pwd )"
-IMAGE_NAME=apachepulsar/pulsar-build:centos-7-2.11-x86_64
+VERSION=$(cat ${ROOT_DIR}/version.txt)
 
-docker pull $IMAGE_NAME
+NAME=apache-pulsar-client-cpp-$VERSION
 
-docker run -v $ROOT_DIR:/pulsar-client-cpp $IMAGE_NAME \
-        /pulsar-client-cpp/pkg/rpm/build-rpm.sh
+git archive --format=tar.gz --prefix ${NAME}/ -o ${NAME}.tar.gz HEAD
