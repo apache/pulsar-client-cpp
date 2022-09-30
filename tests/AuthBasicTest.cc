@@ -28,6 +28,13 @@ using namespace pulsar;
 
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string serviceUrlHttp = "http://localhost:8080";
+static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
+static const std::string serviceUrlHttps = "https://localhost:8443";
+static const std::string caPath = "../../pulsar-broker/src/test/resources/authentication/tls/cacert.pem";
+static const std::string clientCertificatePath =
+    "../../pulsar-broker/src/test/resources/authentication/tls/client-cert.pem";
+static const std::string clientPrivateKeyPath =
+    "../../pulsar-broker/src/test/resources/authentication/tls/client-key.pem";
 
 TEST(AuthPluginBasic, testBasic) {
     ClientConfiguration config = ClientConfiguration();
@@ -137,4 +144,114 @@ TEST(AuthPluginBasic, testLoadAuth) {
     ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
     ASSERT_EQ(data->hasDataForTls(), false);
     ASSERT_EQ(data->hasDataForHttp(), true);
+}
+
+TEST(AuthPluginBasic, testAuthBasicWithServiceUrlTlsWithTlsTransport) {
+    ClientConfiguration config = ClientConfiguration();
+
+    config.setTlsPrivateKeyFilePath(clientPrivateKeyPath);
+    config.setTlsCertificateFilePath(clientCertificatePath);
+    config.setTlsTrustCertsFilePath(caPath);
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "basic");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    config.setAuth(auth);
+    Client client(serviceUrlTls, config);
+
+    std::string topicName = "persistent://private/auth/test-basic";
+
+    Producer producer;
+    Result result = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, result);
+    producer.close();
+}
+
+TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsWithTlsTransport) {
+    ClientConfiguration config = ClientConfiguration();
+
+    config.setTlsPrivateKeyFilePath(clientPrivateKeyPath);
+    config.setTlsCertificateFilePath(clientCertificatePath);
+    config.setTlsTrustCertsFilePath(caPath);
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "basic");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    config.setAuth(auth);
+    Client client(serviceUrlHttps, config);
+
+    std::string topicName = "persistent://private/auth/test-basic";
+
+    Producer producer;
+    Result result = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, result);
+    producer.close();
+}
+
+TEST(AuthPluginBasic, testAuthBasicWithServiceUrlTlsNoTlsTransport) {
+    ClientConfiguration config = ClientConfiguration();
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "basic");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    config.setAuth(auth);
+    Client client(serviceUrlTls, config);
+
+    std::string topicName = "persistent://private/auth/test-basic";
+
+    Producer producer;
+    Result result = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultConnectError, result);
+}
+
+TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
+    ClientConfiguration config = ClientConfiguration();
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "basic");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    config.setAuth(auth);
+    Client client(serviceUrlHttps, config);
+
+    std::string topicName = "persistent://private/auth/test-basic";
+
+    Producer producer;
+    Result result = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultConnectError, result);
 }

@@ -119,6 +119,24 @@ int pulsar_client_configuration_is_validate_hostname(pulsar_client_configuration
     return conf->conf.isValidateHostName();
 }
 
+void pulsar_client_configuration_set_tls_private_key_file_path(pulsar_client_configuration_t *conf,
+                                                               const char *tlsPrivateKeyFilePath) {
+    conf->conf.setTlsPrivateKeyFilePath(tlsPrivateKeyFilePath);
+}
+
+const char *pulsar_client_configuration_get_tls_private_key_file_path(pulsar_client_configuration_t *conf) {
+    return conf->conf.getTlsPrivateKeyFilePath().c_str();
+}
+
+void pulsar_client_configuration_set_tls_certificate_file_path(pulsar_client_configuration_t *conf,
+                                                               const char *tlsCertificateFilePath) {
+    conf->conf.setTlsCertificateFilePath(tlsCertificateFilePath);
+}
+
+const char *pulsar_client_configuration_get_tls_certificate_file_path(pulsar_client_configuration_t *conf) {
+    return conf->conf.getTlsCertificateFilePath().c_str();
+}
+
 void pulsar_client_configuration_set_tls_trust_certs_file_path(pulsar_client_configuration_t *conf,
                                                                const char *tlsTrustCertsFilePath) {
     conf->conf.setTlsTrustCertsFilePath(tlsTrustCertsFilePath);

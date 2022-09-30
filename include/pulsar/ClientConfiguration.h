@@ -157,6 +157,30 @@ class PULSAR_PUBLIC ClientConfiguration {
     bool isUseTls() const;
 
     /**
+     * Set the path to the TLS private key file.
+     *
+     * @param tlsPrivateKeyFilePath
+     */
+    ClientConfiguration& setTlsPrivateKeyFilePath(const std::string& tlsKeyFilePath);
+
+    /**
+     * @return the path to the TLS private key file
+     */
+    const std::string& getTlsPrivateKeyFilePath() const;
+
+    /**
+     * Set the path to the TLS certificate file.
+     *
+     * @param tlsCertificateFilePath
+     */
+    ClientConfiguration& setTlsCertificateFilePath(const std::string& tlsCertificateFilePath);
+
+    /**
+     * @return the path to the TLS certificate file
+     */
+    const std::string& getTlsCertificateFilePath() const;
+
+    /**
      * Set the path to the trusted TLS certificate file.
      *
      * @param tlsTrustCertsFilePath
