@@ -104,6 +104,7 @@ jobs:
         shell: bash
 
       - name: Install vcpkg packages
+        if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
         run: |
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }}
 
@@ -183,19 +184,19 @@ jobs:
           echo "Build RPM packages"
           BUILD_IMAGE=1 pkg/rpm/docker-build-rpm.sh
 
-  apk-packaging:
-    name: Build Alpine Linux APK Package
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - name: Build APK packages
-        run: |
-          echo "Build APK packages"
-          BUILD_IMAGE=1 pkg/apk/docker-build-apk.sh
+#  apk-packaging:
+#    name: Build Alpine Linux APK Package
+#    runs-on: ubuntu-20.04
+#    timeout-minutes: 120
+#
+#    steps:
+#      - name: checkout
+#        uses: actions/checkout@v2
+#
+#      - name: Package Pulsar source
+#        run: build-support/generate-source-archive.sh
+#
+#      - name: Build APK packages
+#        run: |
+#          echo "Build APK packages"
+#          BUILD_IMAGE=1 pkg/apk/docker-build-apk.sh

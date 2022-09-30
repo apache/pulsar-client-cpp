@@ -69,7 +69,7 @@ cp lib/libpulsar.so $LIB_DIR
 cp lib/libpulsarnossl.so $LIB_DIR
 
 # Copy LICENSE files
-cp ../NOTICE $DOC_DIR
+cp NOTICE $DOC_DIR
 cp pkg/licenses/* $DOC_DIR
 
 cp $DOC_DIR/* $DOC_DEVEL_DIR/
