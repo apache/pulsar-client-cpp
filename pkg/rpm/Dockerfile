@@ -19,7 +19,7 @@
 
 # Build pulsar client library in Centos with tools to build static RPM
 
-FROM --platform=linux/amd64 centos:7
+FROM centos:7
 
 RUN yum update -y && \
     yum install -y gcc-c++ make rpm-build which \

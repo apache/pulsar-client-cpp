@@ -20,15 +20,10 @@
 
 set -ex
 
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../../.. &> /dev/null && pwd )"
-IMAGE_NAME=apachepulsar/pulsar-build:debian-9-2.11
+ROOT_DIR=$(git rev-parse --show-toplevel)
 
-if [[ -z $BUILD_IMAGE ]]; then
-    # pull the image from DockerHub by default
-    docker pull $IMAGE_NAME
-else
-    docker build --platform linux/amd64 -t $IMAGE_NAME $ROOT_DIR/pulsar-client-cpp/pkg/deb
-fi
+IMAGE_NAME=apachepulsar/pulsar-build:debian-9-2.11-x86_64
 
-docker run --platform linux/amd64 -v $ROOT_DIR:/pulsar $IMAGE_NAME \
-        /pulsar/pulsar-client-cpp/pkg/deb/build-deb.sh
+docker pull $IMAGE_NAME
+docker run -v $ROOT_DIR:/pulsar-client-cpp $IMAGE_NAME \
+        /pulsar-client-cpp/pkg/deb/build-deb.sh

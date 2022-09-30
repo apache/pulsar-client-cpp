@@ -20,14 +20,21 @@
 
 set -e -x
 
-export SRC_ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $SRC_ROOT_DIR/pulsar-client-cpp/pkg/apk
+cd /pulsar-client-cpp
+export ROOT_DIR=$(pwd)
 
-VERSION=`python3 $SRC_ROOT_DIR/src/get-project-version.py`
+rm -f CMakeCache.txt
+rm -rf CMakeFiles
+
+cd $ROOT_DIR/pkg/apk
+
+
+
+POM_VERSION=`cat $ROOT_DIR/version.txt | xargs`
 # Sanitize the version string
-export POM_VERSION=`echo $VERSION | sed -E 's/-[a-z]+-/./' | sed -E 's/.[A-Z]+././'`
+export VERSION=`echo $POM_VERSION | sed -E 's/\-[a-zA-Z]+//'`
 
-echo "POM_VERSION: $POM_VERSION"
+echo "VERSION: $VERSION"
 
 abuild-keygen -a -i -n
 chmod 755 ~

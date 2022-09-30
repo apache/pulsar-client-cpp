@@ -25,5 +25,5 @@ IMAGE=apachepulsar/pulsar-build:alpine-3.11
 
 docker pull $IMAGE
 
-docker run -i -v $ROOT_DIR:/pulsar $IMAGE \
-        /pulsar/pulsar-client-cpp/pkg/apk/build-apk.sh
+docker run -i -v $ROOT_DIR:/pulsar-client-cpp $IMAGE \
+        /pulsar-client-cpp/pkg/apk/build-apk.sh

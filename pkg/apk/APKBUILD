@@ -20,7 +20,7 @@
 # Maintainer: "Apache Pulsar <dev@pulsar.apache.org>"
 
 pkgname="apache-pulsar-client"
-pkgver="$POM_VERSION"
+pkgver="$VERSION"
 pkgrel=0
 pkgdesc="Apache Pulsar - distributed pub-sub messaging system"
 url="https://pulsar.apache.org"
@@ -46,9 +46,8 @@ build() {
 		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
 		-DCMAKE_C_FLAGS="$CFLAGS" \
 		-DBUILD_TESTS=OFF \
-    -DBUILD_PYTHON_WRAPPER=OFF \
-    -DLINK_STATIC=ON  \
-		${CMAKE_CROSSOPTS} ${SRC_ROOT_DIR}/pulsar-client-cpp
+                -DLINK_STATIC=ON  \
+		${CMAKE_CROSSOPTS} ${ROOT_DIR}
 	make
 }
 

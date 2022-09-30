@@ -33,6 +33,8 @@ lib*.so*
 # Linux swap file
 *.swp
 
+apache-pulsar-client-cpp-*.tar.gz
+
 # Exclude compiled executables
 /examples/SampleProducer
 /examples/SampleProducerCApi
@@ -89,3 +91,7 @@ CMakeSettings.json
 
 # vcpkg dependencies directory
 vcpkg_installed/
+
+
+*.orig
+*.rej
