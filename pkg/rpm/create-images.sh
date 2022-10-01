@@ -18,26 +18,15 @@
 # under the License.
 #
 
-set -e
+set -e -x
 
-cd /pulsar-client-cpp
-ROOT_DIR=$(pwd)
+ROOT_DIR=$(git rev-parse --show-toplevel)
 cd $ROOT_DIR/pkg/rpm
 
-POM_VERSION=`cat $ROOT_DIR/version.txt | xargs`
+# ARM
+IMAGE=apachepulsar/pulsar-build:centos-7-2.11-arm64
+docker build --platform arm64 -t $IMAGE . --build-arg PLATFORM=aarch64
 
-# Sanitize VERSION by removing `-incubating` since it's not legal in RPM
-VERSION=`echo $POM_VERSION | awk -F-  '{print $1}'`
-
-mkdir -p BUILD RPMS SOURCES SPECS SRPMS
-
-cp $ROOT_DIR/apache-pulsar-client-cpp-$POM_VERSION.tar.gz SOURCES
-
-rpmbuild -v -bb --clean \
-        --define "version $VERSION" \
-        --define "pom_version $POM_VERSION" \
-        --define "_topdir $PWD" \
-        SPECS/pulsar-client.spec
-
-cd RPMS/${PLATFORM}
-createrepo .
+# X86_64
+IMAGE=apachepulsar/pulsar-build:centos-7-2.11-x86_64
+docker build --platform x86_64 -t $IMAGE . --build-arg PLATFORM=x86_64

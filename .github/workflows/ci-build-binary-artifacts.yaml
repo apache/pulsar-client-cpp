@@ -1,0 +1,122 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: CI - Build binary artifacts
+on:
+  push:
+    branches:
+      - '*'
+    tags:
+      - '*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  deb-packaging-x86_64:
+    name: Build Debian Package - x86_64
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build Debian packages
+        run: pkg/deb/docker-build-deb-x86_64.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: deb-x86_64
+          path: pkg/deb/BUILD/DEB
+
+  deb-packaging-arm64:
+    name: Build Debian Package - Arm64
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build Debian packages
+        run: pkg/deb/docker-build-deb-arm64.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: deb-arm64
+          path: pkg/deb/BUILD/DEB
+
+  rpm-packaging-x86_64:
+    name: Build RPM Package - x86_64
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build RPM packages
+        run: pkg/rpm/docker-build-rpm-x86_64.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: rpm-x86_64
+          path: pkg/rpm/RPMS
+
+  rpm-packaging-arm64:
+    name: Build RPM Package - arm64
+    runs-on: ubuntu-20.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build RPM packages
+        run: pkg/rpm/docker-build-rpm-arm64.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: rpm-arm64
+          path: pkg/rpm/RPMS

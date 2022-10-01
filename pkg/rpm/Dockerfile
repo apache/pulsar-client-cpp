@@ -21,9 +21,11 @@
 
 FROM centos:7
 
+ARG PLATFORM
+
 RUN yum update -y && \
     yum install -y gcc-c++ make rpm-build which \
-                createrepo libstdc++-static.x86_64 python3
+                createrepo libstdc++-static python3
 
 # Download and compile boost
 # GCC 4.8.2 implementation of std::regex is buggy, so we install boost::regex here
@@ -34,11 +36,11 @@ RUN curl -O -L https://boostorg.jfrog.io/artifactory/main/release/1.79.0/source/
     ./b2 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
     rm -rf /boost_1_79_0.tar.gz /boost_1_79_0
 
-RUN curl -O -L https://github.com/Kitware/CMake/releases/download/v3.24.0/cmake-3.24.0-linux-x86_64.tar.gz && \
-    tar xfz cmake-3.24.0-linux-x86_64.tar.gz && \
-    cp cmake-3.24.0-linux-x86_64/bin/* /usr/bin/ && \
-    cp -r cmake-3.24.0-linux-x86_64/share/cmake-3.24 /usr/share/ && \
-    rm -rf cmake-3.24.0-linux-x86_64 cmake-3.24.0-linux-x86_64.tar.gz
+RUN curl -O -L https://github.com/Kitware/CMake/releases/download/v3.24.0/cmake-3.24.0-linux-${PLATFORM}.tar.gz && \
+    tar xfz cmake-3.24.0-linux-${PLATFORM}.tar.gz && \
+    cp cmake-3.24.0-linux-${PLATFORM}/bin/* /usr/bin/ && \
+    cp -r cmake-3.24.0-linux-${PLATFORM}/share/cmake-3.24 /usr/share/ && \
+    rm -rf cmake-3.24.0-linux-${PLATFORM} cmake-3.24.0-linux-${PLATFORM}.tar.gz
 
 # Download and copile protoubf
 RUN curl -O -L  https://github.com/google/protobuf/releases/download/v3.20.0/protobuf-cpp-3.20.0.tar.gz && \
@@ -75,7 +77,7 @@ RUN curl -O -L https://github.com/google/snappy/releases/download/1.1.3/snappy-1
 RUN curl -O -L https://github.com/openssl/openssl/archive/OpenSSL_1_1_1n.tar.gz && \
     tar xfz OpenSSL_1_1_1n.tar.gz && \
     cd openssl-OpenSSL_1_1_1n/ && \
-    ./Configure -fPIC --prefix=/usr/local/ssl/ linux-x86_64 && \
+    ./Configure -fPIC --prefix=/usr/local/ssl/ linux-${PLATFORM} && \
     make -j8 && make install && \
     rm -rf /OpenSSL_1_1_1n.tar.gz /openssl-OpenSSL_1_1_1n
 

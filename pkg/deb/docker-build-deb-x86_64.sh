@@ -18,26 +18,14 @@
 # under the License.
 #
 
-set -e
+set -ex
 
-cd /pulsar-client-cpp
-ROOT_DIR=$(pwd)
-cd $ROOT_DIR/pkg/rpm
+ROOT_DIR=$(git rev-parse --show-toplevel)
 
-POM_VERSION=`cat $ROOT_DIR/version.txt | xargs`
+IMAGE_NAME=apachepulsar/pulsar-build:debian-9-2.11-x86_64
 
-# Sanitize VERSION by removing `-incubating` since it's not legal in RPM
-VERSION=`echo $POM_VERSION | awk -F-  '{print $1}'`
-
-mkdir -p BUILD RPMS SOURCES SPECS SRPMS
-
-cp $ROOT_DIR/apache-pulsar-client-cpp-$POM_VERSION.tar.gz SOURCES
-
-rpmbuild -v -bb --clean \
-        --define "version $VERSION" \
-        --define "pom_version $POM_VERSION" \
-        --define "_topdir $PWD" \
-        SPECS/pulsar-client.spec
-
-cd RPMS/${PLATFORM}
-createrepo .
+docker pull $IMAGE_NAME
+docker run -v $ROOT_DIR:/pulsar-client-cpp \
+        --env PLATFORM=amd64 \
+        $IMAGE_NAME \
+        /pulsar-client-cpp/pkg/deb/build-deb.sh

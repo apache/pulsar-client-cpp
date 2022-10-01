@@ -51,7 +51,7 @@ cat <<EOF > $DEST_DIR/DEBIAN/control
 Package: apache-pulsar-client
 Version: ${VERSION}
 Maintainer: Apache Pulsar <dev@pulsar.apache.org>
-Architecture: amd64
+Architecture: ${PLATFORM}
 Description: The Apache Pulsar client contains a C++ and C APIs to interact with Apache Pulsar brokers.
 EOF
 
@@ -61,7 +61,7 @@ cat <<EOF > $DEVEL_DEST_DIR/DEBIAN/control
 Package: apache-pulsar-client-dev
 Version: ${VERSION}
 Maintainer: Apache Pulsar <dev@pulsar.apache.org>
-Architecture: amd64
+Architecture: ${PLATFORM}
 Depends: apache-pulsar-client
 Description: The Apache Pulsar client contains a C++ and C APIs to interact with Apache Pulsar brokers.
 EOF
