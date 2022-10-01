@@ -47,6 +47,7 @@ apache-pulsar-client-cpp-*.tar.gz
 /examples/SampleReaderCApi
 /examples/SampleFileLogger
 /tests/main
+/tests/pulsar-tests
 /perf/perfProducer
 /perf/perfConsumer
 /system-test/SystemTest
@@ -95,3 +96,6 @@ vcpkg_installed/
 
 *.orig
 *.rej
+.tests-container-id.txt
+Testing
+.test-token.txt

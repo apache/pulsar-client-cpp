@@ -30,11 +30,9 @@ static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string serviceUrlHttp = "http://localhost:8080";
 static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
 static const std::string serviceUrlHttps = "https://localhost:8443";
-static const std::string caPath = "../../pulsar-broker/src/test/resources/authentication/tls/cacert.pem";
-static const std::string clientCertificatePath =
-    "../../pulsar-broker/src/test/resources/authentication/tls/client-cert.pem";
-static const std::string clientPrivateKeyPath =
-    "../../pulsar-broker/src/test/resources/authentication/tls/client-key.pem";
+static const std::string caPath = "../test-conf/cacert.pem";
+static const std::string clientCertificatePath = "../test-conf/client-cert.pem";
+static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
 
 TEST(AuthPluginBasic, testBasic) {
     ClientConfiguration config = ClientConfiguration();
@@ -253,5 +251,5 @@ TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
 
     Producer producer;
     Result result = client.createProducer(topicName, producer);
-    ASSERT_EQ(ResultConnectError, result);
+    ASSERT_EQ(ResultLookupError, result);
 }

@@ -19,19 +19,15 @@
 #
 
 set -e
-git config --global --add safe.directory /pulsar
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pulsar-client-cpp
-
-JAVA_HOME=/usr ./pulsar-test-service-start.sh
-
+cd $ROOT_DIR
 
 pushd tests
 
 export RETRY_FAILED="${RETRY_FAILED:-1}"
 
-if [ -f /gtest-parallel/gtest-parallel ]; then
+if [ -f /gtest-parallel ]; then
     gtest_workers=10
     # use nproc to set workers to 2 x the number of available cores if nproc is available
     if [ -x "$(command -v nproc)" ]; then
@@ -45,55 +41,17 @@ if [ -f /gtest-parallel/gtest-parallel ]; then
         tests="--gtest_filter=$1"
         echo "Running tests: $1"
     fi
-    python3 /gtest-parallel/gtest-parallel $tests --dump_json_test_results=/tmp/gtest_parallel_results.json \
+    python3 /gtest-parallel $tests --dump_json_test_results=/tmp/gtest_parallel_results.json \
       --workers=$gtest_workers --retry_failed=$RETRY_FAILED -d /tmp \
-      ./main --gtest_filter='-CustomLoggerTest*'
+      ./pulsar-tests --gtest_filter='-CustomLoggerTest*'
     # The customized logger might affect other tests
-    ./main --gtest_filter='CustomLoggerTest*'
+    ./pulsar-tests --gtest_filter='CustomLoggerTest*'
     RES=$?
 else
-    ./main
+    ./pulsar-tests
     RES=$?
 fi
 
 popd
-
-if [ $RES -eq 0 ]; then
-    pushd python
-    echo "---- Build Python Wheel file"
-    python3 setup.py bdist_wheel
-
-    echo "---- Installing Python Wheel file"
-    ls -lha dist
-    WHEEL_FILE=$(ls dist/ | grep whl)
-    echo "${WHEEL_FILE}"
-    echo "dist/${WHEEL_FILE}[all]"
-    pip3 install dist/${WHEEL_FILE}[all]
-
-    echo "---- Running Python unit tests"
-
-    # Running tests from a different directory to avoid importing directly
-    # from the current dir, but rather using the installed wheel file
-    cp *_test.py /tmp
-    pushd /tmp
-
-    python3 custom_logger_test.py
-    RES=$?
-    echo "custom_logger_test.py: $RES"
-
-    python3 pulsar_test.py
-    RES=$?
-    echo "pulsar_test.py: $RES"
-
-    echo "---- Running Python Function Instance unit tests"
-    bash $ROOT_DIR/pulsar-functions/instance/src/scripts/run_python_instance_tests.sh
-    RES=$?
-    echo "run_python_instance_tests.sh: $RES"
-
-    popd
-    popd
-fi
-
-./pulsar-test-service-stop.sh
 
 exit $RES

@@ -23,103 +23,16 @@ set -e
 SRC_DIR=$(git rev-parse --show-toplevel)
 cd $SRC_DIR
 
-if [ -f /.dockerenv ]; then
-    # When running tests inside docker. Unpack the pulsar tgz
-    # because otherwise the classpath might not be correct
-    # in picking up the jars from local maven repo
-    export PULSAR_DIR=/tmp/pulsar-test-dist
-    rm -rf $PULSAR_DIR
-    mkdir $PULSAR_DIR
-    TGZ=$(ls -1 $SRC_DIR/distribution/server/target/apache-pulsar*bin.tar.gz | head -1)
-    tar -xzf $TGZ -C $PULSAR_DIR --strip-components 1
-else
-    export PULSAR_DIR=$SRC_DIR
-fi
+./pulsar-test-service-stop.sh
 
-DATA_DIR=/tmp/pulsar-test-data
-rm -rf $DATA_DIR
-mkdir -p $DATA_DIR
+CONTAINER_ID=$(docker run -i -p 8080:8080 -p 6650:6650 -p 8443:8443 -p 6651:6651 --rm --detach apachepulsar/pulsar:latest sleep 3600)
+echo $CONTAINER_ID > .tests-container-id.txt
 
-# Set up basic authentication
-cp $SRC_DIR/pulsar-client-cpp/test-conf/.htpasswd $DATA_DIR/.htpasswd
-export PULSAR_EXTRA_OPTS=-Dpulsar.auth.basic.conf=$DATA_DIR/.htpasswd
+docker cp test-conf $CONTAINER_ID:/pulsar/test-conf
+docker cp build-support/start-test-service-inside-container.sh $CONTAINER_ID:start-test-service-inside-container.sh
 
-# Copy TLS test certificates
-mkdir -p $DATA_DIR/certs
-cp $SRC_DIR/pulsar-broker/src/test/resources/authentication/tls/*.pem $DATA_DIR/certs
+docker exec -i $CONTAINER_ID /start-test-service-inside-container.sh
 
-# Generate secret key and token
-mkdir -p $DATA_DIR/tokens
-$PULSAR_DIR/bin/pulsar tokens create-secret-key --output $DATA_DIR/tokens/secret.key
-
-$PULSAR_DIR/bin/pulsar tokens create \
-            --subject token-principal \
-            --secret-key file:///$DATA_DIR/tokens/secret.key \
-            > $DATA_DIR/tokens/token.txt
-
-export PULSAR_STANDALONE_CONF=$SRC_DIR/pulsar-client-cpp/test-conf/standalone-ssl.conf
-$PULSAR_DIR/bin/pulsar-daemon start standalone \
-        --no-functions-worker --no-stream-storage \
-        --bookkeeper-dir $DATA_DIR/bookkeeper
-
-echo "-- Wait for Pulsar service to be ready"
-until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
-
-echo "-- Pulsar service is ready -- Configure permissions"
-
-export PULSAR_CLIENT_CONF=$SRC_DIR/pulsar-client-cpp/test-conf/client-ssl.conf
-
-# Create "standalone" cluster if it does not exist
-$PULSAR_DIR/bin/pulsar-admin clusters list | grep -q '^standalone$' ||
-        $PULSAR_DIR/bin/pulsar-admin clusters create \
-                standalone \
-                --url http://localhost:8080/ \
-                --url-secure https://localhost:8443/ \
-                --broker-url pulsar://localhost:6650/ \
-                --broker-url-secure pulsar+ssl://localhost:6651/
-
-# Update "public" tenant
-$PULSAR_DIR/bin/pulsar-admin tenants update public -r "anonymous" -c "standalone"
-
-# Update "public/default" with no auth required
-$PULSAR_DIR/bin/pulsar-admin namespaces grant-permission public/default \
-                        --actions produce,consume \
-                        --role "anonymous"
-
-# Create "public/default-2" with no auth required
-$PULSAR_DIR/bin/pulsar-admin namespaces create public/default-2 \
-                        --clusters standalone
-$PULSAR_DIR/bin/pulsar-admin namespaces grant-permission public/default-2 \
-                        --actions produce,consume \
-                        --role "anonymous"
-
-# Create "public/default-3" with no auth required
-$PULSAR_DIR/bin/pulsar-admin namespaces create public/default-3 \
-                        --clusters standalone
-$PULSAR_DIR/bin/pulsar-admin namespaces grant-permission public/default-3 \
-                        --actions produce,consume \
-                        --role "anonymous"
-
-# Create "public/default-4" with encryption required
-$PULSAR_DIR/bin/pulsar-admin namespaces create public/default-4 \
-                        --clusters standalone
-$PULSAR_DIR/bin/pulsar-admin namespaces grant-permission public/default-4 \
-                        --actions produce,consume \
-                        --role "anonymous"
-$PULSAR_DIR/bin/pulsar-admin namespaces set-encryption-required public/default-4 -e
-
-# Create "public/test-backlog-quotas" to test backlog quotas policy
-$PULSAR_DIR/bin/pulsar-admin namespaces create public/test-backlog-quotas \
-                        --clusters standalone
-
-# Create "private" tenant
-$PULSAR_DIR/bin/pulsar-admin tenants create private -r "" -c "standalone"
-
-# Create "private/auth" with required authentication
-$PULSAR_DIR/bin/pulsar-admin namespaces create private/auth --clusters standalone
-
-$PULSAR_DIR/bin/pulsar-admin namespaces grant-permission private/auth \
-                        --actions produce,consume \
-                        --role "token-principal"
+docker cp $CONTAINER_ID:/pulsar/data/tokens/token.txt .test-token.txt
 
 echo "-- Ready to start tests"
