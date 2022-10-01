@@ -251,5 +251,5 @@ TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
 
     Producer producer;
     Result result = client.createProducer(topicName, producer);
-    ASSERT_EQ(ResultConnectError, result);
+    ASSERT_EQ(ResultLookupError, result);
 }
