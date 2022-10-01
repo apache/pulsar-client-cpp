@@ -20,10 +20,13 @@
 
 set -ex
 
-ROOT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )"/../.. &> /dev/null && pwd )"
-IMAGE_NAME=apachepulsar/pulsar-build:centos-7-2.11-x86_64
+ROOT_DIR=$(git rev-parse --show-toplevel)
+
+IMAGE_NAME=apachepulsar/pulsar-build:centos-7-2.11-arm64
 
 docker pull $IMAGE_NAME
 
-docker run -v $ROOT_DIR:/pulsar-client-cpp $IMAGE_NAME \
+docker run -v $ROOT_DIR:/pulsar-client-cpp \
+        --env PLATFORM=aarch64 \
+        $IMAGE_NAME \
         /pulsar-client-cpp/pkg/rpm/build-rpm.sh
