@@ -43,6 +43,6 @@ chmod 644 ~/.abuild/*
 
 mkdir -p pkg
 chmod 777 pkg
+chgrp pulsar pkg
 
 sudo -E -u pulsar abuild -r
-
