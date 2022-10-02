@@ -18,12 +18,15 @@
 # under the License.
 #
 
-set -e
+set -e -x
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-IMAGE=apachepulsar/pulsar-build:alpine-3.11
+cd $ROOT_DIR/pkg/apk
 
-docker pull $IMAGE
+# ARM
+IMAGE=apachepulsar/pulsar-build:alpine-3.16-arm64
+docker build --platform arm64 -t $IMAGE . --build-arg PLATFORM=aarch64
 
-docker run -i -v $ROOT_DIR:/pulsar-client-cpp $IMAGE \
-        /pulsar-client-cpp/pkg/apk/build-apk.sh
+# X86_64
+IMAGE=apachepulsar/pulsar-build:alpine-3.16-x86_64
+docker build --platform x86_64 -t $IMAGE . --build-arg PLATFORM=x86_64

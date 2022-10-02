@@ -210,9 +210,7 @@ jobs:
         run: build-support/generate-source-archive.sh
 
       - name: Build Debian packages
-        run: |
-          echo "Build Debian packages"
-          BUILD_IMAGE=1 pkg/deb/docker-build-deb-x86_64.sh
+        run: pkg/deb/docker-build-deb-x86_64.sh
 
   rpm-packaging:
     name: Build RPM Package
@@ -228,24 +226,20 @@ jobs:
         run: build-support/generate-source-archive.sh
 
       - name: Build RPM packages
-        run: |
-          echo "Build RPM packages"
-          BUILD_IMAGE=1 pkg/rpm/docker-build-rpm-x86_64.sh
+        run: pkg/rpm/docker-build-rpm-x86_64.sh
 
-#  apk-packaging:
-#    name: Build Alpine Linux APK Package
-#    runs-on: ubuntu-20.04
-#    needs: unit-tests
-#    timeout-minutes: 120
-#
-#    steps:
-#      - name: checkout
-#        uses: actions/checkout@v2
-#
-#      - name: Package Pulsar source
-#        run: build-support/generate-source-archive.sh
-#
-#      - name: Build APK packages
-#        run: |
-#          echo "Build APK packages"
-#          BUILD_IMAGE=1 pkg/apk/docker-build-apk.sh
+  apk-packaging:
+    name: Build Alpine Linux APK Package
+    runs-on: ubuntu-20.04
+    needs: unit-tests
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build APK packages
+        run: pkg/apk/docker-build-apk-x86_64.sh

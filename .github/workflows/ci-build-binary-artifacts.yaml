@@ -120,3 +120,47 @@ jobs:
         with:
           name: rpm-arm64
           path: pkg/rpm/RPMS
+
+  apk-packaging-x86_64:
+    name: Build Alpine Linux APK Package - x86_64
+    runs-on: ubuntu-20.04
+    needs: unit-tests
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build APK packages
+        run: pkg/apk/docker-build-apk-x86_64.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: apk-x86_64
+          path: pkg/apk/pkg/x86_64
+
+  apk-packaging-arm64:
+    name: Build Alpine Linux APK Package - arm64
+    runs-on: ubuntu-20.04
+    needs: unit-tests
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+
+      - name: Package Pulsar source
+        run: build-support/generate-source-archive.sh
+
+      - name: Build APK packages
+        run: pkg/apk/docker-build-apk-arm64.sh
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: apk-arm64
+          path: pkg/apk/pkg/aarch64

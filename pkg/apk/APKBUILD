@@ -48,7 +48,7 @@ build() {
 		-DBUILD_TESTS=OFF \
                 -DLINK_STATIC=ON  \
 		${CMAKE_CROSSOPTS} ${ROOT_DIR}
-	make
+	make -j6
 }
 
 package() {
