@@ -20,8 +20,6 @@
 name: CI - Build binary artifacts
 on:
   push:
-    branches:
-      - '*'
     tags:
       - '*'
 

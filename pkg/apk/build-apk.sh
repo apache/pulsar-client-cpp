@@ -41,9 +41,8 @@ chmod 755 ~
 chmod 755 ~/.abuild
 chmod 644 ~/.abuild/*
 
-mkdir -p /root/packages
-chmod 777 /root/packages
+mkdir -p pkg
+chmod 777 pkg
 
 sudo -E -u pulsar abuild -r
 
-mv /root/packages/pkg .
