@@ -138,7 +138,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: apk-x86_64
-          path: pkg/apk/pkg/x86_64
+          path: pkg/apk/build/x86_64
 
   apk-packaging-arm64:
     name: Build Alpine Linux APK Package - arm64
@@ -162,4 +162,4 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: apk-arm64
-          path: pkg/apk/pkg/aarch64
+          path: pkg/apk/build/aarch64

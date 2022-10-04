@@ -38,3 +38,5 @@ echo "VERSION: $VERSION"
 
 abuild-keygen -a -i -n
 abuild -F -c -r
+
+cp -r /root/packages/pkg ./build
