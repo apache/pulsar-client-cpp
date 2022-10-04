@@ -37,12 +37,4 @@ export VERSION=`echo $POM_VERSION | sed -E 's/\-[a-zA-Z]+//'`
 echo "VERSION: $VERSION"
 
 abuild-keygen -a -i -n
-chmod 755 ~
-chmod 755 ~/.abuild
-chmod 644 ~/.abuild/*
-
-mkdir -p pkg
-chmod 777 pkg
-chgrp pulsar pkg
-
-sudo -E -u pulsar abuild -r
+abuild -F -c -r

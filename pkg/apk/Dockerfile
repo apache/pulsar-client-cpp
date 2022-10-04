@@ -23,6 +23,7 @@ ARG PLATFORM
 
 # perl is required to install OpenSSL
 RUN apk add \
+      build-base \
       abuild \
       bash \
       curl \
