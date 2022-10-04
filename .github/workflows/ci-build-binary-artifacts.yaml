@@ -149,6 +149,9 @@ jobs:
       - name: checkout
         uses: actions/checkout@v2
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
+
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
