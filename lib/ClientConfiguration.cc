@@ -87,7 +87,9 @@ ClientConfiguration& ClientConfiguration::setTlsPrivateKeyFilePath(const std::st
     return *this;
 }
 
-const std::string& ClientConfiguration::getTlsPrivateKeyFilePath() const { return impl_->tlsPrivateKeyFilePath; }
+const std::string& ClientConfiguration::getTlsPrivateKeyFilePath() const {
+    return impl_->tlsPrivateKeyFilePath;
+}
 
 ClientConfiguration& ClientConfiguration::setTlsCertificateFilePath(const std::string& filePath) {
     impl_->tlsCertificateFilePath = filePath;

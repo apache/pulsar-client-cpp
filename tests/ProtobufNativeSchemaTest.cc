@@ -104,8 +104,7 @@ TEST(ProtobufNativeSchemaTest, testSchemaIncompatibility) {
     producer.close();
 
     // Try to create producer with another protobuf generated class
-    ASSERT_EQ(ResultIncompatibleSchema,
-              createProducerResult(getExternalMessageDescriptor()));
+    ASSERT_EQ(ResultIncompatibleSchema, createProducerResult(getExternalMessageDescriptor()));
 
     // Try to create producer with the original schema again
     ASSERT_EQ(ResultOk, createProducerResult(getTestMessageDescriptor()));
