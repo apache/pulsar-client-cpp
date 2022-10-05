@@ -23,6 +23,8 @@ set -e -x
 ROOT_DIR=$(git rev-parse --show-toplevel)
 cd $ROOT_DIR/pkg/apk
 
+$ROOT_DIR/build-support/copy-deps-versionfile.sh
+
 # ARM
 IMAGE=apachepulsar/pulsar-build:alpine-3.16-arm64
 docker build --platform arm64 -t $IMAGE . --build-arg PLATFORM=aarch64

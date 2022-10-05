@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,17 +18,7 @@
 # under the License.
 #
 
-set -e -x
+import yaml, sys
 
-ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pkg/rpm
-
-$ROOT_DIR/build-support/copy-deps-versionfile.sh
-
-# ARM
-IMAGE=apachepulsar/pulsar-build:centos-7-2.11-arm64
-docker build --platform arm64 -t $IMAGE . --build-arg PLATFORM=aarch64
-
-# X86_64
-IMAGE=apachepulsar/pulsar-build:centos-7-2.11-x86_64
-docker build --platform x86_64 -t $IMAGE . --build-arg PLATFORM=x86_64
+deps = yaml.safe_load(open('dependencies.yaml'))
+print(deps[sys.argv[1]])

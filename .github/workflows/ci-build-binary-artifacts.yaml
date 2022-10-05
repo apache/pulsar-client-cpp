@@ -41,8 +41,20 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
+      - uses: docker/setup-buildx-action@v2
+      - run: build-support/copy-deps-versionfile.sh
+
+      - name: Build dependencies Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./pkg/deb
+          tags: ${{ env.TEST_TAG }}
+          build-args: PLATFORM=x86_64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-x86_64.sh
+        run: pkg/deb/docker-build-deb-x86_64.sh ${{ env.TEST_TAG }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -65,8 +77,21 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
+      - uses: docker/setup-buildx-action@v2
+      - run: build-support/copy-deps-versionfile.sh
+
+      - name: Build dependencies Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./pkg/deb
+          tags: ${{ env.TEST_TAG }}
+          build-args: PLATFORM=aarch64
+          platforms: linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-arm64.sh
+        run: pkg/deb/docker-build-deb-arm64.sh ${{ env.TEST_TAG }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -86,8 +111,20 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
+      - uses: docker/setup-buildx-action@v2
+      - run: build-support/copy-deps-versionfile.sh
+
+      - name: Build dependencies Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./pkg/rpm
+          tags: ${{ env.TEST_TAG }}
+          build-args: PLATFORM=x86_64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-x86_64.sh
+        run: pkg/rpm/docker-build-rpm-x86_64.sh ${{ env.TEST_TAG }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -110,8 +147,21 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
+      - uses: docker/setup-buildx-action@v2
+      - run: build-support/copy-deps-versionfile.sh
+
+      - name: Build dependencies Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./pkg/rpm
+          tags: ${{ env.TEST_TAG }}
+          build-args: PLATFORM=aarch64
+          platforms: linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-arm64.sh
+        run: pkg/rpm/docker-build-rpm-arm64.sh ${{ env.TEST_TAG }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -131,8 +181,20 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
+      - uses: docker/setup-buildx-action@v2
+      - run: build-support/copy-deps-versionfile.sh
+
+      - name: Build dependencies Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./pkg/apk
+          tags: ${{ env.TEST_TAG }}
+          build-args: PLATFORM=x86_64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build APK packages
-        run: pkg/apk/docker-build-apk-x86_64.sh
+        run: pkg/apk/docker-build-apk-x86_64.sh ${{ env.TEST_TAG }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -155,8 +217,21 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
+      - uses: docker/setup-buildx-action@v2
+      - run: build-support/copy-deps-versionfile.sh
+
+      - name: Build dependencies Docker image
+        uses: docker/build-push-action@v3
+        with:
+          context: ./pkg/apk
+          tags: ${{ env.TEST_TAG }}
+          build-args: PLATFORM=aarch64
+          platforms: linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
       - name: Build APK packages
-        run: pkg/apk/docker-build-apk-arm64.sh
+        run: pkg/apk/docker-build-apk-arm64.sh ${{ env.TEST_TAG }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3

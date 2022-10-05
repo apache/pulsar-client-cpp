@@ -24,67 +24,89 @@ ARG PLATFORM
 # perl is required to install OpenSSL
 RUN apk add \
       build-base \
+      linux-headers \
       abuild \
       bash \
       curl \
       g++ \
       make \
-      python3 \
       cmake \
-      boost-dev \
+      python3 \
+      py3-pip \
       perl \
       sudo
 
-# Download and copile protoubf
-RUN curl -O -L  https://github.com/google/protobuf/releases/download/v3.20.0/protobuf-cpp-3.20.0.tar.gz && \
-    tar xfz protobuf-cpp-3.20.0.tar.gz && \
-    cd protobuf-3.20.0/ && \
+RUN pip3 install pyyaml
+
+ADD .build/dependencies.yaml /
+ADD .build/dep-version.py /usr/local/bin
+
+# Download and compile boost
+RUN BOOST_VERSION=$(dep-version.py boost) && \
+    BOOST_VERSION_UNDESRSCORE=$(echo $BOOST_VERSION | sed 's/\./_/g') && \
+    curl -O -L https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
+    tar xfz boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
+    cd boost_${BOOST_VERSION_UNDESRSCORE} && \
+    ./bootstrap.sh --with-libraries=regex && \
+    ./b2 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
+    rm -rf /boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz /boost_${BOOST_VERSION_UNDESRSCORE}
+
+# Download and compile protobuf
+RUN PROTOBUF_VERSION=$(dep-version.py protobuf) && \
+    curl -O -L  https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
+    tar xfz protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
+    cd protobuf-${PROTOBUF_VERSION}/ && \
     CXXFLAGS=-fPIC ./configure && \
     make -j8 && make install && \
-    rm -rf /protobuf-cpp-3.20.0.tar.gz /protobuf-3.20.0
+    rm -rf /protobuf-cpp-${PROTOBUF_VERSION}.tar.gz /protobuf-${PROTOBUF_VERSION}
 
 # ZLib
-RUN curl -O -L https://github.com/madler/zlib/archive/v1.2.12.tar.gz && \
-    tar xfz v1.2.12.tar.gz && \
-    cd zlib-1.2.12 && \
+RUN ZLIB_VERSION=$(dep-version.py zlib) && \
+    curl -O -L https://github.com/madler/zlib/archive/v${ZLIB_VERSION}.tar.gz && \
+    tar xfz v${ZLIB_VERSION}.tar.gz && \
+    cd zlib-${ZLIB_VERSION} && \
     CFLAGS="-fPIC -O3" ./configure && \
-    make && make install && \
-    rm -rf /v1.2.12.tar.gz /zlib-1.2.12
+    make -j8 && make install && \
+    rm -rf /v${ZLIB_VERSION}.tar.gz /zlib-${ZLIB_VERSION}
 
 # Zstandard
-RUN curl -O -L https://github.com/facebook/zstd/releases/download/v1.5.2/zstd-1.5.2.tar.gz && \
-    tar xfz zstd-1.5.2.tar.gz && \
-    cd zstd-1.5.2 && \
+RUN ZSTD_VERSION=$(dep-version.py zstd) && \
+    curl -O -L https://github.com/facebook/zstd/releases/download/v${ZSTD_VERSION}/zstd-${ZSTD_VERSION}.tar.gz && \
+    tar xfz zstd-${ZSTD_VERSION}.tar.gz && \
+    cd zstd-${ZSTD_VERSION} && \
     CFLAGS="-fPIC -O3" make -j8 && \
     make install && \
-    rm -rf /zstd-1.5.2 /zstd-1.5.2.tar.gz
+    rm -rf /zstd-${ZSTD_VERSION} /zstd-${ZSTD_VERSION}.tar.gz
 
 # Snappy
-RUN curl -O -L https://github.com/google/snappy/releases/download/1.1.3/snappy-1.1.3.tar.gz && \
-    tar xfz snappy-1.1.3.tar.gz && \
-    cd snappy-1.1.3 && \
-    CXXFLAGS="-fPIC -O3" ./configure && \
-    make && make install && \
-    rm -rf /snappy-1.1.3 /snappy-1.1.3.tar.gz
+RUN SNAPPY_VERSION=$(dep-version.py snappy) && \
+    curl -O -L https://github.com/google/snappy/archive/refs/tags/${SNAPPY_VERSION}.tar.gz && \
+    tar xfz ${SNAPPY_VERSION}.tar.gz && \
+    cd snappy-${SNAPPY_VERSION} && \
+    CXXFLAGS="-fPIC -O3" cmake . -DSNAPPY_BUILD_TESTS=OFF -DSNAPPY_BUILD_BENCHMARKS=OFF && \
+    make -j8 && make install && \
+    rm -rf /snappy-${SNAPPY_VERSION} /snappy-${SNAPPY_VERSION}.tar.gz
 
-RUN curl -O -L https://github.com/openssl/openssl/archive/OpenSSL_1_1_1n.tar.gz && \
-    tar xfz OpenSSL_1_1_1n.tar.gz && \
-    cd openssl-OpenSSL_1_1_1n/ && \
+RUN OPENSSL_VERSION=$(dep-version.py openssl) && \
+    OPENSSL_VERSION_UNDERSCORE=$(echo $OPENSSL_VERSION | sed 's/\./_/g') && \
+    curl -O -L https://github.com/openssl/openssl/archive/OpenSSL_${OPENSSL_VERSION_UNDERSCORE}.tar.gz && \
+    tar xfz OpenSSL_${OPENSSL_VERSION_UNDERSCORE}.tar.gz && \
+    cd openssl-OpenSSL_${OPENSSL_VERSION_UNDERSCORE}/ && \
     ./Configure -fPIC --prefix=/usr/local/ssl/ linux-${PLATFORM} && \
     make -j8 && make install && \
-    rm -rf /OpenSSL_1_1_1n.tar.gz /openssl-OpenSSL_1_1_1n
+    rm -rf /OpenSSL_${OPENSSL_VERSION_UNDERSCORE}.tar.gz /openssl-OpenSSL_${OPENSSL_VERSION_UNDERSCORE}
 
 ENV LD_LIBRARY_PATH /usr/local/ssl/lib/:
-
-# LibCurl
-RUN curl -O -L  https://github.com/curl/curl/releases/download/curl-7_61_0/curl-7.61.0.tar.gz && \
-    tar xfz curl-7.61.0.tar.gz && \
-    cd curl-7.61.0 && \
-    CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ && \
-    make -j8 && make install && \
-    rm -rf /curl-7.61.0.tar.gz /curl-7.61.0
-
 ENV OPENSSL_ROOT_DIR /usr/local/ssl/
 
-RUN adduser pulsar -D
-RUN addgroup pulsar abuild
+# LibCurl
+RUN CURL_VERSION=$(dep-version.py curl) && \
+    CURL_VERSION_UNDERSCORE=$(echo $CURL_VERSION | sed 's/\./_/g') && \
+    curl -O -L  https://github.com/curl/curl/releases/download/curl-${CURL_VERSION_UNDERSCORE}/curl-${CURL_VERSION}.tar.gz && \
+    tar xfz curl-${CURL_VERSION}.tar.gz && \
+    cd curl-${CURL_VERSION} && \
+    CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ --without-zstd && \
+    make -j8 && make install && \
+    rm -rf /curl-${CURL_VERSION}.tar.gz /curl-${CURL_VERSION}
+
+

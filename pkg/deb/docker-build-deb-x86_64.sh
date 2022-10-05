@@ -22,7 +22,7 @@ set -ex
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
 
-IMAGE_NAME=apachepulsar/pulsar-build:debian-9-2.11-x86_64
+IMAGE_NAME=${1:-apachepulsar/pulsar-build:debian-9-2.11-x86_64}
 
 docker pull $IMAGE_NAME
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
