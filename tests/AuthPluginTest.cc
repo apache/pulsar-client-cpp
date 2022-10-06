@@ -38,7 +38,7 @@ static const std::string serviceUrlHttps = "https://localhost:8443";
 
 static const std::string caPath = "../test-conf/cacert.pem";
 static const std::string clientPublicKeyPath = "../test-conf/client-cert.pem";
-static const std::string clientPrivateKeyPath =     "../test-conf/client-key.pem";
+static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
 
 static void sendCallBackTls(Result r, const MessageId& msgId) {
     ASSERT_EQ(r, ResultOk);

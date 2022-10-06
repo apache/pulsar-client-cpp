@@ -61,8 +61,8 @@ jobs:
       - name: CMake
         run: cmake . -DBUILD_PERF_TOOLS=ON
 
-#      - name: Check formatting
-#        run: make check-format
+      - name: Check formatting
+        run: make check-format
 
       - name: Build
         run: make -j8
