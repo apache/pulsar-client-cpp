@@ -114,6 +114,31 @@ class PULSAR_PUBLIC Consumer {
     void receiveAsync(ReceiveCallback callback);
 
     /**
+     * Batch receiving messages.
+     *
+     * <p>This calls blocks until has enough messages or wait timeout, more details to see {@link
+     * BatchReceivePolicy}.
+     *
+     * @param msgs a non-const reference where the received messages will be copied
+     * @return ResultOk when a message is received
+     * @return ResultInvalidConfiguration if a message listener had been set in the configuration
+     */
+    Result batchReceive(Messages& msgs);
+
+    /**
+     * Async Batch receiving messages.
+     * <p>
+     * Retrieves a message when it will be available and completes callback with received message.
+     * </p>
+     * <p>
+     * batchReceiveAsync() should be called subsequently once callback gets completed with received message.
+     * Else it creates <i> backlog of receive requests </i> in the application.
+     * </p>
+     * @param BatchReceiveCallback will be completed when messages are available.
+     */
+    void batchReceiveAsync(BatchReceiveCallback callback);
+
+    /**
      * Acknowledge the reception of a single message.
      *
      * This method will block until an acknowledgement is sent to the broker. After
