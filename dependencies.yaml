@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,17 +17,11 @@
 # under the License.
 #
 
-set -e -x
-
-ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pkg/rpm
-
-$ROOT_DIR/build-support/copy-deps-versionfile.sh
-
-# ARM
-IMAGE=apachepulsar/pulsar-build:centos-7-2.11-arm64
-docker build --platform arm64 -t $IMAGE . --build-arg PLATFORM=aarch64
-
-# X86_64
-IMAGE=apachepulsar/pulsar-build:centos-7-2.11-x86_64
-docker build --platform x86_64 -t $IMAGE . --build-arg PLATFORM=x86_64
+boost : 1.80.0
+cmake: 3.24.2
+protobuf: 3.20.0
+zlib: 1.2.12
+zstd: 1.5.2
+snappy: 1.1.9
+openssl: 1.1.1q
+curl: 7.85.0

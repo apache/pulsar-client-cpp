@@ -17,21 +17,24 @@
 # under the License.
 #
 
-# Build pulsar client library in Centos with tools to build static RPM
-
-FROM centos:7
+FROM alpine:3.16
 
 ARG PLATFORM
 
-RUN yum update -y && \
-    yum install -y \
-        gcc-c++ \
-        make \
-        rpm-build \
-        which \
-        createrepo \
-        libstdc++-static \
-        python3
+# perl is required to install OpenSSL
+RUN apk add \
+      build-base \
+      linux-headers \
+      abuild \
+      bash \
+      curl \
+      g++ \
+      make \
+      cmake \
+      python3 \
+      py3-pip \
+      perl \
+      sudo
 
 RUN pip3 install pyyaml
 
@@ -39,9 +42,7 @@ ADD .build/dependencies.yaml /
 ADD .build/dep-version.py /usr/local/bin
 
 # Download and compile boost
-# GCC 4.8.2 implementation of std::regex is buggy, so we install boost::regex here
 RUN BOOST_VERSION=$(dep-version.py boost) && \
-    echo "BOOST VERSION: '${BOOST_VERSION}'" && \
     BOOST_VERSION_UNDESRSCORE=$(echo $BOOST_VERSION | sed 's/\./_/g') && \
     curl -O -L https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
     tar xfz boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
@@ -50,20 +51,13 @@ RUN BOOST_VERSION=$(dep-version.py boost) && \
     ./b2 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
     rm -rf /boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz /boost_${BOOST_VERSION_UNDESRSCORE}
 
-RUN CMAKE_VERSION=$(dep-version.py cmake) && \
-    curl -O -L https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${PLATFORM}.tar.gz && \
-    tar xfz cmake-${CMAKE_VERSION}-linux-${PLATFORM}.tar.gz && \
-    cp cmake-${CMAKE_VERSION}-linux-${PLATFORM}/bin/* /usr/bin/ && \
-    cp -r cmake-${CMAKE_VERSION}-linux-${PLATFORM}/share/cmake-* /usr/share/ && \
-    rm -rf cmake-${CMAKE_VERSION}-linux-${PLATFORM} cmake-${CMAKE_VERSION}-linux-${PLATFORM}.tar.gz
-
-# Download and copile protoubf
+# Download and compile protobuf
 RUN PROTOBUF_VERSION=$(dep-version.py protobuf) && \
     curl -O -L  https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
     tar xfz protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
     cd protobuf-${PROTOBUF_VERSION}/ && \
     CXXFLAGS=-fPIC ./configure && \
-    make -j8 && make install && ldconfig && \
+    make -j8 && make install && \
     rm -rf /protobuf-cpp-${PROTOBUF_VERSION}.tar.gz /protobuf-${PROTOBUF_VERSION}
 
 # ZLib
@@ -114,4 +108,5 @@ RUN CURL_VERSION=$(dep-version.py curl) && \
     CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ --without-zstd && \
     make -j8 && make install && \
     rm -rf /curl-${CURL_VERSION}.tar.gz /curl-${CURL_VERSION}
+
 

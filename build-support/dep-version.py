@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -18,12 +18,7 @@
 # under the License.
 #
 
-set -e
+import yaml, sys
 
-ROOT_DIR=$(git rev-parse --show-toplevel)
-IMAGE=apachepulsar/pulsar-build:alpine-3.11
-
-docker pull $IMAGE
-
-docker run -i -v $ROOT_DIR:/pulsar-client-cpp $IMAGE \
-        /pulsar-client-cpp/pkg/apk/build-apk.sh
+deps = yaml.safe_load(open('dependencies.yaml'))
+print(deps[sys.argv[1]])

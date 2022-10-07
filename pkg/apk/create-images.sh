@@ -21,14 +21,14 @@
 set -e -x
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pkg/rpm
+cd $ROOT_DIR/pkg/apk
 
 $ROOT_DIR/build-support/copy-deps-versionfile.sh
 
 # ARM
-IMAGE=apachepulsar/pulsar-build:centos-7-2.11-arm64
+IMAGE=apachepulsar/pulsar-build:alpine-3.16-arm64
 docker build --platform arm64 -t $IMAGE . --build-arg PLATFORM=aarch64
 
 # X86_64
-IMAGE=apachepulsar/pulsar-build:centos-7-2.11-x86_64
+IMAGE=apachepulsar/pulsar-build:alpine-3.16-x86_64
 docker build --platform x86_64 -t $IMAGE . --build-arg PLATFORM=x86_64

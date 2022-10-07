@@ -22,9 +22,7 @@ set -ex
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
 
-IMAGE_NAME=apachepulsar/pulsar-build:centos-7-2.11-x86_64
-
-docker pull $IMAGE_NAME
+IMAGE_NAME=${1:-apachepulsar/pulsar-build:centos-7-2.11-x86_64}
 
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
         --env PLATFORM=x86_64 \
