@@ -22,7 +22,7 @@ set -e -x
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
 
-IMAGE_NAME=apachepulsar/pulsar-build:alpine-3.16-x86_64
+IMAGE_NAME=${1:-apachepulsar/pulsar-build:alpine-3.16-x86_64}
 
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
         --env PLATFORM=x86_64 \
