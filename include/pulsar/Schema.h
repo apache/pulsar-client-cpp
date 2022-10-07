@@ -27,6 +27,27 @@
 
 namespace pulsar {
 
+/**
+ *  Encoding types of supported KeyValueSchema for Pulsar messages.
+ */
+enum class KeyValueEncodingType
+{
+    /**
+     * Key is stored as message key, while value is stored as message payload.
+     */
+    SEPARATED,
+
+    /**
+     * Key and value are stored as message payload.
+     */
+    INLINE
+};
+
+// Return string representation of result code
+PULSAR_PUBLIC const char *strEncodingType(pulsar::KeyValueEncodingType encodingType);
+
+PULSAR_PUBLIC const KeyValueEncodingType enumEncodingType(std::string encodingTypeStr);
+
 enum SchemaType
 {
     /**
@@ -144,6 +165,14 @@ class PULSAR_PUBLIC SchemaInfo {
                const StringMap &properties = StringMap());
 
     /**
+     * @param keySchema  the key schema.
+     * @param valueSchema  the value schema.
+     * @param keyValueEncodingType Encoding types of supported KeyValueSchema for Pulsar messages.
+     */
+    SchemaInfo(const SchemaInfo &keySchema, const SchemaInfo &valueSchema,
+               const KeyValueEncodingType &keyValueEncodingType = KeyValueEncodingType::INLINE);
+
+    /**
      * @return the schema type
      */
     SchemaType getSchemaType() const;
@@ -171,3 +200,5 @@ class PULSAR_PUBLIC SchemaInfo {
 }  // namespace pulsar
 
 PULSAR_PUBLIC std::ostream &operator<<(std::ostream &s, pulsar::SchemaType schemaType);
+
+PULSAR_PUBLIC std::ostream &operator<<(std::ostream &s, pulsar::KeyValueEncodingType encodingType);

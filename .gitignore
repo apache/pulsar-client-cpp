@@ -45,6 +45,8 @@ apache-pulsar-client-cpp-*.tar.gz
 /examples/SampleConsumerListener
 /examples/SampleConsumerListenerCApi
 /examples/SampleReaderCApi
+/examples/SampleKeyValueSchemaConsumer
+/examples/SampleKeyValueSchemaProducer
 /examples/SampleFileLogger
 /tests/main
 /tests/pulsar-tests

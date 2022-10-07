@@ -22,12 +22,53 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include "SharedBuffer.h"
+using boost::property_tree::ptree;
+using boost::property_tree::read_json;
+using boost::property_tree::write_json;
 
 PULSAR_PUBLIC std::ostream &operator<<(std::ostream &s, pulsar::SchemaType schemaType) {
     return s << strSchemaType(schemaType);
 }
 
+PULSAR_PUBLIC std::ostream &operator<<(std::ostream &s, pulsar::KeyValueEncodingType encodingType) {
+    return s << strEncodingType(encodingType);
+}
+
 namespace pulsar {
+
+static const std::string KEY_SCHEMA_NAME = "key.schema.name";
+static const std::string KEY_SCHEMA_TYPE = "key.schema.type";
+static const std::string KEY_SCHEMA_PROPS = "key.schema.properties";
+static const std::string VALUE_SCHEMA_NAME = "value.schema.name";
+static const std::string VALUE_SCHEMA_TYPE = "value.schema.type";
+static const std::string VALUE_SCHEMA_PROPS = "value.schema.properties";
+static const std::string KV_ENCODING_TYPE = "kv.encoding.type";
+
+PULSAR_PUBLIC const char *strEncodingType(KeyValueEncodingType encodingType) {
+    switch (encodingType) {
+        case KeyValueEncodingType::INLINE:
+            return "INLINE";
+        case KeyValueEncodingType::SEPARATED:
+            return "SEPARATED";
+    };
+    // NOTE : Do not add default case in the switch above. In future if we get new cases for
+    // Schema and miss them in the switch above we would like to get notified. Adding
+    // return here to make the compiler happy.
+    return "UnknownSchemaType";
+}
+
+PULSAR_PUBLIC const KeyValueEncodingType enumEncodingType(std::string encodingTypeStr) {
+    if (encodingTypeStr == "INLINE") {
+        return KeyValueEncodingType::INLINE;
+    } else if (encodingTypeStr == "SEPARATED") {
+        return KeyValueEncodingType::SEPARATED;
+    } else {
+        throw std::invalid_argument("No match encoding type: " + encodingTypeStr);
+    }
+}
 
 PULSAR_PUBLIC const char *strSchemaType(SchemaType schemaType) {
     switch (schemaType) {
@@ -89,6 +130,45 @@ SchemaInfo::SchemaInfo() : impl_(std::make_shared<SchemaInfoImpl>()) {}
 SchemaInfo::SchemaInfo(SchemaType schemaType, const std::string &name, const std::string &schema,
                        const StringMap &properties)
     : impl_(std::make_shared<SchemaInfoImpl>(schemaType, name, schema, properties)) {}
+
+SchemaInfo::SchemaInfo(const SchemaInfo &keySchema, const SchemaInfo &valueSchema,
+                       const KeyValueEncodingType &keyValueEncodingType) {
+    std::string keySchemaStr = keySchema.getSchema();
+    std::string valueSchemaStr = valueSchema.getSchema();
+    uint32_t keySize = keySchemaStr.size();
+    uint32_t valueSize = valueSchemaStr.size();
+
+    auto buffSize = sizeof keySize + keySize + sizeof valueSize + valueSize;
+    SharedBuffer buffer = SharedBuffer::allocate(buffSize);
+    buffer.writeUnsignedInt(keySize == 0 ? -1 : static_cast<uint32_t>(keySize));
+    buffer.write(keySchemaStr.c_str(), static_cast<uint32_t>(keySize));
+    buffer.writeUnsignedInt(valueSize == 0 ? -1 : static_cast<uint32_t>(valueSize));
+    buffer.write(valueSchemaStr.c_str(), static_cast<uint32_t>(valueSize));
+
+    auto writeJson = [](const StringMap &properties) {
+        ptree pt;
+        for (auto &entry : properties) {
+            pt.put(entry.first, entry.second);
+        }
+        std::ostringstream buf;
+        write_json(buf, pt, false);
+        auto s = buf.str();
+        s.pop_back();
+        return s;
+    };
+
+    StringMap properties;
+    properties.emplace(KEY_SCHEMA_NAME, keySchema.getName());
+    properties.emplace(KEY_SCHEMA_TYPE, strSchemaType(keySchema.getSchemaType()));
+    properties.emplace(KEY_SCHEMA_PROPS, writeJson(keySchema.getProperties()));
+    properties.emplace(VALUE_SCHEMA_NAME, valueSchema.getName());
+    properties.emplace(VALUE_SCHEMA_TYPE, strSchemaType(valueSchema.getSchemaType()));
+    properties.emplace(VALUE_SCHEMA_PROPS, writeJson(valueSchema.getProperties()));
+    properties.emplace(KV_ENCODING_TYPE, strEncodingType(keyValueEncodingType));
+
+    impl_ = std::make_shared<SchemaInfoImpl>(KEY_VALUE, "KeyValue", std::string(buffer.data(), buffSize),
+                                             properties);
+}
 
 SchemaType SchemaInfo::getSchemaType() const { return impl_->type_; }
 

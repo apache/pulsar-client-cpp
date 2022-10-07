@@ -458,6 +458,9 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         Lock lock(mutex_);
         numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, msg.redelivery_count());
     } else {
+        // try convery key value data.
+        m.impl_->convertPayloadToKeyValue(config_.getSchema());
+
         const auto startMessageId = startMessageId_.get();
         if (isPersistent_ && startMessageId.is_present() &&
             m.getMessageId().ledgerId() == startMessageId.value().ledgerId() &&
@@ -582,6 +585,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
         Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i);
         msg.impl_->setRedeliveryCount(redeliveryCount);
         msg.impl_->setTopicName(batchedMessage.getTopicName());
+        msg.impl_->convertPayloadToKeyValue(config_.getSchema());
 
         if (startMessageId.is_present()) {
             const MessageId& msgId = msg.getMessageId();

@@ -21,7 +21,7 @@
 #include <pulsar/defines.h>
 
 #include <iostream>
-
+#include "KeyValueImpl.h"
 #include "MessageImpl.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
@@ -189,6 +189,8 @@ uint64_t Message::getPublishTimestamp() const { return impl_ ? impl_->getPublish
 uint64_t Message::getEventTimestamp() const { return impl_ ? impl_->getEventTimestamp() : 0ull; }
 
 bool Message::operator==(const Message& msg) const { return getMessageId() == msg.getMessageId(); }
+
+KeyValue Message::getKeyValueData() const { return KeyValue(impl_->keyValuePtr); }
 
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const Message::StringMap& map) {
     // Output at most 10 elements -- appropriate if used for logging.
