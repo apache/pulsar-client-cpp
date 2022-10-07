@@ -213,6 +213,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/deb
+          load: true
           tags: build-deb-x86_64:latest
           build-args: PLATFORM=x86_64
           cache-from: type=gha
@@ -242,6 +243,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/rpm
+          load: true
           tags: build-rpm-x86_64:latest
           build-args: PLATFORM=x86_64
           cache-from: type=gha
@@ -271,6 +273,7 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/apk
+          load: true
           tags: build-apk-x86_64:latest
           build-args: PLATFORM=x86_64
           cache-from: type=gha
