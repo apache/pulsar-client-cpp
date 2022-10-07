@@ -90,7 +90,7 @@ RUN SNAPPY_VERSION=$(dep-version.py snappy) && \
     cd snappy-${SNAPPY_VERSION} && \
     CXXFLAGS="-fPIC -O3" cmake . -DSNAPPY_BUILD_TESTS=OFF -DSNAPPY_BUILD_BENCHMARKS=OFF && \
     make -j8 && make install && \
-    rm -rf /snappy-${SNAPPY_VERSION} /snappy-${SNAPPY_VERSION}.tar.gz
+    rm -rf /snappy-${SNAPPY_VERSION} /${SNAPPY_VERSION}.tar.gz
 
 RUN OPENSSL_VERSION=$(dep-version.py openssl) && \
     OPENSSL_VERSION_UNDERSCORE=$(echo $OPENSSL_VERSION | sed 's/\./_/g') && \
