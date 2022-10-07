@@ -17,12 +17,16 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-ROOT_DIR=$(git rev-parse --show-toplevel)
 
-VERSION=$(cat ${ROOT_DIR}/version.txt)
+set -e
 
-NAME=apache-pulsar-client-cpp-$VERSION
+FILES=$*
 
-OUT_DIR=${1:-.}
+for FILE in $FILES
+do
+   echo "Signing $FILE"
+   gpg --armor --output $FILE.asc --detach-sig $FILE
 
-git archive --format=tar.gz --prefix ${NAME}/ -o ${OUT_DIR}/${NAME}.tar.gz HEAD
+   # SHA-512 signature
+   shasum -a 512 $FILE > $FILE.sha512
+done

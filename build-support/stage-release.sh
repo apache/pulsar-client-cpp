@@ -17,12 +17,29 @@
 # specific language governing permissions and limitations
 # under the License.
 #
-ROOT_DIR=$(git rev-parse --show-toplevel)
 
-VERSION=$(cat ${ROOT_DIR}/version.txt)
+set -e -x
 
-NAME=apache-pulsar-client-cpp-$VERSION
+if [ $# -neq 2 ]; then
+    echo "Usage: $0 \$DEST_PATH \$WORKFLOW_ID"
+    exit 1
+fi
 
-OUT_DIR=${1:-.}
+DEST_PATH=$1
+WORKFLOW_ID=$1
 
-git archive --format=tar.gz --prefix ${NAME}/ -o ${OUT_DIR}/${NAME}.tar.gz HEAD
+pushd $(dirname "$0")
+PULSAR_CPP_PATH=$(git rev-parse --show-toplevel)
+popd
+
+mkdir -p $DEST_PATH
+
+cd PULSAR_CPP_PATH
+VERSION=$(cat version.txt | xargs)
+
+build-support/generate-source-archive.sh $DEST_PATH
+build-support/download-release-artifacts.py $WORKFLOW_ID $DEST_PATH
+
+# Sign all files
+cd $DEST_PATH
+find . -type f | xargs $PULSAR_CPP_PATH/build-support/sign-files.sh
