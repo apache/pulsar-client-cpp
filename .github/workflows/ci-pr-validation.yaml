@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: CI - C++ Build - PR validation
+name: PR validation
 on:
   pull_request:
     branches:
@@ -73,21 +73,6 @@ jobs:
       - name: Stop Pulsar service
         run: ./pulsar-test-service-stop.sh
 
-
-  cpp-build-centos7:
-    name: Build CPP Client on CentOS7
-    needs: unit-tests
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: build cpp client on centos 7
-        run: |
-          echo "Build C++ client library on CentOS 7"
-          ./docker-build-centos7.sh
 
   cpp-build-windows:
     timeout-minutes: 120
