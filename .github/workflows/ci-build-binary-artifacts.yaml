@@ -48,13 +48,13 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/deb
-          tags: ${{ env.TEST_TAG }}
+          tags: build-deb-x86_64:latest
           build-args: PLATFORM=x86_64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-x86_64.sh ${{ env.TEST_TAG }}
+        run: pkg/deb/docker-build-deb-x86_64.sh build-deb-x86_64:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -84,14 +84,14 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/deb
-          tags: ${{ env.TEST_TAG }}
+          tags: build-deb-arm64:latest
           build-args: PLATFORM=aarch64
           platforms: linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-arm64.sh ${{ env.TEST_TAG }}
+        run: pkg/deb/docker-build-deb-arm64.sh build-deb-arm64:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -118,13 +118,13 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/rpm
-          tags: ${{ env.TEST_TAG }}
+          tags: build-rpm-x86_64:latest
           build-args: PLATFORM=x86_64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-x86_64.sh ${{ env.TEST_TAG }}
+        run: pkg/rpm/docker-build-rpm-x86_64.sh build-rpm-x86_64:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -154,14 +154,14 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/rpm
-          tags: ${{ env.TEST_TAG }}
+          tags: build-rpm-arm64:latest
           build-args: PLATFORM=aarch64
           platforms: linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-arm64.sh ${{ env.TEST_TAG }}
+        run: pkg/rpm/docker-build-rpm-arm64.sh build-rpm-arm64:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -188,13 +188,13 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/apk
-          tags: ${{ env.TEST_TAG }}
+          tags: build-apk-x86_64:latest
           build-args: PLATFORM=x86_64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build APK packages
-        run: pkg/apk/docker-build-apk-x86_64.sh ${{ env.TEST_TAG }}
+        run: pkg/apk/docker-build-apk-x86_64.sh build-apk-x86_64:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
@@ -224,14 +224,14 @@ jobs:
         uses: docker/build-push-action@v3
         with:
           context: ./pkg/apk
-          tags: ${{ env.TEST_TAG }}
+          tags: build-apk-arm64:latest
           build-args: PLATFORM=aarch64
           platforms: linux/arm64
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Build APK packages
-        run: pkg/apk/docker-build-apk-arm64.sh ${{ env.TEST_TAG }}
+        run: pkg/apk/docker-build-apk-arm64.sh build-apk-arm64:latest
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
