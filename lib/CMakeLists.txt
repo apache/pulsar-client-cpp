@@ -141,12 +141,14 @@ if (LINK_STATIC AND BUILD_STATIC_LIB)
             endif()
         endforeach()
 
+        set(PULSAR_WITH_DEPS ${CMAKE_BINARY_DIR}/lib/libpulsarwithdeps.a)
         add_custom_target(pulsarStaticWithDeps
                 ALL
                 BYPRODUCTS merged-library
-                COMMAND ./build-support/merge_archives.sh libpulsar.a $<TARGET_FILE:pulsarStatic> ${STATIC_LIBS} && mv merged-library/libpulsar.a lib/libpulsarwithdeps.a
+                COMMAND ./build-support/merge_archives.sh libpulsar.a $<TARGET_FILE:pulsarStatic> ${STATIC_LIBS} && mv merged-library/libpulsar.a ${PULSAR_WITH_DEPS}
                 DEPENDS pulsarStatic
                 WORKING_DIRECTORY ${PROJECT_SOURCE_DIR})
+        install(PROGRAMS ${PULSAR_WITH_DEPS} DESTINATION lib)
     endif(MSVC)
 elseif(BUILD_STATIC_LIB)
     # Install regular libpulsar.a
