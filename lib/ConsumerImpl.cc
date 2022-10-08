@@ -446,6 +446,15 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         Lock lock(mutex_);
         numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, msg.redelivery_count());
     } else {
+        const auto startMessageId = startMessageId_.get();
+        if (isPersistent_ && startMessageId.is_present() &&
+            m.getMessageId().ledgerId() == startMessageId.value().ledgerId() &&
+            m.getMessageId().entryId() == startMessageId.value().entryId() &&
+            isPriorEntryIndex(m.getMessageId().entryId())) {
+            LOG_DEBUG(getName() << " Ignoring message from before the startMessageId: "
+                                << startMessageId.value());
+            return;
+        }
         executeNotifyCallback(m);
     }
 
@@ -492,16 +501,6 @@ void ConsumerImpl::failPendingReceiveCallback() {
 }
 
 void ConsumerImpl::executeNotifyCallback(Message& msg) {
-    const auto startMessageId = startMessageId_.get();
-    if (isPersistent_ && startMessageId.is_present() &&
-        msg.getMessageId().ledgerId() == startMessageId.value().ledgerId() &&
-        msg.getMessageId().entryId() == startMessageId.value().entryId() &&
-        isPriorEntryIndex(msg.getMessageId().entryId())) {
-        LOG_DEBUG(getName() << " Ignoring message from before the startMessageId: "
-                            << startMessageId.value());
-        return;
-    }
-
     Lock lock(pendingReceiveMutex_);
     // if asyncReceive is waiting then notify callback without adding to incomingMessages queue
     bool asyncReceivedWaiting = !pendingReceives_.empty();
