@@ -126,7 +126,7 @@ sudo cp ${GMOCK_LIB_PATH}/*.a /usr/lib
 #### Compile Pulsar client library:
 
 ```shell
-cd pulsar/pulsar-client-cpp
+cd pulsar-client-cpp
 cmake .
 make
 ```
@@ -164,8 +164,7 @@ brew install googletest
 
 #### Compile Pulsar client library:
 ```shell
-export PULSAR_PATH=<Path where you cloned pulsar repo>
-cd ${PULSAR_PATH}/pulsar-client-cpp/
+cd pulsar-client-cpp/
 cmake .
 make
 ```
@@ -173,15 +172,15 @@ make
 #### Checks
 ##### Client library will be placed in
 ```
-${PULSAR_PATH}/pulsar-client-cpp/lib/libpulsar.dylib
-${PULSAR_PATH}/pulsar-client-cpp/lib/libpulsar.a
+lib/libpulsar.dylib
+lib/libpulsar.a
 ```
 
 ##### Tools will be placed in:
 
 ```
-${PULSAR_PATH}/pulsar-client-cpp/perf/perfProducer
-${PULSAR_PATH}/pulsar-client-cpp/perf/perfConsumer
+perf/perfProducer
+perf/perfConsumer
 ```
 
 ### Compile on Windows
@@ -228,10 +227,10 @@ If you installed the dependencies manually, you need to run
 
 ```shell
 #If all dependencies are in your path, all that is necessary is
-${PULSAR_PATH}/pulsar-client-cpp/cmake .
+pulsar-client-cpp/cmake .
 
 #if all dependencies are not in your path, then passing in a PROTOC_PATH and CMAKE_PREFIX_PATH is necessary
-${PULSAR_PATH}/pulsar-client-cpp/cmake -DPROTOC_PATH=C:/protobuf/bin/protoc -DCMAKE_PREFIX_PATH="C:/boost;C:/openssl;C:/zlib;C:/curl;C:/protobuf;C:/googletest;C:/dlfcn-win32" .
+pulsar-client-cpp/cmake -DPROTOC_PATH=C:/protobuf/bin/protoc -DCMAKE_PREFIX_PATH="C:/boost;C:/openssl;C:/zlib;C:/curl;C:/protobuf;C:/googletest;C:/dlfcn-win32" .
 
 #This will generate pulsar-cpp.sln. Open this in Visual Studio and build the desired configurations.
 ```
@@ -240,37 +239,37 @@ ${PULSAR_PATH}/pulsar-client-cpp/cmake -DPROTOC_PATH=C:/protobuf/bin/protoc -DCM
 
 ##### Client libraries are available in the following places.
 ```
-${PULSAR_PATH}/pulsar-client-cpp/build/lib/Release/pulsar.lib
-${PULSAR_PATH}/pulsar-client-cpp/build/lib/Release/pulsar.dll
+pulsar-client-cpp/build/lib/Release/pulsar.lib
+pulsar-client-cpp/build/lib/Release/pulsar.dll
 ```
 
 #### Examples
 
 ##### Add windows environment paths.
 ```
-${PULSAR_PATH}/pulsar-client-cpp/build/lib/Release
-${PULSAR_PATH}/pulsar-client-cpp/vcpkg_installed
+pulsar-client-cpp/build/lib/Release
+pulsar-client-cpp/vcpkg_installed
 ```
 
 ##### Examples are available in.
 ```
-${PULSAR_PATH}/pulsar-client-cpp/build/examples/Release
+pulsar-client-cpp/build/examples/Release
 ```
 
 ## Tests
 ```shell
 # Source code
-${PULSAR_PATH}/pulsar-client-cpp/tests/
+pulsar-client-cpp/tests/
 
 # Execution
 # Start standalone broker
-${PULSAR_PATH}/pulsar-test-service-start.sh
+pulsar-test-service-start.sh
 
 # Run the tests
-${PULSAR_PATH}/pulsar-client-cpp/tests/main
+pulsar-client-cpp/tests/main
 
 # When no longer needed, stop standalone broker
-${PULSAR_PATH}/pulsar-test-service-stop.sh
+pulsar-test-service-stop.sh
 ```
 
 ## Requirements for Contributors
@@ -280,4 +279,3 @@ It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `
 Use `pulsar-client-cpp/docker-format.sh` to ensure the C++ sources are correctly formatted.
 
 We welcome contributions from the open source community, kindly make sure your changes are backward compatible with GCC 4.8 and Boost 1.53.
-
