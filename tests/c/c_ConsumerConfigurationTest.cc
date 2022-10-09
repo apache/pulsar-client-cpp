@@ -31,4 +31,7 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
     pulsar_consumer_configuration_set_auto_ack_oldest_chunked_message_on_queue_full(consumer_conf, 1);
     ASSERT_EQ(pulsar_consumer_configuration_is_auto_ack_oldest_chunked_message_on_queue_full(consumer_conf),
               1);
+
+    pulsar_consumer_configuration_set_start_message_id_inclusive(consumer_conf, 1);
+    ASSERT_EQ(pulsar_consumer_configuration_is_start_message_id_inclusive(consumer_conf), 1);
 }
