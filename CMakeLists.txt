@@ -124,6 +124,7 @@ add_definitions(-DLOG_CATEGORY_NAME=${LOG_CATEGORY_NAME} -DBUILDING_PULSAR -DBOO
 
 set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/lib64/)
 
+find_package(OpenSSL REQUIRED)
 ### This part is to find and keep SSL dynamic libs in RECORD_OPENSSL_SSL_LIBRARY and RECORD_OPENSSL_CRYPTO_LIBRARY
 ### After find the libs, will unset related cache, and will not affect another same call to find_package.
 if (APPLE)
@@ -135,6 +136,8 @@ set(OPENSSL_USE_STATIC_LIBS FALSE)
 find_package(OpenSSL REQUIRED)
 set(RECORD_OPENSSL_SSL_LIBRARY ${OPENSSL_SSL_LIBRARY})
 set(RECORD_OPENSSL_CRYPTO_LIBRARY ${OPENSSL_CRYPTO_LIBRARY})
+message("RECORD_OPENSSL_SSL_LIBRARY: " ${RECORD_OPENSSL_SSL_LIBRARY})
+message("RECORD_OPENSSL_CRYPTO_LIBRARY: " ${RECORD_OPENSSL_CRYPTO_LIBRARY})
 
 unset(OPENSSL_FOUND CACHE)
 unset(OPENSSL_INCLUDE_DIR CACHE)
@@ -145,18 +148,38 @@ unset(OPENSSL_SSL_LIBRARIES CACHE)
 unset(OPENSSL_LIBRARIES CACHE)
 unset(OPENSSL_VERSION CACHE)
 
+find_package(OpenSSL REQUIRED)
+message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
+message("OPENSSL_SSL_LIBRARY: " ${OPENSSL_SSL_LIBRARY})
+message("OPENSSL_CRYPTO_LIBRARY: " ${OPENSSL_CRYPTO_LIBRARY})
+
+# For dependencies other than OpenSSL, dynamic libraries are forbidden to link when LINK_STATIC is ON
 if (LINK_STATIC)
-    find_library(ZLIB_LIBRARIES REQUIRED NAMES libz.a z zlib)
-    message(STATUS "ZLIB_LIBRARIES: ${ZLIB_LIBRARIES}")
-    find_library(Protobuf_LIBRARIES NAMES libprotobuf.a libprotobuf)
-    message(STATUS "Protobuf: ${Protobuf_LIBRARIES}")
-    find_library(CURL_LIBRARIES NAMES libcurl.a curl curl_a libcurl_a)
-    message(STATUS "CURL_LIBRARIES: ${CURL_LIBRARIES}")
+    if (NOT MSVC)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
+    endif()
+endif ()
+
+find_package(Boost REQUIRED)
+message("Boost_INCLUDE_DIRS: " ${Boost_INCLUDE_DIRS})
+
+find_package(Protobuf REQUIRED)
+message("Protobuf_INCLUDE_DIRS: " ${Protobuf_INCLUDE_DIRS})
+message("Protobuf_LIBRARIES: " ${Protobuf_LIBRARIES})
+
+find_package(curl REQUIRED)
+message("CURL_INCLUDE_DIRS: " ${CURL_INCLUDE_DIRS})
+message("CURL_LIBRARIES: " ${CURL_LIBRARIES})
+
+find_package(zlib REQUIRED)
+message("ZLIB_INCLUDE_DIRS: " ${ZLIB_INCLUDE_DIRS})
+message("ZLIB_LIBRARIES: " ${ZLIB_LIBRARIES})
+
+if (LINK_STATIC)
     find_library(LIB_ZSTD NAMES libzstd.a)
     message(STATUS "ZStd: ${LIB_ZSTD}")
     find_library(LIB_SNAPPY NAMES libsnappy.a)
     message(STATUS "LIB_SNAPPY: ${LIB_SNAPPY}")
-    set(COMMON_LIBS ${Protobuf_LIBRARIES} ${COMMON_LIBS})
 
     if (USE_LOG4CXX)
         if (LOG4CXX_USE_DYNAMIC_LIBS)
@@ -180,43 +203,9 @@ if (LINK_STATIC)
         add_definitions(-DCURL_STATICLIB)
     endif()
 
-    if (UNIX AND NOT APPLE)
-        set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
-    endif()
-
     SET(Boost_USE_STATIC_LIBS   ON)
     SET(OPENSSL_USE_STATIC_LIBS TRUE)
 else()
-    # Link to shared libraries
-    find_package(ZLIB REQUIRED)
-    set(ZLIB_LIBRARIES ${ZLIB_LIBRARIES})
-    # NOTE: The default MODULE mode may not find debug libraries so use CONFIG mode here
-    unset(Protobuf_INCLUDE_DIRS CACHE)
-    unset(Protobuf_LIBRARIES CACHE)
-    find_package(Protobuf QUIET CONFIG)
-    # NOTE: On Windows x86 platform, Protobuf_FOUND might be set false but Protobuf_INCLUDE_DIRS and
-    # Protobuf_LIBRARIES are both found.
-    if (Protobuf_INCLUDE_DIRS AND Protobuf_LIBRARIES AND NOT Protobuf_FOUND)
-        set(Protobuf_FOUND TRUE)
-    endif ()
-    if (Protobuf_FOUND)
-        message("Found Protobuf in config mode")
-        message(STATUS "Protobuf_LIBRARIES: ${Protobuf_LIBRARIES}")
-        message(STATUS "Protobuf_INCLUDE_DIRS: ${Protobuf_INCLUDE_DIRS}")
-    else ()
-        message("Failed to find Protobuf in config mode, try to find it from system path")
-        find_library(Protobuf_LIBRARIES protobuf libprotobuf)
-        find_path(Protobuf_INCLUDE_DIRS google/protobuf/stubs/common.h)
-        message(STATUS "Protobuf_LIBRARIES: ${Protobuf_LIBRARIES}")
-        message(STATUS "Protobuf_INCLUDE_DIRS: ${Protobuf_INCLUDE_DIRS}")
-    endif ()
-
-    if (${Protobuf_FOUND} AND (${CMAKE_VERSION} VERSION_GREATER 3.8))
-        set(COMMON_LIBS protobuf::libprotobuf ${COMMON_LIBS})
-    else ()
-        set(COMMON_LIBS ${Protobuf_LIBRARIES} ${COMMON_LIBS})
-    endif ()
-
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(LIB_ZSTD zstdd HINTS "${VCPKG_DEBUG_ROOT}/lib")
     else ()
@@ -228,19 +217,11 @@ else()
         find_library(LIB_SNAPPY NAMES snappy libsnappy)
     endif ()
 
-        find_package(CURL REQUIRED)
-    if (${CMAKE_VERSION} VERSION_GREATER "3.12")
-        set(COMMON_LIBS ${COMMON_LIBS} CURL::libcurl)
-    endif ()
-
     if (USE_LOG4CXX)
         find_library(LOG4CXX_LIBRARY_PATH log4cxx)
         find_path(LOG4CXX_INCLUDE_PATH log4cxx/logger.h)
     endif (USE_LOG4CXX)
 endif (LINK_STATIC)
-
-
-find_package(Boost)
 
 if (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION LESS 69)
     # Boost System does not require linking since 1.69
@@ -268,8 +249,6 @@ if(BUILD_PERF_TOOLS)
 endif()
 
 find_package(Boost REQUIRED COMPONENTS ${BOOST_COMPONENTS})
-
-find_package(OpenSSL REQUIRED)
 
 if (BUILD_TESTS)
     find_path(GTEST_INCLUDE_PATH gtest/gtest.h)
@@ -314,7 +293,7 @@ include_directories(
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_BINARY_DIR}/include
   ${AUTOGEN_DIR}
-  ${Boost_INCLUDE_DIR}
+  ${Boost_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
   ${ZLIB_INCLUDE_DIRS}
   ${CURL_INCLUDE_DIRS}
@@ -329,19 +308,14 @@ set(COMMON_LIBS
   Threads::Threads
   ${Boost_REGEX_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
+  ${Boost_DATE_TIME_LIBRARY}
+  ${Protobuf_LIBRARIES}
   ${CURL_LIBRARIES}
   ${OPENSSL_LIBRARIES}
   ${ZLIB_LIBRARIES}
   ${ADDITIONAL_LIBRARIES}
   ${CMAKE_DL_LIBS}
 )
-
-if (MSVC)
-  set(COMMON_LIBS
-    ${COMMON_LIBS}
-    ${Boost_DATE_TIME_LIBRARY}
-  )
-endif()
 
 if (NOT MSVC)
     set(COMMON_LIBS ${COMMON_LIBS} m)
