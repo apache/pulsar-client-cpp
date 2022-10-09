@@ -72,25 +72,6 @@ if(HAVE_AUXV_GETAUXVAL)
     add_definitions(-DPULSAR_AUXV_GETAUXVAL_PRESENT)
 endif()
 
-### pulsarSharedNossl not static link ssl, it could avoid rebuild libpulsar when ssl lib need update.
-### pulsarSharedNossl is build under condition LINK_STATIC=ON, we should replace static ssl libs with dynamic libs.
-SET(COMMON_LIBS_NOSSL ${COMMON_LIBS})
-if (NOT ${RECORD_OPENSSL_SSL_LIBRARY} MATCHES ".+\\.a$")
-    LIST(REMOVE_ITEM COMMON_LIBS_NOSSL ${OPENSSL_SSL_LIBRARY})
-    LIST(APPEND COMMON_LIBS_NOSSL ${RECORD_OPENSSL_SSL_LIBRARY})
-endif ()
-if (NOT ${RECORD_OPENSSL_CRYPTO_LIBRARY} MATCHES ".+\\.a$")
-    LIST(REMOVE_ITEM COMMON_LIBS_NOSSL  ${OPENSSL_CRYPTO_LIBRARY})
-    LIST(APPEND COMMON_LIBS_NOSSL ${RECORD_OPENSSL_CRYPTO_LIBRARY})
-endif ()
-
-if (BUILD_DYNAMIC_LIB AND LINK_STATIC)
-    add_library(pulsarSharedNossl SHARED $<TARGET_OBJECTS:PULSAR_OBJECT_LIB>)
-    set_property(TARGET pulsarSharedNossl PROPERTY OUTPUT_NAME ${LIB_NAME_SHARED}nossl)
-    set_property(TARGET pulsarSharedNossl PROPERTY VERSION ${LIBRARY_VERSION})
-    target_link_libraries(pulsarSharedNossl ${COMMON_LIBS_NOSSL} ${CMAKE_DL_LIBS})
-endif()
-
 if (BUILD_STATIC_LIB)
     add_library(pulsarStatic STATIC $<TARGET_OBJECTS:PULSAR_OBJECT_LIB>)
     if (MSVC)
@@ -136,7 +117,7 @@ if (LINK_STATIC AND BUILD_STATIC_LIB)
         # Build a list of the requird .a libs (except ssl) to merge
         SET(STATIC_LIBS "")
         foreach (LIB IN LISTS COMMON_LIBS)
-            if (${LIB} MATCHES ".+\\.a$" AND NOT ${LIB} MATCHES ${OPENSSL_SSL_LIBRARY} AND NOT ${LIB} MATCHES ${OPENSSL_CRYPTO_LIBRARY})
+            if (${LIB} MATCHES ".+\\.a$")
                 set(STATIC_LIBS "${STATIC_LIBS} ${LIB}")
             endif()
         endforeach()
@@ -162,10 +143,6 @@ endif()
 
 if (BUILD_DYNAMIC_LIB)
     install(TARGETS pulsarShared RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
-endif()
-
-if (BUILD_DYNAMIC_LIB AND LINK_STATIC)
-    install(TARGETS pulsarSharedNossl RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 endif()
 
 install(DIRECTORY "../include/pulsar" DESTINATION include)

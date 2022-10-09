@@ -122,45 +122,28 @@ endif(NOT LOG_CATEGORY_NAME)
 
 add_definitions(-DLOG_CATEGORY_NAME=${LOG_CATEGORY_NAME} -DBUILDING_PULSAR -DBOOST_ALL_NO_LIB -DBOOST_ALLOW_DEPRECATED_HEADERS)
 
-set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/lib64/)
-
-### This part is to find and keep SSL dynamic libs in RECORD_OPENSSL_SSL_LIBRARY and RECORD_OPENSSL_CRYPTO_LIBRARY
-### After find the libs, will unset related cache, and will not affect another same call to find_package.
-if (APPLE)
-    set(OPENSSL_INCLUDE_DIR /usr/local/opt/openssl/include/ /opt/homebrew/opt/openssl/include)
-    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/opt/openssl/ /opt/homebrew/opt/openssl)
-endif ()
-
-set(OPENSSL_USE_STATIC_LIBS FALSE)
-find_package(OpenSSL REQUIRED)
-set(RECORD_OPENSSL_SSL_LIBRARY ${OPENSSL_SSL_LIBRARY})
-set(RECORD_OPENSSL_CRYPTO_LIBRARY ${OPENSSL_CRYPTO_LIBRARY})
-message("RECORD_OPENSSL_SSL_LIBRARY: " ${RECORD_OPENSSL_SSL_LIBRARY})
-message("RECORD_OPENSSL_CRYPTO_LIBRARY: " ${RECORD_OPENSSL_CRYPTO_LIBRARY})
-
-unset(OPENSSL_FOUND CACHE)
-unset(OPENSSL_INCLUDE_DIR CACHE)
-unset(OPENSSL_CRYPTO_LIBRARY CACHE)
-unset(OPENSSL_CRYPTO_LIBRARIES CACHE)
-unset(OPENSSL_SSL_LIBRARY CACHE)
-unset(OPENSSL_SSL_LIBRARIES CACHE)
-unset(OPENSSL_LIBRARIES CACHE)
-unset(OPENSSL_VERSION CACHE)
-
-find_package(OpenSSL REQUIRED)
-message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
-message("OPENSSL_SSL_LIBRARY: " ${OPENSSL_SSL_LIBRARY})
-message("OPENSSL_CRYPTO_LIBRARY: " ${OPENSSL_CRYPTO_LIBRARY})
-
 # For dependencies other than OpenSSL, dynamic libraries are forbidden to link when LINK_STATIC is ON
 if (LINK_STATIC)
     if (NOT MSVC)
         set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
     endif()
+    set(Boost_USE_STATIC_LIBS TRUE)
+    set(OPENSSL_USE_STATIC_LIBS TRUE)
+else ()
+    set(Boost_USE_STATIC_LIBS FALSE)
+    set(OPENSSL_USE_STATIC_LIBS FALSE)
 endif ()
 
 find_package(Boost REQUIRED)
 message("Boost_INCLUDE_DIRS: " ${Boost_INCLUDE_DIRS})
+
+set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/lib64/)
+if (APPLE)
+    set(OPENSSL_ROOT_DIR ${OPENSSL_ROOT_DIR} /usr/local/opt/openssl/ /opt/homebrew/opt/openssl)
+endif ()
+find_package(OpenSSL REQUIRED)
+message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
+message("OPENSSL_LIBRARIES: " ${OPENSSL_LIBRARIES})
 
 find_package(Protobuf REQUIRED)
 message("Protobuf_INCLUDE_DIRS: " ${Protobuf_INCLUDE_DIRS})
@@ -217,9 +200,6 @@ if (LINK_STATIC)
     if (MSVC)
         add_definitions(-DCURL_STATICLIB)
     endif()
-
-    SET(Boost_USE_STATIC_LIBS   ON)
-    SET(OPENSSL_USE_STATIC_LIBS TRUE)
 else()
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(LIB_ZSTD zstdd HINTS "${VCPKG_DEBUG_ROOT}/lib")
