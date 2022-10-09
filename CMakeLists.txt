@@ -75,7 +75,7 @@ MESSAGE(STATUS "LINK_STATIC:  " ${LINK_STATIC})
 option(USE_LOG4CXX "Build with Log4cxx support" OFF)
 MESSAGE(STATUS "USE_LOG4CXX:  " ${USE_LOG4CXX})
 
-IF (CMAKE_BUILD_TYPE STREQUAL "")
+IF (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 ENDIF ()
 
@@ -168,6 +168,7 @@ message("Protobuf_INCLUDE_DIRS: " ${Protobuf_INCLUDE_DIRS})
 message("Protobuf_LIBRARIES: " ${Protobuf_LIBRARIES})
 
 # NOTE: CMake might not find curl and zlib on some platforms like Ubuntu, in this case, find them manually
+set(CURL_NO_CURL_CMAKE ON)
 find_package(curl QUIET)
 if (NOT CURL_FOUND)
     find_path(CURL_INCLUDE_DIRS NAMES curl/curl.h)
