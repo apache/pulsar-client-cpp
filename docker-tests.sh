@@ -44,7 +44,7 @@ docker pull $IMAGE
 
 CONTAINER_LABEL="pulsartests=$$"
 export GTEST_COLOR=${GTEST_COLOR:-no}
-DOCKER_CMD="docker run -e GTEST_COLOR -i -l $CONTAINER_LABEL -v $ROOT_DIR:/pulsar $IMAGE"
+DOCKER_CMD="docker run -e GTEST_COLOR -i -l $CONTAINER_LABEL -v $ROOT_DIR:/pulsar-client-cpp $IMAGE"
 
 
 for args in "$@"
@@ -68,7 +68,7 @@ fi
 
 # Java17 is required for CLI e.g) bin/pulsar create-token
 $DOCKER_CMD bash -c "apt-get -y install openjdk-17-jre-headless &&\
- set -o pipefail; cd /pulsar/pulsar-client-cpp && ./run-unit-tests.sh ${tests} $DISABLE_COLOR_OUTPUT"
+ set -o pipefail; cd /pulsar-client-cpp && git config --global --add safe.directory /pulsar-client-cpp && ./run-unit-tests.sh ${tests} $DISABLE_COLOR_OUTPUT"
 RES=$?
 if [ $RES -ne 0 ]; then
   (
