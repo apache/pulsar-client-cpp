@@ -31,7 +31,7 @@ fi
 
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pulsar-client-cpp
+cd $ROOT_DIR
 
 BUILD_IMAGE_NAME="${BUILD_IMAGE_NAME:-apachepulsar/pulsar-build}"
 BUILD_IMAGE_VERSION="${BUILD_IMAGE_VERSION:-ubuntu-20.04}"
