@@ -160,7 +160,7 @@ class ConsumerImpl : public ConsumerImplBase {
     ConsumerStatsBasePtr consumerStatsBasePtr_;
 
    private:
-    volatile bool waitingForZeroQueueSizeMessage;
+    std::atomic_bool waitingForZeroQueueSizeMessage;
     std::shared_ptr<ConsumerImpl> get_shared_this_ptr();
     bool uncompressMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::MessageIdData& messageIdData,
                                    const proto::MessageMetadata& metadata, SharedBuffer& payload,
