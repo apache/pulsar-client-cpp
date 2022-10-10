@@ -24,7 +24,7 @@
 set -e
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR/pulsar-client-cpp
+cd $ROOT_DIR
 
 BUILD_IMAGE_NAME="${BUILD_IMAGE_NAME:-apachepulsar/pulsar-build}"
 BUILD_IMAGE_VERSION="${BUILD_IMAGE_VERSION:-ubuntu-20.04}"
@@ -35,8 +35,8 @@ echo "---- Build Pulsar C++ client using image $IMAGE (pass <skip-clean> for inc
 
 docker pull $IMAGE
 
-VOLUME_OPTION=${VOLUME_OPTION:-"-v $ROOT_DIR:/pulsar"}
-COMMAND="cd /pulsar/pulsar-client-cpp && cmake . $CMAKE_ARGS && make check-format && make -j8"
+VOLUME_OPTION=${VOLUME_OPTION:-"-v $ROOT_DIR:/pulsar-client-cpp"}
+COMMAND="cd /pulsar-client-cpp && cmake . $CMAKE_ARGS && make check-format && make -j8"
 
 DOCKER_CMD="docker run -i ${VOLUME_OPTION} ${IMAGE}"
 
