@@ -53,7 +53,7 @@ static library.
 
 %build
 cmake . -DBUILD_TESTS=OFF -DLINK_STATIC=ON
-make pulsarShared pulsarSharedNossl pulsarStatic pulsarStaticWithDeps -j 3
+make -j 3
 
 %install
 INCLUDE_DIR=$RPM_BUILD_ROOT/usr/include
@@ -66,7 +66,6 @@ cp -ar include/pulsar $INCLUDE_DIR
 cp lib/libpulsar.a $LIB_DIR
 cp lib/libpulsarwithdeps.a $LIB_DIR
 cp lib/libpulsar.so $LIB_DIR
-cp lib/libpulsarnossl.so $LIB_DIR
 
 # Copy LICENSE files
 cp NOTICE $DOC_DIR
@@ -77,7 +76,6 @@ cp $DOC_DIR/* $DOC_DEVEL_DIR/
 %files
 %defattr(-,root,root)
 /usr/lib/libpulsar.so
-/usr/lib/libpulsarnossl.so
 /usr/share/doc/pulsar-client-%{version}
 
 %files devel
