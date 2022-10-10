@@ -92,9 +92,9 @@ Run unit tests:
 #### Install all dependencies:
 
 ```shell
-apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev liblog4cxx-dev \
-                libprotobuf-dev libboost-all-dev  libgtest-dev google-mock \
-                protobuf-compiler python3-setuptools
+apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev \
+                libprotobuf-dev libboost-all-dev libgtest-dev google-mock \
+                protobuf-compiler
 ```
 
 #### Compile and install Google Test:
@@ -105,8 +105,7 @@ sudo cmake .
 sudo make
 
 # Copy the libraries you just built to the OS library path.
-# GTEST_LIB_PATH may be `/usr/src/gtest`, `/usr/src/gtest/lib` or other path you provided when building gtest above.
-sudo cp ${GTEST_LIB_PATH}/*.a /usr/lib
+sudo cp lib/*.a /usr/lib
 ```
 
 
@@ -117,9 +116,10 @@ cd /usr/src/gmock
 sudo cmake .
 sudo make
 
-# Copy the libraries you just built to the OS library path.
-# GMOCK_LIB_PATH may be `/usr/src/gmock`, `/usr/src/gmock/lib` or other path you provided when building gmock above.
-sudo cp ${GMOCK_LIB_PATH}/*.a /usr/lib
+# Copy the gmock headers to the OS include path.
+sudo cp -r include/gmock /usr/include/
+# Copy the libraries you just built to the OS brary path.
+sudo cp lib/*.a /usr/lib
 ```
 
 
