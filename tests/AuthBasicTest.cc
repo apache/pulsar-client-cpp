@@ -253,3 +253,19 @@ TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
     Result result = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultLookupError, result);
 }
+
+TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
+    ClientConfiguration config = ClientConfiguration();
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456", "method-1");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "method-1");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+}
