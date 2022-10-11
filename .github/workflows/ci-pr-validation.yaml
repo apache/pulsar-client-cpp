@@ -176,15 +176,27 @@ jobs:
             cmake --build ./build-1 --parallel --config Release
           fi
 
-  deb-packaging:
-    name: Build Debian Package
-    runs-on: ubuntu-20.04
-    needs: unit-tests
-    timeout-minutes: 120
+  package:
+    name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 500
+
+    strategy:
+      fail-fast: true
+      matrix:
+        pkg:
+          - { name: 'RPM', type: 'rpm', path: 'pkg/rpm/RPMS' }
+          - { name: 'Deb', type: 'deb', path: 'pkg/deb/BUILD/DEB' }
+          - { name: 'Alpine', type: 'apk', path: 'pkg/apk/build' }
+        cpu:
+          - { arch: 'x86_64', platform: 'x86_64' }
 
     steps:
       - name: checkout
         uses: actions/checkout@v2
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v1
 
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
@@ -195,72 +207,13 @@ jobs:
       - name: Build dependencies Docker image
         uses: docker/build-push-action@v3
         with:
-          context: ./pkg/deb
+          context: ./pkg/${{matrix.pkg.type}}
           load: true
-          tags: build-deb-x86_64:latest
-          build-args: PLATFORM=x86_64
+          tags: build:latest
+          platforms: linux/${{matrix.cpu.platform}}
+          build-args: PLATFORM=${{matrix.cpu.arch}}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-x86_64.sh build-deb-x86_64:latest
-
-
-  rpm-packaging:
-    name: Build RPM Package
-    runs-on: ubuntu-20.04
-    needs: unit-tests
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/rpm
-          load: true
-          tags: build-rpm-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-x86_64.sh build-rpm-x86_64:latest
-
-
-  apk-packaging:
-    name: Build Alpine Linux APK Package
-    runs-on: ubuntu-20.04
-    needs: unit-tests
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/apk
-          load: true
-          tags: build-apk-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build APK packages
-        run: pkg/apk/docker-build-apk-x86_64.sh build-apk-x86_64:latest
+      - name: Build packages
+        run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.pkg.platform}}.sh build:latest
