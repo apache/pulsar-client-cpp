@@ -38,11 +38,8 @@ std::string base64_encode(const std::string& s) {
     return data.append((3 - s.size() % 3) % 3, '=');
 }
 
-AuthDataBasic::AuthDataBasic(const std::string& username, const std::string& password) {
-    commandAuthToken_ = username + ":" + password;
-    httpAuthToken_ = base64_encode(commandAuthToken_);
-    methodName_ = DEFAULT_BASIC_METHOD_NAME;
-}
+AuthDataBasic::AuthDataBasic(const std::string& username, const std::string& password)
+    : AuthDataBasic(username, password, DEFAULT_BASIC_METHOD_NAME) {}
 
 AuthDataBasic::AuthDataBasic(const std::string& username, const std::string& password,
                              const std::string& methodName) {
