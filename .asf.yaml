@@ -49,6 +49,7 @@ github:
       #   # Contexts are the names of checks that must pass.
       #   # See ./github/workflows/README.md for more documentation on this list.
         contexts:
+           - Run unit tests
            - Build CPP Client on Windows x64
            - Build CPP Client on Windows x86
            - Build Debian Package
