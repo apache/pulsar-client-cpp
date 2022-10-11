@@ -131,12 +131,35 @@ TEST(AuthPluginBasic, testLoadAuth) {
     ASSERT_EQ(data->hasDataForTls(), false);
     ASSERT_EQ(data->hasDataForHttp(), true);
 
+    auth = pulsar::AuthBasic::create(
+        "{\"username\":\"super-user\",\"password\":\"123789\",\"method\":\"my-method\"}");
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "my-method");
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "super-user:123789");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
     ParamMap p = ParamMap();
     p["username"] = "super-user-2";
     p["password"] = "456789";
     auth = pulsar::AuthBasic::create(p);
     ASSERT_TRUE(auth != NULL);
     ASSERT_EQ(auth->getAuthMethodName(), "basic");
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    p = ParamMap();
+    p["username"] = "super-user-2";
+    p["password"] = "456789";
+    p["method"] = "my-method-2";
+    auth = pulsar::AuthBasic::create(p);
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "my-method-2");
     ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
     ASSERT_EQ(data->hasDataFromCommand(), true);
     ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
