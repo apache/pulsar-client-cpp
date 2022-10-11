@@ -216,4 +216,4 @@ jobs:
           cache-to: type=gha,mode=max
 
       - name: Build packages
-        run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.pkg.platform}}.sh build:latest
+        run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
