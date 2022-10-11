@@ -179,6 +179,7 @@ jobs:
   package:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
     runs-on: ubuntu-22.04
+    needs: unit-tests
     timeout-minutes: 500
 
     strategy:
