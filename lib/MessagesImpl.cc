@@ -22,19 +22,16 @@
 MessagesImpl::MessagesImpl(int maxNumberOfMessages, long maxSizeOfMessages)
     : maxNumberOfMessages_(maxNumberOfMessages),
       maxSizeOfMessages_(maxSizeOfMessages),
-      currentNumberOfMessages_(0),
-      currentSizeOfMessages_(0) {
-    messageList_ = std::vector<Message>();
-}
+      currentSizeOfMessages_(0) {}
 
 const std::vector<Message>& MessagesImpl::getMessageList() const { return messageList_; }
 
 bool MessagesImpl::canAdd(const Message& message) const {
-    if (currentNumberOfMessages_ == 0) {
+    if (messageList_.size() == 0) {
         return true;
     }
 
-    if (maxNumberOfMessages_ > 0 && currentNumberOfMessages_ + 1 > maxNumberOfMessages_) {
+    if (maxNumberOfMessages_ > 0 && messageList_.size() + 1 > maxNumberOfMessages_) {
         return false;
     }
 
@@ -49,7 +46,6 @@ void MessagesImpl::add(const Message& message) {
     if (!canAdd(message)) {
         throw std::invalid_argument("No more space to add messages.");
     }
-    currentNumberOfMessages_++;
     currentSizeOfMessages_ += message.getLength();
     messageList_.emplace_back(message);
 }
@@ -57,7 +53,6 @@ void MessagesImpl::add(const Message& message) {
 int MessagesImpl::size() const { return messageList_.size(); }
 
 void MessagesImpl::clear() {
-    currentNumberOfMessages_ = 0;
     currentSizeOfMessages_ = 0;
     messageList_.clear();
 }

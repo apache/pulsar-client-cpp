@@ -72,7 +72,7 @@ void ConsumerImplBase::doBatchReceiveTimeTask() {
     }
 
     bool hasPendingReceives = false;
-    long timeToWaitMs = batchReceivePolicy_.getTimeoutMs();
+    long timeToWaitMs;
 
     Lock lock(batchPendingReceiveMutex_);
     while (!batchPendingReceives_.empty()) {
@@ -80,7 +80,9 @@ void ConsumerImplBase::doBatchReceiveTimeTask() {
         long diff =
             batchReceivePolicy_.getTimeoutMs() - (TimeUtils::currentTimeMillis() - batchReceive.createAt_);
         if (diff <= 0) {
+            Lock batchOptionLock(batchReceiveOptionMutex_);
             notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
+            batchOptionLock.unlock();
             batchPendingReceives_.pop();
         } else {
             hasPendingReceives = true;
@@ -96,17 +98,13 @@ void ConsumerImplBase::doBatchReceiveTimeTask() {
 }
 
 void ConsumerImplBase::failPendingBatchReceiveCallback() {
-    Messages msgs;
     Lock lock(batchPendingReceiveMutex_);
     while (!batchPendingReceives_.empty()) {
         OpBatchReceive opBatchReceive = batchPendingReceives_.front();
         batchPendingReceives_.pop();
-        auto self = shared_from_this();
-        listenerExecutor_->postWork([opBatchReceive, self, msgs]() {
-            opBatchReceive.batchReceiveCallback_(ResultAlreadyClosed, msgs);
-        });
+        listenerExecutor_->postWork(
+            [opBatchReceive]() { opBatchReceive.batchReceiveCallback_(ResultAlreadyClosed, {}); });
     }
-    lock.unlock();
 }
 
 void ConsumerImplBase::notifyBatchPendingReceivedCallback() {
@@ -114,6 +112,7 @@ void ConsumerImplBase::notifyBatchPendingReceivedCallback() {
     if (!batchPendingReceives_.empty()) {
         OpBatchReceive& batchReceive = batchPendingReceives_.front();
         batchPendingReceives_.pop();
+        lock.unlock();
         notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
     }
 }
@@ -125,12 +124,11 @@ void ConsumerImplBase::batchReceiveAsync(BatchReceiveCallback callback) {
         return;
     }
 
+    Lock batchOptionLock(batchReceiveOptionMutex_);
     if (hasEnoughMessagesForBatchReceive()) {
-        Lock lock(batchPendingReceiveMutex_);
         notifyBatchPendingReceivedCallback(callback);
-        lock.unlock();
+        batchOptionLock.unlock();
     } else {
-        // expectmoreIncomingMessages();
         OpBatchReceive opBatchReceive(callback);
         Lock lock(batchPendingReceiveMutex_);
         batchPendingReceives_.emplace(opBatchReceive);

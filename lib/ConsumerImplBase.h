@@ -35,7 +35,7 @@ class OpBatchReceive {
     OpBatchReceive();
     explicit OpBatchReceive(const BatchReceiveCallback& batchReceiveCallback);
     const BatchReceiveCallback batchReceiveCallback_;
-    const long createAt_;
+    const int64_t createAt_;
 };
 
 class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this<ConsumerImplBase> {
@@ -85,6 +85,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     std::queue<OpBatchReceive> batchPendingReceives_;
     BatchReceivePolicy batchReceivePolicy_;
     DeadlineTimerPtr batchReceiveTimer_;
+    std::mutex batchReceiveOptionMutex_;
     void triggerBatchReceiveTimerTask(long timeoutMs);
     void doBatchReceiveTimeTask();
     void failPendingBatchReceiveCallback();

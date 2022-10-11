@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-using namespace pulsar;
+#pragma once
 
 namespace pulsar {
 

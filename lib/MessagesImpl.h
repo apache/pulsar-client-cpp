@@ -39,7 +39,6 @@ class MessagesImpl {
     std::vector<Message> messageList_;
     const int maxNumberOfMessages_;
     const long maxSizeOfMessages_;
-    int currentNumberOfMessages_;
     long currentSizeOfMessages_;
 };
 

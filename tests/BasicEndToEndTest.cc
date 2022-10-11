@@ -4145,7 +4145,6 @@ void testBatchReceive(bool multiConsumer) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg = MessageBuilder().setContent(messageContent).build();
         producer.send(msg);
-        LOG_DEBUG("1 sending message " << messageContent);
     }
 
     Messages messages;
@@ -4165,7 +4164,6 @@ void testBatchReceive(bool multiConsumer) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg = MessageBuilder().setContent(messageContent).build();
         producer.send(msg);
-        LOG_DEBUG("2 sending message " << messageContent);
     }
     ASSERT_TRUE(latch.wait(std::chrono::seconds(10)));
 
@@ -4205,8 +4203,6 @@ void testBatchReceiveTimeout(bool multiConsumer) {
     Consumer consumer;
     ConsumerConfiguration consumerConfig;
     consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(1000, -1, 1000));
-    consumerConfig.setProperty("consumer-name", "test-consumer-name");
-    consumerConfig.setProperty("consumer-id", "test-consumer-id");
     Promise<Result, Consumer> consumerPromise;
     client.subscribeAsync(topicName, subName, consumerConfig,
                           WaitForCallbackValue<Consumer>(consumerPromise));
@@ -4221,7 +4217,6 @@ void testBatchReceiveTimeout(bool multiConsumer) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg = MessageBuilder().setContent(messageContent).build();
         producer.send(msg);
-        LOG_DEBUG("2 sending message " << messageContent);
     }
 
     Latch latch(1);
@@ -4262,8 +4257,6 @@ void testBatchReceiveClose(bool multiConsumer) {
     Consumer consumer;
     ConsumerConfiguration consumerConfig;
     consumerConfig.setBatchReceivePolicy(BatchReceivePolicy(1000, -1, 1000));
-    consumerConfig.setProperty("consumer-name", "test-consumer-name");
-    consumerConfig.setProperty("consumer-id", "test-consumer-id");
     Promise<Result, Consumer> consumerPromise;
     client.subscribeAsync(topicName, subName, consumerConfig,
                           WaitForCallbackValue<Consumer>(consumerPromise));

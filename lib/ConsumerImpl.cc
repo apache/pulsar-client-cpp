@@ -526,6 +526,7 @@ void ConsumerImpl::executeNotifyCallback(Message& msg) {
     }
 
     // try trigger pending batch messages
+    Lock batchOptionLock(batchReceiveOptionMutex_);
     if (hasEnoughMessagesForBatchReceive()) {
         ConsumerImplBase::notifyBatchPendingReceivedCallback();
     }
@@ -535,12 +536,9 @@ void ConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback
     auto messages = std::make_shared<MessagesImpl>(batchReceivePolicy_.getMaxNumMessages(),
                                                    batchReceivePolicy_.getMaxNumBytes());
     Message peekMsg;
-    while (incomingMessages_.peek(peekMsg) && messages->canAdd(peekMsg)) {
-        // decreaseIncomingMessageSize
-        Message msg;
-        incomingMessages_.pop(msg);
-        messageProcessed(msg);
-        messages->add(msg);
+    while (incomingMessages_.pop(peekMsg, std::chrono::milliseconds(0)) && messages->canAdd(peekMsg)) {
+        messageProcessed(peekMsg);
+        messages->add(peekMsg);
     }
     auto self = get_shared_this_ptr();
     listenerExecutor_->postWork(

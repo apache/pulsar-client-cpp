@@ -477,9 +477,11 @@ void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& 
     incomingMessagesSize_.fetch_add(msg.getLength());
 
     // try trigger pending batch messages
+    Lock batchOptionLock(batchReceiveOptionMutex_);
     if (hasEnoughMessagesForBatchReceive()) {
         ConsumerImplBase::notifyBatchPendingReceivedCallback();
     }
+    batchOptionLock.unlock();
 
     if (messageListener_) {
         listenerExecutor_->postWork(
@@ -866,14 +868,10 @@ bool MultiTopicsConsumerImpl::hasEnoughMessagesForBatchReceive() const {
 void MultiTopicsConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) {
     auto messages = std::make_shared<MessagesImpl>(batchReceivePolicy_.getMaxNumMessages(),
                                                    batchReceivePolicy_.getMaxNumBytes());
-
     Message peekMsg;
-    while (incomingMessages_.peek(peekMsg) && messages->canAdd(peekMsg)) {
-        // decreaseIncomingMessageSize
-        Message msg;
-        incomingMessages_.pop(msg);
-        messageProcessed(msg);
-        messages->add(msg);
+    while (incomingMessages_.pop(peekMsg, std::chrono::milliseconds(0)) && messages->canAdd(peekMsg)) {
+        messageProcessed(peekMsg);
+        messages->add(peekMsg);
     }
     auto self = get_shared_this_ptr();
     listenerExecutor_->postWork(

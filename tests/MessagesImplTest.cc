@@ -38,12 +38,7 @@ TEST(MessagesImplTest, testMessage) {
         }
         ASSERT_FALSE(messages.canAdd(msg));
         ASSERT_EQ(messages.size(), 10);
-        try {
-            messages.add(msg);
-            FAIL() << "Should be failed.";
-        } catch (std::invalid_argument& e) {
-        }
-
+        ASSERT_THROW(messages.add(msg), std::invalid_argument);
         messages.clear();
         ASSERT_TRUE(messages.canAdd(msg));
         ASSERT_EQ(messages.size(), 0);
@@ -58,12 +53,7 @@ TEST(MessagesImplTest, testMessage) {
         }
         ASSERT_FALSE(messages.canAdd(msg));
         ASSERT_EQ(messages.size(), 10);
-        try {
-            messages.add(msg);
-            FAIL() << "Should be failed.";
-        } catch (std::invalid_argument& e) {
-        }
-
+        ASSERT_THROW(messages.add(msg), std::invalid_argument);
         messages.clear();
         ASSERT_TRUE(messages.canAdd(msg));
         ASSERT_EQ(messages.size(), 0);
