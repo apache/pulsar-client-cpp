@@ -52,9 +52,9 @@ github:
            - Run unit tests
            - Build CPP Client on Windows x64
            - Build CPP Client on Windows x86
-           - Build Debian Package
-           - Build RPM Package
-           - Build Alpine Linux APK Package
+           - Build Debian x86_64
+           - Build RPM x86_64
+           - Build Alpine x86_64
 
       required_pull_request_reviews:
         dismiss_stale_reviews: false
