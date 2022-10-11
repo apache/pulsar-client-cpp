@@ -38,9 +38,14 @@ std::string base64_encode(const std::string& s) {
     return data.append((3 - s.size() % 3) % 3, '=');
 }
 
-AuthDataBasic::AuthDataBasic(const std::string& username, const std::string& password) {
+AuthDataBasic::AuthDataBasic(const std::string& username, const std::string& password)
+    : AuthDataBasic(username, password, DEFAULT_BASIC_METHOD_NAME) {}
+
+AuthDataBasic::AuthDataBasic(const std::string& username, const std::string& password,
+                             const std::string& methodName) {
     commandAuthToken_ = username + ":" + password;
     httpAuthToken_ = base64_encode(commandAuthToken_);
+    methodName_ = methodName;
 }
 
 AuthDataBasic::~AuthDataBasic() {}
@@ -53,6 +58,8 @@ bool AuthDataBasic::hasDataFromCommand() { return true; }
 
 std::string AuthDataBasic::getCommandData() { return commandAuthToken_; }
 
+const std::string& AuthDataBasic::getMethodName() const { return methodName_; }
+
 // AuthBasic
 
 AuthBasic::AuthBasic(AuthenticationDataPtr& authDataBasic) { authDataBasic_ = authDataBasic; }
@@ -61,6 +68,13 @@ AuthBasic::~AuthBasic() = default;
 
 AuthenticationPtr AuthBasic::create(const std::string& username, const std::string& password) {
     AuthenticationDataPtr authDataBasic = AuthenticationDataPtr(new AuthDataBasic(username, password));
+    return AuthenticationPtr(new AuthBasic(authDataBasic));
+}
+
+AuthenticationPtr AuthBasic::create(const std::string& username, const std::string& password,
+                                    const std::string& method) {
+    AuthenticationDataPtr authDataBasic =
+        AuthenticationDataPtr(new AuthDataBasic(username, password, method));
     return AuthenticationPtr(new AuthBasic(authDataBasic));
 }
 
@@ -96,11 +110,17 @@ AuthenticationPtr AuthBasic::create(ParamMap& params) {
     if (passwordIt == params.end()) {
         throw std::runtime_error("No password provided for basic provider");
     }
-
-    return create(usernameIt->second, passwordIt->second);
+    auto methodIt = params.find("method");
+    if (methodIt == params.end()) {
+        return create(usernameIt->second, passwordIt->second);
+    } else {
+        return create(usernameIt->second, passwordIt->second, methodIt->second);
+    }
 }
 
-const std::string AuthBasic::getAuthMethodName() const { return "basic"; }
+const std::string AuthBasic::getAuthMethodName() const {
+    return static_cast<AuthDataBasic*>(authDataBasic_.get())->getMethodName();
+}
 
 Result AuthBasic::getAuthData(AuthenticationDataPtr& authDataBasic) {
     authDataBasic = authDataBasic_;

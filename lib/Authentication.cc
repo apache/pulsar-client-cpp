@@ -130,7 +130,7 @@ AuthenticationPtr tryCreateBuiltinAuth(const std::string& pluginName, ParamMap& 
     } else if (boost::iequals(pluginName, OAUTH2_TOKEN_PLUGIN_NAME) ||
                boost::iequals(pluginName, OAUTH2_TOKEN_JAVA_PLUGIN_NAME)) {
         return AuthOauth2::create(paramMap);
-    } else if (boost::iequals(pluginName, BASIC_PLUGIN_NAME) ||
+    } else if (boost::iequals(pluginName, DEFAULT_BASIC_METHOD_NAME) ||
                boost::iequals(pluginName, BASIC_JAVA_PLUGIN_NAME)) {
         return AuthBasic::create(paramMap);
     } else {
@@ -150,7 +150,7 @@ AuthenticationPtr tryCreateBuiltinAuth(const std::string& pluginName, const std:
     } else if (boost::iequals(pluginName, OAUTH2_TOKEN_PLUGIN_NAME) ||
                boost::iequals(pluginName, OAUTH2_TOKEN_JAVA_PLUGIN_NAME)) {
         return AuthOauth2::create(authParamsString);
-    } else if (boost::iequals(pluginName, BASIC_PLUGIN_NAME) ||
+    } else if (boost::iequals(pluginName, DEFAULT_BASIC_METHOD_NAME) ||
                boost::iequals(pluginName, BASIC_JAVA_PLUGIN_NAME)) {
         return AuthBasic::create(authParamsString);
     } else {
