@@ -61,6 +61,8 @@ bool AuthDataBasic::hasDataFromCommand() { return true; }
 
 std::string AuthDataBasic::getCommandData() { return commandAuthToken_; }
 
+const std::string& AuthDataBasic::getMethodName() const { return methodName_; }
+
 // AuthBasic
 
 AuthBasic::AuthBasic(AuthenticationDataPtr& authDataBasic) { authDataBasic_ = authDataBasic; }
@@ -115,11 +117,13 @@ AuthenticationPtr AuthBasic::create(ParamMap& params) {
     if (methodIt == params.end()) {
         return create(usernameIt->second, passwordIt->second);
     } else {
-        return create(usernameIt->second, passwordIt->second, methodId->second);
+        return create(usernameIt->second, passwordIt->second, methodIt->second);
     }
 }
 
-const std::string AuthBasic::getAuthMethodName() const { return method_; }
+const std::string AuthBasic::getAuthMethodName() const {
+    return static_cast<AuthDataBasic*>(authDataBasic_.get())->getMethodName();
+}
 
 Result AuthBasic::getAuthData(AuthenticationDataPtr& authDataBasic) {
     authDataBasic = authDataBasic_;

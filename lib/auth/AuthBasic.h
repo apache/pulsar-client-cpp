@@ -39,6 +39,8 @@ class AuthDataBasic : public AuthenticationDataProvider {
     bool hasDataFromCommand();
     std::string getCommandData();
 
+    const std::string& getMethodName() const;
+
    private:
     std::string commandAuthToken_;
     std::string httpAuthToken_;

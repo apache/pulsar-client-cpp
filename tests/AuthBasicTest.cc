@@ -254,7 +254,7 @@ TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
     ASSERT_EQ(ResultLookupError, result);
 }
 
-TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
+TEST(AuthPluginBasic, testAuthBasicWithCustomMethodName) {
     ClientConfiguration config = ClientConfiguration();
 
     AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456", "method-1");
