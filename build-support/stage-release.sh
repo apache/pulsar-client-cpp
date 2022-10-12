@@ -25,8 +25,8 @@ if [ $# -neq 2 ]; then
     exit 1
 fi
 
-DEST_PATH=$1
-WORKFLOW_ID=$1
+DEST_PATH=$(readlink -f $1)
+WORKFLOW_ID=$2
 
 pushd $(dirname "$0")
 PULSAR_CPP_PATH=$(git rev-parse --show-toplevel)
@@ -34,8 +34,7 @@ popd
 
 mkdir -p $DEST_PATH
 
-cd PULSAR_CPP_PATH
-VERSION=$(cat version.txt | xargs)
+cd $PULSAR_CPP_PATH
 
 build-support/generate-source-archive.sh $DEST_PATH
 build-support/download-release-artifacts.py $WORKFLOW_ID $DEST_PATH
