@@ -118,6 +118,7 @@ sudo make
 
 # Copy the gmock headers to the OS include path.
 sudo cp -r include/gmock /usr/include/
+
 # Copy the libraries you just built to the OS brary path.
 sudo cp lib/*.a /usr/lib
 ```
