@@ -262,6 +262,4 @@ pulsar-test-service-stop.sh
 
 It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` 6.0+ to format files.  `make format` automatically formats the files.
 
-Use `pulsar-client-cpp/docker-format.sh` to ensure the C++ sources are correctly formatted.
-
 We welcome contributions from the open source community, kindly make sure your changes are backward compatible with GCC 4.8 and Boost 1.53.
