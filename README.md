@@ -123,22 +123,7 @@ perf/perfConsumer
 
 #### Install all dependencies:
 ```shell
-# For openSSL
-brew install openssl
-
-# For x86_64 macOS
-export OPENSSL_INCLUDE_DIR=/usr/local/opt/openssl/include/
-export OPENSSL_ROOT_DIR=/usr/local/opt/openssl/
-
-# For arm64 (Apple Silicon) macOS
-export OPENSSL_INCLUDE_DIR=/opt/homebrew/opt/openssl/include/
-export OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl/
-
-# For Protobuf
-brew install protobuf boost boost-python3 log4cxx jsoncpp
-
-# For GoogleTest
-brew install googletest
+brew install openssl protobuf boost boost-python3 googletest zstd snappy
 ```
 
 #### Compile Pulsar client library:
@@ -237,18 +222,16 @@ pulsar-client-cpp/build/examples/Release
 
 ## Tests
 ```shell
-# Source code
-pulsar-client-cpp/tests/
-
 # Execution
 # Start standalone broker
-pulsar-test-service-start.sh
+./pulsar-test-service-start.sh
 
 # Run the tests
-pulsar-client-cpp/tests/main
+cd tests
+./pulsar-tests
 
 # When no longer needed, stop standalone broker
-pulsar-test-service-stop.sh
+./pulsar-test-service-stop.sh
 ```
 
 ## Requirements for Contributors
