@@ -25,12 +25,13 @@
 
 namespace pulsar {
 
-const std::string BASIC_PLUGIN_NAME = "basic";
+const std::string DEFAULT_BASIC_METHOD_NAME = "basic";
 const std::string BASIC_JAVA_PLUGIN_NAME = "org.apache.pulsar.client.impl.auth.AuthenticationBasic";
 
 class AuthDataBasic : public AuthenticationDataProvider {
    public:
     AuthDataBasic(const std::string& username, const std::string& password);
+    AuthDataBasic(const std::string& username, const std::string& password, const std::string& methodName);
     ~AuthDataBasic();
 
     bool hasDataForHttp();
@@ -38,9 +39,12 @@ class AuthDataBasic : public AuthenticationDataProvider {
     bool hasDataFromCommand();
     std::string getCommandData();
 
+    const std::string& getMethodName() const;
+
    private:
     std::string commandAuthToken_;
     std::string httpAuthToken_;
+    std::string methodName_;
 };
 
 }  // namespace pulsar

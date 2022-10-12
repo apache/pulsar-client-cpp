@@ -17,7 +17,7 @@
 # under the License.
 #
 
-FROM alpine:3.16
+FROM alpine:3.12
 
 ARG PLATFORM
 
@@ -48,7 +48,7 @@ RUN BOOST_VERSION=$(dep-version.py boost) && \
     tar xfz boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
     cd boost_${BOOST_VERSION_UNDESRSCORE} && \
     ./bootstrap.sh --with-libraries=regex && \
-    ./b2 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
+    ./b2 -d0 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
     rm -rf /boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz /boost_${BOOST_VERSION_UNDESRSCORE}
 
 # Download and compile protobuf

@@ -131,12 +131,35 @@ TEST(AuthPluginBasic, testLoadAuth) {
     ASSERT_EQ(data->hasDataForTls(), false);
     ASSERT_EQ(data->hasDataForHttp(), true);
 
+    auth = pulsar::AuthBasic::create(
+        "{\"username\":\"super-user\",\"password\":\"123789\",\"method\":\"my-method\"}");
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "my-method");
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "super-user:123789");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
     ParamMap p = ParamMap();
     p["username"] = "super-user-2";
     p["password"] = "456789";
     auth = pulsar::AuthBasic::create(p);
     ASSERT_TRUE(auth != NULL);
     ASSERT_EQ(auth->getAuthMethodName(), "basic");
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    p = ParamMap();
+    p["username"] = "super-user-2";
+    p["password"] = "456789";
+    p["method"] = "my-method-2";
+    auth = pulsar::AuthBasic::create(p);
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "my-method-2");
     ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
     ASSERT_EQ(data->hasDataFromCommand(), true);
     ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
@@ -252,4 +275,20 @@ TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
     Producer producer;
     Result result = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultLookupError, result);
+}
+
+TEST(AuthPluginBasic, testAuthBasicWithCustomMethodName) {
+    ClientConfiguration config = ClientConfiguration();
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456", "method-1");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "method-1");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
 }

@@ -322,6 +322,12 @@ class PULSAR_PUBLIC AuthBasic : public Authentication {
     static AuthenticationPtr create(const std::string& username, const std::string& password);
 
     /**
+     * Create an AuthBasic with the required parameters
+     */
+    static AuthenticationPtr create(const std::string& username, const std::string& password,
+                                    const std::string& method);
+
+    /**
      * @return “basic”
      */
     const std::string getAuthMethodName() const override;

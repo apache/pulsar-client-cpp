@@ -218,3 +218,14 @@ jobs:
 
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
+
+
+  # Job that will be required to complete and depends on all the other jobs
+  check-completion:
+    name: Check Completion
+    runs-on: ubuntu-latest
+    needs: [unit-tests, cpp-build-windows, package]
+
+    steps:
+      - run: true
+
