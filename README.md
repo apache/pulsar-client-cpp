@@ -73,21 +73,7 @@ Pulsar C++ Client Library has been tested on:
 
 ## Compilation
 
-### Compile within a Docker container
-
-You can compile the C++ client library within a Docker container that already
-contains all the required dependencies.
-
-```shell
-./docker-build.sh
-```
-
-Run unit tests:
-```shell
-./docker-tests.sh
-```
-
-### Compile on Ubuntu Server 20.04
+### Compile on Ubuntu
 
 #### Install all dependencies:
 
@@ -237,7 +223,5 @@ cd tests
 ## Requirements for Contributors
 
 It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` 6.0+ to format files.  `make format` automatically formats the files.
-
-Use `pulsar-client-cpp/docker-format.sh` to ensure the C++ sources are correctly formatted.
 
 We welcome contributions from the open source community, kindly make sure your changes are backward compatible with GCC 4.8 and Boost 1.53.
