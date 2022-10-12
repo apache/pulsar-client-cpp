@@ -29,6 +29,12 @@ set -e
 ROOT_DIR=$(git rev-parse --show-toplevel)
 cd $ROOT_DIR
 
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 <install-dir>"
+    exit 1
+fi
+INSTALL_DIR=$(mkdir -p $1 && cd $1 && pwd)
+
 python3 -m pip install pyyaml
 
 OS=darwin64-x86_64-cc
@@ -166,11 +172,10 @@ cmake -Wno-dev -B $BUILD_DIR \
     -DPROTOC_PATH=$PREFIX/bin/protoc \
     -DLINK_STATIC=ON \
     -DBUILD_TESTS=OFF -DBUILD_PERF_TOOLS=OFF \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR \
     -DCMAKE_PREFIX_PATH=$PREFIX
-cmake --build $BUILD_DIR -j${NUM_MAKE_THREAD:-8}
-
-# The libraries have been generated under _builds/
-ls -lh _builds/lib
+cmake --build $BUILD_DIR -j${NUM_MAKE_THREAD:-8} --target install
+ls -lh $INSTALL_DIR
 
 # Test example build
 cat <<EOF > /tmp/main.cc
@@ -184,6 +189,6 @@ int main() {
 }
 EOF
 set -x
-clang++ -std=c++11 /tmp/main.cc -I ./include $BUILD_DIR/lib/libpulsarwithdeps.a -o /tmp/main.out \
+clang++ -std=c++11 /tmp/main.cc -I $INSTALL_DIR/include $INSTALL_DIR/lib/libpulsarwithdeps.a -o /tmp/main.out \
     -framework SystemConfiguration -framework CoreFoundation
 /tmp/main.out

@@ -275,7 +275,7 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Build Pulsar C++ client with static linking
-        run: ./mac-intel-build.sh
+        run: ./mac-intel-install.sh
 
   # Job that will be required to complete and depends on all the other jobs
   check-completion:
