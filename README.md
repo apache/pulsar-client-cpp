@@ -92,36 +92,10 @@ Run unit tests:
 #### Install all dependencies:
 
 ```shell
-apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev \
-                libprotobuf-dev libboost-all-dev libgtest-dev google-mock \
+sudo apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev \
+                libprotobuf-dev libboost-all-dev libgtest-dev libgmock-dev \
                 protobuf-compiler
 ```
-
-#### Compile and install Google Test:
-
-```shell
-cd /usr/src/gtest
-sudo cmake .
-sudo make
-
-# Copy the libraries you just built to the OS library path.
-sudo cp lib/*.a /usr/lib
-```
-
-
-#### Compile and install Google Mock:
-
-```shell
-cd /usr/src/gmock
-sudo cmake .
-sudo make
-
-# Copy the gmock headers to the OS include path.
-sudo cp -r include/gmock /usr/include/
-# Copy the libraries you just built to the OS brary path.
-sudo cp lib/*.a /usr/lib
-```
-
 
 #### Compile Pulsar client library:
 
@@ -149,17 +123,7 @@ perf/perfConsumer
 
 #### Install all dependencies:
 ```shell
-# For openSSL
-brew install openssl
-export OPENSSL_INCLUDE_DIR=/usr/local/opt/openssl/include/
-export OPENSSL_ROOT_DIR=/usr/local/opt/openssl/
-
-# For Protobuf
-brew install protobuf boost boost-python log4cxx jsoncpp
-// If you are using python3, you need to install boost-python3
-
-# For GoogleTest
-brew install googletest
+brew install openssl protobuf boost boost-python3 googletest zstd snappy
 ```
 
 #### Compile Pulsar client library:
@@ -258,18 +222,16 @@ pulsar-client-cpp/build/examples/Release
 
 ## Tests
 ```shell
-# Source code
-pulsar-client-cpp/tests/
-
 # Execution
 # Start standalone broker
-pulsar-test-service-start.sh
+./pulsar-test-service-start.sh
 
 # Run the tests
-pulsar-client-cpp/tests/main
+cd tests
+./pulsar-tests
 
 # When no longer needed, stop standalone broker
-pulsar-test-service-stop.sh
+./pulsar-test-service-stop.sh
 ```
 
 ## Requirements for Contributors
