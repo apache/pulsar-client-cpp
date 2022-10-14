@@ -141,8 +141,7 @@ TEST(TopicNameTest, testIllegalCharacters) {
 }
 
 TEST(TopicNameTest, testLegalNonAlphaCharacters) {
-    std::shared_ptr<TopicName> topicName =
-        TopicName::get("persistent://cluster-1:=./namespace-1:=./topic");
+    std::shared_ptr<TopicName> topicName = TopicName::get("persistent://cluster-1:=./namespace-1:=./topic");
     ASSERT_TRUE(topicName);
     ASSERT_EQ("cluster-1:=.", topicName->getProperty());
     ASSERT_EQ("namespace-1:=.", topicName->getNamespacePortion());
