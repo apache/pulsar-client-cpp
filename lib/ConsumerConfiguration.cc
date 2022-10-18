@@ -19,6 +19,7 @@
 #include <lib/ConsumerConfigurationImpl.h>
 
 #include <stdexcept>
+#include <pulsar/ConsumerConfiguration.h>
 
 namespace pulsar {
 
@@ -266,5 +267,13 @@ ConsumerConfiguration& ConsumerConfiguration::setStartMessageIdInclusive(bool st
 }
 
 bool ConsumerConfiguration::isStartMessageIdInclusive() const { return impl_->startMessageIdInclusive; }
+
+void ConsumerConfiguration::setBatchReceivePolicy(const BatchReceivePolicy& batchReceivePolicy) {
+    impl_->batchReceivePolicy = batchReceivePolicy;
+}
+
+const BatchReceivePolicy& ConsumerConfiguration::getBatchReceivePolicy() const {
+    return impl_->batchReceivePolicy;
+}
 
 }  // namespace pulsar
