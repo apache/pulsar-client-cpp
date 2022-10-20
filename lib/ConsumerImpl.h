@@ -84,7 +84,6 @@ class ConsumerImpl : public ConsumerImplBase {
     void activeConsumerChanged(bool isActive);
     inline proto::CommandSubscribe_SubType getSubType();
     inline proto::CommandSubscribe_InitialPosition getInitialPosition();
-    void handleUnsubscribe(Result result, ResultCallback callback);
 
     /**
      * Send individual ACK request of given message ID to broker.
@@ -140,6 +139,7 @@ class ConsumerImpl : public ConsumerImplBase {
     virtual bool isReadCompacted();
     virtual void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
     virtual void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback);
+    void beforeConnectionChange(ClientConnection& cnx) override;
 
    protected:
     // overrided methods from HandlerBase
@@ -156,7 +156,8 @@ class ConsumerImpl : public ConsumerImplBase {
 
     void internalConsumerChangeListener(bool isActive);
 
-    void handleClose(Result result, ResultCallback callback, ConsumerImplPtr consumer);
+    void cancelTimers() noexcept;
+
     ConsumerStatsBasePtr consumerStatsBasePtr_;
 
    private:

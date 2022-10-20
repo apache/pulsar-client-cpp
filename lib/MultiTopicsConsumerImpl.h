@@ -87,7 +87,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     Future<Result, Consumer> subscribeOneTopicAsync(const std::string& topic);
 
    protected:
-    const ClientImplPtr client_;
+    const ClientImplWeakPtr client_;
     const std::string subscriptionName_;
     std::string consumerStr_;
     const ConsumerConfiguration conf_;
@@ -118,7 +118,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void internalListener(Consumer consumer);
     void receiveMessages();
     void failPendingReceiveCallback();
-    void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
+    void notifyPendingReceivedCallback(Result result, const Message& message,
+                                       const ReceiveCallback& callback);
 
     void handleOneTopicSubscribed(Result result, Consumer consumer, const std::string& topic,
                                   std::shared_ptr<std::atomic<int>> topicsNeedCreate);
@@ -142,10 +143,16 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     // impl consumer base virtual method
     bool hasEnoughMessagesForBatchReceive() const override;
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
+    void beforeConnectionChange(ClientConnection& cnx) override;
 
    private:
     std::shared_ptr<MultiTopicsConsumerImpl> get_shared_this_ptr();
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;
+    void cancelTimers() noexcept;
+
+    std::weak_ptr<MultiTopicsConsumerImpl> weak_from_this() noexcept {
+        return std::static_pointer_cast<MultiTopicsConsumerImpl>(shared_from_this());
+    }
 
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);

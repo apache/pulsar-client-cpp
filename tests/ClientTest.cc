@@ -20,7 +20,6 @@
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
-#include "WaitUtils.h"
 
 #include <future>
 #include <pulsar/Client.h>
@@ -198,37 +197,34 @@ TEST(ClientTest, testReferenceCount) {
         Producer producer;
         ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
         ASSERT_EQ(producers.size(), 1);
-        ASSERT_TRUE(producers[0].use_count() > 0);
-        LOG_INFO("Reference count of the producer: " << producers[0].use_count());
+
+        producers.forEachValue([](const ProducerImplBaseWeakPtr &weakProducer) {
+            LOG_INFO("Reference count of producer: " << weakProducer.use_count());
+            ASSERT_FALSE(weakProducer.expired());
+        });
 
         Consumer consumer;
         ASSERT_EQ(ResultOk, client.subscribe(topic, "my-sub", consumer));
         ASSERT_EQ(consumers.size(), 1);
-        ASSERT_TRUE(consumers[0].use_count() > 0);
-        LOG_INFO("Reference count of the consumer: " << consumers[0].use_count());
 
         ReaderConfiguration readerConf;
         Reader reader;
         ASSERT_EQ(ResultOk,
                   client.createReader(topic + "-reader", MessageId::earliest(), readerConf, reader));
         ASSERT_EQ(consumers.size(), 2);
-        ASSERT_TRUE(consumers[1].use_count() > 0);
-        LOG_INFO("Reference count of the reader's underlying consumer: " << consumers[1].use_count());
+
+        consumers.forEachValue([](const ConsumerImplBaseWeakPtr &weakConsumer) {
+            LOG_INFO("Reference count of consumer: " << weakConsumer.use_count());
+            ASSERT_FALSE(weakConsumer.expired());
+        });
 
         readerWeakPtr = PulsarFriend::getReaderImplWeakPtr(reader);
         ASSERT_TRUE(readerWeakPtr.use_count() > 0);
         LOG_INFO("Reference count of the reader: " << readerWeakPtr.use_count());
     }
 
-    ASSERT_EQ(producers.size(), 1);
-    ASSERT_EQ(producers[0].use_count(), 0);
-    ASSERT_EQ(consumers.size(), 2);
-
-    waitUntil(std::chrono::seconds(1), [&consumers, &readerWeakPtr] {
-        return consumers[0].use_count() == 0 && consumers[1].use_count() == 0 && readerWeakPtr.expired();
-    });
-    EXPECT_EQ(consumers[0].use_count(), 0);
-    EXPECT_EQ(consumers[1].use_count(), 0);
+    EXPECT_EQ(producers.size(), 0);
+    EXPECT_EQ(consumers.size(), 0);
     EXPECT_EQ(readerWeakPtr.use_count(), 0);
     client.close();
 }

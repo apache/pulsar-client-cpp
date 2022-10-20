@@ -44,11 +44,9 @@ class HandlerBase {
 
     void start();
 
-    /*
-     * get method for derived class to access weak ptr to connection so that they
-     * have to check if they can get a shared_ptr out of it or not
-     */
-    ClientConnectionWeakPtr getCnx() const { return connection_; }
+    ClientConnectionWeakPtr getCnx() const;
+    void setCnx(const ClientConnectionPtr& cnx);
+    void resetCnx() { setCnx(nullptr); }
 
    protected:
     /*
@@ -65,6 +63,14 @@ class HandlerBase {
      * Should we retry in error that are transient
      */
     bool isRetriableError(Result result);
+
+    /**
+     * Do some cleanup work before changing `connection_` to `cnx`.
+     *
+     * @param cnx the current connection
+     */
+    virtual void beforeConnectionChange(ClientConnection& cnx) = 0;
+
     /*
      * connectionOpened will be implemented by derived class to receive notification
      */
@@ -86,7 +92,6 @@ class HandlerBase {
    protected:
     ClientImplWeakPtr client_;
     const std::string topic_;
-    ClientConnectionWeakPtr connection_;
     ExecutorServicePtr executor_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;
@@ -112,6 +117,9 @@ class HandlerBase {
 
    private:
     DeadlineTimerPtr timer_;
+
+    mutable std::mutex connectionMutex_;
+    ClientConnectionWeakPtr connection_;
     friend class ClientConnection;
     friend class PulsarFriend;
 };

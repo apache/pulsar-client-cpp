@@ -68,7 +68,7 @@ jobs:
         run: ./pulsar-test-service-start.sh
 
       - name: Run unit tests
-        run: ./run-unit-tests.sh
+        run: RETRY_FAILED=3 ./run-unit-tests.sh
 
       - name: Stop Pulsar service
         run: ./pulsar-test-service-stop.sh

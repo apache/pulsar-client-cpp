@@ -73,10 +73,12 @@ class PartitionedProducerImpl : public ProducerImplBase,
 
     void notifyResult(CloseCallback closeCallback);
 
+    std::weak_ptr<PartitionedProducerImpl> weak_from_this() noexcept { return shared_from_this(); }
+
     friend class PulsarFriend;
 
    private:
-    const ClientImplPtr client_;
+    ClientImplWeakPtr client_;
 
     const TopicNamePtr topicName_;
     const std::string topic_;
@@ -119,6 +121,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     void runPartitionUpdateTask();
     void getPartitionMetadata();
     void handleGetPartitions(const Result result, const LookupDataResultPtr& partitionMetadata);
+    void cancelTimers() noexcept;
 };
 
 }  // namespace pulsar
