@@ -31,6 +31,7 @@
 #include <atomic>
 #include <vector>
 #include "ServiceNameResolver.h"
+#include "SynchronizedHashMap.h"
 
 namespace pulsar {
 
@@ -91,6 +92,11 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ExecutorServiceProviderPtr getListenerExecutorProvider();
     ExecutorServiceProviderPtr getPartitionListenerExecutorProvider();
     LookupServicePtr getLookup();
+
+    void cleanupProducer(ProducerImplBase* address) { producers_.remove(address); }
+
+    void cleanupConsumer(ConsumerImplBase* address) { consumers_.remove(address); }
+
     friend class PulsarFriend;
 
    private:
@@ -147,11 +153,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     uint64_t consumerIdGenerator_;
     uint64_t requestIdGenerator_;
 
-    typedef std::vector<ProducerImplBaseWeakPtr> ProducersList;
-    ProducersList producers_;
-
-    typedef std::vector<ConsumerImplBaseWeakPtr> ConsumersList;
-    ConsumersList consumers_;
+    SynchronizedHashMap<ProducerImplBase*, ProducerImplBaseWeakPtr> producers_;
+    SynchronizedHashMap<ConsumerImplBase*, ConsumerImplBaseWeakPtr> consumers_;
 
     std::atomic<Result> closingError;
 

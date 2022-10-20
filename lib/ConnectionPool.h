@@ -74,10 +74,10 @@ class PULSAR_PUBLIC ConnectionPool {
     typedef std::map<std::string, ClientConnectionWeakPtr> PoolMap;
     PoolMap pool_;
     bool poolConnections_;
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     std::atomic_bool closed_{false};
 
-    friend class ConnectionPoolTest;
+    friend class PulsarFriend;
 };
 }  // namespace pulsar
 #endif  //_PULSAR_CONNECTION_POOL_HEADER_

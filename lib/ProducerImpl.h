@@ -109,6 +109,7 @@ class ProducerImpl : public HandlerBase,
     friend class BatchMessageContainer;
 
     // overrided methods from HandlerBase
+    void beforeConnectionChange(ClientConnection& connection) override;
     void connectionOpened(const ClientConnectionPtr& connection) override;
     void connectionFailed(Result result) override;
     HandlerBaseWeakPtr get_weak_from_this() override { return shared_from_this(); }
@@ -119,8 +120,6 @@ class ProducerImpl : public HandlerBase,
 
     void handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
                               const ResponseData& responseData);
-
-    void handleClose(Result result, ResultCallback callback, ProducerImplPtr producer);
 
     void resendMessages(ClientConnectionPtr cnx);
 
@@ -143,7 +142,7 @@ class ProducerImpl : public HandlerBase,
     void releaseSemaphore(uint32_t payloadSize);
     void releaseSemaphoreForSendOp(const OpSendMsg& op);
 
-    void cancelTimers();
+    void cancelTimers() noexcept;
 
     bool isValidProducerState(const SendCallback& callback) const;
     bool canAddToBatch(const Message& msg) const;

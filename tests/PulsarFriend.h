@@ -98,12 +98,43 @@ class PulsarFriend {
 
     static std::shared_ptr<ClientImpl> getClientImplPtr(Client client) { return client.impl_; }
 
-    static ClientImpl::ProducersList& getProducers(const Client& client) {
+    static auto getProducers(const Client& client) -> decltype(ClientImpl::producers_)& {
         return getClientImplPtr(client)->producers_;
     }
 
-    static ClientImpl::ConsumersList& getConsumers(const Client& client) {
+    static auto getConsumers(const Client& client) -> decltype(ClientImpl::consumers_)& {
         return getClientImplPtr(client)->consumers_;
+    }
+
+    static std::vector<ClientConnectionPtr> getConnections(const Client& client) {
+        auto& pool = client.impl_->pool_;
+        std::vector<ClientConnectionPtr> connections;
+        std::lock_guard<std::mutex> lock(pool.mutex_);
+        for (const auto& kv : pool.pool_) {
+            auto cnx = kv.second.lock();
+            if (cnx) {
+                connections.emplace_back(cnx);
+            }
+        }
+        return connections;
+    }
+
+    static std::vector<ProducerImplPtr> getProducers(const ClientConnection& cnx) {
+        std::vector<ProducerImplPtr> producers;
+        std::lock_guard<std::mutex> lock(cnx.mutex_);
+        for (const auto& kv : cnx.producers_) {
+            producers.emplace_back(kv.second.lock());
+        }
+        return producers;
+    }
+
+    static std::vector<ConsumerImplPtr> getConsumers(const ClientConnection& cnx) {
+        std::vector<ConsumerImplPtr> consumers;
+        std::lock_guard<std::mutex> lock(cnx.mutex_);
+        for (const auto& kv : cnx.consumers_) {
+            consumers.emplace_back(kv.second.lock());
+        }
+        return consumers;
     }
 
     static void setNegativeAckEnabled(Consumer consumer, bool enabled) {
