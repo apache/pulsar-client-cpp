@@ -75,5 +75,5 @@ jobs:
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: ${{matrix.pkg.type}}-${{matrix.pkg.platform}}
+          name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
           path: ${{matrix.pkg.path}}
