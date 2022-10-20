@@ -32,7 +32,7 @@ PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(ClientImplPtr cli
                               lookupServicePtr_),
       patternString_(pattern),
       pattern_(PULSAR_REGEX_NAMESPACE::regex(pattern)),
-      autoDiscoveryTimer_(),
+      autoDiscoveryTimer_(client->getIOExecutorProvider()->get()->createDeadlineTimer()),
       autoDiscoveryRunning_(false) {
     namespaceName_ = TopicName::get(pattern)->getNamespaceName();
 }
@@ -215,9 +215,7 @@ void PatternMultiTopicsConsumerImpl::start() {
 
     LOG_DEBUG("PatternMultiTopicsConsumerImpl start autoDiscoveryTimer_.");
 
-    // Init autoDiscoveryTimer task only once, wait for the timeout to happen
-    if (!autoDiscoveryTimer_ && conf_.getPatternAutoDiscoveryPeriod() > 0) {
-        autoDiscoveryTimer_ = client_->getIOExecutorProvider()->get()->createDeadlineTimer();
+    if (conf_.getPatternAutoDiscoveryPeriod() > 0) {
         autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
         autoDiscoveryTimer_->async_wait(
             std::bind(&PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask, this, std::placeholders::_1));
@@ -225,13 +223,16 @@ void PatternMultiTopicsConsumerImpl::start() {
 }
 
 void PatternMultiTopicsConsumerImpl::shutdown() {
-    Lock lock(mutex_);
-    state_ = Closed;
-    autoDiscoveryTimer_->cancel();
-    multiTopicsConsumerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    cancelTimers();
+    MultiTopicsConsumerImpl::shutdown();
 }
 
 void PatternMultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
+    cancelTimers();
     MultiTopicsConsumerImpl::closeAsync(callback);
-    autoDiscoveryTimer_->cancel();
+}
+
+void PatternMultiTopicsConsumerImpl::cancelTimers() noexcept {
+    boost::system::error_code ec;
+    autoDiscoveryTimer_->cancel(ec);
 }

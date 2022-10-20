@@ -104,7 +104,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
 
 ConsumerImpl::~ConsumerImpl() {
     LOG_DEBUG(getName() << "~ConsumerImpl");
-    incomingMessages_.clear();
     if (state_ == Ready) {
         // this could happen at least in this condition:
         //      consumer seek, caused reconnection, if consumer close happened before connection ready,
@@ -121,6 +120,7 @@ ConsumerImpl::~ConsumerImpl() {
             LOG_INFO(getName() << "Closed consumer for race condition: " << consumerId_);
         }
     }
+    shutdown();
 }
 
 void ConsumerImpl::setPartitionIndex(int partitionIndex) { partitionIndex_ = partitionIndex; }
@@ -155,6 +155,8 @@ void ConsumerImpl::start() {
     }
     ackGroupingTrackerPtr_->start();
 }
+
+void ConsumerImpl::beforeConnectionChange(ClientConnection& cnx) { cnx.removeConsumer(consumerId_); }
 
 void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     if (state_ == Closed) {
@@ -220,7 +222,7 @@ void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result r
         LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
         {
             Lock lock(mutex_);
-            connection_ = cnx;
+            setCnx(cnx);
             incomingMessages_.clear();
             state_ = Ready;
             backoff_.reset();
@@ -267,13 +269,24 @@ void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result r
     }
 }
 
-void ConsumerImpl::unsubscribeAsync(ResultCallback callback) {
+void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
     LOG_INFO(getName() << "Unsubscribing");
+
+    auto callback = [this, originalCallback](Result result) {
+        if (result == ResultOk) {
+            shutdown();
+            LOG_INFO(getName() << "Unsubscribed successfully");
+        } else {
+            state_ = Ready;
+            LOG_WARN(getName() << "Failed to unsubscribe: " << result);
+        }
+        if (originalCallback) {
+            originalCallback(result);
+        }
+    };
 
     if (state_ != Ready) {
         callback(ResultAlreadyClosed);
-        LOG_ERROR(getName() << "Can not unsubscribe a closed subscription, please call subscribe again and "
-                               "then call unsubscribe");
         return;
     }
 
@@ -286,25 +299,15 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback callback) {
         lock.unlock();
         int requestId = client->newRequestId();
         SharedBuffer cmd = Commands::newUnsubscribe(consumerId_, requestId);
+        auto self = get_shared_this_ptr();
         cnx->sendRequestWithId(cmd, requestId)
-            .addListener(std::bind(&ConsumerImpl::handleUnsubscribe, get_shared_this_ptr(),
-                                   std::placeholders::_1, callback));
+            .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
     } else {
         Result result = ResultNotConnected;
         lock.unlock();
         LOG_WARN(getName() << "Failed to unsubscribe: " << strResult(result));
         callback(result);
     }
-}
-
-void ConsumerImpl::handleUnsubscribe(Result result, ResultCallback callback) {
-    if (result == ResultOk) {
-        state_ = Closed;
-        LOG_INFO(getName() << "Unsubscribed successfully");
-    } else {
-        LOG_WARN(getName() << "Failed to unsubscribe: " << strResult(result));
-    }
-    callback(result);
 }
 
 Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
@@ -990,20 +993,25 @@ void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
 
 void ConsumerImpl::disconnectConsumer() {
     LOG_INFO("Broker notification of Closed consumer: " << consumerId_);
-    Lock lock(mutex_);
-    connection_.reset();
-    lock.unlock();
+    resetCnx();
     scheduleReconnection(get_shared_this_ptr());
 }
 
-void ConsumerImpl::closeAsync(ResultCallback callback) {
-    // Keep a reference to ensure object is kept alive
-    ConsumerImplPtr ptr = get_shared_this_ptr();
+void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
+    auto callback = [this, originalCallback](Result result) {
+        shutdown();
+        if (result == ResultOk) {
+            LOG_INFO(getName() << "Closed consumer " << consumerId_);
+        } else {
+            LOG_WARN(getName() << "Failed to close consumer: " << result);
+        }
+        if (originalCallback) {
+            originalCallback(result);
+        }
+    };
 
     if (state_ != Ready) {
-        if (callback) {
-            callback(ResultAlreadyClosed);
-        }
+        callback(ResultAlreadyClosed);
         return;
     }
 
@@ -1018,66 +1026,40 @@ void ConsumerImpl::closeAsync(ResultCallback callback) {
 
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
-        state_ = Closed;
         // If connection is gone, also the consumer is closed on the broker side
-        if (callback) {
-            callback(ResultOk);
-        }
+        callback(ResultOk);
         return;
     }
 
     ClientImplPtr client = client_.lock();
     if (!client) {
-        state_ = Closed;
         // Client was already destroyed
-        if (callback) {
-            callback(ResultOk);
-        }
+        callback(ResultOk);
         return;
     }
 
+    cancelTimers();
+
     int requestId = client->newRequestId();
-    Future<Result, ResponseData> future =
-        cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
-    if (callback) {
-        // Pass the shared pointer "ptr" to the handler to prevent the object from being destroyed
-        future.addListener(std::bind(&ConsumerImpl::handleClose, get_shared_this_ptr(), std::placeholders::_1,
-                                     callback, ptr));
-    }
-
-    // fail pendingReceive callback
-    failPendingReceiveCallback();
-    failPendingBatchReceiveCallback();
-
-    // cancel timer
-    batchReceiveTimer_->cancel();
-}
-
-void ConsumerImpl::handleClose(Result result, ResultCallback callback, ConsumerImplPtr consumer) {
-    if (result == ResultOk) {
-        state_ = Closed;
-
-        ClientConnectionPtr cnx = getCnx().lock();
-        if (cnx) {
-            cnx->removeConsumer(consumerId_);
-        }
-
-        LOG_INFO(getName() << "Closed consumer " << consumerId_);
-    } else {
-        LOG_ERROR(getName() << "Failed to close consumer: " << result);
-    }
-
-    if (callback) {
-        callback(result);
-    }
+    auto self = get_shared_this_ptr();
+    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
+        .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
 
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
 
 void ConsumerImpl::shutdown() {
-    state_ = Closed;
-
+    incomingMessages_.clear();
+    resetCnx();
+    auto client = client_.lock();
+    if (client) {
+        client->cleanupConsumer(this);
+    }
+    cancelTimers();
     consumerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    failPendingReceiveCallback();
+    failPendingBatchReceiveCallback();
+    state_ = Closed;
 }
 
 bool ConsumerImpl::isClosed() { return state_ == Closed; }
@@ -1435,6 +1417,11 @@ bool ConsumerImpl::hasEnoughMessagesForBatchReceive() const {
 
 std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
     return std::dynamic_pointer_cast<ConsumerImpl>(shared_from_this());
+}
+
+void ConsumerImpl::cancelTimers() noexcept {
+    boost::system::error_code ec;
+    batchReceiveTimer_->cancel(ec);
 }
 
 } /* namespace pulsar */

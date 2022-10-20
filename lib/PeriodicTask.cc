@@ -38,12 +38,13 @@ void PeriodicTask::start() {
     }
 }
 
-void PeriodicTask::stop() {
+void PeriodicTask::stop() noexcept {
     State state = Ready;
     if (!state_.compare_exchange_strong(state, Closing)) {
         return;
     }
-    timer_.cancel();
+    ErrorCode ec;
+    timer_.cancel(ec);
     state_ = Pending;
 }
 

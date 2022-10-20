@@ -30,7 +30,6 @@ namespace pulsar {
 HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, const Backoff& backoff)
     : client_(client),
       topic_(topic),
-      connection_(),
       executor_(client->getIOExecutorProvider()->get()),
       mutex_(),
       creationTimestamp_(TimeUtils::now()),
@@ -50,14 +49,25 @@ void HandlerBase::start() {
     }
 }
 
+ClientConnectionWeakPtr HandlerBase::getCnx() const {
+    Lock lock(connectionMutex_);
+    return connection_;
+}
+
+void HandlerBase::setCnx(const ClientConnectionPtr& cnx) {
+    Lock lock(connectionMutex_);
+    auto previousCnx = connection_.lock();
+    if (previousCnx) {
+        beforeConnectionChange(*previousCnx);
+    }
+    connection_ = cnx;
+}
+
 void HandlerBase::grabCnx() {
-    Lock lock(mutex_);
-    if (connection_.lock()) {
-        lock.unlock();
+    if (getCnx().lock()) {
         LOG_INFO(getName() << "Ignoring reconnection request since we're already connected");
         return;
     }
-    lock.unlock();
     LOG_INFO(getName() << "Getting connection from pool");
     ClientImplPtr client = client_.lock();
     Future<Result, ClientConnectionWeakPtr> future = client->getConnection(topic_);
@@ -96,14 +106,14 @@ void HandlerBase::handleDisconnection(Result result, ClientConnectionWeakPtr con
 
     State state = handler->state_;
 
-    ClientConnectionPtr currentConnection = handler->connection_.lock();
+    ClientConnectionPtr currentConnection = handler->getCnx().lock();
     if (currentConnection && connection.lock().get() != currentConnection.get()) {
         LOG_WARN(handler->getName()
                  << "Ignoring connection closed since we are already attached to a newer connection");
         return;
     }
 
-    handler->connection_.reset();
+    handler->resetCnx();
 
     if (result == ResultRetryable) {
         scheduleReconnection(handler);

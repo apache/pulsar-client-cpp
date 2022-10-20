@@ -314,7 +314,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::map<long, Promise<Result, NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
     PendingGetNamespaceTopicsMap pendingGetNamespaceTopicsRequests_;
 
-    std::mutex mutex_;
+    mutable std::mutex mutex_;
     typedef std::unique_lock<std::mutex> Lock;
 
     // Pending buffers to write on the socket

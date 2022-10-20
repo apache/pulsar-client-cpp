@@ -72,6 +72,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     bool autoDiscoveryRunning_;
     NamespaceNamePtr namespaceName_;
 
+    void cancelTimers() noexcept;
     void resetAutoDiscoveryTimer();
     void timerGetTopicsOfNamespace(const Result result, const NamespaceTopicsPtr topics);
     void onTopicsAdded(NamespaceTopicsPtr addedTopics, ResultCallback callback);

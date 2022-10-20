@@ -109,7 +109,7 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
 
 ProducerImpl::~ProducerImpl() {
     LOG_DEBUG(getName() << "~ProducerImpl");
-    cancelTimers();
+    shutdown();
     printStats();
     if (state_ == Ready || state_ == Pending) {
         LOG_WARN(getName() << "Destroyed producer which was not properly closed");
@@ -123,6 +123,10 @@ const std::string& ProducerImpl::getProducerName() const { return producerName_;
 int64_t ProducerImpl::getLastSequenceId() const { return lastSequenceIdPublished_; }
 
 const std::string& ProducerImpl::getSchemaVersion() const { return schemaVersion_; }
+
+void ProducerImpl::beforeConnectionChange(ClientConnection& connection) {
+    connection.removeProducer(producerId_);
+}
 
 void ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     if (state_ == Closed) {
@@ -185,7 +189,7 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             msgSequenceGenerator_ = lastSequenceIdPublished_ + 1;
         }
         resendMessages(cnx);
-        connection_ = cnx;
+        setCnx(cnx);
         state_ = Ready;
         backoff_.reset();
         lock.unlock();
@@ -645,16 +649,25 @@ void ProducerImpl::printStats() {
     }
 }
 
-void ProducerImpl::closeAsync(CloseCallback callback) {
+void ProducerImpl::closeAsync(CloseCallback originalCallback) {
+    auto callback = [this, originalCallback](Result result) {
+        if (result == ResultOk) {
+            LOG_INFO(getName() << "Closed producer " << producerId_);
+            shutdown();
+        } else {
+            LOG_ERROR(getName() << "Failed to close producer: " << strResult(result));
+        }
+        if (originalCallback) {
+            originalCallback(result);
+        }
+    };
+
     // if the producer was never started then there is nothing to clean up
     State expectedState = NotStarted;
     if (state_.compare_exchange_strong(expectedState, Closed)) {
         callback(ResultOk);
         return;
     }
-
-    // Keep a reference to ensure object is kept alive
-    ProducerImplPtr ptr = shared_from_this();
 
     cancelTimers();
 
@@ -669,10 +682,7 @@ void ProducerImpl::closeAsync(CloseCallback callback) {
     // just like Java's `getAndUpdate` method on an atomic variable
     const auto state = state_.load();
     if (state != Ready && state != Pending) {
-        state_ = Closed;
-        if (callback) {
-            callback(ResultAlreadyClosed);
-        }
+        callback(ResultAlreadyClosed);
 
         return;
     }
@@ -681,53 +691,24 @@ void ProducerImpl::closeAsync(CloseCallback callback) {
 
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
-        state_ = Closed;
-
-        if (callback) {
-            callback(ResultOk);
-        }
+        callback(ResultOk);
         return;
     }
 
     // Detach the producer from the connection to avoid sending any other
     // message from the producer
-    connection_.reset();
+    resetCnx();
 
     ClientImplPtr client = client_.lock();
     if (!client) {
-        state_ = Closed;
-        // Client was already destroyed
-        if (callback) {
-            callback(ResultOk);
-        }
+        callback(ResultOk);
         return;
     }
 
     int requestId = client->newRequestId();
-    Future<Result, ResponseData> future =
-        cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
-    if (callback) {
-        // Pass the shared pointer "ptr" to the handler to prevent the object from being destroyed
-        future.addListener(
-            std::bind(&ProducerImpl::handleClose, shared_from_this(), std::placeholders::_1, callback, ptr));
-    }
-}
-
-void ProducerImpl::handleClose(Result result, ResultCallback callback, ProducerImplPtr producer) {
-    if (result == ResultOk) {
-        state_ = Closed;
-        LOG_INFO(getName() << "Closed producer " << producerId_);
-        ClientConnectionPtr cnx = getCnx().lock();
-        if (cnx) {
-            cnx->removeProducer(producerId_);
-        }
-    } else {
-        LOG_ERROR(getName() << "Failed to close producer: " << strResult(result));
-    }
-
-    if (callback) {
-        callback(result);
-    }
+    auto self = shared_from_this();
+    cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId)
+        .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
 
 Future<Result, ProducerImplBaseWeakPtr> ProducerImpl::getProducerCreatedFuture() {
@@ -868,9 +849,7 @@ bool ProducerImpl::encryptMessage(proto::MessageMetadata& metadata, SharedBuffer
 
 void ProducerImpl::disconnectProducer() {
     LOG_DEBUG("Broker notification of Closed producer: " << producerId_);
-    Lock lock(mutex_);
-    connection_.reset();
-    lock.unlock();
+    resetCnx();
     scheduleReconnection(shared_from_this());
 }
 
@@ -885,16 +864,21 @@ void ProducerImpl::start() {
 }
 
 void ProducerImpl::shutdown() {
-    Lock lock(mutex_);
-    state_ = Closed;
+    resetCnx();
+    auto client = client_.lock();
+    if (client) {
+        client->cleanupProducer(this);
+    }
     cancelTimers();
     producerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    state_ = Closed;
 }
 
-void ProducerImpl::cancelTimers() {
+void ProducerImpl::cancelTimers() noexcept {
     dataKeyRefreshTask_.stop();
-    batchTimer_.cancel();
-    sendTimer_.cancel();
+    boost::system::error_code ec;
+    batchTimer_.cancel(ec);
+    sendTimer_.cancel(ec);
 }
 
 bool ProducerImplCmp::operator()(const ProducerImplPtr& a, const ProducerImplPtr& b) const {

@@ -46,12 +46,12 @@ PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const Top
                  (int)(config.getMaxPendingMessagesAcrossPartitions() / numPartitions));
     conf_.setMaxPendingMessages(maxPendingMessagesPerPartition);
 
-    auto partitionsUpdateInterval = static_cast<unsigned int>(client_->conf().getPartitionsUpdateInterval());
+    auto partitionsUpdateInterval = static_cast<unsigned int>(client->conf().getPartitionsUpdateInterval());
     if (partitionsUpdateInterval > 0) {
-        listenerExecutor_ = client_->getListenerExecutorProvider()->get();
+        listenerExecutor_ = client->getListenerExecutorProvider()->get();
         partitionsUpdateTimer_ = listenerExecutor_->createDeadlineTimer();
         partitionsUpdateInterval_ = boost::posix_time::seconds(partitionsUpdateInterval);
-        lookupServicePtr_ = client_->getLookup();
+        lookupServicePtr_ = client->getLookup();
     }
 }
 
@@ -71,7 +71,7 @@ MessageRoutingPolicyPtr PartitionedProducerImpl::getMessageRouter() {
     }
 }
 
-PartitionedProducerImpl::~PartitionedProducerImpl() {}
+PartitionedProducerImpl::~PartitionedProducerImpl() { shutdown(); }
 // override
 const std::string& PartitionedProducerImpl::getTopic() const { return topic_; }
 
@@ -86,7 +86,11 @@ unsigned int PartitionedProducerImpl::getNumPartitionsWithLock() const {
 
 ProducerImplPtr PartitionedProducerImpl::newInternalProducer(unsigned int partition, bool lazy) {
     using namespace std::placeholders;
-    auto producer = std::make_shared<ProducerImpl>(client_, *topicName_, conf_, partition);
+    auto client = client_.lock();
+    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, partition);
+    if (!client) {
+        return producer;
+    }
 
     if (lazy) {
         createLazyPartitionProducer(partition);
@@ -211,7 +215,15 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
 }
 
 // override
-void PartitionedProducerImpl::shutdown() { state_ = Closed; }
+void PartitionedProducerImpl::shutdown() {
+    cancelTimers();
+    auto client = client_.lock();
+    if (client) {
+        client->cleanupProducer(this);
+    }
+    partitionedProducerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    state_ = Closed;
+}
 
 const std::string& PartitionedProducerImpl::getProducerName() const {
     Lock producersLock(producersMutex_);
@@ -239,11 +251,25 @@ int64_t PartitionedProducerImpl::getLastSequenceId() const {
  * if createProducerCallback is set, it means the closeAsync is called from CreateProducer API which failed to
  * create one or many producers for partitions. So, we have to notify with ERROR on createProducerFailure
  */
-void PartitionedProducerImpl::closeAsync(CloseCallback closeCallback) {
-    if (state_ == Closing || state_ == Closed) {
+void PartitionedProducerImpl::closeAsync(CloseCallback originalCallback) {
+    auto closeCallback = [this, originalCallback](Result result) {
+        if (result == ResultOk) {
+            shutdown();
+        }
+        if (originalCallback) {
+            originalCallback(result);
+        }
+    };
+    if (state_ == Closed) {
+        closeCallback(ResultAlreadyClosed);
         return;
     }
-    state_ = Closing;
+    State expectedState = Ready;
+    if (!state_.compare_exchange_strong(expectedState, Closing)) {
+        return;
+    }
+
+    cancelTimers();
 
     unsigned int producerAlreadyClosed = 0;
 
@@ -271,12 +297,12 @@ void PartitionedProducerImpl::closeAsync(CloseCallback closeCallback) {
      * c. If closeAsync called due to failure in creating just one sub producer then state is set by
      * handleSinglePartitionProducerCreated
      */
-    if (producerAlreadyClosed == numProducers && closeCallback) {
-        state_ = Closed;
+    if (producerAlreadyClosed == numProducers) {
         closeCallback(ResultOk);
     }
 }
 
+// `callback` is a wrapper of user provided callback, it's not null and will call `shutdown()`
 void PartitionedProducerImpl::handleSinglePartitionProducerClose(Result result,
                                                                  const unsigned int partitionIndex,
                                                                  CloseCallback callback) {
@@ -285,11 +311,9 @@ void PartitionedProducerImpl::handleSinglePartitionProducerClose(Result result,
         return;
     }
     if (result != ResultOk) {
-        state_ = Failed;
         LOG_ERROR("Closing the producer failed for partition - " << partitionIndex);
-        if (callback) {
-            callback(result);
-        }
+        callback(result);
+        state_ = Failed;
         return;
     }
     assert(partitionIndex < getNumPartitionsWithLock());
@@ -298,16 +322,13 @@ void PartitionedProducerImpl::handleSinglePartitionProducerClose(Result result,
     }
     // closed all successfully
     if (!numProducersCreated_) {
-        state_ = Closed;
         // set the producerCreatedPromise to failure, if client called
         // closeAsync and it's not failure to create producer, the promise
         // is set second time here, first time it was successful. So check
         // if there's any adverse effect of setting it again. It should not
         // be but must check. MUSTCHECK changeme
         partitionedProducerCreatedPromise_.setFailed(ResultUnknownError);
-        if (callback) {
-            callback(result);
-        }
+        callback(result);
         return;
     }
 }
@@ -371,15 +392,26 @@ void PartitionedProducerImpl::flushAsync(FlushCallback callback) {
 }
 
 void PartitionedProducerImpl::runPartitionUpdateTask() {
+    auto weakSelf = weak_from_this();
     partitionsUpdateTimer_->expires_from_now(partitionsUpdateInterval_);
-    partitionsUpdateTimer_->async_wait(
-        std::bind(&PartitionedProducerImpl::getPartitionMetadata, shared_from_this()));
+    partitionsUpdateTimer_->async_wait([weakSelf](const boost::system::error_code& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->getPartitionMetadata();
+        }
+    });
 }
 
 void PartitionedProducerImpl::getPartitionMetadata() {
     using namespace std::placeholders;
+    auto weakSelf = weak_from_this();
     lookupServicePtr_->getPartitionMetadataAsync(topicName_)
-        .addListener(std::bind(&PartitionedProducerImpl::handleGetPartitions, shared_from_this(), _1, _2));
+        .addListener([weakSelf](Result result, const LookupDataResultPtr& lookupDataResult) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleGetPartitions(result, lookupDataResult);
+            }
+        });
 }
 
 void PartitionedProducerImpl::handleGetPartitions(Result result,
@@ -444,6 +476,13 @@ uint64_t PartitionedProducerImpl::getNumberOfConnectedProducer() {
         }
     }
     return numberOfConnectedProducer;
+}
+
+void PartitionedProducerImpl::cancelTimers() noexcept {
+    if (partitionsUpdateTimer_) {
+        boost::system::error_code ec;
+        partitionsUpdateTimer_->cancel(ec);
+    }
 }
 
 }  // namespace pulsar
