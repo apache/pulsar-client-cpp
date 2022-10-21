@@ -219,7 +219,8 @@ class ProducerTest : public ::testing::TestWithParam<bool> {};
 TEST_P(ProducerTest, testMaxMessageSize) {
     Client client(serviceUrl);
 
-    const std::string topic = "ProducerTest-NoBatchMaxMessageSize-" + std::to_string(time(nullptr));
+    const auto topic = std::string("ProducerTest-NoBatchMaxMessageSize-") +
+                       (GetParam() ? "batch-" : "-no-batch-") + std::to_string(time(nullptr));
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
@@ -247,7 +248,8 @@ TEST_P(ProducerTest, testMaxMessageSize) {
 TEST_P(ProducerTest, testChunkingMaxMessageSize) {
     Client client(serviceUrl);
 
-    const std::string topic = "ProducerTest-ChunkingMaxMessageSize-" + std::to_string(time(nullptr));
+    const auto topic = std::string("ProducerTest-ChunkingMaxMessageSize-") +
+                       (GetParam() ? "batch-" : "no-batch-") + std::to_string(time(nullptr));
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
