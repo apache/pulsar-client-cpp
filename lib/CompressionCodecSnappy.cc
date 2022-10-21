@@ -19,8 +19,8 @@
 #include "CompressionCodecSnappy.h"
 
 #if HAS_SNAPPY
-#include <snappy.h>
 #include <snappy-sinksource.h>
+#include <snappy.h>
 
 namespace pulsar {
 

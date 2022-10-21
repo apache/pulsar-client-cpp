@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/ProducerConfigurationImpl.h>
-
 #include <stdexcept>
+
+#include "ProducerConfigurationImpl.h"
 
 namespace pulsar {
 

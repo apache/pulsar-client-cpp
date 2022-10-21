@@ -19,19 +19,21 @@
 #ifndef PULSAR_CPP_LOOKUPSERVICE_H
 #define PULSAR_CPP_LOOKUPSERVICE_H
 
-#include <lib/LookupDataResult.h>
 #include <pulsar/Result.h>
-#include <lib/Future.h>
-#include <lib/LogUtils.h>
-#include <lib/TopicName.h>
 
-#include <iostream>
+#include <memory>
+#include <ostream>
 #include <vector>
 
+#include "Future.h"
+#include "LookupDataResult.h"
+
 namespace pulsar {
-typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;
-typedef Promise<Result, NamespaceTopicsPtr> NamespaceTopicsPromise;
-typedef std::shared_ptr<Promise<Result, NamespaceTopicsPtr>> NamespaceTopicsPromisePtr;
+using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
+class NamespaceName;
+using NamespaceNamePtr = std::shared_ptr<NamespaceName>;
 
 class LookupService {
    public:

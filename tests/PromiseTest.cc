@@ -17,11 +17,13 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/Future.h>
+
 #include <chrono>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "lib/Future.h"
 
 using namespace pulsar;
 

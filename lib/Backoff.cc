@@ -17,9 +17,11 @@
  * under the License.
  */
 #include "Backoff.h"
-#include <boost/random/uniform_int_distribution.hpp>
-#include <algorithm>
+
 #include <time.h> /* time */
+
+#include <algorithm>
+#include <boost/random/uniform_int_distribution.hpp>
 
 namespace pulsar {
 

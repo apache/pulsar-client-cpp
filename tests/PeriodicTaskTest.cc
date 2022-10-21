@@ -17,9 +17,11 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+
 #include <atomic>
 #include <chrono>
 #include <thread>
+
 #include "lib/ExecutorService.h"
 #include "lib/LogUtils.h"
 #include "lib/PeriodicTask.h"

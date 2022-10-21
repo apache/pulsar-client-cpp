@@ -19,9 +19,10 @@
 #ifndef DEPRECATED_EXCEPTION_HPP_
 #define DEPRECATED_EXCEPTION_HPP_
 
+#include <pulsar/defines.h>
+
 #include <stdexcept>
 #include <string>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 class PULSAR_PUBLIC DeprecatedException : public std::runtime_error {

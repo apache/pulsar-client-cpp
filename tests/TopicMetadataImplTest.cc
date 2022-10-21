@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Client.h>
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
 
-#include "../lib/TopicMetadataImpl.h"
+#include "lib/TopicMetadataImpl.h"
 
 using namespace pulsar;
 

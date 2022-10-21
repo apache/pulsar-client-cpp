@@ -19,8 +19,8 @@
 #ifndef _CHECKSUM_PROVIDER_H_
 #define _CHECKSUM_PROVIDER_H_
 
-#include <stdint.h>
 #include <pulsar/defines.h>
+#include <stdint.h>
 
 namespace pulsar {
 

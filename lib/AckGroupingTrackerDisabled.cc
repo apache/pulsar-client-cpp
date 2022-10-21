@@ -20,8 +20,8 @@
 #include "AckGroupingTrackerDisabled.h"
 
 #include "HandlerBase.h"
-#include "PulsarApi.pb.h"
-#include <pulsar/MessageId.h>
+#include "LogUtils.h"
+#include "ProtoApiEnums.h"
 
 namespace pulsar {
 
@@ -33,11 +33,11 @@ AckGroupingTrackerDisabled::AckGroupingTrackerDisabled(HandlerBase& handler, uin
 }
 
 void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId) {
-    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, proto::CommandAck::Individual);
+    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, CommandAck_AckType_Individual);
 }
 
 void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId) {
-    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, proto::CommandAck::Cumulative);
+    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, CommandAck_AckType_Cumulative);
 }
 
 }  // namespace pulsar

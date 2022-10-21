@@ -18,15 +18,16 @@
  */
 
 #include "Log4CxxLogger.h"
+
 #include <iostream>
 
 #ifdef USE_LOG4CXX
 
+#include <log4cxx/consoleappender.h>
 #include <log4cxx/logger.h>
 #include <log4cxx/logmanager.h>
-#include <log4cxx/consoleappender.h>
-#include <log4cxx/propertyconfigurator.h>
 #include <log4cxx/patternlayout.h>
+#include <log4cxx/propertyconfigurator.h>
 
 using namespace log4cxx;
 

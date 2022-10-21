@@ -16,41 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <set>
-#include <mutex>
-#include <chrono>
-#include <thread>
-#include <vector>
-#include <cstring>
-#include <sstream>
-#include <stdexcept>
-#include <algorithm>
-#include <functional>
-
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
-#include <pulsar/Consumer.h>
-#include <pulsar/MessageBuilder.h>
-#include <pulsar/CryptoKeyReader.h>
 
-#include <lib/Latch.h>
-#include <lib/Utils.h>
-#include <lib/Future.h>
-#include <lib/Commands.h>
-#include <lib/LogUtils.h>
-#include <lib/TimeUtils.h>
-#include <lib/TopicName.h>
-#include <lib/ClientImpl.h>
-#include <lib/ConsumerImpl.h>
-#include <lib/PulsarApi.pb.h>
-#include <lib/MultiTopicsConsumerImpl.h>
-#include <lib/AckGroupingTrackerEnabled.h>
-#include <lib/AckGroupingTrackerDisabled.h>
-#include <lib/PatternMultiTopicsConsumerImpl.h>
+#include <algorithm>
+#include <chrono>
+#include <cstring>
+#include <functional>
+#include <mutex>
+#include <set>
+#include <sstream>
+#include <stdexcept>
+#include <thread>
+#include <vector>
 
+#include "CustomRoutingPolicy.h"
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
-#include "CustomRoutingPolicy.h"
+#include "lib/AckGroupingTrackerDisabled.h"
+#include "lib/AckGroupingTrackerEnabled.h"
+#include "lib/ClientConnection.h"
+#include "lib/ClientImpl.h"
+#include "lib/Commands.h"
+#include "lib/ConsumerImpl.h"
+#include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
+#include "lib/TimeUtils.h"
+#include "lib/TopicName.h"
+#include "lib/UnAckedMessageTrackerDisabled.h"
+#include "lib/UnAckedMessageTrackerEnabled.h"
+#include "lib/Utils.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -3512,7 +3509,7 @@ class AckGroupingTrackerMock : public AckGroupingTracker {
     explicit AckGroupingTrackerMock(bool mockAck) : mockAck_(mockAck) {}
 
     bool callDoImmediateAck(ClientConnectionWeakPtr connWeakPtr, uint64_t consumerId, const MessageId &msgId,
-                            proto::CommandAck_AckType ackType) {
+                            CommandAck_AckType ackType) {
         if (!this->mockAck_) {
             // Not mocking ACK, expose this method.
             return this->doImmediateAck(connWeakPtr, consumerId, msgId, ackType);
@@ -3586,7 +3583,7 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerSingleAckBehavior) {
         auto connPtr = connWeakPtr.lock();
         ASSERT_NE(connPtr, nullptr);
         ASSERT_TRUE(tracker.callDoImmediateAck(connWeakPtr, consumerImpl.getConsumerId(), recvMsgId[msgIdx],
-                                               proto::CommandAck::Individual));
+                                               CommandAck_AckType_Individual));
     }
     Message msg;
     ASSERT_EQ(ResultTimeout, consumer.receive(msg, 1000));

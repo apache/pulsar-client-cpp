@@ -18,13 +18,14 @@
  */
 #ifndef _PULSAR_BACKOFF_HEADER_
 #define _PULSAR_BACKOFF_HEADER_
+#include <pulsar/defines.h>
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 #include <boost/random/mersenne_twister.hpp>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 
-typedef boost::posix_time::time_duration TimeDuration;
+using TimeDuration = boost::posix_time::time_duration;
 
 class PULSAR_PUBLIC Backoff {
    public:

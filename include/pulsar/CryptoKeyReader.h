@@ -19,9 +19,9 @@
 #ifndef CRYPTOKEYREADER_H_
 #define CRYPTOKEYREADER_H_
 
-#include <pulsar/defines.h>
-#include <pulsar/Result.h>
 #include <pulsar/EncryptionKeyInfo.h>
+#include <pulsar/Result.h>
+#include <pulsar/defines.h>
 
 namespace pulsar {
 

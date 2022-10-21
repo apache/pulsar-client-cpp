@@ -20,8 +20,6 @@
 #pragma once
 
 #include <pulsar/Authentication.h>
-#include <string>
-#include <boost/function.hpp>
 
 namespace pulsar {
 

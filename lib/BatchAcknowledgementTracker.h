@@ -19,15 +19,17 @@
 #ifndef LIB_BATCHACKNOWLEDGEMENTTRACKER_H_
 #define LIB_BATCHACKNOWLEDGEMENTTRACKER_H_
 
-#include "MessageImpl.h"
+#include <pulsar/Message.h>
+#include <pulsar/MessageId.h>
+
+#include <boost/dynamic_bitset.hpp>
 #include <map>
 #include <mutex>
-#include <boost/dynamic_bitset.hpp>
-#include <lib/PulsarApi.pb.h>
-#include <algorithm>
-#include "LogUtils.h"
+#include <ostream>
 #include <string>
-#include <sstream>
+
+#include "ProtoApiEnums.h"
+
 namespace pulsar {
 
 class ConsumerImpl;
@@ -57,10 +59,10 @@ class BatchAcknowledgementTracker {
     BatchAcknowledgementTracker(const std::string topic, const std::string subscription,
                                 const long consumerId);
 
-    bool isBatchReady(const MessageId& msgID, const proto::CommandAck_AckType ackType);
+    bool isBatchReady(const MessageId& msgID, CommandAck_AckType ackType);
     const MessageId getGreatestCumulativeAckReady(const MessageId& messageId);
 
-    void deleteAckedMessage(const MessageId& messageId, proto::CommandAck_AckType ackType);
+    void deleteAckedMessage(const MessageId& messageId, CommandAck_AckType ackType);
     void receivedMessage(const Message& message);
 
     void clear();

@@ -16,9 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Client.h>
 #include <gtest/gtest.h>
 #include <lib/LogUtils.h>
+#include <pulsar/Client.h>
+
 #include "NoOpsCryptoKeyReader.h"
 
 DECLARE_LOG_OBJECT()

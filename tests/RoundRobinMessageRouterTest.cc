@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/ProducerConfiguration.h>
-#include <gtest/gtest.h>
+
 #include <thread>
 
-#include "../lib/RoundRobinMessageRouter.h"
-#include "../lib/TopicMetadataImpl.h"
+#include "lib/RoundRobinMessageRouter.h"
+#include "lib/TopicMetadataImpl.h"
 
 using namespace pulsar;
 

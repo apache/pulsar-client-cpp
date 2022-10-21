@@ -18,11 +18,11 @@
  */
 #pragma once
 
-#include <boost/date_time/local_time/local_time.hpp>
-#include <atomic>
-#include <chrono>
-
 #include <pulsar/defines.h>
+
+#include <atomic>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <chrono>
 
 namespace pulsar {
 

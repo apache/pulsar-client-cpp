@@ -18,7 +18,7 @@
  */
 #ifndef LIB_UNACKEDMESSAGETRACKERDISABLED_H_
 #define LIB_UNACKEDMESSAGETRACKERDISABLED_H_
-#include "lib/UnAckedMessageTrackerInterface.h"
+#include "UnAckedMessageTrackerInterface.h"
 namespace pulsar {
 
 class UnAckedMessageTrackerDisabled : public UnAckedMessageTrackerInterface {

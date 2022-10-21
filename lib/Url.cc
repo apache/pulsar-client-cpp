@@ -19,7 +19,6 @@
 #include "Url.h"
 
 #include <map>
-
 #include <sstream>
 
 #ifdef PULSAR_USE_BOOST_REGEX

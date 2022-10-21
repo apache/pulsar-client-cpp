@@ -18,11 +18,11 @@
  */
 #pragma once
 
-#include <pulsar/c/result.h>
 #include <pulsar/Client.h>
+#include <pulsar/c/result.h>
 
-#include <memory>
 #include <functional>
+#include <memory>
 
 struct _pulsar_client {
     std::unique_ptr<pulsar::Client> client;

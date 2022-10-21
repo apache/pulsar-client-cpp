@@ -19,13 +19,14 @@
 #ifndef PULSAR_AUTHENTICATION_H_
 #define PULSAR_AUTHENTICATION_H_
 
+#include <pulsar/Result.h>
 #include <pulsar/defines.h>
-#include <vector>
-#include <string>
+
+#include <functional>
 #include <map>
 #include <memory>
-#include <pulsar/Result.h>
-#include <functional>
+#include <string>
+#include <vector>
 
 namespace pulsar {
 

@@ -16,13 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/MessageId.h>
-#include "lib/MessageIdUtil.h"
-#include "PulsarFriend.h"
-
 #include <gtest/gtest.h>
+#include <pulsar/MessageId.h>
 
 #include <string>
+
+#include "PulsarFriend.h"
+#include "lib/MessageIdUtil.h"
 
 using namespace pulsar;
 

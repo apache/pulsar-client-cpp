@@ -17,8 +17,12 @@
  * under the License.
  */
 
-#include "LogUtils.h"
 #include "MessageCrypto.h"
+
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include "LogUtils.h"
+#include "PulsarApi.pb.h"
 
 namespace pulsar {
 
@@ -335,9 +339,10 @@ bool MessageCrypto::encrypt(const std::set<std::string>& encKeys, const CryptoKe
     return true;
 }
 
-bool MessageCrypto::decryptDataKey(const std::string& keyName, const std::string& encryptedDataKey,
-                                   const google::protobuf::RepeatedPtrField<proto::KeyValue>& encKeyMeta,
-                                   const CryptoKeyReaderPtr keyReader) {
+bool MessageCrypto::decryptDataKey(const proto::EncryptionKeys& encKeys, const CryptoKeyReader& keyReader) {
+    const auto& keyName = encKeys.key();
+    const auto& encryptedDataKey = encKeys.value();
+    const auto& encKeyMeta = encKeys.metadata();
     StringMap keyMeta;
     for (auto iter = encKeyMeta.begin(); iter != encKeyMeta.end(); iter++) {
         keyMeta[iter->key()] = iter->value();
@@ -345,7 +350,7 @@ bool MessageCrypto::decryptDataKey(const std::string& keyName, const std::string
 
     // Read the private key info using callback
     EncryptionKeyInfo keyInfo;
-    keyReader->getPrivateKey(keyName, keyMeta, keyInfo);
+    keyReader.getPrivateKey(keyName, keyMeta, keyInfo);
 
     // Convert key from string to RSA key
     RSA* privKey = loadPrivateKey(keyInfo.getKey());
@@ -498,10 +503,7 @@ bool MessageCrypto::decrypt(const proto::MessageMetadata& msgMetadata, SharedBuf
     bool isDataKeyDecrypted = false;
     for (int index = 0; index < msgMetadata.encryption_keys_size(); index++) {
         const proto::EncryptionKeys& encKeys = msgMetadata.encryption_keys(index);
-
-        const std::string& encDataKey = encKeys.value();
-        const google::protobuf::RepeatedPtrField<proto::KeyValue>& encKeyMeta = encKeys.metadata();
-        if (decryptDataKey(encKeys.key(), encDataKey, encKeyMeta, keyReader)) {
+        if (decryptDataKey(encKeys, *keyReader)) {
             isDataKeyDecrypted = true;
             break;
         }

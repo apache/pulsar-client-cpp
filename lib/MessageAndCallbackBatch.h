@@ -19,13 +19,12 @@
 #ifndef LIB_MESSAGEANDCALLBACK_BATCH_H_
 #define LIB_MESSAGEANDCALLBACK_BATCH_H_
 
-#include <atomic>
-#include <vector>
-
 #include <pulsar/Message.h>
 #include <pulsar/ProducerConfiguration.h>
 
+#include <atomic>
 #include <boost/noncopyable.hpp>
+#include <vector>
 
 namespace pulsar {
 

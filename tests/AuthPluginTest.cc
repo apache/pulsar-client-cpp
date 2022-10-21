@@ -16,18 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "pulsar/Authentication.h"
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
-#include <boost/asio.hpp>
-#include <boost/algorithm/string.hpp>
-#include <thread>
-#include <lib/LogUtils.h>
-#include <lib/auth/AuthOauth2.h>
 
-#include <lib/Latch.h>
+#include <boost/algorithm/string.hpp>
+#include <boost/asio.hpp>
+#include <thread>
+
 #include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
 #include "lib/Utils.h"
+#include "lib/auth/AuthOauth2.h"
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;

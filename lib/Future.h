@@ -19,14 +19,13 @@
 #ifndef LIB_FUTURE_H_
 #define LIB_FUTURE_H_
 
-#include <functional>
-#include <mutex>
-#include <memory>
 #include <condition_variable>
-
+#include <functional>
 #include <list>
+#include <memory>
+#include <mutex>
 
-typedef std::unique_lock<std::mutex> Lock;
+using Lock = std::unique_lock<std::mutex>;
 
 namespace pulsar {
 

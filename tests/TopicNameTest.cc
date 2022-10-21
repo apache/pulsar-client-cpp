@@ -17,8 +17,10 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/TopicName.h>
+
 #include <map>
+
+#include "lib/TopicName.h"
 
 using namespace pulsar;
 

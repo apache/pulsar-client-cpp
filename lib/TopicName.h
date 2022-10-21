@@ -19,15 +19,20 @@
 #ifndef _PULSAR_TOPIC_NAME_HEADER_
 #define _PULSAR_TOPIC_NAME_HEADER_
 
+#include <curl/curl.h>
 #include <pulsar/defines.h>
-#include "NamespaceName.h"
+
+#include <memory>
+#include <mutex>
+#include <string>
+
 #include "ServiceUnitId.h"
 
-#include <string>
-#include <curl/curl.h>
-#include <mutex>
-
 namespace pulsar {
+
+class NamespaceName;
+using NamespaceNamePtr = std::shared_ptr<NamespaceName>;
+
 class PULSAR_PUBLIC TopicDomain {
    public:
     static const std::string Persistent;

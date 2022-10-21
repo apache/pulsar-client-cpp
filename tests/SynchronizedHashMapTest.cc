@@ -17,11 +17,13 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <thread>
 #include <vector>
+
 #include "lib/Latch.h"
 #include "lib/SynchronizedHashMap.h"
 

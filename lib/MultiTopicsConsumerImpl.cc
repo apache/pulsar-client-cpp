@@ -17,13 +17,34 @@
  * under the License.
  */
 #include "MultiTopicsConsumerImpl.h"
-#include "MultiResultCallback.h"
-#include "MessagesImpl.h"
+
 #include <stdexcept>
+
+#include "ClientImpl.h"
+#include "ConsumerImpl.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "LookupService.h"
+#include "MessageImpl.h"
+#include "MessagesImpl.h"
+#include "MultiResultCallback.h"
+#include "MultiTopicsBrokerConsumerStatsImpl.h"
+#include "TopicName.h"
+#include "UnAckedMessageTrackerDisabled.h"
+#include "UnAckedMessageTrackerEnabled.h"
 
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
+
+MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName,
+                                                 int numPartitions, const std::string& subscriptionName,
+                                                 const ConsumerConfiguration& conf,
+                                                 LookupServicePtr lookupServicePtr)
+    : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
+                              lookupServicePtr) {
+    topicsPartitions_[topicName->toString()] = numPartitions;
+}
 
 MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                                                  const std::string& subscriptionName, TopicNamePtr topicName,

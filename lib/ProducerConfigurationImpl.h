@@ -20,6 +20,7 @@
 #define LIB_PRODUCERCONFIGURATIONIMPL_H_
 
 #include <pulsar/ProducerConfiguration.h>
+
 #include <memory>
 
 #include "Utils.h"

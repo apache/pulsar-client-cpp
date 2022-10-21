@@ -17,19 +17,18 @@
  * under the License.
  */
 
-#include <pulsar/Authentication.h>
-
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
-#include <boost/asio.hpp>
-#include <boost/algorithm/string.hpp>
-#include <lib/LogUtils.h>
 
-#include <string>
+#include <boost/algorithm/string.hpp>
+#include <boost/asio.hpp>
 #include <fstream>
 #include <streambuf>
+#include <string>
 
 #include "lib/Future.h"
+#include "lib/LogUtils.h"
 #include "lib/Utils.h"
 DECLARE_LOG_OBJECT()
 

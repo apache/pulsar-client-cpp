@@ -19,11 +19,12 @@
 
 #include "NegativeAcksTracker.h"
 
-#include "ConsumerImpl.h"
-
-#include <set>
 #include <functional>
+#include <set>
 
+#include "ClientImpl.h"
+#include "ConsumerImpl.h"
+#include "ExecutorService.h"
 #include "LogUtils.h"
 DECLARE_LOG_OBJECT()
 

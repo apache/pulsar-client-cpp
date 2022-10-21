@@ -19,8 +19,9 @@
 #ifndef LIB_URL_H_
 #define LIB_URL_H_
 
-#include <string>
 #include <pulsar/defines.h>
+
+#include <string>
 
 namespace pulsar {
 

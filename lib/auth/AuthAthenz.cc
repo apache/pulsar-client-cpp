@@ -16,15 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/auth/AuthAthenz.h>
+#include "AuthAthenz.h"
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-namespace ptree = boost::property_tree;
-
+#include <functional>
 #include <sstream>
 
-#include <functional>
+#include "athenz/ZTSClient.h"
+#include "lib/LogUtils.h"
+
+namespace ptree = boost::property_tree;
 
 DECLARE_LOG_OBJECT()
 

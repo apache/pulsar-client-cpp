@@ -19,6 +19,7 @@
 #pragma once
 
 #include <pulsar/defines.h>
+
 #include "consumer.h"
 #include "producer_configuration.h"
 

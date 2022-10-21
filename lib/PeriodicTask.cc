@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "lib/PeriodicTask.h"
+#include "PeriodicTask.h"
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace pulsar {

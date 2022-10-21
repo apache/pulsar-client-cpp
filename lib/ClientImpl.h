@@ -20,22 +20,21 @@
 #define LIB_CLIENTIMPL_H_
 
 #include <pulsar/Client.h>
-#include "ExecutorService.h"
-#include "LookupService.h"
-#include "MemoryLimitController.h"
-#include "ConnectionPool.h"
-#include "LookupDataResult.h"
-#include <mutex>
-#include <lib/TopicName.h>
-#include "ProducerImplBase.h"
+
 #include <atomic>
-#include <vector>
+#include <memory>
+
+#include "ConnectionPool.h"
+#include "Future.h"
+#include "LookupDataResult.h"
+#include "MemoryLimitController.h"
 #include "ServiceNameResolver.h"
 #include "SynchronizedHashMap.h"
 
 namespace pulsar {
 
 class PulsarFriend;
+class ClientImpl;
 typedef std::shared_ptr<ClientImpl> ClientImplPtr;
 typedef std::weak_ptr<ClientImpl> ClientImplWeakPtr;
 
@@ -45,6 +44,21 @@ typedef std::weak_ptr<ReaderImpl> ReaderImplWeakPtr;
 
 class ConsumerImplBase;
 typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
+
+class ClientConnection;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+
+class LookupService;
+using LookupServicePtr = std::shared_ptr<LookupService>;
+
+class ProducerImplBase;
+using ProducerImplBaseWeakPtr = std::weak_ptr<ProducerImplBase>;
+class ConsumerImplBase;
+using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
+
+using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
 
 std::string generateRandomName();
 
