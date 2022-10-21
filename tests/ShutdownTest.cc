@@ -23,6 +23,7 @@
 #include "lib/ClientImpl.h"
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "WaitUtils.h"
 
 using namespace pulsar;
 
@@ -111,6 +112,7 @@ TEST_P(ShutdownTest, testDestructor) {
         ASSERT_EQ(ResultOk, client_.createProducer(topic, producer));
         EXPECT_EQ(producers_.size(), 1);
     }
+    waitUntil(std::chrono::seconds(2), [this] { return producers_.size() == 0; });
     EXPECT_EQ(producers_.size(), 0);
 
     {
@@ -118,6 +120,7 @@ TEST_P(ShutdownTest, testDestructor) {
         ASSERT_EQ(ResultOk, subscribe(consumer, topic));
         EXPECT_EQ(consumers_.size(), 1);
     }
+    waitUntil(std::chrono::seconds(2), [this] { return consumers_.size() == 0; });
     EXPECT_EQ(consumers_.size(), 0);
 
     assertConnectionsEmpty();
