@@ -35,60 +35,66 @@ enum class EndToEndType : uint8_t
     REGEX_TOPICS
 };
 
-class ShutdownTest : public ::testing::TestWithParam<EndToEndType> {
-   public:
-    void SetUp() override {
-        topic_ = topic_ + std::to_string(id_++) + "-" + std::to_string(time(nullptr));
-        if (GetParam() != EndToEndType::SINGLE_TOPIC) {
-            int res = makePutRequest(
-                "http://localhost:8080/admin/v2/persistent/public/default/" + topic_ + "/partitions", "2");
-            ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
-        }
+static std::string toString(EndToEndType endToEndType) {
+    switch (endToEndType) {
+        case EndToEndType::SINGLE_TOPIC:
+            return "single-topic";
+        case EndToEndType::MULTI_TOPICS:
+            return "multi-topics";
+        case EndToEndType::REGEX_TOPICS:
+            return "regex-topics";
+        default:
+            return "???";
     }
+}
 
+class ShutdownTest : public ::testing::TestWithParam<EndToEndType> {
    protected:
     Client client_{lookupUrl};
     decltype(PulsarFriend::getProducers(client_)) producers_{PulsarFriend::getProducers(client_)};
     decltype(PulsarFriend::getConsumers(client_)) consumers_{PulsarFriend::getConsumers(client_)};
-    std::string topic_ = "shutdown-test-";
 
-    static std::atomic_int id_;
+    void createPartitionedTopic(const std::string& topic) {
+        if (GetParam() != EndToEndType::SINGLE_TOPIC) {
+            int res = makePutRequest(
+                "http://localhost:8080/admin/v2/persistent/public/default/" + topic + "/partitions", "2");
+            ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+        }
+    }
 
-    Result subscribe(Consumer &consumer) {
+    Result subscribe(Consumer& consumer, const std::string& topic) {
         if (GetParam() == EndToEndType::REGEX_TOPICS) {
             // NOTE: Currently the regex subscription requires the complete namespace prefix
-            return client_.subscribeWithRegex("persistent://public/default/" + topic_ + ".*", "sub",
-                                              consumer);
+            return client_.subscribeWithRegex("persistent://public/default/" + topic + ".*", "sub", consumer);
         } else {
-            return client_.subscribe(topic_, "sub", consumer);
+            return client_.subscribe(topic, "sub", consumer);
         }
     }
 
     void assertConnectionsEmpty() {
         auto connections = PulsarFriend::getConnections(client_);
-        for (const auto &cnx : PulsarFriend::getConnections(client_)) {
+        for (const auto& cnx : PulsarFriend::getConnections(client_)) {
             EXPECT_TRUE(PulsarFriend::getProducers(*cnx).empty());
             EXPECT_TRUE(PulsarFriend::getConsumers(*cnx).empty());
         }
     }
 };
 
-std::atomic_int ShutdownTest::id_{0};
-
 TEST_P(ShutdownTest, testClose) {
+    std::string topic = "shutdown-test-close-" + toString(GetParam()) + "-" + std::to_string(time(nullptr));
     Producer producer;
-    ASSERT_EQ(ResultOk, client_.createProducer(topic_, producer));
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producer));
     EXPECT_EQ(producers_.size(), 1);
     ASSERT_EQ(ResultOk, producer.close());
     EXPECT_EQ(producers_.size(), 0);
 
     Consumer consumer;
-    ASSERT_EQ(ResultOk, subscribe(consumer));
+    ASSERT_EQ(ResultOk, subscribe(consumer, topic));
     EXPECT_EQ(consumers_.size(), 1);
     ASSERT_EQ(ResultOk, consumer.close());
     EXPECT_EQ(consumers_.size(), 0);
 
-    ASSERT_EQ(ResultOk, subscribe(consumer));
+    ASSERT_EQ(ResultOk, subscribe(consumer, topic));
     EXPECT_EQ(consumers_.size(), 1);
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
     EXPECT_EQ(consumers_.size(), 0);
@@ -98,16 +104,18 @@ TEST_P(ShutdownTest, testClose) {
 }
 
 TEST_P(ShutdownTest, testDestructor) {
+    std::string topic =
+        "shutdown-test-destructor-" + toString(GetParam()) + "-" + std::to_string(time(nullptr));
     {
         Producer producer;
-        ASSERT_EQ(ResultOk, client_.createProducer(topic_, producer));
+        ASSERT_EQ(ResultOk, client_.createProducer(topic, producer));
         EXPECT_EQ(producers_.size(), 1);
     }
     EXPECT_EQ(producers_.size(), 0);
 
     {
         Consumer consumer;
-        ASSERT_EQ(ResultOk, subscribe(consumer));
+        ASSERT_EQ(ResultOk, subscribe(consumer, topic));
         EXPECT_EQ(consumers_.size(), 1);
     }
     EXPECT_EQ(consumers_.size(), 0);
