@@ -19,7 +19,7 @@
 #
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
-cd $ROOT_DIR
+cd $ROOT_DIR/build-support
 
 IMAGE_NAME=apachepulsar/cpp-client-format
 docker image inspect apachepulsar/cpp-client-format 1>/dev/null 2>&1
@@ -27,6 +27,6 @@ OK=$?
 set -e
 if [[ $OK -ne 0 ]]; then
     echo "The image $IMAGE_NAME doesn't exist, build it"
-    docker build -t $IMAGE_NAME -f Dockerfile.format .
+    docker build -t $IMAGE_NAME -f ./Dockerfile.format .
 fi
-docker run -v $PWD:/app --rm $IMAGE_NAME
+docker run -v $ROOT_DIR:/app --rm $IMAGE_NAME
