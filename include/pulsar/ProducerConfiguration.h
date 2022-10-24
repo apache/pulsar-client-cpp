@@ -18,16 +18,16 @@
  */
 #ifndef PULSAR_PRODUCERCONFIGURATION_H_
 #define PULSAR_PRODUCERCONFIGURATION_H_
-#include <pulsar/defines.h>
 #include <pulsar/CompressionType.h>
-#include <pulsar/MessageRoutingPolicy.h>
-#include <pulsar/Result.h>
-#include <pulsar/Message.h>
-#include <functional>
-#include <pulsar/ProducerCryptoFailureAction.h>
 #include <pulsar/CryptoKeyReader.h>
+#include <pulsar/Message.h>
+#include <pulsar/MessageRoutingPolicy.h>
+#include <pulsar/ProducerCryptoFailureAction.h>
+#include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/defines.h>
 
+#include <functional>
 #include <set>
 
 namespace pulsar {

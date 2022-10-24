@@ -19,13 +19,13 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
-#include <set>
 #include <chrono>
-#include <thread>
 #include <memory>
+#include <set>
+#include <thread>
 
-#include "HttpHelper.h"
 #include "CustomRoutingPolicy.h"
+#include "HttpHelper.h"
 
 using namespace pulsar;
 

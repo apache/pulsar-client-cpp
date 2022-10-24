@@ -20,11 +20,12 @@
 #define BOOST_HASH_HPP_
 
 #include <pulsar/defines.h>
-#include "Hash.h"
 
+#include <boost/functional/hash.hpp>
 #include <cstdint>
 #include <string>
-#include <boost/functional/hash.hpp>
+
+#include "Hash.h"
 
 namespace pulsar {
 class PULSAR_PUBLIC BoostHash : public Hash {

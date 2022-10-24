@@ -19,15 +19,13 @@
 
 #pragma once
 
-#include <pulsar/defines.h>
-#include <pulsar/MessageRoutingPolicy.h>
 #include <pulsar/ProducerConfiguration.h>
 #include <pulsar/TopicMetadata.h>
-#include "Hash.h"
-#include "MessageRouterBase.h"
 
 #include <atomic>
-#include <boost/date_time/local_time/local_time.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include "MessageRouterBase.h"
 
 namespace pulsar {
 class PULSAR_PUBLIC RoundRobinMessageRouter : public MessageRouterBase {

@@ -20,6 +20,7 @@
 #define LIB_UTILALLOCATOR_H_
 
 #include <boost/aligned_storage.hpp>
+#include <boost/noncopyable.hpp>
 
 class HandlerAllocator : private boost::noncopyable {
    public:

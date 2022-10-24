@@ -19,17 +19,25 @@
 #ifndef LIB_ACKGROUPINGTRACKERENABLED_H_
 #define LIB_ACKGROUPINGTRACKERENABLED_H_
 
-#include <cstdint>
-
-#include <set>
-#include <mutex>
-
-#include "ClientImpl.h"
-#include "HandlerBase.h"
 #include <pulsar/MessageId.h>
+
+#include <boost/asio/deadline_timer.hpp>
+#include <cstdint>
+#include <mutex>
+#include <set>
+
 #include "AckGroupingTracker.h"
 
 namespace pulsar {
+
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+class HandlerBase;
+using HandlerBasePtr = std::shared_ptr<HandlerBase>;
+using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
 
 /**
  * @class AckGroupingTrackerEnabled

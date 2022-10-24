@@ -19,7 +19,6 @@
 #ifndef TOPIC_METADATA_IMPL_HPP_
 #define TOPIC_METADATA_IMPL_HPP_
 
-#include <pulsar/defines.h>
 #include <pulsar/TopicMetadata.h>
 
 namespace pulsar {

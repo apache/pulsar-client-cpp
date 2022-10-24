@@ -17,21 +17,23 @@
  * under the License.
  */
 #include <BinaryProtoLookupService.h>
+#include <Future.h>
 #include <HTTPLookupService.h>
+#include <Utils.h>
+#include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
 
-#include <gtest/gtest.h>
-#include <Future.h>
-#include <Utils.h>
-#include "ConnectionPool.h"
-#include "HttpHelper.h"
-#include <pulsar/Authentication.h>
-#include <boost/exception/all.hpp>
-#include "LogUtils.h"
-#include "RetryableLookupService.h"
-#include "PulsarFriend.h"
-
 #include <algorithm>
+#include <boost/exception/all.hpp>
+
+#include "HttpHelper.h"
+#include "PulsarFriend.h"
+#include "lib/ClientConnection.h"
+#include "lib/ConnectionPool.h"
+#include "lib/LogUtils.h"
+#include "lib/RetryableLookupService.h"
+#include "lib/TimeUtils.h"
 
 using namespace pulsar;
 

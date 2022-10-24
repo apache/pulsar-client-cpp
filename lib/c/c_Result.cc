@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <pulsar/c/result.h>
 #include <pulsar/Result.h>
+#include <pulsar/c/result.h>
 
 const char *pulsar_result_str(pulsar_result result) { return pulsar::strResult((pulsar::Result)result); }

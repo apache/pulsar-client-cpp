@@ -23,10 +23,10 @@
 extern "C" {
 #endif
 
+#include <pulsar/defines.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include <pulsar/defines.h>
 #include "string_map.h"
 
 typedef struct _pulsar_message pulsar_message_t;

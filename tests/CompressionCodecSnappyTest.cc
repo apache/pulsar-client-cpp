@@ -18,7 +18,7 @@
  */
 #include <gtest/gtest.h>
 
-#include "../lib/CompressionCodecSnappy.h"
+#include "lib/CompressionCodecSnappy.h"
 
 using namespace pulsar;
 

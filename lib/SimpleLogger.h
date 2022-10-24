@@ -19,11 +19,13 @@
 
 #pragma once
 
+#include <pulsar/Logger.h>
+
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/format.hpp>
 #include <iostream>
 #include <sstream>
 #include <thread>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/format.hpp>
 
 namespace pulsar {
 

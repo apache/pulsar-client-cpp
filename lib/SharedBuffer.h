@@ -19,9 +19,11 @@
 #ifndef LIB_SHARED_BUFFER_H_
 #define LIB_SHARED_BUFFER_H_
 
-#include <boost/asio.hpp>
+#include <assert.h>
 
 #include <array>
+#include <boost/asio/buffer.hpp>
+#include <boost/asio/detail/socket_ops.hpp>
 #include <memory>
 #include <string>
 #include <utility>

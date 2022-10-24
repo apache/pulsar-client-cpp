@@ -17,27 +17,27 @@
  * under the License.
  */
 #include "ClientImpl.h"
+
+#include <pulsar/ClientConfiguration.h>
+
+#include <random>
+
+#include "BinaryProtoLookupService.h"
 #include "ClientConfigurationImpl.h"
-#include "LogUtils.h"
+#include "Commands.h"
 #include "ConsumerImpl.h"
+#include "ExecutorService.h"
+#include "HTTPLookupService.h"
+#include "LogUtils.h"
+#include "MultiTopicsConsumerImpl.h"
+#include "PartitionedProducerImpl.h"
+#include "PatternMultiTopicsConsumerImpl.h"
 #include "ProducerImpl.h"
 #include "ReaderImpl.h"
-#include "PartitionedProducerImpl.h"
-#include "MultiTopicsConsumerImpl.h"
-#include "PatternMultiTopicsConsumerImpl.h"
+#include "RetryableLookupService.h"
 #include "TimeUtils.h"
-#include <pulsar/ConsoleLoggerFactory.h>
-#include <boost/algorithm/string/predicate.hpp>
-#include <sstream>
-#include <stdexcept>
-#include <lib/BinaryProtoLookupService.h>
-#include <lib/HTTPLookupService.h>
-#include <lib/RetryableLookupService.h>
-#include <lib/TopicName.h>
-#include <algorithm>
-#include <random>
-#include <mutex>
-#include <thread>
+#include "TopicName.h"
+
 #ifdef USE_LOG4CXX
 #include "Log4CxxLogger.h"
 #endif

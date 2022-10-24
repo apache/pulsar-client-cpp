@@ -19,10 +19,11 @@
 #ifndef PULSAR_MESSAGE_ROUTING_POLICY_HEADER_
 #define PULSAR_MESSAGE_ROUTING_POLICY_HEADER_
 
-#include <pulsar/defines.h>
 #include <pulsar/DeprecatedException.h>
 #include <pulsar/Message.h>
 #include <pulsar/TopicMetadata.h>
+#include <pulsar/defines.h>
+
 #include <memory>
 
 /*

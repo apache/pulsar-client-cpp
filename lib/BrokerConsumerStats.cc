@@ -16,9 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/defines.h>
 #include <pulsar/BrokerConsumerStats.h>
-#include <lib/BrokerConsumerStatsImplBase.h>
+#include <pulsar/defines.h>
+
+#include "BrokerConsumerStatsImplBase.h"
 
 namespace pulsar {
 BrokerConsumerStats::BrokerConsumerStats(std::shared_ptr<BrokerConsumerStatsImplBase> impl) : impl_(impl) {}

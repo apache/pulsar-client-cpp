@@ -19,33 +19,23 @@
 
 #include "AckGroupingTracker.h"
 
-#include <cstdint>
-
-#include <set>
-
+#include "ClientConnection.h"
 #include "Commands.h"
 #include "LogUtils.h"
-#include "PulsarApi.pb.h"
-#include "ClientConnection.h"
-#include <pulsar/MessageId.h>
 
 namespace pulsar {
 
 DECLARE_LOG_OBJECT();
 
 inline void sendAck(ClientConnectionPtr cnx, uint64_t consumerId, const MessageId& msgId,
-                    proto::CommandAck_AckType ackType) {
-    proto::MessageIdData msgIdData;
-    msgIdData.set_ledgerid(msgId.ledgerId());
-    msgIdData.set_entryid(msgId.entryId());
-    auto cmd = Commands::newAck(consumerId, msgIdData, ackType, -1);
+                    CommandAck_AckType ackType) {
+    auto cmd = Commands::newAck(consumerId, msgId.ledgerId(), msgId.entryId(), ackType, -1);
     cnx->sendCommand(cmd);
-    LOG_DEBUG("ACK request is sent for message - [" << msgIdData.ledgerid() << ", " << msgIdData.entryid()
-                                                    << "]");
+    LOG_DEBUG("ACK request is sent for message - [" << msgId.ledgerId() << ", " << msgId.entryId() << "]");
 }
 
 bool AckGroupingTracker::doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uint64_t consumerId,
-                                        const MessageId& msgId, proto::CommandAck_AckType ackType) {
+                                        const MessageId& msgId, CommandAck_AckType ackType) {
     auto cnx = connWeakPtr.lock();
     if (cnx == nullptr) {
         LOG_DEBUG("Connection is not ready, ACK failed for message - [" << msgId.ledgerId() << ", "
@@ -65,7 +55,7 @@ bool AckGroupingTracker::doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uin
     }
 
     for (const auto& msgId : msgIds) {
-        sendAck(cnx, consumerId, msgId, proto::CommandAck::Individual);
+        sendAck(cnx, consumerId, msgId, CommandAck_AckType_Individual);
     }
     return true;
 }

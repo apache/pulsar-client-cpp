@@ -17,12 +17,13 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/BlockingQueue.h>
-#include <lib/Latch.h>
 
 #include <future>
 #include <iostream>
 #include <thread>
+
+#include "lib/BlockingQueue.h"
+#include "lib/Latch.h"
 
 class ProducerWorker {
    private:

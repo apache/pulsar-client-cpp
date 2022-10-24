@@ -19,42 +19,39 @@
 #ifndef _PULSAR_CLIENT_CONNECTION_HEADER_
 #define _PULSAR_CLIENT_CONNECTION_HEADER_
 
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/defines.h>
-#include <pulsar/Result.h>
 
-#include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
-#include <boost/asio/strand.hpp>
 #include <boost/any.hpp>
-#include <mutex>
+#include <boost/asio/bind_executor.hpp>
+#include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl/stream.hpp>
+#include <boost/asio/strand.hpp>
+#include <deque>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
-#include <deque>
-#include <atomic>
 
-#include "ExecutorService.h"
-#include "Future.h"
-#include "PulsarApi.pb.h"
-#include <pulsar/Result.h>
-#include "SharedBuffer.h"
-#include "Backoff.h"
 #include "Commands.h"
+#include "GetLastMessageIdResponse.h"
 #include "LookupDataResult.h"
+#include "SharedBuffer.h"
 #include "UtilAllocator.h"
-#include <pulsar/Client.h>
-#include <set>
-#include <lib/BrokerConsumerStatsImpl.h>
-#include "lib/PeriodicTask.h"
-#include "lib/GetLastMessageIdResponse.h"
-
-using namespace pulsar;
+#include "Utils.h"
 
 namespace pulsar {
 
 class PulsarFriend;
 
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+using TimeDuration = boost::posix_time::time_duration;
+using TcpResolverPtr = std::shared_ptr<boost::asio::ip::tcp::resolver>;
+
 class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 class ClientConnection;
 typedef std::shared_ptr<ClientConnection> ClientConnectionPtr;
@@ -69,8 +66,17 @@ typedef std::shared_ptr<ConsumerImpl> ConsumerImplPtr;
 typedef std::weak_ptr<ConsumerImpl> ConsumerImplWeakPtr;
 
 class LookupDataResult;
+class BrokerConsumerStatsImpl;
+class PeriodicTask;
 
 struct OpSendMsg;
+
+namespace proto {
+class BaseCommand;
+class CommandActiveConsumerChange;
+class CommandMessage;
+class CommandConnected;
+}  // namespace proto
 
 // Data returned on the request operation. Mostly used on create-producer command
 struct ResponseData {
@@ -193,10 +199,10 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void processIncomingBuffer();
     bool verifyChecksum(SharedBuffer& incomingBuffer_, uint32_t& remainingBytes,
-                        proto::BaseCommand& incomingCmd_);
+                        proto::BaseCommand& incomingCmd);
 
     void handleActiveConsumerChange(const proto::CommandActiveConsumerChange& change);
-    void handleIncomingCommand();
+    void handleIncomingCommand(proto::BaseCommand& incomingCmd);
     void handleIncomingMessage(const proto::CommandMessage& msg, bool isChecksumValid,
                                proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
 
@@ -288,7 +294,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     boost::system::error_code error_;
 
     SharedBuffer incomingBuffer_;
-    proto::BaseCommand incomingCmd_;
 
     Promise<Result, ClientConnectionWeakPtr> connectPromise_;
     std::shared_ptr<PeriodicTask> connectTimeoutTask_;
@@ -322,7 +327,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     int pendingWriteOperations_ = 0;
 
     SharedBuffer outgoingBuffer_;
-    proto::BaseCommand outgoingCmd_;
 
     HandlerAllocator readHandlerAllocator_;
     HandlerAllocator writeHandlerAllocator_;
@@ -343,7 +347,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     bool isTlsAllowInsecureConnection_ = false;
 
     void closeSocket();
-    void checkServerError(const proto::ServerError& error);
+    void checkServerError(ServerError error);
 };
 }  // namespace pulsar
 

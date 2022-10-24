@@ -17,24 +17,50 @@
  * under the License.
  */
 #include "Commands.h"
-#include "MessageImpl.h"
-#include "pulsar/Version.h"
-#include "pulsar/MessageBuilder.h"
-#include "LogUtils.h"
-#include "PulsarApi.pb.h"
-#include "Utils.h"
-#include "Url.h"
+
+#include <pulsar/MessageBuilder.h>
 #include <pulsar/Schema.h>
-#include "checksum/ChecksumProvider.h"
+#include <pulsar/Version.h>
+
 #include <algorithm>
 #include <mutex>
+
+#include "LogUtils.h"
+#include "MessageImpl.h"
+#include "PulsarApi.pb.h"
+#include "Url.h"
+#include "checksum/ChecksumProvider.h"
 
 using namespace pulsar;
 namespace pulsar {
 
-using namespace pulsar::proto;
-
 DECLARE_LOG_OBJECT();
+
+using proto::AuthData;
+using proto::BaseCommand;
+using proto::CommandAck;
+using proto::CommandAuthResponse;
+using proto::CommandCloseConsumer;
+using proto::CommandCloseProducer;
+using proto::CommandConnect;
+using proto::CommandConsumerStats;
+using proto::CommandFlow;
+using proto::CommandGetLastMessageId;
+using proto::CommandGetTopicsOfNamespace;
+using proto::CommandLookupTopic;
+using proto::CommandPartitionedTopicMetadata;
+using proto::CommandProducer;
+using proto::CommandRedeliverUnacknowledgedMessages;
+using proto::CommandSeek;
+using proto::CommandSend;
+using proto::CommandSubscribe;
+using proto::CommandUnsubscribe;
+using proto::FeatureFlags;
+using proto::IntRange;
+using proto::KeySharedMeta;
+using proto::MessageIdData;
+using proto::ProtocolVersion_MAX;
+using proto::SingleMessageMetadata;
 
 static inline bool isBuiltInSchema(SchemaType schemaType) {
     switch (schemaType) {
@@ -53,19 +79,19 @@ static inline bool isBuiltInSchema(SchemaType schemaType) {
 static inline proto::Schema_Type getSchemaType(SchemaType type) {
     switch (type) {
         case SchemaType::NONE:
-            return Schema_Type_None;
+            return proto::Schema_Type_None;
         case STRING:
-            return Schema_Type_String;
+            return proto::Schema_Type_String;
         case JSON:
-            return Schema_Type_Json;
+            return proto::Schema_Type_Json;
         case PROTOBUF:
-            return Schema_Type_Protobuf;
+            return proto::Schema_Type_Protobuf;
         case AVRO:
-            return Schema_Type_Avro;
+            return proto::Schema_Type_Avro;
         case PROTOBUF_NATIVE:
-            return Schema_Type_ProtobufNative;
+            return proto::Schema_Type_ProtobufNative;
         default:
-            return Schema_Type_None;
+            return proto::Schema_Type_None;
     }
 }
 
@@ -278,13 +304,14 @@ SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string&
     CommandSubscribe* subscribe = cmd.mutable_subscribe();
     subscribe->set_topic(topic);
     subscribe->set_subscription(subscription);
-    subscribe->set_subtype(subType);
+    subscribe->set_subtype(static_cast<proto::CommandSubscribe_SubType>(subType));
     subscribe->set_consumer_id(consumerId);
     subscribe->set_request_id(requestId);
     subscribe->set_consumer_name(consumerName);
     subscribe->set_durable(subscriptionMode == SubscriptionModeDurable);
     subscribe->set_read_compacted(readCompacted);
-    subscribe->set_initialposition(subscriptionInitialPosition);
+    subscribe->set_initialposition(
+        static_cast<proto::CommandSubscribe_InitialPosition>(subscriptionInitialPosition));
     subscribe->set_replicate_subscription_state(replicateSubscriptionState);
     subscribe->set_priority_level(priorityLevel);
 
@@ -362,7 +389,7 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     producer->set_epoch(epoch);
     producer->set_user_provided_producer_name(userProvidedProducerName);
     producer->set_encrypted(encrypted);
-    producer->set_producer_access_mode(accessMode);
+    producer->set_producer_access_mode(static_cast<proto::ProducerAccessMode>(accessMode));
     if (topicEpoch.is_present()) {
         producer->set_topic_epoch(topicEpoch.value());
     }
@@ -386,17 +413,19 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     return writeMessageWithSize(cmd);
 }
 
-SharedBuffer Commands::newAck(uint64_t consumerId, const MessageIdData& messageId, CommandAck_AckType ackType,
-                              int validationError) {
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+                              CommandAck_AckType ackType, CommandAck_ValidationError validationError) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
     ack->set_consumer_id(consumerId);
-    ack->set_ack_type(ackType);
-    if (CommandAck_AckType_IsValid(validationError)) {
-        ack->set_validation_error((CommandAck_ValidationError)validationError);
+    ack->set_ack_type(static_cast<proto::CommandAck_AckType>(ackType));
+    if (proto::CommandAck_AckType_IsValid(validationError)) {
+        ack->set_validation_error((proto::CommandAck_ValidationError)validationError);
     }
-    *(ack->add_message_id()) = messageId;
+    auto* msgId = ack->add_message_id();
+    msgId->set_ledgerid(ledgerId);
+    msgId->set_entryid(entryId);
     return writeMessageWithSize(cmd);
 }
 
@@ -405,7 +434,7 @@ SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<Me
     cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
     ack->set_consumer_id(consumerId);
-    ack->set_ack_type(CommandAck_AckType_Individual);
+    ack->set_ack_type(proto::CommandAck_AckType_Individual);
     for (const auto& msgId : msgIds) {
         auto newMsgId = ack->add_message_id();
         newMsgId->set_ledgerid(msgId.ledgerId());

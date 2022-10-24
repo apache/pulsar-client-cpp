@@ -18,8 +18,8 @@
  */
 #pragma once
 
-#include <pulsar/Schema.h>
 #include <google/protobuf/descriptor.h>
+#include <pulsar/Schema.h>
 
 namespace pulsar {
 

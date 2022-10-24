@@ -19,8 +19,9 @@
 #ifndef ERROR_HPP_
 #define ERROR_HPP_
 
-#include <iosfwd>
 #include <pulsar/defines.h>
+
+#include <iosfwd>
 
 namespace pulsar {
 

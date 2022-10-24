@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "LogUtils.h"
 #include <gtest/gtest.h>
+
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

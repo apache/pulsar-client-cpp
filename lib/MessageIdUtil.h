@@ -17,14 +17,8 @@
  * under the License.
  */
 #include <pulsar/MessageId.h>
-#include "PulsarApi.pb.h"
 
 namespace pulsar {
-
-inline MessageId toMessageId(const proto::MessageIdData& messageIdData) {
-    return MessageId{messageIdData.partition(), static_cast<int64_t>(messageIdData.ledgerid()),
-                     static_cast<int64_t>(messageIdData.entryid()), messageIdData.batch_index()};
-}
 
 namespace internal {
 template <typename T>

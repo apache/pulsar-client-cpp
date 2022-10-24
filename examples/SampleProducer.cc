@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <iostream>
-
 #include <pulsar/Client.h>
 
-#include <lib/LogUtils.h>
+#include <iostream>
+
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

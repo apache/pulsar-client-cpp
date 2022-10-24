@@ -20,10 +20,11 @@
 #define _PULSAR_NAMESPACE_NAME_HEADER_
 
 #include <pulsar/defines.h>
-#include "ServiceUnitId.h"
 
 #include <memory>
 #include <string>
+
+#include "ServiceUnitId.h"
 
 namespace pulsar {
 

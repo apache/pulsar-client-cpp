@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/MessageBuilder.h>
-#include <pulsar/Client.h>
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
+#include <pulsar/MessageBuilder.h>
+
 #include <string>
-#include <lib/LogUtils.h>
+
+#include "lib/LogUtils.h"
 
 using namespace pulsar;
 TEST(MessageTest, testMessageContents) {

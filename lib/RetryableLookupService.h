@@ -20,11 +20,14 @@
 
 #include <algorithm>
 #include <memory>
-#include "lib/Backoff.h"
-#include "lib/ExecutorService.h"
-#include "lib/LookupService.h"
-#include "lib/SynchronizedHashMap.h"
-#include "lib/LogUtils.h"
+
+#include "Backoff.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "LookupDataResult.h"
+#include "LookupService.h"
+#include "SynchronizedHashMap.h"
+#include "TopicName.h"
 
 namespace pulsar {
 

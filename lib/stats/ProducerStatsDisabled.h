@@ -19,7 +19,7 @@
 
 #ifndef PULSAR_PRODUCER_STATS_DISABLED_HEADER
 #define PULSAR_PRODUCER_STATS_DISABLED_HEADER
-#include <lib/stats/ProducerStatsBase.h>
+#include "ProducerStatsBase.h"
 
 namespace pulsar {
 class ProducerStatsDisabled : public ProducerStatsBase {

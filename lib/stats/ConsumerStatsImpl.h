@@ -20,11 +20,18 @@
 #ifndef PULSAR_CONSUMER_STATS_IMPL_H_
 #define PULSAR_CONSUMER_STATS_IMPL_H_
 
-#include <lib/stats/ConsumerStatsBase.h>
-#include <lib/ExecutorService.h>
-#include <lib/Utils.h>
+#include <boost/asio/deadline_timer.hpp>
+#include <map>
+#include <mutex>
 #include <utility>
+
+#include "ConsumerStatsBase.h"
+#include "lib/ExecutorService.h"
 namespace pulsar {
+
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 class ConsumerStatsImpl : public ConsumerStatsBase {
    private:
@@ -32,11 +39,11 @@ class ConsumerStatsImpl : public ConsumerStatsBase {
 
     unsigned long numBytesRecieved_ = 0;
     std::map<Result, unsigned long> receivedMsgMap_;
-    std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long> ackedMsgMap_;
+    std::map<std::pair<Result, CommandAck_AckType>, unsigned long> ackedMsgMap_;
 
     unsigned long totalNumBytesRecieved_ = 0;
     std::map<Result, unsigned long> totalReceivedMsgMap_;
-    std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long> totalAckedMsgMap_;
+    std::map<std::pair<Result, CommandAck_AckType>, unsigned long> totalAckedMsgMap_;
 
     ExecutorServicePtr executor_;
     DeadlineTimerPtr timer_;
@@ -52,11 +59,10 @@ class ConsumerStatsImpl : public ConsumerStatsBase {
     ConsumerStatsImpl(const ConsumerStatsImpl& stats);
     void flushAndReset(const boost::system::error_code&);
     virtual void receivedMessage(Message&, Result);
-    virtual void messageAcknowledged(Result, proto::CommandAck_AckType);
+    virtual void messageAcknowledged(Result, CommandAck_AckType);
     virtual ~ConsumerStatsImpl();
 
-    const inline std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long>& getAckedMsgMap()
-        const {
+    const inline std::map<std::pair<Result, CommandAck_AckType>, unsigned long>& getAckedMsgMap() const {
         return ackedMsgMap_;
     }
 
@@ -64,8 +70,7 @@ class ConsumerStatsImpl : public ConsumerStatsBase {
 
     const inline std::map<Result, unsigned long>& getReceivedMsgMap() const { return receivedMsgMap_; }
 
-    inline const std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long>& getTotalAckedMsgMap()
-        const {
+    inline const std::map<std::pair<Result, CommandAck_AckType>, unsigned long>& getTotalAckedMsgMap() const {
         return totalAckedMsgMap_;
     }
 

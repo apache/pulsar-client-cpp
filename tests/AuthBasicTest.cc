@@ -17,9 +17,8 @@
  * under the License.
  */
 
-#include <pulsar/Authentication.h>
-
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
 
 #include <string>

@@ -19,13 +19,17 @@
 
 #include <string>
 
+#include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
-#include "lib/ProducerImpl.h"
-#include "lib/PartitionedProducerImpl.h"
 #include "lib/ConsumerImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
+#include "lib/NamespaceName.h"
+#include "lib/PartitionedProducerImpl.h"
+#include "lib/ProducerImpl.h"
 #include "lib/ReaderImpl.h"
 #include "lib/RetryableLookupService.h"
+#include "lib/stats/ConsumerStatsImpl.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 using std::string;
 

@@ -19,10 +19,11 @@
 #ifndef CONSUMER_HPP_
 #define CONSUMER_HPP_
 
-#include <iostream>
-#include <pulsar/defines.h>
 #include <pulsar/BrokerConsumerStats.h>
 #include <pulsar/ConsumerConfiguration.h>
+#include <pulsar/defines.h>
+
+#include <iostream>
 
 namespace pulsar {
 class PulsarWrapper;

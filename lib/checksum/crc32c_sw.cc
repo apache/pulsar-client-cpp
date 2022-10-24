@@ -34,6 +34,7 @@
  */
 
 #include "crc32c_sw.h"
+
 #include <mutex>
 
 namespace pulsar {

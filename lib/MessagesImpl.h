@@ -19,8 +19,9 @@
 #ifndef PULSAR_CPP_MESSAGESIMPL_H
 #define PULSAR_CPP_MESSAGESIMPL_H
 
-#include <vector>
 #include <pulsar/Message.h>
+
+#include <vector>
 
 using namespace pulsar;
 

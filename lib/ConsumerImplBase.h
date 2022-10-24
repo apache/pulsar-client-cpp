@@ -18,17 +18,18 @@
  */
 #ifndef PULSAR_CONSUMER_IMPL_BASE_HEADER
 #define PULSAR_CONSUMER_IMPL_BASE_HEADER
-#include <pulsar/Message.h>
 #include <pulsar/Consumer.h>
-#include "HandlerBase.h"
+#include <pulsar/Message.h>
+
 #include <queue>
 #include <set>
 
+#include "Future.h"
+#include "HandlerBase.h"
+
 namespace pulsar {
 class ConsumerImplBase;
-class HandlerBase;
-
-typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
+using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
 
 class OpBatchReceive {
    public:

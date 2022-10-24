@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include <string>
-#include <sstream>
-#include <memory>
-
-#include <pulsar/defines.h>
 #include <pulsar/Logger.h>
+#include <pulsar/defines.h>
+
+#include <memory>
+#include <sstream>
+#include <string>
 
 namespace pulsar {
 

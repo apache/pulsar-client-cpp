@@ -17,11 +17,12 @@
  * under the License.
  */
 #include "HandlerBase.h"
-#include "TimeUtils.h"
 
-#include <cassert>
-
+#include "ClientConnection.h"
+#include "ClientImpl.h"
+#include "ExecutorService.h"
 #include "LogUtils.h"
+#include "TimeUtils.h"
 
 DECLARE_LOG_OBJECT()
 

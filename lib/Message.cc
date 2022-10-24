@@ -16,16 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/defines.h>
 #include <pulsar/Message.h>
 #include <pulsar/MessageBuilder.h>
-
-#include "PulsarApi.pb.h"
-
-#include "MessageImpl.h"
-#include "SharedBuffer.h"
+#include <pulsar/defines.h>
 
 #include <iostream>
+
+#include "MessageImpl.h"
+#include "PulsarApi.pb.h"
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 

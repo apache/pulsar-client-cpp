@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/c/producer_configuration.h>
 #include <gtest/gtest.h>
+#include <pulsar/c/producer_configuration.h>
 
 TEST(C_ProducerConfigurationTest, testCApiConfig) {
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();

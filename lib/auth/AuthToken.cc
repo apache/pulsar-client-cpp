@@ -19,11 +19,9 @@
 #include "AuthToken.h"
 
 #include <boost/algorithm/string/predicate.hpp>
-#include <functional>
-#include <stdexcept>
-
-#include <sstream>
 #include <fstream>
+#include <sstream>
+#include <stdexcept>
 
 namespace pulsar {
 

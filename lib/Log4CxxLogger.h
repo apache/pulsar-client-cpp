@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include <pulsar/defines.h>
 #include <pulsar/Logger.h>
+#include <pulsar/defines.h>
 
 #ifdef USE_LOG4CXX
 

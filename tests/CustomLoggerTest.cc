@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/ConsoleLoggerFactory.h>
-#include <LogUtils.h>
-#include <gtest/gtest.h>
+
 #include <atomic>
 #include <thread>
+
+#include "lib/LogUtils.h"
 
 using namespace pulsar;
 

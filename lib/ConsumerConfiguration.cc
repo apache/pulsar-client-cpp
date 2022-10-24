@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/ConsumerConfigurationImpl.h>
+#include <pulsar/ConsumerConfiguration.h>
 
 #include <stdexcept>
-#include <pulsar/ConsumerConfiguration.h>
+
+#include "ConsumerConfigurationImpl.h"
 
 namespace pulsar {
 

@@ -20,6 +20,11 @@
 
 #include <functional>
 
+#include "ClientImpl.h"
+#include "ConsumerImplBase.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+
 DECLARE_LOG_OBJECT();
 
 namespace pulsar {

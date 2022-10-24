@@ -18,38 +18,46 @@
  */
 #ifndef PULSAR_MULTI_TOPICS_CONSUMER_HEADER
 #define PULSAR_MULTI_TOPICS_CONSUMER_HEADER
-#include "lib/TestUtil.h"
-#include "ConsumerImpl.h"
-#include "ClientImpl.h"
-#include "BlockingQueue.h"
-#include <vector>
-#include <queue>
-#include <mutex>
 
+#include <pulsar/Client.h>
+
+#include <memory>
+#include <vector>
+
+#include "BlockingQueue.h"
 #include "ConsumerImplBase.h"
-#include "lib/UnAckedMessageTrackerDisabled.h"
-#include <lib/Latch.h>
-#include <lib/MultiTopicsBrokerConsumerStatsImpl.h>
-#include <lib/TopicName.h>
-#include <lib/NamespaceName.h>
-#include <lib/SynchronizedHashMap.h>
+#include "Future.h"
+#include "Latch.h"
+#include "LookupDataResult.h"
+#include "SynchronizedHashMap.h"
+#include "TestUtil.h"
 
 namespace pulsar {
 typedef std::shared_ptr<Promise<Result, Consumer>> ConsumerSubResultPromisePtr;
 
+class ConsumerImpl;
+using ConsumerImplPtr = std::shared_ptr<ConsumerImpl>;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
+class MultiTopicsBrokerConsumerStatsImpl;
+using MultiTopicsBrokerConsumerStatsPtr = std::shared_ptr<MultiTopicsBrokerConsumerStatsImpl>;
+class UnAckedMessageTrackerInterface;
+using UnAckedMessageTrackerPtr = std::shared_ptr<UnAckedMessageTrackerInterface>;
+class LookupService;
+using LookupServicePtr = std::shared_ptr<LookupService>;
+
 class MultiTopicsConsumerImpl;
 class MultiTopicsConsumerImpl : public ConsumerImplBase {
    public:
+    MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName, int numPartitions,
+                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
+                            LookupServicePtr lookupServicePtr);
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
                             const ConsumerConfiguration& conf, LookupServicePtr lookupServicePtr_);
-    MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName, int numPartitions,
-                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                            LookupServicePtr lookupServicePtr)
-        : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
-                                  lookupServicePtr) {
-        topicsPartitions_[topicName->toString()] = numPartitions;
-    }
+
     ~MultiTopicsConsumerImpl();
     // overrided methods from ConsumerImplBase
     Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() override;

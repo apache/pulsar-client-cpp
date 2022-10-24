@@ -20,7 +20,6 @@
 #pragma once
 
 #include <pulsar/Authentication.h>
-#include <string>
 
 namespace pulsar {
 

@@ -19,17 +19,19 @@
 #ifndef _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 #define _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 
-#include <iostream>
-#include <pulsar/defines.h>
 #include <pulsar/Authentication.h>
-#include "ConnectionPool.h"
-#include "Backoff.h"
-#include <lib/LookupService.h>
+
 #include <mutex>
-#include "ServiceNameResolver.h"
+
+#include "LookupService.h"
 
 namespace pulsar {
+class ClientConnection;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+class ConnectionPool;
 class LookupDataResult;
+class ServiceNameResolver;
+using NamespaceTopicsPromisePtr = std::shared_ptr<Promise<Result, NamespaceTopicsPtr>>;
 
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:

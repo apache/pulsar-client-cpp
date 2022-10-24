@@ -20,7 +20,6 @@
 #define PULSAR_CPP_BROKERCONSUMERSTATSIMPLBASE_H
 
 #include <pulsar/BrokerConsumerStats.h>
-#include <boost/date_time/posix_time/ptime.hpp>
 
 namespace pulsar {
 class BrokerConsumerStatsImplBase {

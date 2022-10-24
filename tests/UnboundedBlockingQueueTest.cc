@@ -17,11 +17,12 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/UnboundedBlockingQueue.h>
-#include <lib/Latch.h>
 
 #include <future>
 #include <thread>
+
+#include "lib/Latch.h"
+#include "lib/UnboundedBlockingQueue.h"
 
 class UnboundedProducerWorker {
    private:

@@ -18,14 +18,17 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
-#include <lib/Latch.h>
-#include "ConsumerTest.h"
+
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <functional>
 #include <memory>
 #include <mutex>
+
+#include "ConsumerTest.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

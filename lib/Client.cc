@@ -16,16 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <iostream>
 #include <pulsar/Client.h>
+
+#include <iostream>
+#include <memory>
 #include <utility>
 
-#include <memory>
-
 #include "ClientImpl.h"
-#include "Utils.h"
-#include "ExecutorService.h"
 #include "LogUtils.h"
+#include "Utils.h"
 
 DECLARE_LOG_OBJECT()
 

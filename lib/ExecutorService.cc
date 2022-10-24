@@ -18,12 +18,8 @@
  */
 #include "ExecutorService.h"
 
-#include <boost/asio.hpp>
-#include <functional>
-#include <memory>
-#include "TimeUtils.h"
-
 #include "LogUtils.h"
+#include "TimeUtils.h"
 DECLARE_LOG_OBJECT()
 
 namespace pulsar {

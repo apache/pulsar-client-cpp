@@ -19,17 +19,18 @@
 #ifndef PULSAR_CLIENT_HPP_
 #define PULSAR_CLIENT_HPP_
 
-#include <pulsar/defines.h>
+#include <pulsar/ClientConfiguration.h>
+#include <pulsar/ConsoleLoggerFactory.h>
 #include <pulsar/Consumer.h>
+#include <pulsar/FileLoggerFactory.h>
+#include <pulsar/Message.h>
+#include <pulsar/MessageBuilder.h>
 #include <pulsar/Producer.h>
 #include <pulsar/Reader.h>
 #include <pulsar/Result.h>
-#include <pulsar/Message.h>
-#include <pulsar/MessageBuilder.h>
-#include <pulsar/ClientConfiguration.h>
 #include <pulsar/Schema.h>
-#include <pulsar/ConsoleLoggerFactory.h>
-#include <pulsar/FileLoggerFactory.h>
+#include <pulsar/defines.h>
+
 #include <string>
 
 namespace pulsar {

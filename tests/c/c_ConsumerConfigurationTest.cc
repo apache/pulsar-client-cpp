@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/c/consumer_configuration.h>
 #include <gtest/gtest.h>
+#include <pulsar/c/consumer_configuration.h>
 
 TEST(C_ConsumerConfigurationTest, testCApiConfig) {
     pulsar_consumer_configuration_t *consumer_conf = pulsar_consumer_configuration_create();

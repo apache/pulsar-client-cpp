@@ -18,12 +18,14 @@
  */
 #ifndef PULSAR_PATTERN_MULTI_TOPICS_CONSUMER_HEADER
 #define PULSAR_PATTERN_MULTI_TOPICS_CONSUMER_HEADER
-#include "ConsumerImpl.h"
-#include "ClientImpl.h"
-#include <lib/TopicName.h>
-#include <lib/NamespaceName.h>
-#include "MultiTopicsConsumerImpl.h"
 #include <memory>
+#include <string>
+#include <vector>
+
+#include "LookupDataResult.h"
+#include "MultiTopicsConsumerImpl.h"
+#include "NamespaceName.h"
+#include "TopicName.h"
 
 #ifdef PULSAR_USE_BOOST_REGEX
 #include <boost/regex.hpp>
@@ -35,7 +37,9 @@
 
 namespace pulsar {
 
-class PatternMultiTopicsConsumerImpl;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
 
 class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
    public:

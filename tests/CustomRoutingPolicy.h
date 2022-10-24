@@ -19,9 +19,10 @@
 #ifndef CUSTOM_ROUTER_POLICY_HEADER_
 #define CUSTOM_ROUTER_POLICY_HEADER_
 
-#include <cstdlib>  // rand()
-#include <boost/algorithm/string.hpp>
 #include <pulsar/DeprecatedException.h>
+
+#include <boost/algorithm/string.hpp>
+#include <cstdlib>  // rand()
 
 namespace pulsar {
 class CustomRoutingPolicy : public MessageRoutingPolicy {

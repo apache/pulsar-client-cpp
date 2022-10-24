@@ -16,15 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/auth/AuthOauth2.h>
+#include "AuthOauth2.h"
 
 #include <curl/curl.h>
-#include <sstream>
-#include <stdexcept>
+
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <sstream>
+#include <stdexcept>
 
-#include <lib/LogUtils.h>
+#include "lib/LogUtils.h"
 DECLARE_LOG_OBJECT()
 
 namespace pulsar {

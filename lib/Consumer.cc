@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/BrokerConsumerStats.h>
 #include <pulsar/Consumer.h>
+#include <pulsar/ConsumerConfiguration.h>
 #include <pulsar/MessageBuilder.h>
+
 #include "ConsumerImpl.h"
+#include "GetLastMessageIdResponse.h"
 #include "Utils.h"
-#include <lib/BrokerConsumerStatsImpl.h>
-#include <lib/Latch.h>
 
 namespace pulsar {
 

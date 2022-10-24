@@ -17,12 +17,18 @@
  * under the License.
  */
 #include "PartitionedProducerImpl.h"
-#include "LogUtils.h"
-#include <lib/TopicName.h>
+
 #include <sstream>
+
+#include "ClientImpl.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "LookupService.h"
+#include "ProducerImpl.h"
 #include "RoundRobinMessageRouter.h"
 #include "SinglePartitionMessageRouter.h"
 #include "TopicMetadataImpl.h"
+#include "TopicName.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -352,10 +358,10 @@ void PartitionedProducerImpl::triggerFlush() {
 
 void PartitionedProducerImpl::flushAsync(FlushCallback callback) {
     if (!flushPromise_ || flushPromise_->isComplete()) {
-        flushPromise_ = std::make_shared<Promise<Result, bool_type>>();
+        flushPromise_ = std::make_shared<Promise<Result, bool>>();
     } else {
         // already in flushing, register a listener callback
-        auto listenerCallback = [callback](Result result, bool_type v) {
+        auto listenerCallback = [callback](Result result, bool v) {
             if (v) {
                 callback(ResultOk);
             } else {

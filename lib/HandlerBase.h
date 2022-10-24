@@ -18,13 +18,14 @@
  */
 #ifndef _PULSAR_HANDLER_BASE_HEADER_
 #define _PULSAR_HANDLER_BASE_HEADER_
-#include "Backoff.h"
-#include "ClientImpl.h"
-#include "ClientConnection.h"
+#include <pulsar/Result.h>
+
+#include <boost/asio/deadline_timer.hpp>
 #include <memory>
-#include <boost/asio.hpp>
+#include <mutex>
 #include <string>
-#include <boost/date_time/local_time/local_time.hpp>
+
+#include "Backoff.h"
 
 namespace pulsar {
 
@@ -35,6 +36,15 @@ using boost::posix_time::seconds;
 class HandlerBase;
 typedef std::weak_ptr<HandlerBase> HandlerBaseWeakPtr;
 typedef std::shared_ptr<HandlerBase> HandlerBasePtr;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
+class ClientConnection;
+using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 
 class HandlerBase {
    public:

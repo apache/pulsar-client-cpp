@@ -16,18 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <cmath>
-#include <ctime>
-#include <vector>
-#include <map>
-
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/KeySharedPolicy.h>
-#include "lib/LogUtils.h"
+
+#include <cmath>
+#include <ctime>
+#include <map>
+#include <vector>
 
 #include "HttpHelper.h"
 #include "LogHelper.h"
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

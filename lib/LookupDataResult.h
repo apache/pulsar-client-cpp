@@ -18,12 +18,13 @@
  */
 #ifndef _PULSAR_LOOKUP_DATA_RESULT_HEADER_
 #define _PULSAR_LOOKUP_DATA_RESULT_HEADER_
-#include <string>
-#include <lib/Future.h>
 #include <pulsar/Result.h>
 
 #include <iostream>
 #include <memory>
+#include <string>
+
+#include "Future.h"
 
 namespace pulsar {
 class LookupDataResult;
@@ -67,7 +68,7 @@ class LookupDataResult {
     bool proxyThroughServiceUrl_;
 };
 
-std::ostream& operator<<(std::ostream& os, const LookupDataResult& b) {
+inline std::ostream& operator<<(std::ostream& os, const LookupDataResult& b) {
     os << "{ LookupDataResult [brokerUrl_ = " << b.brokerUrl_ << "] [brokerUrlTls_ = " << b.brokerUrlTls_
        << "] [partitions = " << b.partitions << "] [authoritative = " << b.authoritative
        << "] [redirect = " << b.redirect << "] proxyThroughServiceUrl = " << b.proxyThroughServiceUrl_

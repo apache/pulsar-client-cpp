@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/ClientConfigurationImpl.h>
+#include "ClientConfigurationImpl.h"
 
 namespace pulsar {
 
