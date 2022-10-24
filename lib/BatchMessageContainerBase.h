@@ -33,7 +33,7 @@ namespace pulsar {
 class MessageCrypto;
 class ProducerImpl;
 class SharedBuffer;
-class OpSendMsg;
+struct OpSendMsg;
 class MessageAndCallbackBatch;
 
 namespace proto {

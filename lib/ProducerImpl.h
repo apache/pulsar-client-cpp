@@ -23,6 +23,10 @@
 
 #include "Future.h"
 #include "HandlerBase.h"
+// In MSVC, the value type of a STL container cannot be forward declared
+#if defined(_MSC_VER)
+#include "OpSendMsg.h"
+#endif
 #include "PendingFailures.h"
 #include "PeriodicTask.h"
 #include "ProducerImplBase.h"
@@ -49,7 +53,7 @@ class PulsarFriend;
 class Producer;
 class MemoryLimitController;
 class TopicName;
-class OpSendMsg;
+struct OpSendMsg;
 
 namespace proto {
 class MessageMetadata;
