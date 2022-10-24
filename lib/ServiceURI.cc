@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "ServiceURI.h"
+
 #include <stdexcept>
 
 namespace pulsar {

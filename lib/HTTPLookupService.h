@@ -19,13 +19,16 @@
 #ifndef PULSAR_CPP_HTTPLOOKUPSERVICE_H
 #define PULSAR_CPP_HTTPLOOKUPSERVICE_H
 
-#include <lib/LookupService.h>
-#include <lib/ClientImpl.h>
-#include <lib/Url.h>
-#include <pulsar/Version.h>
-#include <lib/ServiceNameResolver.h>
+#include "ClientImpl.h"
+#include "LookupService.h"
+#include "Url.h"
 
 namespace pulsar {
+
+class ServiceNameResolver;
+using NamespaceTopicsPromise = Promise<Result, NamespaceTopicsPtr>;
+using NamespaceTopicsPromisePtr = std::shared_ptr<NamespaceTopicsPromise>;
+
 class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
     class CurlInitializer {
        public:

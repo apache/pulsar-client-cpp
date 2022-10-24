@@ -19,14 +19,15 @@
 #ifndef PULSAR_READER_CONFIGURATION_H_
 #define PULSAR_READER_CONFIGURATION_H_
 
+#include <pulsar/ConsumerCryptoFailureAction.h>
+#include <pulsar/CryptoKeyReader.h>
+#include <pulsar/Message.h>
+#include <pulsar/Result.h>
+#include <pulsar/Schema.h>
+#include <pulsar/defines.h>
+
 #include <functional>
 #include <memory>
-#include <pulsar/defines.h>
-#include <pulsar/Result.h>
-#include <pulsar/Message.h>
-#include <pulsar/Schema.h>
-#include <pulsar/CryptoKeyReader.h>
-#include <pulsar/ConsumerCryptoFailureAction.h>
 
 namespace pulsar {
 

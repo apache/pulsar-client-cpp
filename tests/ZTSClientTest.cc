@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "lib/auth/athenz/ZTSClient.h"
 #include <gtest/gtest.h>
+
+#include "lib/auth/athenz/ZTSClient.h"
 
 using namespace pulsar;
 

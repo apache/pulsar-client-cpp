@@ -21,6 +21,7 @@
 #define PULSAR_PRODUCER_STATS_BASE_HEADER
 #include <pulsar/Message.h>
 #include <pulsar/Result.h>
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 namespace pulsar {

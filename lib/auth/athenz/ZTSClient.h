@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <string>
-#include <map>
 #include <pulsar/defines.h>
-#include <lib/LogUtils.h>
+
+#include <map>
+#include <string>
 
 namespace pulsar {
 

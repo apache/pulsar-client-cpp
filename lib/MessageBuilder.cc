@@ -25,13 +25,12 @@
 
 #include "LogUtils.h"
 #include "MessageImpl.h"
+#include "ObjectPool.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
+#include "TimeUtils.h"
 
 DECLARE_LOG_OBJECT()
-
-#include "ObjectPool.h"
-#include "TimeUtils.h"
 
 using namespace pulsar;
 

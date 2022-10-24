@@ -21,10 +21,12 @@
 
 #include <pulsar/Message.h>
 #include <pulsar/Producer.h>
+
 #include <boost/date_time/posix_time/ptime.hpp>
 
+#include "PulsarApi.pb.h"
+#include "SharedBuffer.h"
 #include "TimeUtils.h"
-#include "MessageImpl.h"
 
 namespace pulsar {
 

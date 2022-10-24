@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Producer.h>
-#include "SharedBuffer.h"
 #include <pulsar/MessageBuilder.h>
+#include <pulsar/Producer.h>
 
-#include "Utils.h"
 #include "ProducerImpl.h"
+#include "Utils.h"
 
 namespace pulsar {
 

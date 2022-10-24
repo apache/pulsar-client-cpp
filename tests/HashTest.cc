@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Client.h>
-#include <gtest/gtest.h>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <pulsar/Client.h>
+
 #include <boost/functional/hash.hpp>
 
-#include "../lib/BoostHash.h"
-#include "../lib/JavaStringHash.h"
-#include "../lib/Murmur3_32Hash.h"
+#include "lib/BoostHash.h"
+#include "lib/JavaStringHash.h"
+#include "lib/Murmur3_32Hash.h"
 
 using ::testing::AtLeast;
 using ::testing::Return;

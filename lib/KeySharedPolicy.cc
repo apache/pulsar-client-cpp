@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/KeySharedPolicyImpl.h>
-
 #include <algorithm>
 #include <stdexcept>
+
+#include "KeySharedPolicyImpl.h"
 
 namespace pulsar {
 

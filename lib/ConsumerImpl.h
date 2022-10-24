@@ -19,45 +19,44 @@
 #ifndef LIB_CONSUMERIMPL_H_
 #define LIB_CONSUMERIMPL_H_
 
-#include <string>
+#include <pulsar/Reader.h>
 
-#include "pulsar/Result.h"
-#include "UnboundedBlockingQueue.h"
-#include "HandlerBase.h"
-#include "ClientConnection.h"
-#include "lib/UnAckedMessageTrackerEnabled.h"
-#include "NegativeAcksTracker.h"
-#include "Commands.h"
-#include "ExecutorService.h"
-#include "ConsumerImplBase.h"
-#include "lib/UnAckedMessageTrackerDisabled.h"
-#include "MessageCrypto.h"
-#include "AckGroupingTracker.h"
-#include "GetLastMessageIdResponse.h"
+#include <functional>
+#include <memory>
 
-#include "CompressionCodec.h"
-#include <boost/dynamic_bitset.hpp>
-#include <map>
 #include "BatchAcknowledgementTracker.h"
-#include <limits>
-#include <lib/BrokerConsumerStatsImpl.h>
-#include <lib/MapCache.h>
-#include <lib/stats/ConsumerStatsImpl.h>
-#include <lib/stats/ConsumerStatsDisabled.h>
-#include <queue>
-#include <atomic>
+#include "BrokerConsumerStatsImpl.h"
+#include "Commands.h"
+#include "CompressionCodec.h"
+#include "ConsumerImplBase.h"
+#include "MapCache.h"
+#include "NegativeAcksTracker.h"
 #include "Synchronized.h"
-
-using namespace pulsar;
+#include "TestUtil.h"
+#include "UnboundedBlockingQueue.h"
 
 namespace pulsar {
-class UnAckedMessageTracker;
+class UnAckedMessageTrackerInterface;
 class ExecutorService;
 class ConsumerImpl;
 class BatchAcknowledgementTracker;
+class MessageCrypto;
+class GetLastMessageIdResponse;
 typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
 typedef std::function<void(Result, const GetLastMessageIdResponse&)> BrokerGetLastMessageIdCallback;
 typedef std::shared_ptr<Backoff> BackoffPtr;
+
+class AckGroupingTracker;
+using AckGroupingTrackerPtr = std::shared_ptr<AckGroupingTracker>;
+class ConsumerStatsBase;
+using ConsumerStatsBasePtr = std::shared_ptr<ConsumerStatsBase>;
+class UnAckedMessageTracker;
+using UnAckedMessageTrackerPtr = std::shared_ptr<UnAckedMessageTrackerInterface>;
+
+namespace proto {
+class CommandMessage;
+class MessageMetadata;
+}  // namespace proto
 
 enum ConsumerTopicType
 {
@@ -82,8 +81,8 @@ class ConsumerImpl : public ConsumerImplBase {
                          bool& isChecksumValid, proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
     void messageProcessed(Message& msg, bool track = true);
     void activeConsumerChanged(bool isActive);
-    inline proto::CommandSubscribe_SubType getSubType();
-    inline proto::CommandSubscribe_InitialPosition getInitialPosition();
+    inline CommandSubscribe_SubType getSubType();
+    inline CommandSubscribe_InitialPosition getInitialPosition();
 
     /**
      * Send individual ACK request of given message ID to broker.
@@ -167,7 +166,7 @@ class ConsumerImpl : public ConsumerImplBase {
                                    const proto::MessageMetadata& metadata, SharedBuffer& payload,
                                    bool checkMaxMessageSize);
     void discardCorruptedMessage(const ClientConnectionPtr& cnx, const proto::MessageIdData& messageId,
-                                 proto::CommandAck::ValidationError validationError);
+                                 CommandAck_ValidationError validationError);
     void increaseAvailablePermits(const ClientConnectionPtr& currentCnx, int delta = 1);
     void drainIncomingMessageQueue(size_t count);
     uint32_t receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx, Message& batchedMessage,
@@ -182,7 +181,7 @@ class ConsumerImpl : public ConsumerImplBase {
     // TODO - Convert these functions to lambda when we move to C++11
     Result receiveHelper(Message& msg);
     Result receiveHelper(Message& msg, int timeout);
-    void statsCallback(Result, ResultCallback, proto::CommandAck_AckType);
+    void statsCallback(Result, ResultCallback, CommandAck_AckType);
     void executeNotifyCallback(Message& msg);
     void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
     void failPendingReceiveCallback();

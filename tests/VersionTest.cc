@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Version.h>
 #include <gtest/gtest.h>
+#include <pulsar/Version.h>
 
 TEST(VersionTest, testMacro) {
 #ifdef PULSAR_VERSION

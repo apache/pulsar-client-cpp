@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Client.h>
-
 #include <gtest/gtest.h>
-
-#include "HttpHelper.h"
+#include <pulsar/Client.h>
 
 #include <string>
 #include <thread>
+
+#include "HttpHelper.h"
 
 using namespace pulsar;
 

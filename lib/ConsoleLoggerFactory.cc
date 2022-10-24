@@ -18,7 +18,8 @@
  */
 
 #include <pulsar/ConsoleLoggerFactory.h>
-#include "lib/ConsoleLoggerFactoryImpl.h"
+
+#include "ConsoleLoggerFactoryImpl.h"
 
 namespace pulsar {
 

@@ -19,10 +19,11 @@
 #ifndef LIB_LATCH_H_
 #define LIB_LATCH_H_
 
+#include <pulsar/defines.h>
+
+#include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <condition_variable>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 

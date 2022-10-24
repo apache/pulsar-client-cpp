@@ -17,7 +17,8 @@
  * under the License.
  */
 #include "MessagesImpl.h"
-#include "stdexcept"
+
+#include <stdexcept>
 
 MessagesImpl::MessagesImpl(int maxNumberOfMessages, long maxSizeOfMessages)
     : maxNumberOfMessages_(maxNumberOfMessages),

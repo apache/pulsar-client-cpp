@@ -21,6 +21,8 @@
 #include <pulsar/Message.h>
 #include <pulsar/Producer.h>
 
+#include "Future.h"
+
 namespace pulsar {
 class ProducerImplBase;
 

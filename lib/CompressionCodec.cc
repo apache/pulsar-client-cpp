@@ -17,12 +17,11 @@
  * under the License.
  */
 #include "CompressionCodec.h"
+
 #include "CompressionCodecLZ4.h"
+#include "CompressionCodecSnappy.h"
 #include "CompressionCodecZLib.h"
 #include "CompressionCodecZstd.h"
-#include "CompressionCodecSnappy.h"
-
-#include <cassert>
 
 using namespace pulsar;
 namespace pulsar {
@@ -45,38 +44,6 @@ CompressionCodec& CompressionCodecProvider::getCodec(CompressionType compression
             return compressionCodecSnappy_;
         default:
             return compressionCodecNone_;
-    }
-    BOOST_THROW_EXCEPTION(std::logic_error("Invalid CompressionType enumeration value"));
-}
-
-CompressionType CompressionCodecProvider::convertType(proto::CompressionType type) {
-    switch (type) {
-        case proto::NONE:
-            return CompressionNone;
-        case proto::LZ4:
-            return CompressionLZ4;
-        case proto::ZLIB:
-            return CompressionZLib;
-        case proto::ZSTD:
-            return CompressionZSTD;
-        case proto::SNAPPY:
-            return CompressionSNAPPY;
-    }
-    BOOST_THROW_EXCEPTION(std::logic_error("Invalid proto::CompressionType enumeration value"));
-}
-
-proto::CompressionType CompressionCodecProvider::convertType(CompressionType type) {
-    switch (type) {
-        case CompressionNone:
-            return proto::NONE;
-        case CompressionLZ4:
-            return proto::LZ4;
-        case CompressionZLib:
-            return proto::ZLIB;
-        case CompressionZSTD:
-            return proto::ZSTD;
-        case CompressionSNAPPY:
-            return proto::SNAPPY;
     }
     BOOST_THROW_EXCEPTION(std::logic_error("Invalid CompressionType enumeration value"));
 }

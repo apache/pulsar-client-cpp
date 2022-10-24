@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <NamespaceName.h>
-
 #include <gtest/gtest.h>
+
+#include "lib/NamespaceName.h"
 using namespace pulsar;
 
 TEST(NamespaceNameTest, testNamespaceName) {

@@ -19,11 +19,12 @@
 #ifndef MESSAGE_ID_H
 #define MESSAGE_ID_H
 
-#include <iosfwd>
+#include <pulsar/defines.h>
 #include <stdint.h>
+
+#include <iosfwd>
 #include <memory>
 #include <string>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 

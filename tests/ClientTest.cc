@@ -17,14 +17,16 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
+
+#include <future>
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
-
-#include <future>
-#include <pulsar/Client.h>
-#include "../lib/checksum/ChecksumProvider.h"
+#include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
+#include "lib/checksum/ChecksumProvider.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 DECLARE_LOG_OBJECT()
 

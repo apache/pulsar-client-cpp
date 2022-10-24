@@ -18,12 +18,12 @@
  */
 #pragma once
 
-#include <map>
+#include <pulsar/defines.h>
 
 #include <iosfwd>
+#include <map>
 #include <memory>
 #include <string>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 

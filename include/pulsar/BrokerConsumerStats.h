@@ -19,13 +19,13 @@
 #ifndef PULSAR_CPP_BROKERCONSUMERSTATS_H
 #define PULSAR_CPP_BROKERCONSUMERSTATS_H
 
-#include <pulsar/defines.h>
-#include <string.h>
-#include <iostream>
-#include <pulsar/Result.h>
-#include <functional>
-#include <memory>
 #include <pulsar/ConsumerType.h>
+#include <pulsar/Result.h>
+#include <pulsar/defines.h>
+
+#include <functional>
+#include <iostream>
+#include <memory>
 
 namespace pulsar {
 class BrokerConsumerStatsImplBase;

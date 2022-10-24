@@ -20,14 +20,13 @@
 #include "AckGroupingTrackerEnabled.h"
 
 #include <mutex>
-#include <algorithm>
 
-#include "Commands.h"
-#include "LogUtils.h"
+#include "ClientConnection.h"
 #include "ClientImpl.h"
+#include "Commands.h"
+#include "ExecutorService.h"
 #include "HandlerBase.h"
-#include "PulsarApi.pb.h"
-#include <pulsar/MessageId.h>
+#include "LogUtils.h"
 
 namespace pulsar {
 
@@ -111,7 +110,7 @@ void AckGroupingTrackerEnabled::flush() {
         std::lock_guard<std::mutex> lock(this->mutexCumulativeAckMsgId_);
         if (this->requireCumulativeAck_) {
             if (!this->doImmediateAck(cnx, this->consumerId_, this->nextCumulativeAckMsgId_,
-                                      proto::CommandAck::Cumulative)) {
+                                      CommandAck_AckType_Cumulative)) {
                 // Failed to send ACK.
                 LOG_WARN("Failed to send cumulative ACK.");
                 return;

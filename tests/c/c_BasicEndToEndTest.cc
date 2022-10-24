@@ -17,12 +17,12 @@
  * under the License.
  */
 
-#include <future>
+#include <gtest/gtest.h>
+#include <pulsar/c/client.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include <gtest/gtest.h>
-#include <pulsar/c/client.h>
+#include <future>
 
 struct send_ctx {
     pulsar_result result;

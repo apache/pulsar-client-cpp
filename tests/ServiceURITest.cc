@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+
 #include "lib/ServiceURI.h"
 
 using namespace pulsar;

@@ -19,12 +19,12 @@
 #ifndef MESSAGE_HPP_
 #define MESSAGE_HPP_
 
+#include <pulsar/defines.h>
+
 #include <map>
+#include <memory>
 #include <string>
 
-#include <memory>
-
-#include <pulsar/defines.h>
 #include "MessageId.h"
 
 namespace pulsar {

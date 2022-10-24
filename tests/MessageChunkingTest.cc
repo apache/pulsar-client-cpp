@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
+#include <pulsar/Client.h>
+
 #include <ctime>
 #include <random>
 
-#include <pulsar/Client.h>
-#include <gtest/gtest.h>
-#include "lib/LogUtils.h"
 #include "PulsarFriend.h"
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

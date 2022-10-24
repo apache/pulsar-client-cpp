@@ -19,11 +19,11 @@
 #ifndef PULSAR_SINGLE_PARTITION_MESSAGE_ROUTER_HEADER_
 #define PULSAR_SINGLE_PARTITION_MESSAGE_ROUTER_HEADER_
 
-#include <pulsar/defines.h>
 #include <pulsar/MessageRoutingPolicy.h>
-#include <include/pulsar/ProducerConfiguration.h>
-#include "Hash.h"
+#include <pulsar/ProducerConfiguration.h>
 #include <pulsar/TopicMetadata.h>
+#include <pulsar/defines.h>
+
 #include "MessageRouterBase.h"
 
 namespace pulsar {

@@ -20,7 +20,8 @@
 #pragma once
 
 #include <pulsar/Logger.h>
-#include "lib/SimpleLogger.h"
+
+#include "SimpleLogger.h"
 
 namespace pulsar {
 

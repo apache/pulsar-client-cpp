@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "MessageAndCallbackBatch.h"
+
 #include "ClientConnection.h"
 #include "Commands.h"
 #include "LogUtils.h"

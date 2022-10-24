@@ -25,10 +25,11 @@
 #define MURMUR3_32_HASH_HPP_
 
 #include <pulsar/defines.h>
-#include "Hash.h"
 
 #include <cstdint>
 #include <string>
+
+#include "Hash.h"
 
 namespace pulsar {
 

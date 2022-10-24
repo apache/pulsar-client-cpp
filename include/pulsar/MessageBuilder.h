@@ -19,12 +19,12 @@
 #ifndef MESSAGE_BUILDER_H
 #define MESSAGE_BUILDER_H
 
+#include <pulsar/Message.h>
+#include <pulsar/defines.h>
+
 #include <chrono>
 #include <string>
 #include <vector>
-
-#include <pulsar/Message.h>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 class PulsarWrapper;

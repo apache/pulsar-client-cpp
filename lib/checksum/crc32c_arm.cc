@@ -23,6 +23,7 @@
 //  (found in the LICENSE.Apache file in the root directory).
 
 #include "crc32c_arm.h"
+
 #include "lib/checksum/crc32c_sw.h"
 
 #if defined(HAVE_ARM64_CRC)

@@ -20,7 +20,15 @@
 #ifndef LIB_READERIMPL_H_
 #define LIB_READERIMPL_H_
 
-#include "ConsumerImpl.h"
+#include <pulsar/Client.h>
+#include <pulsar/ConsumerConfiguration.h>
+#include <pulsar/ReaderConfiguration.h>
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+
+#include "Future.h"
 
 namespace pulsar {
 
@@ -28,6 +36,17 @@ class ReaderImpl;
 
 typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
 typedef std::weak_ptr<ReaderImpl> ReaderImplWeakPtr;
+
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
+class ConsumerImplBase;
+using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
+class ConsumerImpl;
+using ConsumerImplPtr = std::shared_ptr<ConsumerImpl>;
+using ConsumerImplWeakPtr = std::weak_ptr<ConsumerImpl>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 namespace test {
 
@@ -53,7 +72,7 @@ class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl>
 
     Future<Result, ReaderImplWeakPtr> getReaderCreatedFuture();
 
-    ConsumerImplBaseWeakPtr getConsumer() const noexcept { return consumer_; }
+    ConsumerImplWeakPtr getConsumer() const noexcept { return consumer_; }
 
     void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
 

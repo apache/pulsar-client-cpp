@@ -19,9 +19,8 @@
 #ifndef LIB_OBJECTPOOL_H_
 #define LIB_OBJECTPOOL_H_
 
-#include <algorithm>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
 namespace pulsar {
 

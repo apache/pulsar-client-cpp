@@ -17,13 +17,10 @@
  * under the License.
  */
 #include "BatchMessageContainer.h"
-#include "ClientConnection.h"
-#include "Commands.h"
-#include "LogUtils.h"
-#include "MessageImpl.h"
-#include "ProducerImpl.h"
-#include "TimeUtils.h"
+
 #include <stdexcept>
+
+#include "LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

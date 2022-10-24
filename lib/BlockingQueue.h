@@ -19,10 +19,9 @@
 #ifndef LIB_BLOCKINGQUEUE_H_
 #define LIB_BLOCKINGQUEUE_H_
 
-#include <assert.h>
-#include <mutex>
-#include <condition_variable>
 #include <boost/circular_buffer.hpp>
+#include <condition_variable>
+#include <mutex>
 
 /**
  * Following structs are defined for holding a predicate in wait() call on condition variables.

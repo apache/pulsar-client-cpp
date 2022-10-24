@@ -19,13 +19,11 @@
 #ifndef LIB_COMPRESSIONCODEC_H_
 #define LIB_COMPRESSIONCODEC_H_
 
-#include <pulsar/defines.h>
 #include <pulsar/Producer.h>
 
-#include "SharedBuffer.h"
-#include "PulsarApi.pb.h"
-
 #include <map>
+
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 namespace pulsar {
@@ -39,9 +37,6 @@ class CompressionCodecSnappy;
 
 class PULSAR_PUBLIC CompressionCodecProvider {
    public:
-    static CompressionType convertType(proto::CompressionType type);
-    static proto::CompressionType convertType(CompressionType type);
-
     static CompressionCodec& getCodec(CompressionType compressionType);
 
    private:

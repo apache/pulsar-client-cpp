@@ -16,16 +16,32 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "ProducerImpl.h"
-#include "ClientImpl.h"
-#include <vector>
-
-#include <mutex>
 #include <pulsar/MessageRoutingPolicy.h>
 #include <pulsar/TopicMetadata.h>
-#include <lib/TopicName.h>
+
+#include <atomic>
+#include <boost/asio/deadline_timer.hpp>
+#include <memory>
+#include <mutex>
+#include <vector>
+
+#include "LookupDataResult.h"
+#include "ProducerImplBase.h"
 
 namespace pulsar {
+
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+class LookupService;
+using LookupServicePtr = std::shared_ptr<LookupService>;
+class ProducerImpl;
+using ProducerImplPtr = std::shared_ptr<ProducerImpl>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
 
 class PartitionedProducerImpl : public ProducerImplBase,
                                 public std::enable_shared_from_this<PartitionedProducerImpl> {
@@ -107,7 +123,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     std::unique_ptr<TopicMetadata> topicMetadata_;
 
     std::atomic<int> flushedPartitions_;
-    std::shared_ptr<Promise<Result, bool_type>> flushPromise_;
+    std::shared_ptr<Promise<Result, bool>> flushPromise_;
 
     ExecutorServicePtr listenerExecutor_;
     DeadlineTimerPtr partitionsUpdateTimer_;

@@ -17,7 +17,8 @@
  * under the License.
  */
 #include <pulsar/FileLoggerFactory.h>
-#include "lib/FileLoggerFactoryImpl.h"
+
+#include "FileLoggerFactoryImpl.h"
 
 namespace pulsar {
 

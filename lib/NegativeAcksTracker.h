@@ -19,15 +19,23 @@
 
 #pragma once
 
+#include <pulsar/ConsumerConfiguration.h>
 #include <pulsar/MessageId.h>
 
-#include "ExecutorService.h"
-#include "ClientImpl.h"
-
-#include <mutex>
+#include <boost/asio/deadline_timer.hpp>
+#include <chrono>
 #include <map>
+#include <memory>
+#include <mutex>
 
 namespace pulsar {
+
+class ConsumerImpl;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 class NegativeAcksTracker {
    public:

@@ -19,9 +19,11 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/ProtobufNativeSchema.h>
+
 #include <stdexcept>
+
 #include "PaddingDemo.pb.h"
-#include "Test.pb.h"  // generated from "pulsar-client/src/test/proto/Test.proto"
+#include "Test.pb.h"
 
 using namespace pulsar;
 

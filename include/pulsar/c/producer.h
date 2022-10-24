@@ -23,10 +23,9 @@
 extern "C" {
 #endif
 
-#include <pulsar/defines.h>
-#include <pulsar/c/result.h>
 #include <pulsar/c/message.h>
-
+#include <pulsar/c/result.h>
+#include <pulsar/defines.h>
 #include <stdint.h>
 
 typedef struct _pulsar_producer pulsar_producer_t;

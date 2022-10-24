@@ -19,10 +19,11 @@
 #ifndef ENCRYPTIONKEYINFO_H_
 #define ENCRYPTIONKEYINFO_H_
 
-#include <memory>
+#include <pulsar/defines.h>
+
 #include <iostream>
 #include <map>
-#include <pulsar/defines.h>
+#include <memory>
 
 namespace pulsar {
 

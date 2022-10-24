@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/CryptoKeyReader.h>
+#include <pulsar/EncryptionKeyInfo.h>
+#include <pulsar/Result.h>
+
 #include <fstream>
 #include <sstream>
-#include <pulsar/EncryptionKeyInfo.h>
-#include <pulsar/CryptoKeyReader.h>
-#include <pulsar/Result.h>
 
 using namespace pulsar;
 

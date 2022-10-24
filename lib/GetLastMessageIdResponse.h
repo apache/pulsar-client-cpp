@@ -19,6 +19,7 @@
 #pragma once
 
 #include <pulsar/MessageId.h>
+
 #include <iostream>
 
 namespace pulsar {

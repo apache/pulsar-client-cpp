@@ -19,9 +19,9 @@
 #ifndef PULSAR_READER_HPP_
 #define PULSAR_READER_HPP_
 
-#include <pulsar/defines.h>
 #include <pulsar/Message.h>
 #include <pulsar/ReaderConfiguration.h>
+#include <pulsar/defines.h>
 
 namespace pulsar {
 class PulsarWrapper;

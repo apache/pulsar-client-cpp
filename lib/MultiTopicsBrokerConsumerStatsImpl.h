@@ -19,14 +19,11 @@
 #ifndef PULSAR_CPP_MULTITOPICSBROKERCONSUMERSTATSIMPL_H
 #define PULSAR_CPP_MULTITOPICSBROKERCONSUMERSTATSIMPL_H
 
-#include <string.h>
+#include <functional>
 #include <iostream>
 #include <vector>
-#include <pulsar/defines.h>
-#include <pulsar/Result.h>
-#include <functional>
-#include <boost/date_time/microsec_time_clock.hpp>
-#include <lib/BrokerConsumerStatsImpl.h>
+
+#include "BrokerConsumerStatsImplBase.h"
 
 namespace pulsar {
 class PULSAR_PUBLIC MultiTopicsBrokerConsumerStatsImpl : public BrokerConsumerStatsImplBase {
