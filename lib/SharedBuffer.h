@@ -205,6 +205,13 @@ class SharedBuffer {
         writeIdx_ = 0;
     }
 
+    bool pop(std::string& target) {
+        if (data_ == nullptr) return false;
+        target.swap(*data_);
+        *this = SharedBuffer();
+        return true;
+    }
+
    private:
     std::shared_ptr<std::string> data_;
     char* ptr_;

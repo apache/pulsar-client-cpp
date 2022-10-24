@@ -56,6 +56,8 @@ std::size_t Message::getLength() const { return impl_->payload.readableBytes(); 
 
 std::string Message::getDataAsString() const { return std::string((const char*)getData(), getLength()); }
 
+void Message::moveDataIntoString(std::string& data) { return impl_->payload.pop(data); }
+
 Message::Message() : impl_() {}
 
 Message::Message(MessageImplPtr& impl) : impl_(impl) {}

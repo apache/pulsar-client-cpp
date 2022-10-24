@@ -101,6 +101,13 @@ class PULSAR_PUBLIC Message {
     KeyValue getKeyValueData() const;
 
     /**
+     * Move payload into the given string.
+     *
+     * @param data the string that receiving the payload's ownership.
+     */
+    void moveDataIntoString(std::string& data);
+
+    /**
      * Get the unique message ID associated with this message.
      *
      * The message id can be used to univocally refer to a message without having to keep the entire payload
