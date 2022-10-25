@@ -244,20 +244,6 @@ jobs:
         run: |
           cmake --build ./build-macos --parallel --config Release
 
-      - name: Configure (dynamic library only)
-        shell: bash
-        run: |
-          cmake \
-              -B ./build-macos-dynamic-library \
-              -DBUILD_TESTS=OFF \
-              -DBUILD_STATIC_LIB=OFF \
-              -S .
-
-      - name: Compile
-        shell: bash
-        run: |
-          cmake --build ./build-macos-dynamic-library --parallel --config Release
-
   # Job that will be required to complete and depends on all the other jobs
   check-completion:
     name: Check Completion
