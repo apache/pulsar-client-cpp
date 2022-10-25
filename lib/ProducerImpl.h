@@ -23,8 +23,8 @@
 
 #include "Future.h"
 #include "HandlerBase.h"
-// In MSVC, the value type of a STL container cannot be forward declared
-#if defined(_MSC_VER)
+// In MSVC and macOS, the value type of STL container cannot be forward declared
+#if defined(_MSC_VER) || defined(__APPLE__)
 #include "OpSendMsg.h"
 #endif
 #include "PendingFailures.h"
