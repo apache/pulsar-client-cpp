@@ -146,6 +146,7 @@ jobs:
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }} > dependencies.txt
 
       - name: Configure and build
+        shell: bash
         run: |
           BUILD_DIR=./build
           mkdir -p $BUILD_DIR
@@ -157,6 +158,7 @@ jobs:
           cmake --build $BUILD_DIR --parallel --config Release
 
       - name: Package
+        shell: bash
         run: |
           PACKAGE_DIR=./package
           LIB_DIR=$PACKAGE_DIR/lib/Release
