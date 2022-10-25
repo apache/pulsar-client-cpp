@@ -261,6 +261,16 @@ bool ConsumerConfiguration::isAutoAckOldestChunkedMessageOnQueueFull() const {
     return impl_->autoAckOldestChunkedMessageOnQueueFull;
 }
 
+ConsumerConfiguration& ConsumerConfiguration::setExpireTimeOfIncompleteChunkedMessageMs(
+    long expireTimeOfIncompleteChunkedMessageMs) {
+    impl_->expireTimeOfIncompleteChunkedMessageMs = expireTimeOfIncompleteChunkedMessageMs;
+    return *this;
+}
+
+long ConsumerConfiguration::getExpireTimeOfIncompleteChunkedMessageMs() const {
+    return impl_->expireTimeOfIncompleteChunkedMessageMs;
+}
+
 ConsumerConfiguration& ConsumerConfiguration::setStartMessageIdInclusive(bool startMessageIdInclusive) {
     impl_->startMessageIdInclusive = startMessageIdInclusive;
     return *this;

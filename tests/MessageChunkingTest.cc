@@ -23,6 +23,7 @@
 #include <gtest/gtest.h>
 #include "lib/LogUtils.h"
 #include "PulsarFriend.h"
+#include "WaitUtils.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -80,6 +81,10 @@ class MessageChunkingTest : public ::testing::TestWithParam<CompressionType> {
         ASSERT_EQ(ResultOk, client_.subscribe(topic, "my-sub", consumer));
     }
 
+    void createConsumer(const std::string& topic, Consumer& consumer, ConsumerConfiguration& conf) {
+        ASSERT_EQ(ResultOk, client_.subscribe(topic, "my-sub", conf, consumer));
+    }
+
    private:
     Client client_{lookupUrl};
 };
@@ -129,6 +134,49 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
     // Verify the cache has been cleared
     auto& chunkedMessageCache = PulsarFriend::getChunkedMessageCache(consumer);
     ASSERT_EQ(chunkedMessageCache.size(), 0);
+
+    producer.close();
+    consumer.close();
+}
+
+TEST_P(MessageChunkingTest, testExpireIncompleteChunkMessage) {
+    // This test is time-consuming and is not related to the compressionType. So skip other compressionType
+    // here.
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic = "MessageChunkingTest-testExpireIncompleteChunkMessage-" + toString(GetParam()) +
+                              std::to_string(time(nullptr));
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setExpireTimeOfIncompleteChunkedMessageMs(5000);
+    consumerConf.setAutoAckOldestChunkedMessageOnQueueFull(true);
+    createConsumer(topic, consumer, consumerConf);
+    Producer producer;
+    createProducer(topic, producer);
+
+    auto msg = MessageBuilder().setContent("test-data").build();
+    auto& metadata = PulsarFriend::getMessageMetadata(msg);
+    metadata.set_num_chunks_from_msg(2);
+    metadata.set_chunk_id(0);
+    metadata.set_total_chunk_msg_size(100);
+
+    producer.send(msg);
+
+    auto& chunkedMessageCache = PulsarFriend::getChunkedMessageCache(consumer);
+
+    waitUntil(
+        std::chrono::seconds(2), [&] { return chunkedMessageCache.size() > 0; }, 1000);
+    ASSERT_EQ(chunkedMessageCache.size(), 1);
+
+    // Wait for triggering the check of the expiration.
+    // Need to wait for 2 * expireTime because there may be a gap in checking the expiration time.
+    waitUntil(
+        std::chrono::seconds(10), [&] { return chunkedMessageCache.size() == 0; }, 1000);
+    ASSERT_EQ(chunkedMessageCache.size(), 0);
+
+    producer.close();
+    consumer.close();
 }
 
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P

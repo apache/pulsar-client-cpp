@@ -160,5 +160,9 @@ class PulsarFriend {
     static size_t getNumberOfPendingTasks(const RetryableLookupService& lookupService) {
         return lookupService.backoffTimers_.size();
     }
+
+    static proto::MessageMetadata& getMessageMetadata(Message& message) {
+        return message.impl_->metadata;
+    }
 };
 }  // namespace pulsar

@@ -69,7 +69,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       readCompacted_(conf.isReadCompacted()),
       startMessageId_(startMessageId),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
-      autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()) {
+      autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
+      expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[" << topic_ << ", " << subscription_ << ", " << consumerId_ << "] ";
     consumerStr_ = consumerStrStream.str();
@@ -310,6 +311,27 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
     }
 }
 
+void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
+    checkExpiredChunkedTimer_ = executor_->createDeadlineTimer();
+    checkExpiredChunkedTimer_->expires_from_now(
+        boost::posix_time::milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
+    checkExpiredChunkedTimer_->async_wait([this](const boost::system::error_code& ec) -> void {
+        if (ec) {
+            LOG_DEBUG(getName() << " Check expired chunked messages was failed or cancelled, code[" << ec
+                                << "].");
+            return;
+        }
+        Lock lock(chunkProcessMutex_);
+        long currentTimeMs = TimeUtils::currentTimeMillis();
+        chunkedMessageCache_.removeOldestValuesIf(
+            [this, &currentTimeMs](const std::string& uuid, const ChunkedMessageCtx& ctx) -> bool {
+                return currentTimeMs > ctx.getReceivedTimeMs() + expireTimeOfIncompleteChunkedMessageMs_;
+            });
+        triggerCheckExpiredChunkedTimer();
+        return;
+    });
+}
+
 Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
                                                          const proto::MessageMetadata& metadata,
                                                          const MessageId& messageId,
@@ -322,6 +344,12 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                                                  << payload.readableBytes() << " bytes");
 
     Lock lock(chunkProcessMutex_);
+
+    // Lazy task scheduling to expire incomplete chunk message
+    if(!checkExpiredChunkedTimer_){
+        triggerCheckExpiredChunkedTimer();
+    }
+
     auto it = chunkedMessageCache_.find(uuid);
 
     if (chunkId == 0) {
@@ -1422,6 +1450,9 @@ std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
 void ConsumerImpl::cancelTimers() noexcept {
     boost::system::error_code ec;
     batchReceiveTimer_->cancel(ec);
+    if(checkExpiredChunkedTimer_){
+        checkExpiredChunkedTimer_->cancel(ec);
+    }
 }
 
 } /* namespace pulsar */
