@@ -44,6 +44,6 @@ if (LINK_STATIC)
 endif ()
 message(STATUS "CMAKE_CXX_FLAGS_RELEASE: " ${CMAKE_CXX_FLAGS_RELEASE})
 
-add_executable(CMakeDemo "example.cc")
+add_executable(win-example "example.cc")
 include_directories(${PULSAR_INCLUDES})
-target_link_libraries(CMakeDemo PRIVATE ${PULSAR_LIBRARIES})
+target_link_libraries(win-example PRIVATE ${PULSAR_LIBRARIES})
