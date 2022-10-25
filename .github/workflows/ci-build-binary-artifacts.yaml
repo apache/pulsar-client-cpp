@@ -176,7 +176,8 @@ jobs:
           cp -r ./vcpkg_installed/${{ matrix.triplet }}/* $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
 
       - name: Zip artifact
-        run: zip -r Windows-${{ matrix.triplet }}.zip ./package
+        shell: bash
+        run: 7z a -tzip Windows-${{ matrix.triplet }}.zip ./package
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
