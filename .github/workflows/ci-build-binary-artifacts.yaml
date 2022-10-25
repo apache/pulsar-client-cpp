@@ -87,7 +87,6 @@ jobs:
   package-windows:
     timeout-minutes: 120
     name: Build CPP Client on ${{ matrix.name }}
-    needs: unit-tests
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
