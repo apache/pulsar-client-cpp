@@ -113,6 +113,10 @@ jobs:
       - name: checkout
         uses: actions/checkout@v3
 
+      - name: test
+        run: |
+          cp -r include /tmp
+
       - name: Restore vcpkg and its artifacts.
         uses: actions/cache@v3
         id: vcpkg-cache
@@ -168,8 +172,7 @@ jobs:
           mkdir -p $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
           
           cp dependencies.txt $PACKAGE_DIR
-          ls -al
-          cp -r ./include $PACKAGE_DIR
+          cp -r include $PACKAGE_DIR
           cp -r $BUILD_DIR/include/ $PACKAGE_DIR
           cp -r $BUILD_DIR/lib/$MODE/*.lib $LIB_DIR
           cp -r $BUILD_DIR/lib/$MODE/*.dll $LIB_DIR
