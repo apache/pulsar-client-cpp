@@ -168,7 +168,7 @@ jobs:
           mkdir -p $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
           
           cp dependencies.txt $PACKAGE_DIR
-          cp -r include/ $PACKAGE_DIR
+          cp -r ./include/ $PACKAGE_DIR
           cp -r $BUILD_DIR/include/ $PACKAGE_DIR
           cp -r $BUILD_DIR/lib/$MODE/*.lib $LIB_DIR
           cp -r $BUILD_DIR/lib/$MODE/*.dll $LIB_DIR
