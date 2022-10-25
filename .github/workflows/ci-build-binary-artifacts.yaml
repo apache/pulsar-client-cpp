@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
 
-  package:
+  package-linux:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
     runs-on: ubuntu-22.04
     timeout-minutes: 500
@@ -72,8 +72,114 @@ jobs:
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
 
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+      - name: Zip artifact
+        run: zip -r ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip ${{matrix.pkg.path}}
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
         with:
-          name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
-          path: ${{matrix.pkg.path}}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip
+          asset_name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip
+          tag: ${{ github.ref }}
+          overwrite: true
+
+  package-windows:
+    timeout-minutes: 120
+    name: Build CPP Client on ${{ matrix.name }}
+    needs: unit-tests
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 'Windows x64'
+            os: windows-2022
+            triplet: x64-windows
+            vcpkg_dir: 'C:\vcpkg'
+            suffix: 'windows-win64'
+            generator: 'Visual Studio 17 2022'
+            arch: '-A x64'
+          - name: 'Windows x86'
+            os: windows-2022
+            triplet: x86-windows
+            vcpkg_dir: 'C:\vcpkg'
+            suffix: 'windows-win32'
+            generator: 'Visual Studio 17 2022'
+            arch: '-A Win32'
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Restore vcpkg and its artifacts.
+        uses: actions/cache@v3
+        id: vcpkg-cache
+        with:
+          path: |
+            ${{ env.VCPKG_ROOT }}
+            vcpkg_installed
+            !${{ env.VCPKG_ROOT }}/.git
+            !${{ env.VCPKG_ROOT }}/buildtrees
+            !${{ env.VCPKG_ROOT }}/packages
+            !${{ env.VCPKG_ROOT }}/downloads
+          key: |
+            ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles( 'pulsar-client-cpp/vcpkg.json' ) }}
+
+      - name: Get vcpkg(windows)
+        if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        run: |
+          cd ${{ github.workspace }}
+          mkdir build -force
+          git clone https://github.com/Microsoft/vcpkg.git
+          cd vcpkg
+          .\bootstrap-vcpkg.bat
+
+      - name: remove system vcpkg(windows)
+        if: runner.os == 'Windows'
+        run: rm -rf "$VCPKG_INSTALLATION_ROOT"
+        shell: bash
+
+      - name: Install vcpkg packages
+        run: |
+          ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }} > dependencies.txt
+
+      - name: Configure and build
+        run: |
+          BUILD_DIR=./build
+          mkdir -p $BUILD_DIR
+          cmake -B ./build-0 \
+            -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DBUILD_TESTS=OFF \
+            -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -S .
+          cmake --build $BUILD_DIR --parallel --config Release
+
+      - name: Package
+        run: |
+          PACKAGE_DIR=./package
+          LIB_DIR=$PACKAGE_DIR/lib/Release
+          VCPKG_INSTALLED_DIR=$PACKAGE_DIR/vcpkg_installed
+          mkdir -p $PACKAGE_DIR
+          mkdir -p $LIB_DIR
+          mkdir -p $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
+          
+          cp -r include/ $PACKAGE_DIR
+          cp -r $BUILD_DIR/include/ $PACKAGE_DIR
+          cp -r $BUILD_DIR/lib/$MODE/*.lib $LIB_DIR
+          cp -r $BUILD_DIR/lib/$MODE/*.dll $LIB_DIR
+          cp -r ./vcpkg_installed/${{ matrix.triplet }}/* $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
+
+      - name: Zip artifact
+        run: zip -r Windows-${{ matrix.triplet }}.zip ./package
+
+      - name: Upload binaries to release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: Windows-${{ matrix.triplet }}.zip
+          asset_name: Windows-${{ matrix.triplet }}
+          tag: ${{ github.ref }}
+          overwrite: true
