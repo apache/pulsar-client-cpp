@@ -20,42 +20,30 @@
 -->
 
 # Pulsar C++ client library
-<!-- TOC depthFrom:2 depthTo:3 withLinks:1 updateOnSave:1 orderedList:0 -->
 
-- [Requirements](#requirements)
-- [Platforms](#platforms)
-- [Compilation](#compilation)
-	- [Compile on Ubuntu Server 20.04](#compile-on-ubuntu-server-2004)
-	- [Compile on Mac OS X](#compile-on-mac-os-x)
-	- [Compile on Windows (Visual Studio)](#compile-on-windows)
-- [Tests](#tests)
-- [Requirements for Contributors](#requirements-for-contributors)
-
-<!-- /TOC -->
-Examples for using the API to publish and consume messages can be found on
-https://github.com/apache/pulsar/tree/master/pulsar-client-cpp/examples
+Examples for using the API to publish and consume messages can be found under the [examples](examples) folder.
 
 ## Requirements
 
- * A C++ compiler that supports C++11, like GCC >= 4.8
- * CMake >= 3.4
- * [Boost](http://www.boost.org/)
- * [Protocol Buffer](https://developers.google.com/protocol-buffers/) >= 3
- * [libcurl](https://curl.se/libcurl/)
- * [openssl](https://github.com/openssl/openssl)
+* A C++ compiler that supports C++11, like GCC >= 4.8
+* CMake >= 3.4
+* [Boost](http://www.boost.org/)
+* [Protocol Buffer](https://developers.google.com/protocol-buffers/) >= 3
+* [libcurl](https://curl.se/libcurl/)
+* [openssl](https://github.com/openssl/openssl)
 
 It's recommended to use Protocol Buffer 2.6 because it's verified by CI, but 3.x also works.
 
 The default supported [compression types](include/pulsar/CompressionType.h) are:
 
-- `CompressionNone`
-- `CompressionLZ4`
+* `CompressionNone`
+* `CompressionLZ4`
 
 If you want to enable other compression types, you need to install:
 
-- `CompressionZLib`: [zlib](https://zlib.net/)
-- `CompressionZSTD`: [zstd](https://github.com/facebook/zstd)
-- `CompressionSNAPPY`: [snappy](https://github.com/google/snappy)
+* `CompressionZLib`: [zlib](https://zlib.net/)
+* `CompressionZSTD`: [zstd](https://github.com/facebook/zstd)
+* `CompressionSNAPPY`: [snappy](https://github.com/google/snappy)
 
 If you want to build and run the tests, you need to install [GTest](https://github.com/google/googletest). Otherwise, you need to add CMake option `-DBUILD_TESTS=OFF`.
 
@@ -73,6 +61,15 @@ Pulsar C++ Client Library has been tested on:
 
 ## Compilation
 
+### Clone
+
+First of all, clone the source code:
+
+```shell
+git clone https://github.com/apache/pulsar-client-cpp
+cd pulsar-client-cpp
+```
+
 ### Compile on Ubuntu
 
 #### Install all dependencies:
@@ -86,19 +83,20 @@ sudo apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev \
 #### Compile Pulsar client library:
 
 ```shell
-cd pulsar-client-cpp
 cmake .
 make
 ```
 
 #### Checks
-##### Client library will be placed in
+
+Client library will be placed in:
+
 ```
 lib/libpulsar.so
 lib/libpulsar.a
 ```
 
-##### Tools will be placed in
+Tools will be placed in:
 
 ```
 perf/perfProducer
@@ -108,25 +106,28 @@ perf/perfConsumer
 ### Compile on Mac OS X
 
 #### Install all dependencies:
+
 ```shell
 brew install openssl protobuf boost boost-python3 googletest zstd snappy
 ```
 
 #### Compile Pulsar client library:
+
 ```shell
-cd pulsar-client-cpp/
 cmake .
 make
 ```
 
 #### Checks
-##### Client library will be placed in
+
+Client library will be placed in:
+
 ```
 lib/libpulsar.dylib
 lib/libpulsar.a
 ```
 
-##### Tools will be placed in:
+Tools will be placed in:
 
 ```
 perf/perfProducer
@@ -164,7 +165,7 @@ cmake --build ./build --config Release
 
 Then all artifacts will be built into `build` subdirectory.
 
-> **NOTE**
+> **NOTE**:
 >
 > 1. For Windows 32-bit, you need to use `-A Win32` and `-DVCPKG_TRIPLET=x86-windows`.
 > 2. For MSVC Debug mode, you need to replace `Release` with `Debug` for both `CMAKE_BUILD_TYPE` variable and `--config` option.
@@ -177,36 +178,40 @@ If you installed the dependencies manually, you need to run
 
 ```shell
 #If all dependencies are in your path, all that is necessary is
-pulsar-client-cpp/cmake .
+cmake .
 
 #if all dependencies are not in your path, then passing in a PROTOC_PATH and CMAKE_PREFIX_PATH is necessary
-pulsar-client-cpp/cmake -DPROTOC_PATH=C:/protobuf/bin/protoc -DCMAKE_PREFIX_PATH="C:/boost;C:/openssl;C:/zlib;C:/curl;C:/protobuf;C:/googletest;C:/dlfcn-win32" .
+cmake -DPROTOC_PATH=C:/protobuf/bin/protoc -DCMAKE_PREFIX_PATH="C:/boost;C:/openssl;C:/zlib;C:/curl;C:/protobuf;C:/googletest;C:/dlfcn-win32" .
 
 #This will generate pulsar-cpp.sln. Open this in Visual Studio and build the desired configurations.
 ```
 
 #### Checks
 
-##### Client libraries are available in the following places.
+Client library will be placed in:
+
 ```
-pulsar-client-cpp/build/lib/Release/pulsar.lib
-pulsar-client-cpp/build/lib/Release/pulsar.dll
+build/lib/Release/pulsar.lib
+build/lib/Release/pulsar.dll
 ```
 
 #### Examples
 
-##### Add windows environment paths.
+Add windows environment paths:
+
 ```
-pulsar-client-cpp/build/lib/Release
-pulsar-client-cpp/vcpkg_installed
+build/lib/Release
+vcpkg_installed
 ```
 
-##### Examples are available in.
+Examples will be available in:
+
 ```
-pulsar-client-cpp/build/examples/Release
+build/examples/Release
 ```
 
 ## Tests
+
 ```shell
 # Execution
 # Start standalone broker
