@@ -33,6 +33,7 @@ message(STATUS "Pulsar Client version macro: ${PULSAR_CLIENT_VERSION_MACRO}")
 set(PVM_COMMENT "This is generated from Version.h.in by CMAKE. DO NOT EDIT DIRECTLY")
 configure_file(templates/Version.h.in include/pulsar/Version.h @ONLY)
 
+option(LINK_STATIC "Link against static libraries" OFF)
 if (VCPKG_TRIPLET)
     message(STATUS "Use vcpkg, triplet is ${VCPKG_TRIPLET}")
     set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
@@ -44,7 +45,13 @@ if (VCPKG_TRIPLET)
         set(ZLIB_ROOT ${VCPKG_DEBUG_ROOT})
         set(OPENSSL_ROOT_DIR ${VCPKG_DEBUG_ROOT})
     endif ()
+    if (VCPKG_TRIPLET MATCHES ".*-static")
+        set(LINK_STATIC ON)
+    else ()
+        set(LINK_STATIC OFF)
+    endif ()
 endif()
+MESSAGE(STATUS "LINK_STATIC:  " ${LINK_STATIC})
 
 find_program(CCACHE_PROGRAM ccache)
 if(CCACHE_PROGRAM)
@@ -69,9 +76,6 @@ MESSAGE(STATUS "BUILD_WIRESHARK:  " ${BUILD_WIRESHARK})
 option(BUILD_PERF_TOOLS "Build Pulsar CLI perf producer/consumer" OFF)
 MESSAGE(STATUS "BUILD_PERF_TOOLS:  " ${BUILD_PERF_TOOLS})
 
-option(LINK_STATIC "Link against static libraries" OFF)
-MESSAGE(STATUS "LINK_STATIC:  " ${LINK_STATIC})
-
 option(USE_LOG4CXX "Build with Log4cxx support" OFF)
 MESSAGE(STATUS "USE_LOG4CXX:  " ${USE_LOG4CXX})
 
@@ -93,7 +97,7 @@ set(CMAKE_C_STANDARD 11)
 # https://stackoverflow.com/questions/10046114/in-cmake-how-can-i-test-if-the-compiler-is-clang
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     add_definitions(-DWIN32_LEAN_AND_MEAN -DNOGDI -D_WIN32_WINNT=0x0501 -D_CRT_SECURE_NO_WARNINGS)
-    add_compile_options(/wd4244 /wd4267 /wd4018 /wd4715 /wd4251 /wd4275)
+    add_compile_options(/wd4244 /wd4267 /wd4018 /wd4715 /wd4251 /wd4275 /wd4819)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     # ?? Don't have this to test with
 else() # GCC or Clang are mostly compatible:
@@ -168,7 +172,7 @@ if (NOT ZLIB_INCLUDE_DIRS OR NOT ZLIB_LIBRARIES)
     message(FATAL_ERROR "Could not find zlib")
 endif ()
 
-if (LINK_STATIC)
+if (LINK_STATIC AND NOT VCPKG_TRIPLET)
     find_library(LIB_ZSTD NAMES libzstd.a)
     message(STATUS "ZStd: ${LIB_ZSTD}")
     find_library(LIB_SNAPPY NAMES libsnappy.a)
@@ -195,6 +199,29 @@ if (LINK_STATIC)
     if (MSVC)
         add_definitions(-DCURL_STATICLIB)
     endif()
+elseif (LINK_STATIC AND VCPKG_TRIPLET)
+    find_package(protobuf REQUIRED)
+    message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    find_library(ZLIB_LIBRARIES NAMES zlib z)
+    if (ZLIB_LIBRARIES)
+        message(STATUS "Found zlib static library: " ${ZLIB_LIBRARIES})
+    else ()
+        message(FATAL_ERROR "Failed to find zlib static library")
+    endif ()
+    find_library(CURL_LIBRARIES NAMES libcurl)
+    if (CURL_LIBRARIES)
+        message(STATUS "Found libcurl: ${CURL_LIBRARIES}")
+    else ()
+        message(FATAL_ERROR "Cannot find libcurl")
+    endif ()
+    find_library(LIB_ZSTD zstd)
+    if (LIB_ZSTD)
+        message(STATUS "Found ZSTD library: ${LIB_ZSTD}")
+    endif ()
+    find_library(LIB_SNAPPY NAMES snappy)
+    if (LIB_SNAPPY)
+        message(STATUS "Found Snappy library: ${LIB_SNAPPY}")
+    endif ()
 else()
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(LIB_ZSTD zstdd HINTS "${VCPKG_DEBUG_ROOT}/lib")
@@ -211,7 +238,7 @@ else()
         find_library(LOG4CXX_LIBRARY_PATH log4cxx)
         find_path(LOG4CXX_INCLUDE_PATH log4cxx/logger.h)
     endif (USE_LOG4CXX)
-endif (LINK_STATIC)
+endif ()
 
 if (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION LESS 69)
     # Boost System does not require linking since 1.69
@@ -220,7 +247,7 @@ if (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION LESS 69)
 endif()
 
 if (MSVC)
-  set(BOOST_COMPONENTS ${BOOST_COMPONENTS} date_time)
+    set(BOOST_COMPONENTS ${BOOST_COMPONENTS} date_time)
 endif()
 
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
@@ -228,7 +255,7 @@ if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} regex)
     set(CMAKE_CXX_FLAGS " -DPULSAR_USE_BOOST_REGEX")
     MESSAGE(STATUS "Using Boost::Regex")
-else()
+elseif (CMAKE_COMPILER_IS_GNUCC)
     MESSAGE(STATUS "Using std::regex")
     # Turn on color error messages and show additional help with errors (only available in GCC v4.9+):
     add_compile_options(-fdiagnostics-show-option -fdiagnostics-color)
@@ -295,7 +322,7 @@ include_directories(
 
 set(COMMON_LIBS
   ${COMMON_LIBS}
-  Threads::Threads
+  ${CMAKE_THREAD_LIBS_INIT}
   ${Boost_REGEX_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${Boost_DATE_TIME_LIBRARY}
@@ -307,13 +334,25 @@ set(COMMON_LIBS
   ${CMAKE_DL_LIBS}
 )
 
-if (NOT MSVC)
-    set(COMMON_LIBS ${COMMON_LIBS} m)
-else()
+if (MSVC)
     set(COMMON_LIBS
-    ${COMMON_LIBS}
-    wldap32.lib
-    Normaliz.lib)
+        ${COMMON_LIBS}
+        ${Boost_DATE_TIME_LIBRARY}
+        wldap32.lib
+        Normaliz.lib)
+    if (LINK_STATIC)
+        # add external dependencies of libcurl
+        set(COMMON_LIBS ${COMMON_LIBS} ws2_32.lib crypt32.lib)
+        # the default compile options have /MD, which cannot be used to build DLLs that link static libraries
+        string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
+        string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
+        string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELWITHDEBINFO ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+        message(STATUS "CMAKE_CXX_FLAGS_DEBUG: " ${CMAKE_CXX_FLAGS_DEBUG})
+        message(STATUS "CMAKE_CXX_FLAGS_RELEASE: " ${CMAKE_CXX_FLAGS_RELEASE})
+        message(STATUS "CMAKE_CXX_FLAGS_RELWITHDEBINFO: " ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    endif ()
+else()
+    set(COMMON_LIBS ${COMMON_LIBS} m)
 endif()
 
 if (USE_LOG4CXX)
