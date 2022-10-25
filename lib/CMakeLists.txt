@@ -46,6 +46,8 @@ endif(NOT LIBRARY_VERSION)
 if (MSVC)
     find_package(dlfcn-win32 REQUIRED)
     set(CMAKE_DL_LIBS dlfcn-win32::dl psapi.lib)
+    get_target_property(dlfcn-win32_LIBRARY dlfcn-win32::dl IMPORTED_LOCATION_RELEASE)
+    message(STATUS "dlfcn-win32_LIBRARY: " ${dlfcn-win32_LIBRARY})
 endif(MSVC)
 
 
@@ -88,7 +90,7 @@ endif()
 # required dependencies except ssl
 if (LINK_STATIC AND BUILD_STATIC_LIB)
     if (MSVC)
-
+        set(COMMON_LIBS ${COMMON_LIBS} ${dlfcn-win32_LIBRARY})
         # This function is to remove either "debug" or "optimized" library names
         # out of the COMMON_LIBS list and return the sanitized list of libraries
         function(remove_libtype LIBLIST LIBTYPE OUTLIST)
