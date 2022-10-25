@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Schema.h>
-#include "SharedBuffer.h"
 #include "KeyValueImpl.h"
+
+#include <pulsar/Schema.h>
+
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 

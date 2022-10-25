@@ -19,10 +19,11 @@
 #ifndef KEY_VALUE_HPP_
 #define KEY_VALUE_HPP_
 
-#include <string>
 #include <memory>
-#include "defines.h"
+#include <string>
+
 #include "Schema.h"
+#include "defines.h"
 
 namespace pulsar {
 

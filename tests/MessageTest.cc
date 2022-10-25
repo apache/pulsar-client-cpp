@@ -21,6 +21,7 @@
 #include <pulsar/MessageBuilder.h>
 
 #include <string>
+
 #include "MessageImpl.h"
 
 using namespace pulsar;

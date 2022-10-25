@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+
 #include "lib/LogUtils.h"
 
 using namespace pulsar;

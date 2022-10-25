@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+
 #include "SharedBuffer.h"
 
 using namespace pulsar;

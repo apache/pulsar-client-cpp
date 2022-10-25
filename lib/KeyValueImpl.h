@@ -20,6 +20,7 @@
 #define LIB_KEY_VALUEIMPL_H_
 
 #include <pulsar/Message.h>
+
 #include "SharedBuffer.h"
 #include "Utils.h"
 

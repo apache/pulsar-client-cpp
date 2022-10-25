@@ -21,6 +21,7 @@
 #include <pulsar/defines.h>
 
 #include <iostream>
+
 #include "KeyValueImpl.h"
 #include "MessageImpl.h"
 #include "PulsarApi.pb.h"

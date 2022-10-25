@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <gtest/gtest.h>
 #include <KeyValueImpl.h>
+#include <gtest/gtest.h>
 
 using namespace pulsar;
 

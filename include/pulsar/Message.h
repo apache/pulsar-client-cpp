@@ -25,8 +25,8 @@
 #include <memory>
 #include <string>
 
-#include "MessageId.h"
 #include "KeyValue.h"
+#include "MessageId.h"
 
 namespace pulsar {
 namespace proto {
