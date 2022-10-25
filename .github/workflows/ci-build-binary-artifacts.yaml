@@ -125,7 +125,7 @@ jobs:
             !${{ env.VCPKG_ROOT }}/packages
             !${{ env.VCPKG_ROOT }}/downloads
           key: |
-            ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles( 'pulsar-client-cpp/vcpkg.json' ) }}
+            ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles( 'vcpkg.json' ) }}
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
@@ -149,7 +149,7 @@ jobs:
         run: |
           BUILD_DIR=./build
           mkdir -p $BUILD_DIR
-          cmake -B ./build-0 \
+          cmake -B $BUILD_DIR \
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
@@ -165,6 +165,7 @@ jobs:
           mkdir -p $LIB_DIR
           mkdir -p $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
           
+          cp dependencies.txt $PACKAGE_DIR
           cp -r include/ $PACKAGE_DIR
           cp -r $BUILD_DIR/include/ $PACKAGE_DIR
           cp -r $BUILD_DIR/lib/$MODE/*.lib $LIB_DIR
