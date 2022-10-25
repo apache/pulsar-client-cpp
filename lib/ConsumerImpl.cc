@@ -355,7 +355,7 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
     Lock lock(chunkProcessMutex_);
 
     // Lazy task scheduling to expire incomplete chunk message
-    if(!checkExpiredChunkedTimer_){
+    if (!checkExpiredChunkedTimer_) {
         triggerCheckExpiredChunkedTimer();
     }
 
@@ -1460,7 +1460,7 @@ std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
 void ConsumerImpl::cancelTimers() noexcept {
     boost::system::error_code ec;
     batchReceiveTimer_->cancel(ec);
-    if(checkExpiredChunkedTimer_){
+    if (checkExpiredChunkedTimer_) {
         checkExpiredChunkedTimer_->cancel(ec);
     }
 }

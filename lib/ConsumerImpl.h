@@ -33,8 +33,8 @@
 #include "NegativeAcksTracker.h"
 #include "Synchronized.h"
 #include "TestUtil.h"
-#include "UnboundedBlockingQueue.h"
 #include "TimeUtils.h"
+#include "UnboundedBlockingQueue.h"
 
 using namespace pulsar;
 

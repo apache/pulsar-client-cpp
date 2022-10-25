@@ -23,9 +23,8 @@
 #include <random>
 
 #include "PulsarFriend.h"
-#include "lib/LogUtils.h"
-#include "PulsarFriend.h"
 #include "WaitUtils.h"
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

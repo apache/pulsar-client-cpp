@@ -24,6 +24,7 @@
 #include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
 #include "lib/ConsumerImpl.h"
+#include "lib/MessageImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
 #include "lib/NamespaceName.h"
 #include "lib/PartitionedProducerImpl.h"
@@ -32,7 +33,6 @@
 #include "lib/RetryableLookupService.h"
 #include "lib/stats/ConsumerStatsImpl.h"
 #include "lib/stats/ProducerStatsImpl.h"
-#include "lib/MessageImpl.h"
 
 using std::string;
 
@@ -168,9 +168,7 @@ class PulsarFriend {
         return lookupService.backoffTimers_.size();
     }
 
-    static proto::MessageMetadata& getMessageMetadata(Message& message) {
-        return message.impl_->metadata;
-    }
+    static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }
 };
 }  // namespace pulsar
 
