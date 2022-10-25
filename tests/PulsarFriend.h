@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef PULSAR_FRIEND_HPP_
+#define PULSAR_FRIEND_HPP_
 
 #include <string>
 
@@ -30,6 +32,7 @@
 #include "lib/RetryableLookupService.h"
 #include "lib/stats/ConsumerStatsImpl.h"
 #include "lib/stats/ProducerStatsImpl.h"
+#include "lib/MessageImpl.h"
 
 using std::string;
 
@@ -170,3 +173,5 @@ class PulsarFriend {
     }
 };
 }  // namespace pulsar
+
+#endif /* PULSAR_FRIEND_HPP_ */

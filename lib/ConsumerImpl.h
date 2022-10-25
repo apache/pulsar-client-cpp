@@ -34,6 +34,7 @@
 #include "Synchronized.h"
 #include "TestUtil.h"
 #include "UnboundedBlockingQueue.h"
+#include "TimeUtils.h"
 
 using namespace pulsar;
 
