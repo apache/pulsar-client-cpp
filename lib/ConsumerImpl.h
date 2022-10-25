@@ -109,6 +109,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void receiveAsync(ReceiveCallback& callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
+    void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
     void closeAsync(ResultCallback callback) override;
     void start() override;
@@ -181,8 +182,9 @@ class ConsumerImpl : public ConsumerImplBase {
     // TODO - Convert these functions to lambda when we move to C++11
     Result receiveHelper(Message& msg);
     Result receiveHelper(Message& msg, int timeout);
-    void statsCallback(Result, ResultCallback, CommandAck_AckType);
     void executeNotifyCallback(Message& msg);
+    void statsAckCallback(Result res, ResultCallback callback, CommandAck_AckType ackType,
+                          uint32_t numAcks = 1);
     void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
     void failPendingReceiveCallback();
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;

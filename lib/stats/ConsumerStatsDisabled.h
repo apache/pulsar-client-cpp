@@ -27,7 +27,7 @@ namespace pulsar {
 class ConsumerStatsDisabled : public ConsumerStatsBase {
    public:
     virtual void receivedMessage(Message&, Result) {}
-    virtual void messageAcknowledged(Result, CommandAck_AckType) {}
+    virtual void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums) {}
 };
 
 } /* namespace pulsar */

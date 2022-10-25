@@ -943,16 +943,17 @@ inline CommandSubscribe_InitialPosition ConsumerImpl::getInitialPosition() {
     BOOST_THROW_EXCEPTION(std::logic_error("Invalid InitialPosition enumeration value"));
 }
 
-void ConsumerImpl::statsCallback(Result res, ResultCallback callback, CommandAck_AckType ackType) {
-    consumerStatsBasePtr_->messageAcknowledged(res, ackType);
+void ConsumerImpl::statsAckCallback(Result res, ResultCallback callback, CommandAck_AckType ackType,
+                                    uint32_t numAcks) {
+    consumerStatsBasePtr_->messageAcknowledged(res, ackType, numAcks);
     if (callback) {
         callback(res);
     }
 }
 
 void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callback) {
-    ResultCallback cb = std::bind(&ConsumerImpl::statsCallback, get_shared_this_ptr(), std::placeholders::_1,
-                                  callback, CommandAck_AckType_Individual);
+    ResultCallback cb = std::bind(&ConsumerImpl::statsAckCallback, get_shared_this_ptr(),
+                                  std::placeholders::_1, callback, CommandAck_AckType_Individual, 1);
     if (msgId.batchIndex() != -1 &&
         !batchAcknowledgementTracker_.isBatchReady(msgId, CommandAck_AckType_Individual)) {
         cb(ResultOk);
@@ -961,9 +962,19 @@ void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callb
     doAcknowledgeIndividual(msgId, cb);
 }
 
+void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
+    ResultCallback cb =
+        std::bind(&ConsumerImpl::statsAckCallback, get_shared_this_ptr(), std::placeholders::_1, callback,
+                  proto::CommandAck_AckType_Individual, messageIdList.size());
+    // Currently not supported batch message id individual index ack.
+    this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdList);
+    this->unAckedMessageTrackerPtr_->remove(messageIdList);
+    cb(ResultOk);
+}
+
 void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
-    ResultCallback cb = std::bind(&ConsumerImpl::statsCallback, get_shared_this_ptr(), std::placeholders::_1,
-                                  callback, CommandAck_AckType_Cumulative);
+    ResultCallback cb = std::bind(&ConsumerImpl::statsAckCallback, get_shared_this_ptr(),
+                                  std::placeholders::_1, callback, CommandAck_AckType_Cumulative, 1);
     if (!isCumulativeAcknowledgementAllowed(config_.getConsumerType())) {
         cb(ResultCumulativeAcknowledgementNotAllowedError);
         return;

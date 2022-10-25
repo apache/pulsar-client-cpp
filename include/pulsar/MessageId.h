@@ -25,6 +25,7 @@
 #include <iosfwd>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace pulsar {
 
@@ -107,6 +108,8 @@ class PULSAR_PUBLIC MessageId {
     typedef std::shared_ptr<MessageIdImpl> MessageIdImplPtr;
     MessageIdImplPtr impl_;
 };
+
+typedef std::vector<MessageId> MessageIdList;
 }  // namespace pulsar
 
 #endif  // MESSAGE_ID_H

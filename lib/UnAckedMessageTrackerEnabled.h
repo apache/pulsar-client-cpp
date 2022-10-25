@@ -41,6 +41,7 @@ class UnAckedMessageTrackerEnabled : public UnAckedMessageTrackerInterface {
     UnAckedMessageTrackerEnabled(long timeoutMs, long tickDuration, ClientImplPtr, ConsumerImplBase&);
     bool add(const MessageId& msgId);
     bool remove(const MessageId& msgId);
+    void remove(const MessageIdList& msgIds);
     void removeMessagesTill(const MessageId& msgId);
     void removeTopicMessage(const std::string& topic);
     void timeoutHandler();
@@ -53,7 +54,7 @@ class UnAckedMessageTrackerEnabled : public UnAckedMessageTrackerInterface {
     long size();
     std::map<MessageId, std::set<MessageId>&> messageIdPartitionMap;
     std::deque<std::set<MessageId>> timePartitions;
-    std::mutex lock_;
+    std::recursive_mutex lock_;
     ConsumerImplBase& consumerReference_;
     ClientImplPtr client_;
     DeadlineTimerPtr timer_;  // DO NOT place this before client_!
