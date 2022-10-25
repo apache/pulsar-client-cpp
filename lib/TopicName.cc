@@ -16,26 +16,26 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "NamedEntity.h"
-#include "LogUtils.h"
-#include "PartitionedProducerImpl.h"
 #include "TopicName.h"
 
 #include <boost/algorithm/string.hpp>
-#include <boost/algorithm/string/find.hpp>
+#include <exception>
+#include <iostream>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <iostream>
-#include <sstream>
-#include <algorithm>
-#include <exception>
+
+#include "LogUtils.h"
+#include "NamedEntity.h"
+#include "NamespaceName.h"
 
 DECLARE_LOG_OBJECT()
 namespace pulsar {
 
 const std::string TopicDomain::Persistent = "persistent";
 const std::string TopicDomain::NonPersistent = "non-persistent";
+static const std::string PARTITION_NAME_SUFFIX = "-partition-";
 
 typedef std::unique_lock<std::mutex> Lock;
 // static members
@@ -233,12 +233,12 @@ bool TopicName::isPersistent() const { return this->domain_ == TopicDomain::Pers
 std::string TopicName::getTopicPartitionName(unsigned int partition) const {
     std::stringstream topicPartitionName;
     // make this topic name as well
-    topicPartitionName << toString() << PartitionedProducerImpl::PARTITION_NAME_SUFFIX << partition;
+    topicPartitionName << toString() << PARTITION_NAME_SUFFIX << partition;
     return topicPartitionName.str();
 }
 
 int TopicName::getPartitionIndex(const std::string& topic) {
-    const auto& suffix = PartitionedProducerImpl::PARTITION_NAME_SUFFIX;
+    const auto& suffix = PARTITION_NAME_SUFFIX;
     const size_t pos = topic.rfind(suffix);
     if (pos == std::string::npos) {
         return -1;

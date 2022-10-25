@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Client.h>
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
+
 #include <thread>
 
 #include "HttpHelper.h"
-
 #include "lib/Future.h"
-#include "lib/Utils.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
 #include "lib/ProducerImpl.h"
+#include "lib/Utils.h"
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;

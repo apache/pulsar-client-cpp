@@ -18,10 +18,11 @@
  */
 
 #include <gtest/gtest.h>
+
 #include <thread>
 
-#include "../lib/MemoryLimitController.h"
-#include "../lib/Latch.h"
+#include "lib/Latch.h"
+#include "lib/MemoryLimitController.h"
 
 using namespace pulsar;
 

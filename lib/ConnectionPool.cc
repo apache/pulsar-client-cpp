@@ -18,11 +18,12 @@
  */
 #include "ConnectionPool.h"
 
-#include "LogUtils.h"
-#include "Url.h"
-
-#include <boost/asio.hpp>
+#include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
+
+#include "ClientConnection.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
 
 using boost::asio::ip::tcp;
 namespace ssl = boost::asio::ssl;

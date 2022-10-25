@@ -17,17 +17,26 @@
  * under the License.
  */
 #include "ProducerImpl.h"
-#include "LogUtils.h"
-#include "MessageImpl.h"
-#include "TimeUtils.h"
-#include "PulsarApi.pb.h"
-#include "Commands.h"
-#include "BatchMessageContainerBase.h"
+
+#include <boost/date_time/posix_time/posix_time.hpp>
+
 #include "BatchMessageContainer.h"
 #include "BatchMessageKeyBasedContainer.h"
-#include <boost/date_time/local_time/local_time.hpp>
-#include <lib/TopicName.h>
-#include "MessageAndCallbackBatch.h"
+#include "ClientConnection.h"
+#include "ClientImpl.h"
+#include "Commands.h"
+#include "CompressionCodec.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "MemoryLimitController.h"
+#include "MessageCrypto.h"
+#include "MessageImpl.h"
+#include "OpSendMsg.h"
+#include "PulsarApi.pb.h"
+#include "TimeUtils.h"
+#include "TopicName.h"
+#include "stats/ProducerStatsDisabled.h"
+#include "stats/ProducerStatsImpl.h"
 
 namespace pulsar {
 DECLARE_LOG_OBJECT()
@@ -314,7 +323,7 @@ void ProducerImpl::setMessageMetadata(const Message& msg, const uint64_t& sequen
     msgMetadata.set_publish_time(TimeUtils::currentTimeMillis());
     msgMetadata.set_sequence_id(sequenceId);
     if (conf_.getCompressionType() != CompressionNone) {
-        msgMetadata.set_compression(CompressionCodecProvider::convertType(conf_.getCompressionType()));
+        msgMetadata.set_compression(static_cast<proto::CompressionType>(conf_.getCompressionType()));
         msgMetadata.set_uncompressed_size(uncompressedSize);
     }
     if (!this->getSchemaVersion().empty()) {

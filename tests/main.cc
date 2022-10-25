@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <LogUtils.h>
 #include <gmock/gmock.h>
 
 int main(int argc, char **argv) {

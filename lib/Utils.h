@@ -21,10 +21,10 @@
 
 #include <pulsar/Result.h>
 
-#include "Future.h"
-
-#include <map>
 #include <iostream>
+#include <map>
+
+#include "Future.h"
 
 namespace pulsar {
 

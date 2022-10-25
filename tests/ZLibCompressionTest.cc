@@ -17,7 +17,8 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/CompressionCodecZLib.h>
+
+#include "lib/CompressionCodecZLib.h"
 
 using namespace pulsar;
 

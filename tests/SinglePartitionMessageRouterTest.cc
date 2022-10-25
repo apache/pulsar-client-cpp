@@ -16,16 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/ProducerConfiguration.h>
+
 #include <boost/functional/hash.hpp>
-#include <gtest/gtest.h>
-#include <gmock/gmock.h>
 
+#include "lib/SinglePartitionMessageRouter.h"
+#include "lib/TopicMetadataImpl.h"
 #include "tests/mocks/GMockMessage.h"
-
-#include "../lib/SinglePartitionMessageRouter.h"
-#include "../lib/TopicMetadataImpl.h"
 
 using ::testing::AtLeast;
 using ::testing::Return;

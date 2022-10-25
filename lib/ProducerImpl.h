@@ -19,36 +19,45 @@
 #ifndef LIB_PRODUCERIMPL_H_
 #define LIB_PRODUCERIMPL_H_
 
-#include <mutex>
-#include <boost/date_time/posix_time/ptime.hpp>
+#include <memory>
 
-#include "ClientImpl.h"
-#include "BlockingQueue.h"
+#include "Future.h"
 #include "HandlerBase.h"
-#include "SharedBuffer.h"
-#include "CompressionCodec.h"
-#include "MessageCrypto.h"
-#include "stats/ProducerStatsDisabled.h"
-#include "stats/ProducerStatsImpl.h"
-#include "PulsarApi.pb.h"
+// In MSVC and macOS, the value type of STL container cannot be forward declared
+#if defined(_MSC_VER) || defined(__APPLE__)
 #include "OpSendMsg.h"
-#include "BatchMessageContainerBase.h"
+#endif
 #include "PendingFailures.h"
-#include "Semaphore.h"
 #include "PeriodicTask.h"
-
-using namespace pulsar;
+#include "ProducerImplBase.h"
+#include "Semaphore.h"
+#include "Utils.h"
 
 namespace pulsar {
-typedef bool bool_type;
 
-typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
+class BatchMessageContainerBase;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+class MessageCrypto;
+using MessageCryptoPtr = std::shared_ptr<MessageCrypto>;
+class ProducerImpl;
+using ProducerImplWeakPtr = std::weak_ptr<ProducerImpl>;
+class ProducerStatsBase;
+using ProducerStatsBasePtr = std::shared_ptr<ProducerStatsBase>;
+struct ResponseData;
+class ProducerImpl;
+using ProducerImplPtr = std::shared_ptr<ProducerImpl>;
 
 class PulsarFriend;
 
 class Producer;
 class MemoryLimitController;
 class TopicName;
+struct OpSendMsg;
+
+namespace proto {
+class MessageMetadata;
+}  // namespace proto
 
 class ProducerImpl : public HandlerBase,
                      public std::enable_shared_from_this<ProducerImpl>,
@@ -160,7 +169,6 @@ class ProducerImpl : public HandlerBase,
     std::string producerStr_;
     uint64_t producerId_;
     int64_t msgSequenceGenerator_;
-    proto::BaseCommand cmd_;
 
     std::unique_ptr<BatchMessageContainerBase> batchMessageContainer_;
     boost::asio::deadline_timer batchTimer_;

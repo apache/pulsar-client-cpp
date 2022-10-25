@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,12 +16,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 
+ROOT_DIR=$(git rev-parse --show-toplevel)
+cd $ROOT_DIR/build-support
 
-BasedOnStyle: Google
-IndentWidth: 4
-ColumnLimit: 110
-SortIncludes: true
-BreakBeforeBraces: Custom
-BraceWrapping:
-  AfterEnum: true
+IMAGE_NAME=apachepulsar/cpp-client-format
+docker image inspect apachepulsar/cpp-client-format 1>/dev/null 2>&1
+OK=$?
+set -e
+if [[ $OK -ne 0 ]]; then
+    echo "The image $IMAGE_NAME doesn't exist, build it"
+    docker build -t $IMAGE_NAME -f ./Dockerfile.format .
+fi
+docker run -v $ROOT_DIR:/app --rm $IMAGE_NAME

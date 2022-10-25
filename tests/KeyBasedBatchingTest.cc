@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
+#include <pulsar/Client.h>
 #include <time.h>
+
 #include <atomic>
 #include <map>
 #include <utility>
 
-#include <gtest/gtest.h>
-#include <pulsar/Client.h>
-#include <lib/Latch.h>
+#include "lib/Latch.h"
 
 using namespace pulsar;
 

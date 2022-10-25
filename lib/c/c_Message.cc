@@ -18,6 +18,7 @@
  */
 
 #include <pulsar/c/message.h>
+
 #include "c_structs.h"
 
 pulsar_message_t *pulsar_message_create() { return new pulsar_message_t; }

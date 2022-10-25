@@ -19,15 +19,14 @@
 
 #include "AuthBasic.h"
 
-#include <stdexcept>
 #include <boost/archive/iterators/base64_from_binary.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
-namespace ptree = boost::property_tree;
-
-#include <sstream>
 #include <functional>
+#include <sstream>
+#include <stdexcept>
+namespace ptree = boost::property_tree;
 
 namespace pulsar {
 

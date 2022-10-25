@@ -19,18 +19,20 @@
 #ifndef PULSAR_CONSUMERCONFIGURATION_H_
 #define PULSAR_CONSUMERCONFIGURATION_H_
 
-#include <functional>
-#include <memory>
-#include <pulsar/defines.h>
-#include <pulsar/Result.h>
-#include <pulsar/ConsumerType.h>
-#include <pulsar/Message.h>
-#include <pulsar/Schema.h>
 #include <pulsar/ConsumerCryptoFailureAction.h>
+#include <pulsar/ConsumerEventListener.h>
+#include <pulsar/ConsumerType.h>
 #include <pulsar/CryptoKeyReader.h>
 #include <pulsar/InitialPosition.h>
 #include <pulsar/KeySharedPolicy.h>
-#include <pulsar/ConsumerEventListener.h>
+#include <pulsar/Message.h>
+#include <pulsar/Result.h>
+#include <pulsar/Schema.h>
+#include <pulsar/defines.h>
+
+#include <functional>
+#include <memory>
+
 #include "BatchReceivePolicy.h"
 
 namespace pulsar {

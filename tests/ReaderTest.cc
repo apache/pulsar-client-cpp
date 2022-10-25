@@ -16,19 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/Reader.h>
-#include "HttpHelper.h"
-#include "PulsarFriend.h"
-
-#include <gtest/gtest.h>
-
 #include <time.h>
+
 #include <string>
 
-#include <lib/Latch.h>
-#include <lib/LogUtils.h>
-#include <lib/ReaderImpl.h>
+#include "HttpHelper.h"
+#include "PulsarFriend.h"
+#include "lib/ClientConnection.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
+#include "lib/ReaderImpl.h"
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;

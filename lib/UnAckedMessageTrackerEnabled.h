@@ -18,17 +18,27 @@
  */
 #ifndef LIB_UNACKEDMESSAGETRACKERENABLED_H_
 #define LIB_UNACKEDMESSAGETRACKERENABLED_H_
-#include "lib/TestUtil.h"
-#include "lib/UnAckedMessageTrackerInterface.h"
-
+#include <boost/asio/deadline_timer.hpp>
+#include <deque>
+#include <map>
 #include <mutex>
+#include <set>
+
+#include "TestUtil.h"
+#include "UnAckedMessageTrackerInterface.h"
 
 namespace pulsar {
+
+class ClientImpl;
+class ConsumerImplBase;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+
 class UnAckedMessageTrackerEnabled : public UnAckedMessageTrackerInterface {
    public:
     ~UnAckedMessageTrackerEnabled();
-    UnAckedMessageTrackerEnabled(long timeoutMs, const ClientImplPtr, ConsumerImplBase&);
-    UnAckedMessageTrackerEnabled(long timeoutMs, long tickDuration, const ClientImplPtr, ConsumerImplBase&);
+    UnAckedMessageTrackerEnabled(long timeoutMs, ClientImplPtr, ConsumerImplBase&);
+    UnAckedMessageTrackerEnabled(long timeoutMs, long tickDuration, ClientImplPtr, ConsumerImplBase&);
     bool add(const MessageId& msgId);
     bool remove(const MessageId& msgId);
     void removeMessagesTill(const MessageId& msgId);

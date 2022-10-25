@@ -19,13 +19,14 @@
 #ifndef PULSAR_CPP_MESSAGEROUTERBASE_H
 #define PULSAR_CPP_MESSAGEROUTERBASE_H
 
-#include <memory>
-
 #include <pulsar/MessageRoutingPolicy.h>
 #include <pulsar/ProducerConfiguration.h>
-#include "Hash.h"
+
+#include <memory>
 
 namespace pulsar {
+class Hash;
+using HashPtr = std::unique_ptr<Hash>;
 typedef std::unique_ptr<Hash> HashPtr;
 
 class MessageRouterBase : public MessageRoutingPolicy {

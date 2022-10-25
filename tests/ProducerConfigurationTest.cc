@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/ProducerConfiguration.h>
+
 #include "NoOpsCryptoKeyReader.h"
 
 using namespace pulsar;

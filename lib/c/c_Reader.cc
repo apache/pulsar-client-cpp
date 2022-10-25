@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <pulsar/c/reader.h>
 #include <pulsar/Reader.h>
+#include <pulsar/c/reader.h>
 
 #include "c_structs.h"
 

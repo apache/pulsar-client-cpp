@@ -222,6 +222,8 @@ cd tests
 
 ## Requirements for Contributors
 
-It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` 6.0+ to format files.  `make format` automatically formats the files.
+It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` **11** to format files.  `make format` automatically formats the files.
+
+For Ubuntu users, you can install `clang-format-11` via `apt install clang-format-11`. For other users, run `./build-support/docker-format.sh` if you have Docker installed.
 
 We welcome contributions from the open source community, kindly make sure your changes are backward compatible with GCC 4.8 and Boost 1.53.

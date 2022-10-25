@@ -20,29 +20,31 @@
 #ifndef PULSAR_PRODUCER_STATS_IMPL_HEADER
 #define PULSAR_PRODUCER_STATS_IMPL_HEADER
 
-#include <pulsar/Message.h>
 #include <map>
-#include <lib/ExecutorService.h>
 
 #if BOOST_VERSION >= 106400
 #include <boost/serialization/array_wrapper.hpp>
 #endif
-#include <boost/accumulators/framework/features.hpp>
-
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics.hpp>
 #include <boost/accumulators/framework/accumulator_set.hpp>
+#include <boost/accumulators/framework/features.hpp>
+#include <boost/accumulators/statistics.hpp>
 #include <boost/accumulators/statistics/extended_p_square.hpp>
-
+#include <boost/asio/deadline_timer.hpp>
 #include <boost/date_time/local_time/local_time.hpp>
+#include <iostream>
 #include <memory>
 #include <mutex>
-#include <iostream>
 #include <vector>
-#include <lib/Utils.h>
-#include <lib/stats/ProducerStatsBase.h>
+
+#include "ProducerStatsBase.h"
 
 namespace pulsar {
+
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+
 typedef boost::accumulators::accumulator_set<
     double,
     boost::accumulators::stats<boost::accumulators::tag::mean, boost::accumulators::tag::extended_p_square> >

@@ -17,9 +17,13 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+
 #include <thread>
-#include "Backoff.h"
+
 #include "PulsarFriend.h"
+#include "lib/Backoff.h"
+#include "lib/ClientConnection.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 using namespace pulsar;
 using boost::posix_time::milliseconds;

@@ -18,12 +18,12 @@
  */
 #include "pulsar/ProtobufNativeSchema.h"
 
-#include <stdexcept>
-#include <vector>
+#include <google/protobuf/descriptor.pb.h>
 
 #include <boost/archive/iterators/base64_from_binary.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
-#include <google/protobuf/descriptor.pb.h>
+#include <stdexcept>
+#include <vector>
 
 using google::protobuf::FileDescriptor;
 using google::protobuf::FileDescriptorSet;

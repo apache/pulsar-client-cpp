@@ -20,20 +20,26 @@
 #define LIB_COMMANDS_H_
 
 #include <pulsar/Authentication.h>
-#include <pulsar/defines.h>
+#include <pulsar/KeySharedPolicy.h>
 #include <pulsar/Message.h>
 #include <pulsar/Schema.h>
-#include <pulsar/KeySharedPolicy.h>
-
-#include "PulsarApi.pb.h"
-#include "SharedBuffer.h"
-#include "Utils.h"
+#include <pulsar/defines.h>
 
 #include <set>
+
+#include "ProtoApiEnums.h"
+#include "SharedBuffer.h"
+#include "Utils.h"
 
 using namespace pulsar;
 
 namespace pulsar {
+
+namespace proto {
+class BaseCommand;
+class MessageIdData;
+class MessageMetadata;
+}  // namespace proto
 
 typedef std::shared_ptr<proto::MessageMetadata> MessageMetadataPtr;
 
@@ -85,12 +91,12 @@ class Commands {
 
     static SharedBuffer newSubscribe(const std::string& topic, const std::string& subscription,
                                      uint64_t consumerId, uint64_t requestId,
-                                     proto::CommandSubscribe_SubType subType, const std::string& consumerName,
+                                     CommandSubscribe_SubType subType, const std::string& consumerName,
                                      SubscriptionMode subscriptionMode, Optional<MessageId> startMessageId,
                                      bool readCompacted, const std::map<std::string, std::string>& metadata,
                                      const std::map<std::string, std::string>& subscriptionProperties,
                                      const SchemaInfo& schemaInfo,
-                                     proto::CommandSubscribe_InitialPosition subscriptionInitialPosition,
+                                     CommandSubscribe_InitialPosition subscriptionInitialPosition,
                                      bool replicateSubscriptionState, KeySharedPolicy keySharedPolicy,
                                      int priorityLevel = 0);
 
@@ -101,10 +107,10 @@ class Commands {
                                     const std::map<std::string, std::string>& metadata,
                                     const SchemaInfo& schemaInfo, uint64_t epoch,
                                     bool userProvidedProducerName, bool encrypted,
-                                    proto::ProducerAccessMode accessMode, Optional<uint64_t> topicEpoch);
+                                    ProducerAccessMode accessMode, Optional<uint64_t> topicEpoch);
 
-    static SharedBuffer newAck(uint64_t consumerId, const proto::MessageIdData& messageId,
-                               proto::CommandAck_AckType ackType, int validationError);
+    static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+                               CommandAck_AckType ackType, CommandAck_ValidationError validationError);
     static SharedBuffer newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds);
 
     static SharedBuffer newFlow(uint64_t consumerId, uint32_t messagePermits);
@@ -119,7 +125,7 @@ class Commands {
     static SharedBuffer newRedeliverUnacknowledgedMessages(uint64_t consumerId,
                                                            const std::set<MessageId>& messageIds);
 
-    static std::string messageType(proto::BaseCommand::Type type);
+    static std::string messageType(BaseCommand_Type type);
 
     static void initBatchMessageMetadata(const Message& msg, pulsar::proto::MessageMetadata& batchMetadata);
 

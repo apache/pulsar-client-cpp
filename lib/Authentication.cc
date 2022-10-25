@@ -16,23 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <stdio.h>
-
+#include <dlfcn.h>
 #include <pulsar/Authentication.h>
-#include "auth/AuthTls.h"
-#include "auth/AuthAthenz.h"
-#include "auth/AuthToken.h"
-#include "auth/AuthOauth2.h"
-#include "auth/AuthBasic.h"
-#include <lib/LogUtils.h>
 
+#include <boost/algorithm/string.hpp>
+#include <mutex>
 #include <string>
 #include <vector>
-#include <iostream>
-#include <dlfcn.h>
-#include <cstdlib>
-#include <mutex>
-#include <boost/algorithm/string.hpp>
+
+#include "LogUtils.h"
+#include "auth/AuthAthenz.h"
+#include "auth/AuthBasic.h"
+#include "auth/AuthOauth2.h"
+#include "auth/AuthTls.h"
+#include "auth/AuthToken.h"
 
 DECLARE_LOG_OBJECT()
 

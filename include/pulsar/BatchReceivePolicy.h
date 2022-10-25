@@ -20,6 +20,7 @@
 #define BATCH_RECEIVE_POLICY_HPP_
 
 #include <pulsar/defines.h>
+
 #include <memory>
 
 namespace pulsar {

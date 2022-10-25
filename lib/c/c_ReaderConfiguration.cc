@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#include <pulsar/c/reader.h>
-#include <pulsar/c/message.h>
-#include <pulsar/c/reader_configuration.h>
-#include <pulsar/ReaderConfiguration.h>
 #include <pulsar/Reader.h>
+#include <pulsar/ReaderConfiguration.h>
+#include <pulsar/c/message.h>
+#include <pulsar/c/reader.h>
+#include <pulsar/c/reader_configuration.h>
 
 #include "c_structs.h"
 

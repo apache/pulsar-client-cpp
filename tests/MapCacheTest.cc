@@ -17,7 +17,8 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/MapCache.h>
+
+#include "lib/MapCache.h"
 
 using namespace pulsar;
 

@@ -17,8 +17,12 @@
  * under the License.
  */
 
-#include "ClientImpl.h"
 #include "ReaderImpl.h"
+
+#include "ClientImpl.h"
+#include "ConsumerImpl.h"
+#include "ExecutorService.h"
+#include "GetLastMessageIdResponse.h"
 #include "TopicName.h"
 
 namespace pulsar {

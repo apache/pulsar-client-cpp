@@ -19,11 +19,11 @@
 #pragma once
 
 #include <atomic>
+#include <boost/asio/deadline_timer.hpp>
+#include <boost/asio/io_service.hpp>
 #include <cstdint>
 #include <functional>
 #include <memory>
-
-#include <boost/asio.hpp>
 
 namespace pulsar {
 

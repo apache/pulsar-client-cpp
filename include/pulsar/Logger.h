@@ -18,9 +18,10 @@
  */
 #pragma once
 
+#include <pulsar/defines.h>
+
 #include <memory>
 #include <string>
-#include <pulsar/defines.h>
 
 namespace pulsar {
 

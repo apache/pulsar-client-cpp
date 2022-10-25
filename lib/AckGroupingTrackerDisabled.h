@@ -21,11 +21,11 @@
 
 #include <cstdint>
 
-#include "HandlerBase.h"
-#include <pulsar/MessageId.h>
 #include "AckGroupingTracker.h"
 
 namespace pulsar {
+
+class HandlerBase;
 
 /**
  * @class AckGroupingTrackerDisabled

@@ -20,27 +20,26 @@
 DECLARE_LOG_OBJECT()
 
 #include <chrono>
-#include <thread>
-#include <iostream>
 #include <fstream>
-#include <mutex>
 #include <functional>
+#include <iostream>
+#include <mutex>
+#include <thread>
 
 using namespace std::chrono;
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/program_options.hpp>
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/p_square_quantile.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/program_options.hpp>
 namespace po = boost::program_options;
 using namespace boost::accumulators;
 
 #include <lib/Latch.h>
-
-#include <pulsar/Client.h>
 #include <pulsar/Authentication.h>
+#include <pulsar/Client.h>
 using namespace pulsar;
 
 static int64_t currentTimeMillis() {

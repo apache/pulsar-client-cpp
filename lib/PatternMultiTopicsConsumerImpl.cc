@@ -18,6 +18,11 @@
  */
 #include "PatternMultiTopicsConsumerImpl.h"
 
+#include "ClientImpl.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "LookupService.h"
+
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;

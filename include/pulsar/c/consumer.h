@@ -24,9 +24,8 @@
 extern "C" {
 #endif
 
-#include <pulsar/c/result.h>
 #include <pulsar/c/message.h>
-
+#include <pulsar/c/result.h>
 #include <stdint.h>
 
 typedef struct _pulsar_consumer pulsar_consumer_t;

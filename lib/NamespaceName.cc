@@ -17,14 +17,14 @@
  * under the License.
  */
 #include "NamespaceName.h"
-#include "NamedEntity.h"
-#include "LogUtils.h"
 
-#include <boost/algorithm/string.hpp>
-#include <memory>
-#include <vector>
 #include <iostream>
+#include <memory>
 #include <sstream>
+#include <vector>
+
+#include "LogUtils.h"
+#include "NamedEntity.h"
 
 DECLARE_LOG_OBJECT()
 namespace pulsar {

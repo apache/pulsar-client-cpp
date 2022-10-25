@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "Url.h"
 #include <gtest/gtest.h>
+
+#include "lib/Url.h"
 
 using namespace pulsar;
 

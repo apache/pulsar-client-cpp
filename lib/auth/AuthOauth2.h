@@ -20,9 +20,9 @@
 #pragma once
 
 #include <pulsar/Authentication.h>
+
 #include <chrono>
 #include <mutex>
-#include <string>
 
 namespace pulsar {
 

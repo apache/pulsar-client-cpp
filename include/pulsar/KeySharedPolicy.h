@@ -21,7 +21,6 @@
 #include <pulsar/defines.h>
 
 #include <memory>
-
 #include <utility>
 #include <vector>
 

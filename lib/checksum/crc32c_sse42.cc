@@ -28,8 +28,9 @@
 
 #include <assert.h>
 #include <stdlib.h>
-#include "lib/checksum/crc32c_sw.h"
+
 #include "gf2.hpp"
+#include "lib/checksum/crc32c_sw.h"
 
 #if BOOST_ARCH_X86_64 && !defined(__arm64__)
 #define PULSAR_X86_64

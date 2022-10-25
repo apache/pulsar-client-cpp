@@ -18,8 +18,9 @@
  */
 #include "CompressionCodecLZ4.h"
 
-#include "lz4/lz4.h"
 #include <cassert>
+
+#include "lz4/lz4.h"
 
 namespace pulsar {
 

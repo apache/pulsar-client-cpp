@@ -19,18 +19,24 @@
 #ifndef _PULSAR_CONNECTION_POOL_HEADER_
 #define _PULSAR_CONNECTION_POOL_HEADER_
 
-#include <pulsar/defines.h>
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/Result.h>
-
-#include "ClientConnection.h"
+#include <pulsar/defines.h>
 
 #include <atomic>
-#include <string>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <string>
+
+#include "Future.h"
 namespace pulsar {
 
+class ClientConnection;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
 class ExecutorService;
+class ExecutorServiceProvider;
+using ExecutorServiceProviderPtr = std::shared_ptr<ExecutorServiceProvider>;
 
 class PULSAR_PUBLIC ConnectionPool {
    public:

@@ -16,28 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
+#include <pulsar/Client.h>
+#include <pulsar/MessageBatch.h>
+
 #include <atomic>
 #include <ctime>
 #include <functional>
-#include <gtest/gtest.h>
 #include <sstream>
 #include <thread>
-#include <unistd.h>
-
-#include <lib/Commands.h>
-#include <lib/Future.h>
-#include <lib/Latch.h>
-#include <lib/LogUtils.h>
-#include <lib/TopicName.h>
-#include <lib/Utils.h>
-#include <pulsar/Client.h>
-#include <pulsar/MessageBatch.h>
-#include <pulsar/MessageBuilder.h>
 
 #include "ConsumerTest.h"
 #include "CustomRoutingPolicy.h"
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "lib/Commands.h"
+#include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
+#include "lib/ProtoApiEnums.h"
+#include "lib/Utils.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 DECLARE_LOG_OBJECT();
 
@@ -330,8 +329,8 @@ TEST(BatchMessageTest, testSmallReceiverQueueSize) {
     }
 
     ConsumerStatsImplPtr consumerStatsImplPtr = PulsarFriend::getConsumerStatsPtr(consumer);
-    unsigned long t = consumerStatsImplPtr->getAckedMsgMap().at(
-        std::make_pair<Result, proto::CommandAck_AckType>(ResultOk, proto::CommandAck_AckType_Individual));
+    unsigned long t =
+        consumerStatsImplPtr->getAckedMsgMap().at(std::make_pair(ResultOk, CommandAck_AckType_Individual));
     ASSERT_EQ(t, numOfMessages);
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), numOfMessages);
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getTotalAckedMsgMap()), numOfMessages);
@@ -581,8 +580,8 @@ TEST(BatchMessageTest, testCumulativeAck) {
     ASSERT_EQ(consumerStatsImplPtr->getReceivedMsgMap().at(ResultTimeout), 1);
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), 1);
     ASSERT_EQ(producerStatsImplPtr->getNumBytesSent(), consumerStatsImplPtr->getNumBytesRecieved());
-    unsigned long t = consumerStatsImplPtr->getAckedMsgMap().at(
-        std::make_pair<Result, proto::CommandAck_AckType>(ResultOk, proto::CommandAck_AckType_Cumulative));
+    unsigned long t =
+        consumerStatsImplPtr->getAckedMsgMap().at(std::make_pair(ResultOk, CommandAck_AckType_Cumulative));
     ASSERT_EQ(t, 1);
 
     // Number of messages produced
@@ -612,8 +611,7 @@ TEST(BatchMessageTest, testCumulativeAck) {
     }
 
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), 1);
-    t = consumerStatsImplPtr->getAckedMsgMap().at(
-        std::make_pair<Result, proto::CommandAck_AckType>(ResultOk, proto::CommandAck_AckType_Cumulative));
+    t = consumerStatsImplPtr->getAckedMsgMap().at(std::make_pair(ResultOk, CommandAck_AckType_Cumulative));
     ASSERT_EQ(t, 1);
 
     // Number of messages consumed

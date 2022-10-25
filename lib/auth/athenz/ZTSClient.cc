@@ -17,22 +17,23 @@
  * under the License.
  */
 #include "ZTSClient.h"
+
 #include <sstream>
+
+#include "lib/LogUtils.h"
 
 #ifndef _MSC_VER
 #include <unistd.h>
 #else
 #include <stdio.h>
 #endif
-#include <string.h>
-#include <time.h>
-
-#include <openssl/sha.h>
-#include <openssl/rsa.h>
+#include <curl/curl.h>
 #include <openssl/ec.h>
 #include <openssl/pem.h>
-
-#include <curl/curl.h>
+#include <openssl/rsa.h>
+#include <openssl/sha.h>
+#include <string.h>
+#include <time.h>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
@@ -51,7 +52,6 @@ namespace ptree = boost::property_tree;
 
 #include <boost/archive/iterators/base64_from_binary.hpp>
 #include <boost/archive/iterators/transform_width.hpp>
-
 #include <mutex>
 
 #ifdef PULSAR_USE_BOOST_REGEX

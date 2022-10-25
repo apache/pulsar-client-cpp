@@ -20,10 +20,10 @@
 #define PULSAR_AUTH_ATHENZ_H_
 
 #include <pulsar/Authentication.h>
-#include <lib/auth/athenz/ZTSClient.h>
-#include <string>
 
 namespace pulsar {
+
+class ZTSClient;
 
 const std::string ATHENZ_PLUGIN_NAME = "athenz";
 const std::string ATHENZ_JAVA_PLUGIN_NAME = "org.apache.pulsar.client.impl.auth.AuthenticationAthenz";

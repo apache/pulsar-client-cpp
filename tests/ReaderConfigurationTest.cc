@@ -22,8 +22,9 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
-#include <lib/ReaderImpl.h>
+
 #include "NoOpsCryptoKeyReader.h"
+#include "lib/ReaderImpl.h"
 
 using namespace pulsar;
 

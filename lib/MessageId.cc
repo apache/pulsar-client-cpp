@@ -17,18 +17,15 @@
  * under the License.
  */
 
-#include <pulsar/defines.h>
 #include <pulsar/MessageId.h>
-
-#include "PulsarApi.pb.h"
-#include "MessageIdImpl.h"
 
 #include <iostream>
 #include <limits>
-#include <stdexcept>
-#include <tuple>
-#include <math.h>
 #include <memory>
+#include <stdexcept>
+
+#include "MessageIdImpl.h"
+#include "PulsarApi.pb.h"
 
 namespace pulsar {
 

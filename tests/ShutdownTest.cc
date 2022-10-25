@@ -16,14 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <atomic>
-#include <ctime>
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
-#include "lib/ClientImpl.h"
+
+#include <atomic>
+#include <ctime>
+
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
+#include "lib/ClientImpl.h"
 
 using namespace pulsar;
 

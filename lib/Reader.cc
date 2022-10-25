@@ -20,8 +20,8 @@
 #include <pulsar/Reader.h>
 
 #include "Future.h"
-#include "Utils.h"
 #include "ReaderImpl.h"
+#include "Utils.h"
 
 namespace pulsar {
 

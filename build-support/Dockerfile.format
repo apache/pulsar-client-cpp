@@ -1,3 +1,4 @@
+#
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -14,12 +15,21 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+#
 
 
-BasedOnStyle: Google
-IndentWidth: 4
-ColumnLimit: 110
-SortIncludes: true
-BreakBeforeBraces: Custom
-BraceWrapping:
-  AfterEnum: true
+FROM ubuntu:20.04
+
+WORKDIR /app
+
+RUN apt update -y && apt install -y python3 clang-format-11
+ENTRYPOINT ["python3", "./build-support/run_clang_format.py", \
+    "clang-format-11", \
+    "0", \
+    "./build-support/clang_format_exclusions.txt", \
+    "./lib", \
+    "./perf", \
+    "./examples", \
+    "./tests", \
+    "./include", \
+    "./wireshark"]

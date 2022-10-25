@@ -18,9 +18,10 @@
  */
 #include "LogUtils.h"
 
+#include <pulsar/ConsoleLoggerFactory.h>
+
 #include <atomic>
 #include <iostream>
-#include <pulsar/ConsoleLoggerFactory.h>
 
 #include "Log4CxxLogger.h"
 

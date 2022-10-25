@@ -19,7 +19,9 @@
 #pragma once
 
 #include <assert.h>
+
 #include <atomic>
+
 #include "ServiceURI.h"
 
 namespace pulsar {

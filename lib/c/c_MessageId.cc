@@ -18,10 +18,12 @@
  */
 
 #include <pulsar/c/message_id.h>
-#include "c_structs.h"
 
+#include <cstring>
 #include <mutex>
 #include <sstream>
+
+#include "c_structs.h"
 
 std::once_flag initialized;
 

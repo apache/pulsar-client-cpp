@@ -18,15 +18,15 @@
  */
 
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
+
 #include <array>
 #include <thread>
 
-#include "../lib/MemoryLimitController.h"
-#include "../lib/Latch.h"
-#include "../lib/Future.h"
-#include "../lib/Utils.h"
-
-#include <pulsar/Client.h>
+#include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/MemoryLimitController.h"
+#include "lib/Utils.h"
 
 using namespace pulsar;
 

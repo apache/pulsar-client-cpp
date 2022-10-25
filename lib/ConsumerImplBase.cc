@@ -16,17 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "ConsumerImpl.h"
-#include "MessageImpl.h"
-#include "MessagesImpl.h"
-#include "LogUtils.h"
-#include "TimeUtils.h"
-#include "pulsar/Result.h"
-#include "MessageIdUtil.h"
-#include "AckGroupingTracker.h"
 #include "ConsumerImplBase.h"
 
 #include <algorithm>
+
+#include "ConsumerImpl.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "TimeUtils.h"
 
 DECLARE_LOG_OBJECT()
 

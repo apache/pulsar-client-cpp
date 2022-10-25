@@ -21,8 +21,9 @@
 
 #include <pulsar/Message.h>
 #include <pulsar/MessageId.h>
-#include "SharedBuffer.h"
+
 #include "PulsarApi.pb.h"
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 namespace pulsar {

@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/defines.h>
 #include <pulsar/Schema.h>
+#include <pulsar/defines.h>
 
 #include <iostream>
 #include <map>

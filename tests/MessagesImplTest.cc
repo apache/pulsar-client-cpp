@@ -17,8 +17,9 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <MessagesImpl.h>
-#include "pulsar/MessageBuilder.h"
+#include <pulsar/MessageBuilder.h>
+
+#include "lib/MessagesImpl.h"
 
 using namespace pulsar;
 

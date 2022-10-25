@@ -17,11 +17,16 @@
  * under the License.
  */
 #include "BatchMessageContainerBase.h"
+
+#include "ClientConnection.h"
+#include "CompressionCodec.h"
+#include "MessageAndCallbackBatch.h"
 #include "MessageCrypto.h"
 #include "MessageImpl.h"
+#include "OpSendMsg.h"
 #include "ProducerImpl.h"
-#include "SharedBuffer.h"
 #include "PulsarApi.pb.h"
+#include "SharedBuffer.h"
 
 namespace pulsar {
 
@@ -55,7 +60,7 @@ Result BatchMessageContainerBase::createOpSendMsgHelper(OpSendMsg& opSendMsg,
     impl->metadata.set_num_messages_in_batch(batch.size());
     auto compressionType = producerConfig_.getCompressionType();
     if (compressionType != CompressionNone) {
-        impl->metadata.set_compression(CompressionCodecProvider::convertType(compressionType));
+        impl->metadata.set_compression(static_cast<proto::CompressionType>(compressionType));
         impl->metadata.set_uncompressed_size(impl->payload.readableBytes());
     }
     impl->payload = CompressionCodecProvider::getCodec(compressionType).encode(impl->payload);
@@ -81,6 +86,29 @@ Result BatchMessageContainerBase::createOpSendMsgHelper(OpSendMsg& opSendMsg,
     opSendMsg.timeout_ = TimeUtils::now() + milliseconds(producerConfig_.getSendTimeout());
 
     return ResultOk;
+}
+
+void BatchMessageContainerBase::processAndClear(
+    std::function<void(Result, const OpSendMsg&)> opSendMsgCallback, FlushCallback flushCallback) {
+    if (isEmpty()) {
+        if (flushCallback) {
+            flushCallback(ResultOk);
+        }
+    } else {
+        const auto numBatches = getNumBatches();
+        if (numBatches == 1) {
+            OpSendMsg opSendMsg;
+            Result result = createOpSendMsg(opSendMsg, flushCallback);
+            opSendMsgCallback(result, opSendMsg);
+        } else if (numBatches > 1) {
+            std::vector<OpSendMsg> opSendMsgs;
+            std::vector<Result> results = createOpSendMsgs(opSendMsgs, flushCallback);
+            for (size_t i = 0; i < results.size(); i++) {
+                opSendMsgCallback(results[i], opSendMsgs[i]);
+            }
+        }  // else numBatches is 0, do nothing
+    }
+    clear();
 }
 
 }  // namespace pulsar

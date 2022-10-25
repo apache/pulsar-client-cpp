@@ -16,12 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/HTTPLookupService.h>
+#include "HTTPLookupService.h"
 
 #include <curl/curl.h>
+#include <pulsar/Version.h>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "NamespaceName.h"
+#include "ServiceNameResolver.h"
+#include "TopicName.h"
 namespace ptree = boost::property_tree;
 
 DECLARE_LOG_OBJECT()

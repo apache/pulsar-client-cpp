@@ -18,6 +18,9 @@
  */
 #include "BatchAcknowledgementTracker.h"
 
+#include "LogUtils.h"
+#include "MessageImpl.h"
+
 namespace pulsar {
 DECLARE_LOG_OBJECT()
 
@@ -62,10 +65,9 @@ void BatchAcknowledgementTracker::receivedMessage(const Message& message) {
         TrackerPair(msgID, boost::dynamic_bitset<>(message.impl_->metadata.num_messages_in_batch()).set()));
 }
 
-void BatchAcknowledgementTracker::deleteAckedMessage(const MessageId& messageId,
-                                                     proto::CommandAck_AckType ackType) {
+void BatchAcknowledgementTracker::deleteAckedMessage(const MessageId& messageId, CommandAck_AckType ackType) {
     // Not a batch message and a individual ack
-    if (messageId.batchIndex() == -1 && ackType == proto::CommandAck_AckType_Individual) {
+    if (messageId.batchIndex() == -1 && ackType == CommandAck_AckType_Individual) {
         return;
     }
 
@@ -73,7 +75,7 @@ void BatchAcknowledgementTracker::deleteAckedMessage(const MessageId& messageId,
         MessageId(messageId.partition(), messageId.ledgerId(), messageId.entryId(), -1 /* Batch index */);
 
     Lock lock(mutex_);
-    if (ackType == proto::CommandAck_AckType_Cumulative) {
+    if (ackType == CommandAck_AckType_Cumulative) {
         // delete from trackerMap and sendList all messageIDs less than or equal to this one
         // equal to - since getGreatestCumulativeAckReady already gives us the exact message id to be acked
 
@@ -110,8 +112,7 @@ void BatchAcknowledgementTracker::deleteAckedMessage(const MessageId& messageId,
     }
 }
 
-bool BatchAcknowledgementTracker::isBatchReady(const MessageId& msgID,
-                                               const proto::CommandAck_AckType ackType) {
+bool BatchAcknowledgementTracker::isBatchReady(const MessageId& msgID, CommandAck_AckType ackType) {
     Lock lock(mutex_);
     // Remove batch index
     MessageId batchMessageId =
@@ -130,7 +131,7 @@ bool BatchAcknowledgementTracker::isBatchReady(const MessageId& msgID,
     assert(batchIndex < pos->second.size());
     pos->second.set(batchIndex, false);
 
-    if (ackType == proto::CommandAck_AckType_Cumulative) {
+    if (ackType == CommandAck_AckType_Cumulative) {
         for (int i = 0; i < batchIndex; i++) {
             pos->second.set(i, false);
         }

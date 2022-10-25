@@ -19,9 +19,9 @@
 #ifndef LIB_UNBOUNDEDBLOCKINGQUEUE_H_
 #define LIB_UNBOUNDEDBLOCKINGQUEUE_H_
 
-#include <mutex>
-#include <condition_variable>
 #include <boost/circular_buffer.hpp>
+#include <condition_variable>
+#include <mutex>
 // For struct QueueNotEmpty
 #include "BlockingQueue.h"
 

@@ -18,6 +18,7 @@
  */
 
 #include <pulsar/BatchReceivePolicy.h>
+
 #include "BatchReceivePolicyImpl.h"
 #include "LogUtils.h"
 

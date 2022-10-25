@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/c/message.h>
 #include <pulsar/c/producer_configuration.h>
-#include <include/pulsar/c/message.h>
 
 #include "c_structs.h"
 
