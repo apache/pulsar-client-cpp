@@ -184,6 +184,6 @@ jobs:
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           file: Windows-${{ matrix.triplet }}.zip
-          asset_name: Windows-${{ matrix.triplet }}
+          asset_name: Windows-${{ matrix.triplet }}.zip
           tag: ${{ github.ref }}
           overwrite: true
