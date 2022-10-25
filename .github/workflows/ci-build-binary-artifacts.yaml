@@ -90,21 +90,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+      INSTALL_DIR: 'C:\\pulsar-cpp'
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: 'Windows x64'
             os: windows-2022
-            triplet: x64-windows
-            vcpkg_dir: 'C:\vcpkg'
+            triplet: x64-windows-static
             suffix: 'windows-win64'
             generator: 'Visual Studio 17 2022'
             arch: '-A x64'
           - name: 'Windows x86'
             os: windows-2022
-            triplet: x86-windows
-            vcpkg_dir: 'C:\vcpkg'
+            triplet: x86-windows-static
             suffix: 'windows-win32'
             generator: 'Visual Studio 17 2022'
             arch: '-A Win32'
@@ -145,7 +144,7 @@ jobs:
         run: |
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }} > dependencies.txt
 
-      - name: Configure and build
+      - name: Build and package
         shell: bash
         run: |
           BUILD_DIR=./build
@@ -154,36 +153,21 @@ jobs:
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_DIR }} \
             -S .
           cmake --build $BUILD_DIR --parallel --config Release
-
-      - name: Package
-        shell: bash
-        run: |
-          BUILD_DIR=./build
-          PACKAGE_DIR=./package
-          LIB_DIR=$PACKAGE_DIR/lib/Release
-          VCPKG_INSTALLED_DIR=$PACKAGE_DIR/vcpkg_installed
-          mkdir -p $PACKAGE_DIR
-          mkdir -p $LIB_DIR
-          mkdir -p $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
-          
-          cp dependencies.txt $PACKAGE_DIR
-          cp -r ./include $PACKAGE_DIR
-          cp -r $BUILD_DIR/include/ $PACKAGE_DIR
-          cp -r $BUILD_DIR/lib/Release/*.lib $LIB_DIR
-          cp -r $BUILD_DIR/lib/Release/*.dll $LIB_DIR
-          cp -r ./vcpkg_installed/${{ matrix.triplet }}/* $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
+          cmake --install $BUILD_DIR
+          cp dependencies.txt ${{ env.INSTALL_DIR }}
 
       - name: Zip artifact
         shell: bash
-        run: 7z a -tzip Windows-${{ matrix.triplet }}.zip ./package
+        run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}.zip ${{ env.INSTALL_DIR }}/*
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: Windows-${{ matrix.triplet }}.zip
-          asset_name: Windows-${{ matrix.triplet }}.zip
+          file: pulsar-client-cpp-${{ matrix.triplet }}.zip
+          asset_name: pulsar-client-cpp-${{ matrix.triplet }}.zip
           tag: ${{ github.ref }}
           overwrite: true
