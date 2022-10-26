@@ -20,9 +20,9 @@
 
 #include <memory>
 #include <stdexcept>
-#include <string>
 #include <utility>
 
+#include "KeyValueImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
 #include "ObjectPool.h"
@@ -77,6 +77,11 @@ MessageBuilder& MessageBuilder::setContent(const std::string& data) {
 MessageBuilder& MessageBuilder::setContent(std::string&& data) {
     checkMetadata();
     impl_->payload = SharedBuffer::take(std::move(data));
+    return *this;
+}
+
+MessageBuilder& MessageBuilder::setContent(const KeyValue& data) {
+    impl_->keyValuePtr = data.impl_;
     return *this;
 }
 
