@@ -46,7 +46,7 @@ enum class KeyValueEncodingType
 // Return string representation of result code
 PULSAR_PUBLIC const char *strEncodingType(pulsar::KeyValueEncodingType encodingType);
 
-PULSAR_PUBLIC const KeyValueEncodingType enumEncodingType(std::string encodingTypeStr);
+PULSAR_PUBLIC KeyValueEncodingType enumEncodingType(std::string encodingTypeStr);
 
 enum SchemaType
 {
@@ -195,6 +195,7 @@ class PULSAR_PUBLIC SchemaInfo {
    private:
     typedef std::shared_ptr<SchemaInfoImpl> SchemaInfoImplPtr;
     SchemaInfoImplPtr impl_;
+    static constexpr uint32_t INVALID_SIZE = 0xFFFFFFFF;
 };
 
 }  // namespace pulsar

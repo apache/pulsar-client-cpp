@@ -61,7 +61,7 @@ PULSAR_PUBLIC const char *strEncodingType(KeyValueEncodingType encodingType) {
     return "UnknownSchemaType";
 }
 
-PULSAR_PUBLIC const KeyValueEncodingType enumEncodingType(std::string encodingTypeStr) {
+PULSAR_PUBLIC KeyValueEncodingType enumEncodingType(std::string encodingTypeStr) {
     if (encodingTypeStr == "INLINE") {
         return KeyValueEncodingType::INLINE;
     } else if (encodingTypeStr == "SEPARATED") {
@@ -141,9 +141,9 @@ SchemaInfo::SchemaInfo(const SchemaInfo &keySchema, const SchemaInfo &valueSchem
 
     auto buffSize = sizeof keySize + keySize + sizeof valueSize + valueSize;
     SharedBuffer buffer = SharedBuffer::allocate(buffSize);
-    buffer.writeUnsignedInt(keySize == 0 ? -1 : static_cast<uint32_t>(keySize));
+    buffer.writeUnsignedInt(keySize == 0 ? INVALID_SIZE : static_cast<uint32_t>(keySize));
     buffer.write(keySchemaStr.c_str(), static_cast<uint32_t>(keySize));
-    buffer.writeUnsignedInt(valueSize == 0 ? -1 : static_cast<uint32_t>(valueSize));
+    buffer.writeUnsignedInt(valueSize == 0 ? INVALID_SIZE : static_cast<uint32_t>(valueSize));
     buffer.write(valueSchemaStr.c_str(), static_cast<uint32_t>(valueSize));
 
     auto writeJson = [](const StringMap &properties) {
