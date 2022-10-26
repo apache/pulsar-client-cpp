@@ -55,7 +55,9 @@ class KeyValueSchemaTest : public ::testing::TestWithParam<KeyValueEncodingType>
 };
 
 TEST_P(KeyValueSchemaTest, testKeyValueSchema) {
-    const std::string topicName = "testKeyValueSchema" + std::to_string(time(nullptr));
+    auto encodingType = GetParam();
+    const std::string topicName =
+        "testKeyValueSchema-" + std::string(strEncodingType(encodingType)) + std::to_string(time(nullptr));
 
     Producer producer;
     createProducer(topicName, producer);
@@ -73,7 +75,6 @@ TEST_P(KeyValueSchemaTest, testKeyValueSchema) {
     consumer.receive(receiveMsg);
     KeyValue keyValueData = receiveMsg.getKeyValueData();
 
-    auto encodingType = GetParam();
     if (encodingType == pulsar::KeyValueEncodingType::INLINE) {
         ASSERT_EQ(receiveMsg.getPartitionKey(), "");
         ASSERT_EQ(keyValueData.getKey(), keyData);
