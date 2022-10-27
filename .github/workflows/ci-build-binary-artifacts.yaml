@@ -156,7 +156,6 @@ jobs:
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
             -DCMAKE_BUILD_TYPE=${{ matrix.mode }} \
-            -DBUILD_PYTHON_WRAPPER=OFF \
             -S .
           cmake --build $BUILD_DIR --parallel --config ${{ matrix.mode }}
 
