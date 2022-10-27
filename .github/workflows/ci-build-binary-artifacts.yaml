@@ -163,11 +163,35 @@ jobs:
         shell: bash
         run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}.zip ${{ env.INSTALL_DIR }}/*
 
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: pulsar-client-cpp-${{ matrix.triplet }}.zip
-          asset_name: pulsar-client-cpp-${{ matrix.triplet }}.zip
-          tag: ${{ github.ref }}
-          overwrite: true
+          name: ${{ matrix.triplet }}
+          path: ${{ env.INSTALL_DIR }}
+
+      - name: Build and package (Debug)
+        shell: bash
+        run: |
+          BUILD_DIR=./build-debug
+          INSTALL_DIR_DEBUG={{ env.INSTALL_DIR }}-Debug
+          mkdir -p $BUILD_DIR
+          cmake -B $BUILD_DIR \
+            -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DBUILD_TESTS=OFF \
+            -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR_DEBUG \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -S .
+          cmake --build $BUILD_DIR --parallel --config Debug
+          cmake --install $BUILD_DIR --config Debug
+          cp dependencies.txt $INSTALL_DIR_DEBUG
+
+      - name: Zip artifact (Debug)
+        shell: bash
+        run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}-Debug.zip ${{ env.INSTALL_DIR }}-Debug/*
+
+      - name: Upload artifacts (Debug)
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.triplet }}-Debug
+          path: ${{ env.INSTALL_DIR }}-Debug

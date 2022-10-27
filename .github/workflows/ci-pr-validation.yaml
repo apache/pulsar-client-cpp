@@ -200,6 +200,21 @@ jobs:
             ./build-static/Release/win-example.exe
           fi
 
+      - name: Build (Debug with LINK_STATIC=ON)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake \
+              -B ./build-2 \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DBUILD_TESTS=OFF \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}-static" \
+              -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -S .
+            cmake --build ./build-2 --parallel --config Debug
+          fi
+
   package:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
     runs-on: ubuntu-22.04
