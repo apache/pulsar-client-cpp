@@ -93,6 +93,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        mode: [ Release, Debug ]
         include:
           - name: 'Windows x64'
             os: windows-2022
@@ -154,15 +155,17 @@ jobs:
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_BUILD_TYPE=${{ matrix.mode }} \
+            -DBUILD_PYTHON_WRAPPER=OFF \
             -S .
-          cmake --build $BUILD_DIR --parallel --config Release
+          cmake --build $BUILD_DIR --parallel --config ${{ matrix.mode }}
 
       - name: Package
         shell: bash
         run: |
           BUILD_DIR=./build
           PACKAGE_DIR=./package
-          LIB_DIR=$PACKAGE_DIR/lib/Release
+          LIB_DIR=$PACKAGE_DIR/lib/${{ matrix.mode }}
           VCPKG_INSTALLED_DIR=$PACKAGE_DIR/vcpkg_installed
           mkdir -p $PACKAGE_DIR
           mkdir -p $LIB_DIR
@@ -171,19 +174,19 @@ jobs:
           cp dependencies.txt $PACKAGE_DIR
           cp -r ./include $PACKAGE_DIR
           cp -r $BUILD_DIR/include/ $PACKAGE_DIR
-          cp -r $BUILD_DIR/lib/Release/*.lib $LIB_DIR
-          cp -r $BUILD_DIR/lib/Release/*.dll $LIB_DIR
+          cp -r $BUILD_DIR/lib/${{ matrix.mode }}/*.lib $LIB_DIR
+          cp -r $BUILD_DIR/lib/${{ matrix.mode }}/*.dll $LIB_DIR
           cp -r ./vcpkg_installed/${{ matrix.triplet }}/* $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
 
       - name: Zip artifact
         shell: bash
-        run: 7z a -tzip Windows-${{ matrix.triplet }}.zip ./package
+        run: 7z a -tzip Windows-${{ matrix.triplet }}-${{ matrix.mode }}.zip ./package
 
       - name: Upload binaries to release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: Windows-${{ matrix.triplet }}.zip
-          asset_name: Windows-${{ matrix.triplet }}.zip
+          file: Windows-${{ matrix.triplet }}-${{ matrix.mode }}.zip
+          asset_name: Windows-${{ matrix.triplet }}-${{ matrix.mode }}.zip
           tag: ${{ github.ref }}
           overwrite: true

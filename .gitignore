@@ -101,3 +101,6 @@ vcpkg_installed/
 .tests-container-id.txt
 Testing
 .test-token.txt
+
+# CLion
+cmake-build-debug
