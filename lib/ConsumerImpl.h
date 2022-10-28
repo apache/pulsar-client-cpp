@@ -36,8 +36,6 @@
 #include "TimeUtils.h"
 #include "UnboundedBlockingQueue.h"
 
-using namespace pulsar;
-
 namespace pulsar {
 class UnAckedMessageTrackerInterface;
 class ExecutorService;

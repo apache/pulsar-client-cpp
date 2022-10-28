@@ -321,10 +321,14 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
 }
 
 void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
-    checkExpiredChunkedTimer_ = executor_->createDeadlineTimer();
     checkExpiredChunkedTimer_->expires_from_now(
         boost::posix_time::milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
-    checkExpiredChunkedTimer_->async_wait([this](const boost::system::error_code& ec) -> void {
+    std::weak_ptr<ConsumerImplBase> weakSelf{shared_from_this()};
+    checkExpiredChunkedTimer_->async_wait([this, weakSelf](const boost::system::error_code& ec) -> void {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         if (ec) {
             LOG_DEBUG(getName() << " Check expired chunked messages was failed or cancelled, code[" << ec
                                 << "].");
@@ -356,6 +360,7 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
 
     // Lazy task scheduling to expire incomplete chunk message
     if (!checkExpiredChunkedTimer_) {
+        checkExpiredChunkedTimer_ = executor_->createDeadlineTimer();
         triggerCheckExpiredChunkedTimer();
     }
 
