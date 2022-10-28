@@ -173,7 +173,7 @@ jobs:
         shell: bash
         run: |
           BUILD_DIR=./build-debug
-          INSTALL_DIR_DEBUG={{ env.INSTALL_DIR }}-Debug
+          INSTALL_DIR_DEBUG=${{ env.INSTALL_DIR }}-Debug
           mkdir -p $BUILD_DIR
           cmake -B $BUILD_DIR \
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
