@@ -61,7 +61,7 @@ TEST(MessageTest, testAllocatedContents) {
         throwed = true;
     } catch (...) {
     }
-    ASSERT_FALSE(throwed);
+    ASSERT_TRUE(throwed);
     delete[] content;
 }
 
