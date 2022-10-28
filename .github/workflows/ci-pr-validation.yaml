@@ -40,8 +40,8 @@ jobs:
 
       - name: Install deps
         run: |
-            sudo apt-get update -y
-            sudo apt-get install -y             \
+            sudo apt-get update -y &&           \
+                sudo apt-get install -y         \
                 libcurl4-openssl-dev            \
                 protobuf-compiler               \
                 libprotobuf-dev                 \
@@ -235,13 +235,36 @@ jobs:
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
 
+  cpp-build-macos:
+    timeout-minutes: 120
+    name: Build CPP Client on macOS
+    runs-on: macos-12
+    needs: unit-tests
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: brew install openssl protobuf boost zstd snappy
+
+      - name: Configure (default)
+        shell: bash
+        run: |
+          cmake \
+              -B ./build-macos \
+              -DBUILD_TESTS=OFF \
+              -S .
+
+      - name: Compile
+        shell: bash
+        run: |
+          cmake --build ./build-macos --parallel --config Release
 
   # Job that will be required to complete and depends on all the other jobs
   check-completion:
     name: Check Completion
     runs-on: ubuntu-latest
-    needs: [unit-tests, cpp-build-windows, package]
+    needs: [unit-tests, cpp-build-windows, package, cpp-build-macos]
 
     steps:
       - run: true
-
