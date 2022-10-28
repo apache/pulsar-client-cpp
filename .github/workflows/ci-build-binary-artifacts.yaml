@@ -75,14 +75,11 @@ jobs:
       - name: Zip artifact
         run: zip -r ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip ${{matrix.pkg.path}}
 
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip
-          asset_name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip
-          tag: ${{ github.ref }}
-          overwrite: true
+          name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
+          path: ${{matrix.pkg.path}}
 
   package-windows:
     timeout-minutes: 120
