@@ -25,6 +25,7 @@
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/detail/socket_ops.hpp>
 #include <memory>
+#include <stdexcept>
 #include <string>
 #include <utility>
 
@@ -205,11 +206,12 @@ class SharedBuffer {
         writeIdx_ = 0;
     }
 
-    bool pop(std::string& target) {
-        if (data_ == nullptr) return false;
+    void pop(std::string& target) {
+        if (data_ == nullptr) {
+            throw std::runtime_error("Popped on SharedBuffer object that does NOT own the data.");
+        }
         target.swap(*data_);
         *this = SharedBuffer();
-        return true;
     }
 
    private:

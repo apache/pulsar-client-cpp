@@ -101,6 +101,13 @@ class PULSAR_PUBLIC Message {
     KeyValue getKeyValueData() const;
 
     /**
+     * Release and return the message's payload.
+     *
+     * @return the released payload.
+     */
+    std::string releaseData();
+
+    /**
      * Move payload into the given string.
      *
      * @param data the string that receiving the payload's ownership.
