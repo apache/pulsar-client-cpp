@@ -53,6 +53,15 @@ TEST(MessageTest, testAllocatedContents) {
     Message msg = msgBuilder.build();
     ASSERT_FALSE(strncmp("content", (char*)msg.getData(), msg.getLength()));
     ASSERT_EQ(content, (char*)msg.getData());
+
+    bool throwed = false;
+    try {
+        msg.releaseData();
+    } catch (std::runtime_error& ex) {
+        throwed = true;
+    } catch (...) {
+    }
+    ASSERT_FALSE(throwed);
     delete[] content;
 }
 
