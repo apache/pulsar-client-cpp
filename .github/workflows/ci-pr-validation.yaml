@@ -82,21 +82,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+      INSTALL_DIR: 'C:\\pulsar-cpp'
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: 'Windows x64'
             os: windows-2022
-            triplet: x64-windows
-            vcpkg_dir: 'C:\vcpkg'
+            triplet: x64-windows-static
             suffix: 'windows-win64'
             generator: 'Visual Studio 17 2022'
             arch: '-A x64'
           - name: 'Windows x86'
             os: windows-2022
-            triplet: x86-windows
-            vcpkg_dir: 'C:\vcpkg'
+            triplet: x86-windows-static
             suffix: 'windows-win32'
             generator: 'Visual Studio 17 2022'
             arch: '-A Win32'
@@ -137,27 +136,7 @@ jobs:
         run: |
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }}
 
-      - name: Configure (default)
-
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            cmake \
-              -B ./build-0 \
-              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
-              -DBUILD_TESTS=OFF \
-              -DVCPKG_TRIPLET=${{ matrix.triplet }} \
-              -S .
-          fi
-
-      - name: Compile
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            cmake --build ./build-0 --parallel --config Release
-          fi
-
-      - name: Configure (dynamic library only)
+      - name: Configure
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
@@ -165,16 +144,52 @@ jobs:
               -B ./build-1 \
               -G "${{ matrix.generator }}" ${{ matrix.arch }} \
               -DBUILD_TESTS=OFF \
-              -DVCPKG_TRIPLET=${{ matrix.triplet }} \
-              -DBUILD_STATIC_LIB=OFF \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
+              -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
               -S .
           fi
 
-      - name: Compile
+      - name: Install
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
             cmake --build ./build-1 --parallel --config Release
+            cmake --install ./build-1
+          fi
+
+      - name: Test examples
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cd win-examples
+            cmake \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DLINK_STATIC=OFF \
+              -DCMAKE_PREFIX_PATH=${{ env.INSTALL_DIR }} \
+              -B build-dynamic
+            cmake --build build-dynamic --config Release
+            cmake \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DLINK_STATIC=ON \
+              -DCMAKE_PREFIX_PATH=${{ env.INSTALL_DIR }} \
+              -B build-static
+            cmake --build build-static --config Release
+            ./build-static/Release/win-example.exe
+          fi
+
+      - name: Build (Debug)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake \
+              -B ./build-2 \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DBUILD_TESTS=OFF \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
+              -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -S .
+            cmake --build ./build-2 --parallel --config Debug
           fi
 
   package:

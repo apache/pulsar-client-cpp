@@ -75,14 +75,11 @@ jobs:
       - name: Zip artifact
         run: zip -r ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip ${{matrix.pkg.path}}
 
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip
-          asset_name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip
-          tag: ${{ github.ref }}
-          overwrite: true
+          name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
+          path: ${{matrix.pkg.path}}
 
   package-windows:
     timeout-minutes: 120
@@ -90,21 +87,20 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+      INSTALL_DIR: 'C:\\pulsar-cpp'
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: 'Windows x64'
             os: windows-2022
-            triplet: x64-windows
-            vcpkg_dir: 'C:\vcpkg'
+            triplet: x64-windows-static
             suffix: 'windows-win64'
             generator: 'Visual Studio 17 2022'
             arch: '-A x64'
           - name: 'Windows x86'
             os: windows-2022
-            triplet: x86-windows
-            vcpkg_dir: 'C:\vcpkg'
+            triplet: x86-windows-static
             suffix: 'windows-win32'
             generator: 'Visual Studio 17 2022'
             arch: '-A Win32'
@@ -145,7 +141,7 @@ jobs:
         run: |
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }} > dependencies.txt
 
-      - name: Configure and build
+      - name: Build and package
         shell: bash
         run: |
           BUILD_DIR=./build
@@ -154,36 +150,45 @@ jobs:
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_DIR }} \
             -S .
           cmake --build $BUILD_DIR --parallel --config Release
-
-      - name: Package
-        shell: bash
-        run: |
-          BUILD_DIR=./build
-          PACKAGE_DIR=./package
-          LIB_DIR=$PACKAGE_DIR/lib/Release
-          VCPKG_INSTALLED_DIR=$PACKAGE_DIR/vcpkg_installed
-          mkdir -p $PACKAGE_DIR
-          mkdir -p $LIB_DIR
-          mkdir -p $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
-          
-          cp dependencies.txt $PACKAGE_DIR
-          cp -r ./include $PACKAGE_DIR
-          cp -r $BUILD_DIR/include/ $PACKAGE_DIR
-          cp -r $BUILD_DIR/lib/Release/*.lib $LIB_DIR
-          cp -r $BUILD_DIR/lib/Release/*.dll $LIB_DIR
-          cp -r ./vcpkg_installed/${{ matrix.triplet }}/* $VCPKG_INSTALLED_DIR/${{ matrix.triplet }}
+          cmake --install $BUILD_DIR
+          cp dependencies.txt ${{ env.INSTALL_DIR }}
 
       - name: Zip artifact
         shell: bash
-        run: 7z a -tzip Windows-${{ matrix.triplet }}.zip ./package
+        run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}.zip ${{ env.INSTALL_DIR }}/*
 
-      - name: Upload binaries to release
-        uses: svenstaro/upload-release-action@v2
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
         with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file: Windows-${{ matrix.triplet }}.zip
-          asset_name: Windows-${{ matrix.triplet }}.zip
-          tag: ${{ github.ref }}
-          overwrite: true
+          name: ${{ matrix.triplet }}
+          path: ${{ env.INSTALL_DIR }}
+
+      - name: Build and package (Debug)
+        shell: bash
+        run: |
+          BUILD_DIR=./build-debug
+          INSTALL_DIR_DEBUG=${{ env.INSTALL_DIR }}-Debug
+          mkdir -p $BUILD_DIR
+          cmake -B $BUILD_DIR \
+            -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DBUILD_TESTS=OFF \
+            -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR_DEBUG \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -S .
+          cmake --build $BUILD_DIR --parallel --config Debug
+          cmake --install $BUILD_DIR --config Debug
+          cp dependencies.txt $INSTALL_DIR_DEBUG
+
+      - name: Zip artifact (Debug)
+        shell: bash
+        run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}-Debug.zip ${{ env.INSTALL_DIR }}-Debug/*
+
+      - name: Upload artifacts (Debug)
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.triplet }}-Debug
+          path: ${{ env.INSTALL_DIR }}-Debug
