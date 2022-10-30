@@ -47,8 +47,6 @@ If you want to enable other compression types, you need to install:
 
 If you want to build and run the tests, you need to install [GTest](https://github.com/google/googletest). Otherwise, you need to add CMake option `-DBUILD_TESTS=OFF`.
 
-If you don't want to build Python client since `boost-python` may not be easy to install, you need to add CMake option `-DBUILD_PYTHON_WRAPPER=OFF`.
-
 If you want to use `ClientConfiguration::setLogConfFilePath`, you need to install the [Log4CXX](https://logging.apache.org/log4cxx) and add CMake option `-DUSE_LOG4CXX=ON`.
 
 ## Platforms
@@ -156,7 +154,7 @@ With `vcpkg`, you only need to run two commands:
 cmake \
  -B ./build \
  -A x64 \
- -DBUILD_PYTHON_WRAPPER=OFF -DBUILD_TESTS=OFF \
+ -DBUILD_TESTS=OFF \
  -DVCPKG_TRIPLET=x64-windows \
  -DCMAKE_BUILD_TYPE=Release \
  -S .
