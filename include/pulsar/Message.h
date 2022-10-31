@@ -25,6 +25,7 @@
 #include <memory>
 #include <string>
 
+#include "KeyValue.h"
 #include "MessageId.h"
 
 namespace pulsar {
@@ -91,6 +92,13 @@ class PULSAR_PUBLIC Message {
      * @return the string representation of the message payload
      */
     std::string getDataAsString() const;
+
+    /**
+     * Get key value message.
+     *
+     * @return key value message.
+     */
+    KeyValue getKeyValueData() const;
 
     /**
      * Get the unique message ID associated with this message.
