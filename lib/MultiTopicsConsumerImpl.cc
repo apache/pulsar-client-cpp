@@ -660,14 +660,15 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
     }
 
     auto needCallBack = std::make_shared<std::atomic<int>>(topicToMessageId.size());
-    Result res = ResultOk;
-    auto cb = [callback, needCallBack, &res](Result result) {
+    auto cb = [callback, needCallBack](Result result) {
         if (result != ResultOk) {
-            res = result;
+            LOG_ERROR("Filed when acknowledge list: " << result);
+            callback(result);
+            // set needCallBack is -1 to avoid repeated callback.
+            needCallBack->store(-1);
         }
-        needCallBack->fetch_sub(1);
-        if (needCallBack->load() == 0) {
-            callback(res);
+        if (--(*needCallBack) == 0) {
+            callback(result);
         }
     };
     for (const auto& kv : topicToMessageId) {
@@ -676,7 +677,7 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
             unAckedMessageTrackerPtr_->remove(kv.second);
             optConsumer.value()->acknowledgeAsync(kv.second, cb);
         } else {
-            LOG_ERROR("Message of topic: " << kv.first << " not in unAckedMessageTracker");
+            LOG_ERROR("Message of topic: " << kv.first << " not in consumers");
             callback(ResultUnknownError);
         }
     }

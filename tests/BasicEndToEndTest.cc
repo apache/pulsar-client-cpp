@@ -4345,6 +4345,8 @@ TEST(BasicEndToEndTest, testAckMsgListWithMultiConsumer) {
 
     Producer producer;
     ProducerConfiguration producerConfig;
+    // Turn off batch to ensure even distribution
+    producerConfig.setBatchingEnabled(false);
     producerConfig.setPartitionsRoutingMode(pulsar::ProducerConfiguration::RoundRobinDistribution);
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfig, producer));
 
