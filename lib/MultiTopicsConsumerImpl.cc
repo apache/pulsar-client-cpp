@@ -663,9 +663,10 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
     auto cb = [callback, needCallBack](Result result) {
         if (result != ResultOk) {
             LOG_ERROR("Filed when acknowledge list: " << result);
-            callback(result);
             // set needCallBack is -1 to avoid repeated callback.
             needCallBack->store(-1);
+            callback(result);
+            return;
         }
         if (--(*needCallBack) == 0) {
             callback(result);
