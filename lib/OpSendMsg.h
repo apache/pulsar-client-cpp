@@ -39,6 +39,7 @@ struct OpSendMsg {
     boost::posix_time::ptime timeout_;
     uint32_t messagesCount_;
     uint64_t messagesSize_;
+    std::vector<std::function<void(Result)>> trackerCallbacks_;
 
     OpSendMsg() = default;
 
@@ -59,6 +60,13 @@ struct OpSendMsg {
         if (sendCallback_) {
             sendCallback_(result, messageId);
         }
+        for (const auto& trackerCallback : trackerCallbacks_) {
+            trackerCallback(result);
+        }
+    }
+
+    void addTrackerCallback(std::function<void(Result)> trackerCallback) {
+        trackerCallbacks_.emplace_back(trackerCallback);
     }
 };
 

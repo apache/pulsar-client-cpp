@@ -245,11 +245,10 @@ TEST_P(ProducerTest, testMaxMessageSize) {
     client.close();
 }
 
-TEST_P(ProducerTest, testChunkingMaxMessageSize) {
+TEST(ProducerTest, testChunkingMaxMessageSize) {
     Client client(serviceUrl);
 
-    const auto topic = std::string("ProducerTest-ChunkingMaxMessageSize-") +
-                       (GetParam() ? "batch-" : "no-batch-") + std::to_string(time(nullptr));
+    const auto topic = std::string("ProducerTest-ChunkingMaxMessageSize-") + std::to_string(time(nullptr));
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
@@ -295,6 +294,46 @@ TEST(ProducerTest, testExclusiveProducer) {
     ProducerConfiguration producerConfiguration3;
     producerConfiguration3.setProducerName("p-name-3");
     ASSERT_EQ(ResultProducerBusy, client.createProducer(topicName, producerConfiguration3, producer3));
+}
+
+TEST_P(ProducerTest, testFlushNoBatch) {
+    Client client(serviceUrl);
+
+    auto partitioned = GetParam();
+    const auto topicName = std::string("testFlushNoBatch") +
+                           (partitioned ? "partitioned-" : "-no-partitioned-") +
+                           std::to_string(time(nullptr));
+
+    if (partitioned) {
+        // call admin api to make it partitioned
+        std::string url = adminUrl + "admin/v2/persistent/public/default/" + topicName + "/partitions";
+        int res = makePutRequest(url, "5");
+        LOG_INFO("res = " << res);
+        ASSERT_FALSE(res != 204 && res != 409);
+    }
+
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setBatchingEnabled(false);
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfiguration, producer));
+
+    std::atomic_int needCallBack(100);
+    auto cb = [&needCallBack](Result code, const MessageId& msgId) {
+        ASSERT_EQ(code, ResultOk);
+        needCallBack.fetch_sub(1);
+    };
+
+    for (int i = 0; i < 100; ++i) {
+        Message msg = MessageBuilder().setContent("content").build();
+        producer.sendAsync(msg, cb);
+    }
+
+    producer.flush();
+    ASSERT_EQ(needCallBack.load(), 0);
+    producer.close();
+
+    client.close();
 }
 
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerTest, ::testing::Values(true, false));

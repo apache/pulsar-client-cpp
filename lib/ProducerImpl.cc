@@ -332,17 +332,25 @@ void ProducerImpl::setMessageMetadata(const Message& msg, const uint64_t& sequen
 }
 
 void ProducerImpl::flushAsync(FlushCallback callback) {
+    if (state_ != Ready) {
+        callback(ResultAlreadyClosed);
+        return;
+    }
     if (batchMessageContainer_) {
-        if (state_ == Ready) {
-            Lock lock(mutex_);
-            auto failures = batchMessageAndSend(callback);
-            lock.unlock();
-            failures.complete();
-        } else {
-            callback(ResultAlreadyClosed);
-        }
+        Lock lock(mutex_);
+        auto failures = batchMessageAndSend(callback);
+        lock.unlock();
+        failures.complete();
     } else {
-        callback(ResultOk);
+        Lock lock(mutex_);
+        if (!pendingMessagesQueue_.empty()) {
+            auto& opSendMsg = pendingMessagesQueue_.back();
+            lock.unlock();
+            opSendMsg.addTrackerCallback(callback);
+        } else {
+            lock.unlock();
+            callback(ResultOk);
+        }
     }
 }
 
