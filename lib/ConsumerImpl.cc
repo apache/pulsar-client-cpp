@@ -1397,6 +1397,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Me
             if (result == ResultOk) {
                 LOG_INFO(getName() << "Seek successfully");
                 ackGroupingTrackerPtr_->flushAndClean();
+                incomingMessages_.clear();
                 Lock lock(mutexForMessageId_);
                 lastDequedMessageId_ = MessageId::earliest();
                 lock.unlock();

@@ -893,6 +893,14 @@ TEST_P(ConsumerSeekTest, testSeekForMessageId) {
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topic, producerConf_, producer));
 
+    Consumer consumerExclusive;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub-0", consumerExclusive));
+
+    Consumer consumerInclusive;
+    ASSERT_EQ(ResultOk,
+              client.subscribe(topic, "sub-1", ConsumerConfiguration().setStartMessageIdInclusive(true),
+                               consumerInclusive));
+
     const auto numMessages = 100;
     MessageId seekMessageId;
 
@@ -909,16 +917,10 @@ TEST_P(ConsumerSeekTest, testSeekForMessageId) {
 
     LOG_INFO("The seekMessageId is: " << seekMessageId << ", r : " << r);
 
-    Consumer consumerExclusive;
-    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub-0", consumerExclusive));
     consumerExclusive.seek(seekMessageId);
     Message msg0;
     ASSERT_EQ(ResultOk, consumerExclusive.receive(msg0, 3000));
 
-    Consumer consumerInclusive;
-    ASSERT_EQ(ResultOk,
-              client.subscribe(topic, "sub-1", ConsumerConfiguration().setStartMessageIdInclusive(true),
-                               consumerInclusive));
     consumerInclusive.seek(seekMessageId);
     Message msg1;
     ASSERT_EQ(ResultOk, consumerInclusive.receive(msg1, 3000));
