@@ -59,7 +59,7 @@ class ConsumerStatsImpl : public ConsumerStatsBase {
     ConsumerStatsImpl(const ConsumerStatsImpl& stats);
     void flushAndReset(const boost::system::error_code&);
     virtual void receivedMessage(Message&, Result);
-    virtual void messageAcknowledged(Result, CommandAck_AckType);
+    virtual void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums = 1);
     virtual ~ConsumerStatsImpl();
 
     const inline std::map<std::pair<Result, CommandAck_AckType>, unsigned long>& getAckedMsgMap() const {

@@ -55,6 +55,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     void batchReceiveAsync(BatchReceiveCallback callback);
     virtual void unsubscribeAsync(ResultCallback callback) = 0;
     virtual void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) = 0;
+    virtual void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) = 0;
     virtual void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) = 0;
     virtual void closeAsync(ResultCallback callback) = 0;
     virtual void start() = 0;

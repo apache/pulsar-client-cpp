@@ -68,6 +68,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void receiveAsync(ReceiveCallback& callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
+    void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) override;
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
     void closeAsync(ResultCallback callback) override;
     void start() override;
@@ -152,6 +153,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     bool hasEnoughMessagesForBatchReceive() const override;
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
     void beforeConnectionChange(ClientConnection& cnx) override;
+    friend class PulsarFriend;
 
    private:
     std::shared_ptr<MultiTopicsConsumerImpl> get_shared_this_ptr();
