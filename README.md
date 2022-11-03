@@ -21,7 +21,11 @@
 
 # Pulsar C++ client library
 
-Examples for using the API to publish and consume messages can be found under the [examples](examples) folder.
+Examples for using the API to publish and consume messages can be found under the [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples) folder.
+
+## Generate the API documents
+
+Pulsar C++ client uses [doxygen](https://www.doxygen.nl) to build API documents. After installing `doxygen`, you only need to run `doxygen` to generate the API documents whose main page is under the `doxygen/html/index.html` path.
 
 ## Requirements
 
@@ -31,8 +35,6 @@ Examples for using the API to publish and consume messages can be found under th
 * [Protocol Buffer](https://developers.google.com/protocol-buffers/) >= 3
 * [libcurl](https://curl.se/libcurl/)
 * [openssl](https://github.com/openssl/openssl)
-
-It's recommended to use Protocol Buffer 2.6 because it's verified by CI, but 3.x also works.
 
 The default supported [compression types](include/pulsar/CompressionType.h) are:
 
