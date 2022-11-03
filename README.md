@@ -21,7 +21,7 @@
 
 # Pulsar C++ client library
 
-Examples for using the API to publish and consume messages can be found under the [examples](examples) folder.
+Examples for using the API to publish and consume messages can be found under the [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples) folder.
 
 ## Generate the API documents
 
