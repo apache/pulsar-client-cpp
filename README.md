@@ -23,6 +23,10 @@
 
 Examples for using the API to publish and consume messages can be found under the [examples](examples) folder.
 
+## Generate the API documents
+
+Pulsar C++ client uses [doxygen](https://www.doxygen.nl) to build API documents. After installing `doxygen`, you only need to run `doxygen` to generate the API documents whose main page is under the `doxygen/html/index.html` path.
+
 ## Requirements
 
 * A C++ compiler that supports C++11, like GCC >= 4.8
