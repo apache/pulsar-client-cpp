@@ -344,16 +344,13 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
                     return false;
                 }
                 for (const MessageId& msgId : ctx.getChunkedMessageIds()) {
-                    if (autoAckOldestChunkedMessageOnQueueFull_) {
-                        doAcknowledgeIndividual(msgId, [uuid, msgId](Result result) {
-                            if (result != ResultOk) {
-                                LOG_WARN("Failed to acknowledge discarded chunk, uuid: "
-                                         << uuid << ", messageId: " << msgId);
-                            }
-                        });
-                    } else {
-                        trackMessage(msgId);
-                    }
+                    LOG_INFO("Removing expired chunk messages: uuid: " << uuid << ", messageId: " << msgId);
+                    doAcknowledgeIndividual(msgId, [uuid, msgId](Result result) {
+                        if (result != ResultOk) {
+                            LOG_WARN("Failed to acknowledge discarded chunk, uuid: "
+                                     << uuid << ", messageId: " << msgId);
+                        }
+                    });
                 }
                 return true;
             });
