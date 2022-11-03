@@ -36,8 +36,6 @@ Pulsar C++ client uses [doxygen](https://www.doxygen.nl) to build API documents.
 * [libcurl](https://curl.se/libcurl/)
 * [openssl](https://github.com/openssl/openssl)
 
-It's recommended to use Protocol Buffer 2.6 because it's verified by CI, but 3.x also works.
-
 The default supported [compression types](include/pulsar/CompressionType.h) are:
 
 * `CompressionNone`
