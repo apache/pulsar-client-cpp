@@ -338,7 +338,24 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
         long currentTimeMs = TimeUtils::currentTimeMillis();
         chunkedMessageCache_.removeOldestValuesIf(
             [this, &currentTimeMs](const std::string& uuid, const ChunkedMessageCtx& ctx) -> bool {
-                return currentTimeMs > ctx.getReceivedTimeMs() + expireTimeOfIncompleteChunkedMessageMs_;
+                bool expired =
+                    currentTimeMs > ctx.getReceivedTimeMs() + expireTimeOfIncompleteChunkedMessageMs_;
+                if (!expired) {
+                    return false;
+                }
+                for (const MessageId& msgId : ctx.getChunkedMessageIds()) {
+                    if (autoAckOldestChunkedMessageOnQueueFull_) {
+                        doAcknowledgeIndividual(msgId, [uuid, msgId](Result result) {
+                            if (result != ResultOk) {
+                                LOG_WARN("Failed to acknowledge discarded chunk, uuid: "
+                                         << uuid << ", messageId: " << msgId);
+                            }
+                        });
+                    } else {
+                        trackMessage(msgId);
+                    }
+                }
+                return true;
             });
         triggerCheckExpiredChunkedTimer();
         return;
