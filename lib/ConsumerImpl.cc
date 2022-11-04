@@ -110,6 +110,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
     if (conf.isEncryptionEnabled()) {
         msgCrypto_ = std::make_shared<MessageCrypto>(consumerStr_, false);
     }
+
+    checkExpiredChunkedTimer_ = executor_->createDeadlineTimer();
 }
 
 ConsumerImpl::~ConsumerImpl() {
@@ -337,7 +339,7 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
         Lock lock(chunkProcessMutex_);
         long currentTimeMs = TimeUtils::currentTimeMillis();
         chunkedMessageCache_.removeOldestValuesIf(
-            [this, &currentTimeMs](const std::string& uuid, const ChunkedMessageCtx& ctx) -> bool {
+            [this, currentTimeMs](const std::string& uuid, const ChunkedMessageCtx& ctx) -> bool {
                 bool expired =
                     currentTimeMs > ctx.getReceivedTimeMs() + expireTimeOfIncompleteChunkedMessageMs_;
                 if (!expired) {
@@ -373,8 +375,8 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
     Lock lock(chunkProcessMutex_);
 
     // Lazy task scheduling to expire incomplete chunk message
-    if (!checkExpiredChunkedTimer_) {
-        checkExpiredChunkedTimer_ = executor_->createDeadlineTimer();
+    if (!expireChunkMessageTaskScheduled_) {
+        expireChunkMessageTaskScheduled_ = true;
         triggerCheckExpiredChunkedTimer();
     }
 
@@ -1483,9 +1485,7 @@ std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
 void ConsumerImpl::cancelTimers() noexcept {
     boost::system::error_code ec;
     batchReceiveTimer_->cancel(ec);
-    if (checkExpiredChunkedTimer_) {
-        checkExpiredChunkedTimer_->cancel(ec);
-    }
+    checkExpiredChunkedTimer_->cancel(ec);
 }
 
 } /* namespace pulsar */

@@ -302,6 +302,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
     const long expireTimeOfIncompleteChunkedMessageMs_;
     DeadlineTimerPtr checkExpiredChunkedTimer_;
+    bool expireChunkMessageTaskScheduled_ = false;
 
     void triggerCheckExpiredChunkedTimer();
 
