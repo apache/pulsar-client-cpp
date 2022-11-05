@@ -26,6 +26,7 @@
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
+#include "MessageIdUtil.h"
 DECLARE_LOG_OBJECT()
 
 namespace pulsar {
@@ -90,8 +91,7 @@ void NegativeAcksTracker::add(const MessageId &m) {
     auto now = Clock::now();
 
     // Erase batch id to group all nacks from same batch
-    MessageId batchMessageId = MessageId(m.partition(), m.ledgerId(), m.entryId(), -1);
-    nackedMessages_[batchMessageId] = now + nackDelay_;
+    nackedMessages_[discardBatch(m)] = now + nackDelay_;
 
     if (!timer_) {
         scheduleTimer();

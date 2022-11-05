@@ -18,6 +18,8 @@
  */
 #include "ClientConnection.h"
 
+#include <pulsar/MessageIdBuilder.h>
+
 #include <fstream>
 
 #include "Commands.h"
@@ -43,8 +45,7 @@ static const uint32_t DefaultBufferSize = 64 * 1024;
 static const int KeepAliveIntervalInSeconds = 30;
 
 static MessageId toMessageId(const proto::MessageIdData& messageIdData) {
-    return MessageId{messageIdData.partition(), static_cast<int64_t>(messageIdData.ledgerid()),
-                     static_cast<int64_t>(messageIdData.entryid()), messageIdData.batch_index()};
+    return MessageIdBuilder::from(messageIdData).build();
 }
 
 // Convert error codes from protobuf to client API Result
@@ -830,8 +831,7 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     int producerId = sendReceipt.producer_id();
                     uint64_t sequenceId = sendReceipt.sequence_id();
                     const proto::MessageIdData& messageIdData = sendReceipt.message_id();
-                    MessageId messageId = MessageId(messageIdData.partition(), messageIdData.ledgerid(),
-                                                    messageIdData.entryid(), messageIdData.batch_index());
+                    auto messageId = toMessageId(messageIdData);
 
                     LOG_DEBUG(cnxString_ << "Got receipt for producer: " << producerId
                                          << " -- msg: " << sequenceId << "-- message id: " << messageId);

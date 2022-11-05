@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/MessageBatch.h>
+#include <pulsar/MessageIdBuilder.h>
 
 #include <atomic>
 #include <ctime>
@@ -237,7 +238,8 @@ TEST(BatchMessageTest, testBatchSizeInBytes) {
         std::string expectedMessageContent = prefix + std::to_string(i);
         LOG_DEBUG("Received Message with [ content - " << receivedMsg.getDataAsString() << "] [ messageID = "
                                                        << receivedMsg.getMessageId() << "]");
-        ASSERT_LT(pulsar::PulsarFriend::getBatchIndex(receivedMsg.getMessageId()), 2);
+        ASSERT_LT(receivedMsg.getMessageId().batchIndex(), 2);
+        ASSERT_EQ(receivedMsg.getMessageId().batchSize(), 2);
         ASSERT_EQ(receivedMsg.getProperty("msgIndex"), std::to_string(i++));
         ASSERT_EQ(expectedMessageContent, receivedMsg.getDataAsString());
         ASSERT_EQ(ResultOk, consumer.acknowledge(receivedMsg));
@@ -970,7 +972,7 @@ TEST(BatchMessageTest, testPraseMessageBatchEntry) {
     }
 
     MessageBatch messageBatch;
-    MessageId fakeId(0, 5000, 10, -1);
+    auto fakeId = MessageIdBuilder().ledgerId(5000L).entryId(10L).partition(0).build();
     messageBatch.withMessageId(fakeId).parseFrom(payload, static_cast<uint32_t>(cases.size()));
     const std::vector<Message>& messages = messageBatch.messages();
 

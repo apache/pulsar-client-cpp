@@ -19,6 +19,7 @@
 #include "BatchAcknowledgementTracker.h"
 
 #include "LogUtils.h"
+#include "MessageIdUtil.h"
 #include "MessageImpl.h"
 
 namespace pulsar {
@@ -71,8 +72,7 @@ void BatchAcknowledgementTracker::deleteAckedMessage(const MessageId& messageId,
         return;
     }
 
-    MessageId batchMessageId =
-        MessageId(messageId.partition(), messageId.ledgerId(), messageId.entryId(), -1 /* Batch index */);
+    auto batchMessageId = discardBatch(messageId);
 
     Lock lock(mutex_);
     if (ackType == CommandAck_AckType_Cumulative) {
@@ -114,9 +114,7 @@ void BatchAcknowledgementTracker::deleteAckedMessage(const MessageId& messageId,
 
 bool BatchAcknowledgementTracker::isBatchReady(const MessageId& msgID, CommandAck_AckType ackType) {
     Lock lock(mutex_);
-    // Remove batch index
-    MessageId batchMessageId =
-        MessageId(msgID.partition(), msgID.ledgerId(), msgID.entryId(), -1 /* Batch index */);
+    auto batchMessageId = discardBatch(msgID);
 
     TrackerMap::iterator pos = trackerMap_.find(batchMessageId);
     if (pos == trackerMap_.end() ||
@@ -154,8 +152,7 @@ const MessageId BatchAcknowledgementTracker::getGreatestCumulativeAckReady(const
     Lock lock(mutex_);
 
     // Remove batch index
-    MessageId batchMessageId =
-        MessageId(messageId.partition(), messageId.ledgerId(), messageId.entryId(), -1 /* Batch index */);
+    auto batchMessageId = discardBatch(messageId);
     TrackerMap::iterator pos = trackerMap_.find(batchMessageId);
 
     // element not found

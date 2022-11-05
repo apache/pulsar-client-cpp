@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <pulsar/MessageId.h>
+#include <pulsar/MessageIdBuilder.h>
 
 #include <string>
 
@@ -27,7 +27,7 @@
 using namespace pulsar;
 
 TEST(MessageIdTest, testSerialization) {
-    MessageId msgId = PulsarFriend::getMessageId(-1, 1, 2, 3);
+    auto msgId = MessageIdBuilder().ledgerId(1L).entryId(2L).batchIndex(3L).build();
 
     std::string serialized;
     msgId.serialize(serialized);
@@ -38,10 +38,10 @@ TEST(MessageIdTest, testSerialization) {
 }
 
 TEST(MessageIdTest, testCompareLedgerAndEntryId) {
-    MessageId id1(-1, 2L, 1L, 0);
-    MessageId id2(-1, 2L, 1L, 1);
-    MessageId id3(-1, 2L, 2L, 0);
-    MessageId id4(-1, 3L, 0L, 0);
+    auto id1 = MessageIdBuilder().ledgerId(2L).entryId(1L).batchIndex(0).build();
+    auto id2 = MessageIdBuilder::from(id1).batchIndex(1).build();
+    auto id3 = MessageIdBuilder().ledgerId(2L).entryId(2L).batchIndex(0).build();
+    auto id4 = MessageIdBuilder().ledgerId(3L).entryId(0L).batchIndex(0).build();
     ASSERT_EQ(compareLedgerAndEntryId(id1, id2), 0);
     ASSERT_EQ(compareLedgerAndEntryId(id1, id2), 0);
 

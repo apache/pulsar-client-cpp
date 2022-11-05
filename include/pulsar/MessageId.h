@@ -37,7 +37,11 @@ class PULSAR_PUBLIC MessageId {
     MessageId();
 
     /**
+     * @deprecated
+     *
      * Construct the MessageId
+     *
+     * NOTE: This API still exists for backward compatibility, use MessageIdBuilder instead.
      *
      * @param partition the partition number of a topic
      * @param ledgerId the ledger id
@@ -88,6 +92,7 @@ class PULSAR_PUBLIC MessageId {
     int64_t entryId() const;
     int32_t batchIndex() const;
     int32_t partition() const;
+    int32_t batchSize() const;
 
    private:
     friend class ConsumerImpl;
@@ -102,11 +107,14 @@ class PULSAR_PUBLIC MessageId {
     friend class PulsarWrapper;
     friend class PulsarFriend;
     friend class NegativeAcksTracker;
+    friend class MessageIdBuilder;
 
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const MessageId& messageId);
 
     typedef std::shared_ptr<MessageIdImpl> MessageIdImplPtr;
     MessageIdImplPtr impl_;
+
+    explicit MessageId(const MessageIdImplPtr& impl);
 };
 
 typedef std::vector<MessageId> MessageIdList;

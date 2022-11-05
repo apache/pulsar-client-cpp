@@ -18,6 +18,8 @@
  */
 #include "ConsumerImpl.h"
 
+#include <pulsar/MessageIdBuilder.h>
+
 #include <algorithm>
 
 #include "AckGroupingTracker.h"
@@ -424,8 +426,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
     // Only a non-batched messages can be a chunk
     if (!metadata.has_num_messages_in_batch() && isChunkedMessage) {
         const auto& messageIdData = msg.message_id();
-        MessageId messageId(messageIdData.partition(), messageIdData.ledgerid(), messageIdData.entryid(),
-                            messageIdData.batch_index());
+        auto messageId = MessageIdBuilder::from(messageIdData).build();
         auto optionalPayload = processMessageChunk(payload, metadata, messageId, messageIdData, cnx);
         if (optionalPayload.is_present()) {
             payload = optionalPayload.value();
@@ -582,7 +583,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
 
     for (int i = 0; i < batchSize; i++) {
         // This is a cheap copy since message contains only one shared pointer (impl_)
-        Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i);
+        Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize);
         msg.impl_->setRedeliveryCount(redeliveryCount);
         msg.impl_->setTopicName(batchedMessage.getTopicName());
         msg.impl_->convertPayloadToKeyValue(config_.getSchema());
@@ -882,13 +883,17 @@ Optional<MessageId> ConsumerImpl::clearReceiveQueue() {
     if (incomingMessages_.peekAndClear(nextMessageInQueue)) {
         // There was at least one message pending in the queue
         const MessageId& nextMessageId = nextMessageInQueue.getMessageId();
-        MessageId previousMessageId;
-        if (nextMessageId.batchIndex() >= 0) {
-            previousMessageId = MessageId(-1, nextMessageId.ledgerId(), nextMessageId.entryId(),
-                                          nextMessageId.batchIndex() - 1);
-        } else {
-            previousMessageId = MessageId(-1, nextMessageId.ledgerId(), nextMessageId.entryId() - 1, -1);
-        }
+        auto previousMessageId = (nextMessageId.batchIndex() >= 0)
+                                     ? MessageIdBuilder()
+                                           .ledgerId(nextMessageId.ledgerId())
+                                           .entryId(nextMessageId.entryId())
+                                           .batchIndex(nextMessageId.batchIndex() - 1)
+                                           .batchSize(nextMessageId.batchSize())
+                                           .build()
+                                     : MessageIdBuilder()
+                                           .ledgerId(nextMessageId.ledgerId())
+                                           .entryId(nextMessageId.entryId() - 1)
+                                           .build();
         return Optional<MessageId>::of(previousMessageId);
     } else if (lastDequedMessageId_ != MessageId::earliest()) {
         // If the queue was empty we need to restart from the message just after the last one that has been

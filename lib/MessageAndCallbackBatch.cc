@@ -18,6 +18,8 @@
  */
 #include "MessageAndCallbackBatch.h"
 
+#include <pulsar/MessageIdBuilder.h>
+
 #include "ClientConnection.h"
 #include "Commands.h"
 #include "LogUtils.h"
@@ -54,8 +56,7 @@ static void completeSendCallbacks(const std::vector<SendCallback>& callbacks, Re
     int32_t numOfMessages = static_cast<int32_t>(callbacks.size());
     LOG_DEBUG("Batch complete [Result = " << result << "] [numOfMessages = " << numOfMessages << "]");
     for (int32_t i = 0; i < numOfMessages; i++) {
-        MessageId idInBatch(id.partition(), id.ledgerId(), id.entryId(), i);
-        callbacks[i](result, idInBatch);
+        callbacks[i](result, MessageIdBuilder::from(id).batchIndex(i).batchSize(numOfMessages).build());
     }
 }
 

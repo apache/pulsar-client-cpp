@@ -19,6 +19,7 @@
 #include "Commands.h"
 
 #include <pulsar/MessageBuilder.h>
+#include <pulsar/MessageIdBuilder.h>
 #include <pulsar/Schema.h>
 #include <pulsar/Version.h>
 
@@ -807,7 +808,8 @@ uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, 
     return msgMetadata.sequence_id();
 }
 
-Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex) {
+Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
+                                                  int32_t batchSize) {
     SharedBuffer& uncompressedPayload = batchedMessage.impl_->payload;
 
     // Format of batch message
@@ -825,7 +827,7 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
     uncompressedPayload.consume(payloadSize);
 
     const MessageId& m = batchedMessage.impl_->messageId;
-    MessageId singleMessageId(m.partition(), m.ledgerId(), m.entryId(), batchIndex);
+    auto singleMessageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
     Message singleMessage(singleMessageId, batchedMessage.impl_->metadata, payload, metadata,
                           batchedMessage.impl_->getTopicName());
     singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;

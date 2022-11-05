@@ -132,7 +132,8 @@ class Commands {
     static PULSAR_PUBLIC uint64_t serializeSingleMessageInBatchWithPayload(
         const Message& msg, SharedBuffer& batchPayLoad, unsigned long maxMessageSizeInBytes);
 
-    static Message deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex);
+    static Message deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
+                                                   int32_t batchSize);
 
     static SharedBuffer newConsumerStats(uint64_t consumerId, uint64_t requestId);
 

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <pulsar/MessageId.h>
+#include <pulsar/MessageIdBuilder.h>
 
 namespace pulsar {
 
@@ -33,6 +34,10 @@ inline int compareLedgerAndEntryId(const MessageId& lhs, const MessageId& rhs) {
         return result;
     }
     return internal::compare(lhs.entryId(), rhs.entryId());
+}
+
+inline MessageId discardBatch(const MessageId& messageId) {
+    return MessageIdBuilder::from(messageId).batchIndex(-1).batchSize(0).build();
 }
 
 }  // namespace pulsar
