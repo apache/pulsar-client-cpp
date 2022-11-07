@@ -376,7 +376,8 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
 
     // Lazy task scheduling to expire incomplete chunk message
     bool expected = false;
-    if (expireChunkMessageTaskScheduled_.compare_exchange_strong(expected, true)) {
+    if (expireTimeOfIncompleteChunkedMessageMs_ > 0 &&
+        expireChunkMessageTaskScheduled_.compare_exchange_strong(expected, true)) {
         triggerCheckExpiredChunkedTimer();
     }
 

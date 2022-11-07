@@ -521,7 +521,7 @@ class PULSAR_PUBLIC ConsumerConfiguration {
 
     /**
      * If producer fails to publish all the chunks of a message then consumer can expire incomplete chunks if
-     * consumer won't be able to receive all chunks in expire times.
+     * consumer won't be able to receive all chunks in expire times. Use value 0 to disable this feature.
      *
      * Default: 60000, which means 1 minutes
      *
