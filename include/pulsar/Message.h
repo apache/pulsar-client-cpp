@@ -200,6 +200,7 @@ class PULSAR_PUBLIC Message {
 
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const StringMap& map);
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const Message& msg);
+    friend class PulsarFriend;
 };
 }  // namespace pulsar
 

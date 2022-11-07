@@ -33,6 +33,7 @@
 #include "NegativeAcksTracker.h"
 #include "Synchronized.h"
 #include "TestUtil.h"
+#include "TimeUtils.h"
 #include "UnboundedBlockingQueue.h"
 
 namespace pulsar {
@@ -259,6 +260,7 @@ class ConsumerImpl : public ConsumerImplBase {
         void appendChunk(const MessageId& messageId, const SharedBuffer& payload) {
             chunkedMessageIds_.emplace_back(messageId);
             chunkedMsgBuffer_.write(payload.data(), payload.readableBytes());
+            receivedTimeMs_ = TimeUtils::currentTimeMillis();
         }
 
         bool isCompleted() const noexcept { return totalChunks_ == numChunks(); }
@@ -266,6 +268,8 @@ class ConsumerImpl : public ConsumerImplBase {
         const SharedBuffer& getBuffer() const noexcept { return chunkedMsgBuffer_; }
 
         const std::vector<MessageId>& getChunkedMessageIds() const noexcept { return chunkedMessageIds_; }
+
+        long getReceivedTimeMs() const noexcept { return receivedTimeMs_; }
 
         friend std::ostream& operator<<(std::ostream& os, const ChunkedMessageCtx& ctx) {
             return os << "ChunkedMessageCtx " << ctx.chunkedMsgBuffer_.readableBytes() << " of "
@@ -277,6 +281,7 @@ class ConsumerImpl : public ConsumerImplBase {
         const int totalChunks_;
         SharedBuffer chunkedMsgBuffer_;
         std::vector<MessageId> chunkedMessageIds_;
+        long receivedTimeMs_;
 
         int numChunks() const noexcept { return static_cast<int>(chunkedMessageIds_.size()); }
     };
@@ -296,6 +301,12 @@ class ConsumerImpl : public ConsumerImplBase {
     // The key is UUID, value is the associated ChunkedMessageCtx of the chunked message.
     MapCache<std::string, ChunkedMessageCtx> chunkedMessageCache_;
     mutable std::mutex chunkProcessMutex_;
+
+    const long expireTimeOfIncompleteChunkedMessageMs_;
+    DeadlineTimerPtr checkExpiredChunkedTimer_;
+    std::atomic_bool expireChunkMessageTaskScheduled_{false};
+
+    void triggerCheckExpiredChunkedTimer();
 
     /**
      * Process a chunk. If the chunk is the last chunk of a message, concatenate all buffered chunks into the

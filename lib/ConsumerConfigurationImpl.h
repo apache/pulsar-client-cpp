@@ -55,6 +55,7 @@ struct ConsumerConfigurationImpl {
     size_t maxPendingChunkedMessage{10};
     bool autoAckOldestChunkedMessageOnQueueFull{false};
     bool startMessageIdInclusive{false};
+    long expireTimeOfIncompleteChunkedMessageMs{60000};
 };
 }  // namespace pulsar
 #endif /* LIB_CONSUMERCONFIGURATIONIMPL_H_ */

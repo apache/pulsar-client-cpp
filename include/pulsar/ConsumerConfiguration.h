@@ -520,6 +520,26 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     bool isAutoAckOldestChunkedMessageOnQueueFull() const;
 
     /**
+     * If producer fails to publish all the chunks of a message then consumer can expire incomplete chunks if
+     * consumer won't be able to receive all chunks in expire times. Use value 0 to disable this feature.
+     *
+     * Default: 60000, which means 1 minutes
+     *
+     * @param expireTimeOfIncompleteChunkedMessageMs expire time in milliseconds
+     * @return Consumer Configuration
+     */
+    ConsumerConfiguration& setExpireTimeOfIncompleteChunkedMessageMs(
+        long expireTimeOfIncompleteChunkedMessageMs);
+
+    /**
+     *
+     * Get the expire time of incomplete chunked message in milliseconds
+     *
+     * @return the expire time of incomplete chunked message in milliseconds
+     */
+    long getExpireTimeOfIncompleteChunkedMessageMs() const;
+
+    /**
      * Set the consumer to include the given position of any reset operation like Consumer::seek.
      *
      * Default: false

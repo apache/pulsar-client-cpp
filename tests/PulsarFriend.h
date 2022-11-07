@@ -16,12 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef PULSAR_FRIEND_HPP_
+#define PULSAR_FRIEND_HPP_
 
 #include <string>
 
 #include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
 #include "lib/ConsumerImpl.h"
+#include "lib/MessageImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
 #include "lib/NamespaceName.h"
 #include "lib/PartitionedProducerImpl.h"
@@ -180,5 +183,9 @@ class PulsarFriend {
     static size_t getNumberOfPendingTasks(const RetryableLookupService& lookupService) {
         return lookupService.backoffTimers_.size();
     }
+
+    static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }
 };
 }  // namespace pulsar
+
+#endif /* PULSAR_FRIEND_HPP_ */

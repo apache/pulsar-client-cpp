@@ -73,6 +73,23 @@ class MapCache {
         }
     }
 
+    void removeOldestValuesIf(const std::function<bool(const Key&, const Value&)>& condition) {
+        if (!condition) return;
+        while (!keys_.empty()) {
+            const auto key = keys_.front();
+            auto it = map_.find(key);
+            if (it == map_.end()) {
+                continue;
+            }
+            if (condition(it->first, it->second)) {
+                map_.erase(it);
+                keys_.pop_front();
+            } else {
+                return;
+            }
+        }
+    }
+
     void remove(const Key& key) {
         auto it = map_.find(key);
         if (it != map_.end()) {

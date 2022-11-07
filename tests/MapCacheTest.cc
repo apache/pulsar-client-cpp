@@ -77,3 +77,33 @@ TEST(MapCacheTest, testRemoveAllValues) {
     ASSERT_TRUE(cache.getKeys().empty());
     ASSERT_EQ(cache.size(), 0);
 }
+
+TEST(MapCacheTest, testRemoveOldestValuesIf) {
+    MapCache<int, MoveOnlyInt> cache;
+    cache.putIfAbsent(1, {100});
+    cache.putIfAbsent(2, {200});
+    cache.putIfAbsent(3, {300});
+    int expireTime = 100;
+
+    auto checkCondition = [&expireTime](const int& key, const MoveOnlyInt& value) -> bool {
+        return expireTime > value.x;
+    };
+
+    cache.removeOldestValuesIf(nullptr);
+    ASSERT_EQ(cache.size(), 3);
+
+    cache.removeOldestValuesIf(checkCondition);
+    ASSERT_EQ(cache.size(), 3);
+
+    expireTime = 200;
+    cache.removeOldestValuesIf(checkCondition);
+
+    auto keys = cache.getKeys();
+    ASSERT_EQ(cache.size(), 2);
+    ASSERT_EQ(cache.find(2)->second.x, 200);
+    ASSERT_EQ(cache.find(3)->second.x, 300);
+
+    expireTime = 400;
+    cache.removeOldestValuesIf(checkCondition);
+    ASSERT_EQ(cache.size(), 0);
+}

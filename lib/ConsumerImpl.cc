@@ -78,7 +78,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       readCompacted_(conf.isReadCompacted()),
       startMessageId_(startMessageId),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
-      autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()) {
+      autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
+      expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[" << topic_ << ", " << subscription_ << ", " << consumerId_ << "] ";
     consumerStr_ = consumerStrStream.str();
@@ -109,6 +110,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
     if (conf.isEncryptionEnabled()) {
         msgCrypto_ = std::make_shared<MessageCrypto>(consumerStr_, false);
     }
+
+    checkExpiredChunkedTimer_ = executor_->createDeadlineTimer();
 }
 
 ConsumerImpl::~ConsumerImpl() {
@@ -319,6 +322,45 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
     }
 }
 
+void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
+    checkExpiredChunkedTimer_->expires_from_now(
+        boost::posix_time::milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
+    std::weak_ptr<ConsumerImplBase> weakSelf{shared_from_this()};
+    checkExpiredChunkedTimer_->async_wait([this, weakSelf](const boost::system::error_code& ec) -> void {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
+        if (ec) {
+            LOG_DEBUG(getName() << " Check expired chunked messages was failed or cancelled, code[" << ec
+                                << "].");
+            return;
+        }
+        Lock lock(chunkProcessMutex_);
+        long currentTimeMs = TimeUtils::currentTimeMillis();
+        chunkedMessageCache_.removeOldestValuesIf(
+            [this, currentTimeMs](const std::string& uuid, const ChunkedMessageCtx& ctx) -> bool {
+                bool expired =
+                    currentTimeMs > ctx.getReceivedTimeMs() + expireTimeOfIncompleteChunkedMessageMs_;
+                if (!expired) {
+                    return false;
+                }
+                for (const MessageId& msgId : ctx.getChunkedMessageIds()) {
+                    LOG_INFO("Removing expired chunk messages: uuid: " << uuid << ", messageId: " << msgId);
+                    doAcknowledgeIndividual(msgId, [uuid, msgId](Result result) {
+                        if (result != ResultOk) {
+                            LOG_WARN("Failed to acknowledge discarded chunk, uuid: "
+                                     << uuid << ", messageId: " << msgId);
+                        }
+                    });
+                }
+                return true;
+            });
+        triggerCheckExpiredChunkedTimer();
+        return;
+    });
+}
+
 Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
                                                          const proto::MessageMetadata& metadata,
                                                          const MessageId& messageId,
@@ -331,6 +373,14 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                                                  << payload.readableBytes() << " bytes");
 
     Lock lock(chunkProcessMutex_);
+
+    // Lazy task scheduling to expire incomplete chunk message
+    bool expected = false;
+    if (expireTimeOfIncompleteChunkedMessageMs_ > 0 &&
+        expireChunkMessageTaskScheduled_.compare_exchange_strong(expected, true)) {
+        triggerCheckExpiredChunkedTimer();
+    }
+
     auto it = chunkedMessageCache_.find(uuid);
 
     if (chunkId == 0) {
@@ -1448,6 +1498,7 @@ std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
 void ConsumerImpl::cancelTimers() noexcept {
     boost::system::error_code ec;
     batchReceiveTimer_->cancel(ec);
+    checkExpiredChunkedTimer_->cancel(ec);
 }
 
 } /* namespace pulsar */
