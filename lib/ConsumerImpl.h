@@ -302,7 +302,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
     const long expireTimeOfIncompleteChunkedMessageMs_;
     DeadlineTimerPtr checkExpiredChunkedTimer_;
-    std::atomic_bool expireChunkMessageTaskScheduled_ = {false};
+    std::atomic_bool expireChunkMessageTaskScheduled_{false};
 
     void triggerCheckExpiredChunkedTimer();
 
