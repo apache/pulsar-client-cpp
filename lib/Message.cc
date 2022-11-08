@@ -54,7 +54,15 @@ const void* Message::getData() const { return impl_->payload.data(); }
 
 std::size_t Message::getLength() const { return impl_->payload.readableBytes(); }
 
+#if defined(_MSC_VER) && !defined(NDEBUG)
+const std::string& Message::getDataAsString() const {
+    thread_local std::string value;
+    value = std::string{static_cast<const char*>(getData()), getLength()};
+    return value;
+}
+#else
 std::string Message::getDataAsString() const { return std::string((const char*)getData(), getLength()); }
+#endif
 
 Message::Message() : impl_() {}
 
