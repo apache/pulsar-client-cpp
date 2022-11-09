@@ -130,6 +130,7 @@ void HandlerBase::handleDisconnection(Result result, ClientConnectionWeakPtr con
         case NotStarted:
         case Closing:
         case Closed:
+        case Producer_Fenced:
         case Failed:
             LOG_DEBUG(handler->getName()
                       << "Ignoring connection closed event since the handler is not used anymore");
