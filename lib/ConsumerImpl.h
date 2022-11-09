@@ -307,6 +307,7 @@ class ConsumerImpl : public ConsumerImplBase {
     std::atomic_bool expireChunkMessageTaskScheduled_{false};
 
     void triggerCheckExpiredChunkedTimer();
+    void discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck);
 
     /**
      * Process a chunk. If the chunk is the last chunk of a message, concatenate all buffered chunks into the
