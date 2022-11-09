@@ -90,8 +90,15 @@ class PULSAR_PUBLIC Message {
      * Get string representation of the message
      *
      * @return the string representation of the message payload
+     *
+     * NOTE: For MSVC with debug mode, return a thread local std::string object to avoid memory allocation
+     * across DLLs and applications, which could lead to a crash.
      */
+#if defined(_MSC_VER) && !defined(NDEBUG)
+    const std::string& getDataAsString() const;
+#else
     std::string getDataAsString() const;
+#endif
 
     /**
      * Get key value message.
