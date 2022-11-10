@@ -391,21 +391,18 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
 
     auto it = chunkedMessageCache_.find(uuid);
 
-    if (chunkId == 0) {
-        if (it == chunkedMessageCache_.end()) {
-            it = chunkedMessageCache_.putIfAbsent(
-                uuid, ChunkedMessageCtx{metadata.num_chunks_from_msg(), metadata.total_chunk_msg_size()});
-        }
-        if (maxPendingChunkedMessage_ > 0 && chunkedMessageCache_.size() > maxPendingChunkedMessage_) {
+    if (chunkId == 0 && it == chunkedMessageCache_.end()) {
+        if (maxPendingChunkedMessage_ > 0 && chunkedMessageCache_.size() >= maxPendingChunkedMessage_) {
             chunkedMessageCache_.removeOldestValues(
-                chunkedMessageCache_.size() - maxPendingChunkedMessage_,
+                chunkedMessageCache_.size() - maxPendingChunkedMessage_ + 1,
                 [this](const std::string& uuid, const ChunkedMessageCtx& ctx) {
                     for (const MessageId& msgId : ctx.getChunkedMessageIds()) {
                         discardChunkMessages(uuid, msgId, autoAckOldestChunkedMessageOnQueueFull_);
                     }
                 });
-            it = chunkedMessageCache_.find(uuid);  // Need to reset the iterator after changing the cache.
         }
+        it = chunkedMessageCache_.putIfAbsent(
+            uuid, ChunkedMessageCtx{metadata.num_chunks_from_msg(), metadata.total_chunk_msg_size()});
     }
 
     auto& chunkedMsgCtx = it->second;
