@@ -322,6 +322,19 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
     }
 }
 
+void ConsumerImpl::discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck) {
+    if (autoAck) {
+        doAcknowledgeIndividual(messageId, [uuid, messageId](Result result) {
+            if (result != ResultOk) {
+                LOG_WARN("Failed to acknowledge discarded chunk, uuid: " << uuid
+                                                                         << ", messageId: " << messageId);
+            }
+        });
+    } else {
+        trackMessage(messageId);
+    }
+}
+
 void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
     checkExpiredChunkedTimer_->expires_from_now(
         boost::posix_time::milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
@@ -347,12 +360,7 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
                 }
                 for (const MessageId& msgId : ctx.getChunkedMessageIds()) {
                     LOG_INFO("Removing expired chunk messages: uuid: " << uuid << ", messageId: " << msgId);
-                    doAcknowledgeIndividual(msgId, [uuid, msgId](Result result) {
-                        if (result != ResultOk) {
-                            LOG_WARN("Failed to acknowledge discarded chunk, uuid: "
-                                     << uuid << ", messageId: " << msgId);
-                        }
-                    });
+                    discardChunkMessages(uuid, msgId, true);
                 }
                 return true;
             });
@@ -383,29 +391,18 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
 
     auto it = chunkedMessageCache_.find(uuid);
 
-    if (chunkId == 0) {
-        if (it == chunkedMessageCache_.end()) {
-            it = chunkedMessageCache_.putIfAbsent(
-                uuid, ChunkedMessageCtx{metadata.num_chunks_from_msg(), metadata.total_chunk_msg_size()});
-        }
+    if (chunkId == 0 && it == chunkedMessageCache_.end()) {
         if (maxPendingChunkedMessage_ > 0 && chunkedMessageCache_.size() >= maxPendingChunkedMessage_) {
             chunkedMessageCache_.removeOldestValues(
                 chunkedMessageCache_.size() - maxPendingChunkedMessage_ + 1,
-                [this, messageId](const std::string& uuid, const ChunkedMessageCtx& ctx) {
-                    if (autoAckOldestChunkedMessageOnQueueFull_) {
-                        doAcknowledgeIndividual(messageId, [uuid, messageId](Result result) {
-                            if (result != ResultOk) {
-                                LOG_WARN("Failed to acknowledge discarded chunk, uuid: "
-                                         << uuid << ", messageId: " << messageId);
-                            }
-                        });
-                    } else {
-                        trackMessage(messageId);
+                [this](const std::string& uuid, const ChunkedMessageCtx& ctx) {
+                    for (const MessageId& msgId : ctx.getChunkedMessageIds()) {
+                        discardChunkMessages(uuid, msgId, autoAckOldestChunkedMessageOnQueueFull_);
                     }
                 });
-            it = chunkedMessageCache_.putIfAbsent(
-                uuid, ChunkedMessageCtx{metadata.num_chunks_from_msg(), metadata.total_chunk_msg_size()});
         }
+        it = chunkedMessageCache_.putIfAbsent(
+            uuid, ChunkedMessageCtx{metadata.num_chunks_from_msg(), metadata.total_chunk_msg_size()});
     }
 
     auto& chunkedMsgCtx = it->second;
