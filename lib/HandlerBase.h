@@ -118,7 +118,8 @@ class HandlerBase {
         Ready,
         Closing,
         Closed,
-        Failed
+        Failed,
+        Producer_Fenced
     };
 
     std::atomic<State> state_;

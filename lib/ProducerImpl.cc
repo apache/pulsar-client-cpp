@@ -236,7 +236,15 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
         }
 
-        if (producerCreatedPromise_.isComplete()) {
+        if (result == ResultProducerFenced) {
+            state_ = Producer_Fenced;
+            failPendingMessages(result, true);
+            auto client = client_.lock();
+            if (client) {
+                client->cleanupProducer(this);
+            }
+            producerCreatedPromise_.setFailed(result);
+        } else if (producerCreatedPromise_.isComplete()) {
             if (result == ResultProducerBlockedQuotaExceededException) {
                 LOG_WARN(getName() << "Backlog is exceeded on topic. Sending exception to producer");
                 failPendingMessages(ResultProducerBlockedQuotaExceededException, true);
@@ -377,6 +385,9 @@ bool ProducerImpl::isValidProducerState(const SendCallback& callback) const {
         case HandlerBase::Closing:
         case HandlerBase::Closed:
             callback(ResultAlreadyClosed, {});
+            return false;
+        case HandlerBase::Producer_Fenced:
+            callback(ResultProducerFenced, {});
             return false;
         case HandlerBase::NotStarted:
         case HandlerBase::Failed:

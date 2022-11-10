@@ -1063,22 +1063,29 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     PendingRequestsMap::iterator it = pendingRequests_.find(producerSuccess.request_id());
                     if (it != pendingRequests_.end()) {
                         PendingRequestData requestData = it->second;
-                        pendingRequests_.erase(it);
-                        lock.unlock();
-
-                        ResponseData data;
-                        data.producerName = producerSuccess.producer_name();
-                        data.lastSequenceId = producerSuccess.last_sequence_id();
-                        if (producerSuccess.has_schema_version()) {
-                            data.schemaVersion = producerSuccess.schema_version();
-                        }
-                        if (producerSuccess.has_topic_epoch()) {
-                            data.topicEpoch = Optional<uint64_t>::of(producerSuccess.topic_epoch());
+                        if (!producerSuccess.producer_ready()) {
+                            LOG_INFO(cnxString_ << " Producer " << producerSuccess.producer_name()
+                                                << " has been queued up at broker. req_id: "
+                                                << producerSuccess.request_id());
+                            requestData.hasGotResponse->store(true);
+                            lock.unlock();
                         } else {
-                            data.topicEpoch = Optional<uint64_t>::empty();
+                            pendingRequests_.erase(it);
+                            lock.unlock();
+                            ResponseData data;
+                            data.producerName = producerSuccess.producer_name();
+                            data.lastSequenceId = producerSuccess.last_sequence_id();
+                            if (producerSuccess.has_schema_version()) {
+                                data.schemaVersion = producerSuccess.schema_version();
+                            }
+                            if (producerSuccess.has_topic_epoch()) {
+                                data.topicEpoch = Optional<uint64_t>::of(producerSuccess.topic_epoch());
+                            } else {
+                                data.topicEpoch = Optional<uint64_t>::empty();
+                            }
+                            requestData.promise.setValue(data);
+                            requestData.timer->cancel();
                         }
-                        requestData.promise.setValue(data);
-                        requestData.timer->cancel();
                     }
                     break;
                 }
@@ -1481,7 +1488,7 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
 
 void ClientConnection::handleRequestTimeout(const boost::system::error_code& ec,
                                             PendingRequestData pendingRequestData) {
-    if (!ec) {
+    if (!ec && !pendingRequestData.hasGotResponse->load()) {
         pendingRequestData.promise.setFailed(ResultTimeout);
     }
 }

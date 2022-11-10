@@ -172,6 +172,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     struct PendingRequestData {
         Promise<Result, ResponseData> promise;
         DeadlineTimerPtr timer;
+        std::shared_ptr<std::atomic_bool> hasGotResponse{std::make_shared<std::atomic_bool>(false)};
     };
 
     struct LookupRequestData {

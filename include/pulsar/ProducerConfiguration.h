@@ -89,7 +89,12 @@ class PULSAR_PUBLIC ProducerConfiguration {
         /**
          * Require exclusive access for producer. Fail immediately if there's already a producer connected.
          */
-        Exclusive = 1
+        Exclusive = 1,
+
+        /**
+         * Producer creation is pending until it can acquire exclusive access.
+         */
+        WaitForExclusive = 2
     };
 
     ProducerConfiguration();
