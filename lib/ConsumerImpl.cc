@@ -1341,7 +1341,7 @@ void ConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback
     if (state == Closed || state == Closing) {
         LOG_ERROR(getName() << "Client connection already closed.");
         if (callback) {
-            callback(ResultAlreadyClosed, MessageId());
+            callback(ResultAlreadyClosed, GetLastMessageIdResponse());
         }
         return;
     }

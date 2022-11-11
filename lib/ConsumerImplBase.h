@@ -25,12 +25,12 @@
 #include <set>
 
 #include "Future.h"
+#include "GetLastMessageIdResponse.h"
 #include "HandlerBase.h"
 
 namespace pulsar {
 class ConsumerImplBase;
 using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
-
 class OpBatchReceive {
    public:
     OpBatchReceive();
@@ -68,6 +68,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     virtual void redeliverUnacknowledgedMessages(const std::set<MessageId>& messageIds) = 0;
     virtual int getNumOfPrefetchedMessages() const = 0;
     virtual void getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) = 0;
+    virtual void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) = 0;
     virtual void seekAsync(const MessageId& msgId, ResultCallback callback) = 0;
     virtual void seekAsync(uint64_t timestamp, ResultCallback callback) = 0;
     virtual void negativeAcknowledge(const MessageId& msgId) = 0;

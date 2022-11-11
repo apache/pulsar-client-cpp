@@ -841,6 +841,30 @@ TEST(ConsumerTest, testPartitionsWithCloseUnblock) {
     thread.join();
 }
 
+TEST(ConsumerTest, testGetLastMessageId) {
+    Client client(lookupUrl);
+    const std::string topic = "testGetLastMessageId-" + std::to_string(time(nullptr));
+
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "test-sub", consumer));
+
+    MessageId msgId;
+    ASSERT_EQ(ResultOk, consumer.getLastMessageId(msgId));
+    ASSERT_EQ(msgId, MessageId(-1, -1, -1, -1));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    Message msg = MessageBuilder().setContent("message").build();
+    ASSERT_EQ(ResultOk, producer.send(msg));
+
+    ASSERT_EQ(ResultOk, consumer.getLastMessageId(msgId));
+    ASSERT_TRUE(msgId != MessageId(-1, -1, -1, -1));
+
+    std::cout << msgId << std::endl;
+
+    client.close();
+}
+
 TEST(ConsumerTest, testGetLastMessageIdBlockWhenConnectionDisconnected) {
     int operationTimeout = 5;
     ClientConfiguration clientConfiguration;

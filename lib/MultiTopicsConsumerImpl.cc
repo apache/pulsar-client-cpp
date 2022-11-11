@@ -803,6 +803,10 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(BrokerConsumerStatsCal
     });
 }
 
+void MultiTopicsConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) {
+    callback(ResultOperationNotSupported, GetLastMessageIdResponse());
+}
+
 void MultiTopicsConsumerImpl::handleGetConsumerStats(Result res, BrokerConsumerStats brokerConsumerStats,
                                                      LatchPtr latchPtr,
                                                      MultiTopicsBrokerConsumerStatsPtr statsPtr, size_t index,
