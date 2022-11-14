@@ -20,13 +20,13 @@
 cmake_minimum_required(VERSION 3.4)
 
 project (pulsar-cpp)
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake_modules")
+set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake_modules")
 
-execute_process(COMMAND cat ${CMAKE_SOURCE_DIR}/version.txt OUTPUT_STRIP_TRAILING_WHITESPACE
+execute_process(COMMAND cat ${PROJECT_SOURCE_DIR}/version.txt OUTPUT_STRIP_TRAILING_WHITESPACE
             OUTPUT_VARIABLE PULSAR_CLIENT_VERSION)
 message(STATUS "Pulsar Client version: ${PULSAR_CLIENT_VERSION}")
 
-execute_process(COMMAND ${CMAKE_SOURCE_DIR}/build-support/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
+execute_process(COMMAND ${PROJECT_SOURCE_DIR}/build-support/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
         OUTPUT_VARIABLE PULSAR_CLIENT_VERSION_MACRO)
 message(STATUS "Pulsar Client version macro: ${PULSAR_CLIENT_VERSION_MACRO}")
 
@@ -36,11 +36,11 @@ configure_file(templates/Version.h.in include/pulsar/Version.h @ONLY)
 option(LINK_STATIC "Link against static libraries" OFF)
 if (VCPKG_TRIPLET)
     message(STATUS "Use vcpkg, triplet is ${VCPKG_TRIPLET}")
-    set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
+    set(CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
     message(STATUS "Use CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
     set(PROTOC_PATH "${CMAKE_PREFIX_PATH}/tools/protobuf/protoc")
     message(STATUS "Use protoc: ${PROTOC_PATH}")
-    set(VCPKG_DEBUG_ROOT "${CMAKE_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}/debug")
+    set(VCPKG_DEBUG_ROOT "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}/debug")
     if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         set(ZLIB_ROOT ${VCPKG_DEBUG_ROOT})
         set(OPENSSL_ROOT_DIR ${VCPKG_DEBUG_ROOT})
@@ -311,13 +311,13 @@ MESSAGE(STATUS "HAS_SNAPPY: ${HAS_SNAPPY}")
 set(ADDITIONAL_LIBRARIES $ENV{PULSAR_ADDITIONAL_LIBRARIES})
 link_directories( $ENV{PULSAR_ADDITIONAL_LIBRARY_PATH} )
 
-set(AUTOGEN_DIR ${CMAKE_BINARY_DIR}/generated)
+set(AUTOGEN_DIR ${PROJECT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${AUTOGEN_DIR})
 
 include_directories(
-  ${CMAKE_SOURCE_DIR}
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_BINARY_DIR}/include
+  ${PROJECT_SOURCE_DIR}
+  ${PROJECT_SOURCE_DIR}/include
+  ${PROJECT_BINARY_DIR}/include
   ${AUTOGEN_DIR}
   ${Boost_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
@@ -391,7 +391,7 @@ if(NOT APPLE AND NOT MSVC)
     set(COMMON_LIBS ${COMMON_LIBS} rt)
 endif ()
 
-link_directories(${CMAKE_BINARY_DIR}/lib)
+link_directories(${PROJECT_BINARY_DIR}/lib)
 
 set(LIB_NAME $ENV{PULSAR_LIBRARY_NAME})
 if (NOT LIB_NAME)
@@ -421,26 +421,26 @@ if (BUILD_WIRESHARK)
 endif()
 
 find_package(ClangTools)
-set(BUILD_SUPPORT_DIR "${CMAKE_SOURCE_DIR}/build-support")
+set(BUILD_SUPPORT_DIR "${PROJECT_SOURCE_DIR}/build-support")
 add_custom_target(format ${BUILD_SUPPORT_DIR}/run_clang_format.py
         ${CLANG_FORMAT_BIN}
         0
         ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
-        ${CMAKE_SOURCE_DIR}/lib
-        ${CMAKE_SOURCE_DIR}/perf
-        ${CMAKE_SOURCE_DIR}/examples
-        ${CMAKE_SOURCE_DIR}/tests
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/wireshark)
+        ${PROJECT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/perf
+        ${PROJECT_SOURCE_DIR}/examples
+        ${PROJECT_SOURCE_DIR}/tests
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/wireshark)
 
 # `make check-format` option (for CI test)
 add_custom_target(check-format ${BUILD_SUPPORT_DIR}/run_clang_format.py
         ${CLANG_FORMAT_BIN}
         1
         ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
-        ${CMAKE_SOURCE_DIR}/lib
-        ${CMAKE_SOURCE_DIR}/perf
-        ${CMAKE_SOURCE_DIR}/examples
-        ${CMAKE_SOURCE_DIR}/tests
-        ${CMAKE_SOURCE_DIR}/include
-        ${CMAKE_SOURCE_DIR}/wireshark)
+        ${PROJECT_SOURCE_DIR}/lib
+        ${PROJECT_SOURCE_DIR}/perf
+        ${PROJECT_SOURCE_DIR}/examples
+        ${PROJECT_SOURCE_DIR}/tests
+        ${PROJECT_SOURCE_DIR}/include
+        ${PROJECT_SOURCE_DIR}/wireshark)
