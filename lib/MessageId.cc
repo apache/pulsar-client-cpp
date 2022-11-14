@@ -18,6 +18,7 @@
  */
 
 #include <pulsar/MessageId.h>
+#include <pulsar/MessageIdBuilder.h>
 
 #include <iostream>
 #include <limits>
@@ -42,14 +43,16 @@ MessageId& MessageId::operator=(const MessageId& m) {
 MessageId::MessageId(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex)
     : impl_(std::make_shared<MessageIdImpl>(partition, ledgerId, entryId, batchIndex)) {}
 
+MessageId::MessageId(const MessageIdImplPtr& impl) : impl_(impl) {}
+
 const MessageId& MessageId::earliest() {
-    static const MessageId _earliest(-1, -1, -1, -1);
+    static const auto _earliest = MessageIdBuilder().build();
     return _earliest;
 }
 
 const MessageId& MessageId::latest() {
     static const int64_t long_max = std::numeric_limits<int64_t>::max();
-    static const MessageId _latest(-1, long_max, long_max, -1);
+    static const auto _latest = MessageIdBuilder().ledgerId(long_max).entryId(long_max).build();
     return _latest;
 }
 
@@ -77,7 +80,7 @@ MessageId MessageId::deserialize(const std::string& serializedMessageId) {
         throw std::invalid_argument("Failed to parse serialized message id");
     }
 
-    return MessageId(idData.partition(), idData.ledgerid(), idData.entryid(), idData.batch_index());
+    return MessageIdBuilder::from(idData).build();
 }
 
 int64_t MessageId::ledgerId() const { return impl_->ledgerId_; }
@@ -87,6 +90,8 @@ int64_t MessageId::entryId() const { return impl_->entryId_; }
 int32_t MessageId::batchIndex() const { return impl_->batchIndex_; }
 
 int32_t MessageId::partition() const { return impl_->partition_; }
+
+int32_t MessageId::batchSize() const { return impl_->batchSize_; }
 
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const pulsar::MessageId& messageId) {
     s << '(' << messageId.impl_->ledgerId_ << ',' << messageId.impl_->entryId_ << ','

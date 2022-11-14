@@ -26,23 +26,24 @@ namespace pulsar {
 
 class MessageIdImpl {
    public:
-    MessageIdImpl() : ledgerId_(-1), entryId_(-1), partition_(-1), batchIndex_(-1), topicName_() {}
+    MessageIdImpl() = default;
     MessageIdImpl(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex)
         : ledgerId_(ledgerId),
           entryId_(entryId),
           partition_(partition),
           batchIndex_(batchIndex),
           topicName_() {}
-    const int64_t ledgerId_;
-    const int64_t entryId_;
-    const int32_t partition_;
-    const int32_t batchIndex_;
+    int64_t ledgerId_ = -1;
+    int64_t entryId_ = -1;
+    int32_t partition_ = -1;
+    int32_t batchIndex_ = -1;
+    int32_t batchSize_ = 0;
 
     const std::string& getTopicName() { return *topicName_; }
     void setTopicName(const std::string& topicName) { topicName_ = &topicName; }
 
    private:
-    const std::string* topicName_;
+    const std::string* topicName_ = nullptr;
     friend class MessageImpl;
     friend class MultiTopicsConsumerImpl;
     friend class UnAckedMessageTrackerEnabled;

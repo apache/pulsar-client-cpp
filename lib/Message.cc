@@ -18,6 +18,7 @@
  */
 #include <pulsar/Message.h>
 #include <pulsar/MessageBuilder.h>
+#include <pulsar/MessageIdBuilder.h>
 #include <pulsar/defines.h>
 
 #include <iostream>
@@ -71,9 +72,7 @@ Message::Message(MessageImplPtr& impl) : impl_(impl) {}
 Message::Message(const proto::CommandMessage& msg, proto::MessageMetadata& metadata, SharedBuffer& payload,
                  int32_t partition)
     : impl_(std::make_shared<MessageImpl>()) {
-    impl_->messageId =
-        MessageId(partition, msg.message_id().ledgerid(), msg.message_id().entryid(), /* batchId */
-                  -1);
+    impl_->messageId = MessageIdBuilder::from(msg.message_id()).batchIndex(-1).build();
     impl_->metadata = metadata;
     impl_->payload = payload;
 }

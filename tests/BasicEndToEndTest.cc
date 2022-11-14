@@ -230,10 +230,10 @@ TEST(BasicEndToEndTest, testProduceConsume) {
     // Send synchronously
     std::string content = "msg-1-content";
     Message msg = MessageBuilder().setContent(content).build();
-    ASSERT_EQ(MessageId(-1, -1, -1, -1), msg.getMessageId());
+    ASSERT_EQ(MessageId::earliest(), msg.getMessageId());
     result = producer.send(msg);
     ASSERT_EQ(ResultOk, result);
-    ASSERT_NE(MessageId(-1, -1, -1, -1), msg.getMessageId());
+    ASSERT_NE(MessageId::earliest(), msg.getMessageId());
 
     Message receivedMsg;
     consumer.receive(receivedMsg);

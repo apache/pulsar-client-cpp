@@ -18,6 +18,8 @@
  */
 #include "ProducerImpl.h"
 
+#include <pulsar/MessageIdBuilder.h>
+
 #include <boost/date_time/posix_time/posix_time.hpp>
 
 #include "BatchMessageContainer.h"
@@ -824,8 +826,7 @@ bool ProducerImpl::removeCorruptMessage(uint64_t sequenceId) {
 }
 
 bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
-    MessageId messageId(partition_, rawMessageId.ledgerId(), rawMessageId.entryId(),
-                        rawMessageId.batchIndex());
+    auto messageId = MessageIdBuilder::from(rawMessageId).partition(partition_).build();
     Lock lock(mutex_);
 
     if (pendingMessagesQueue_.empty()) {

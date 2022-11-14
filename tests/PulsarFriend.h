@@ -39,12 +39,6 @@ using std::string;
 namespace pulsar {
 class PulsarFriend {
    public:
-    static MessageId getMessageId(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex) {
-        return MessageId(partition, ledgerId, entryId, batchIndex);
-    }
-
-    static int getBatchIndex(const MessageId& mId) { return mId.batchIndex(); }
-
     static ProducerStatsImplPtr getProducerStatsPtr(Producer producer) {
         ProducerImpl* producerImpl = static_cast<ProducerImpl*>(producer.impl_.get());
         return std::static_pointer_cast<ProducerStatsImpl>(producerImpl->producerStatsBasePtr_);

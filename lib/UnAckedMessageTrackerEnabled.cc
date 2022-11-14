@@ -24,6 +24,7 @@
 #include "ConsumerImplBase.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
+#include "MessageIdUtil.h"
 
 DECLARE_LOG_OBJECT();
 
@@ -96,7 +97,7 @@ UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, long 
 
 bool UnAckedMessageTrackerEnabled::add(const MessageId& msgId) {
     std::lock_guard<std::recursive_mutex> acquire(lock_);
-    MessageId id(msgId.partition(), msgId.ledgerId(), msgId.entryId(), -1);
+    auto id = discardBatch(msgId);
     if (messageIdPartitionMap.count(id) == 0) {
         std::set<MessageId>& partition = timePartitions.back();
         bool emplace = messageIdPartitionMap.emplace(id, partition).second;
@@ -113,7 +114,7 @@ bool UnAckedMessageTrackerEnabled::isEmpty() {
 
 bool UnAckedMessageTrackerEnabled::remove(const MessageId& msgId) {
     std::lock_guard<std::recursive_mutex> acquire(lock_);
-    MessageId id(msgId.partition(), msgId.ledgerId(), msgId.entryId(), -1);
+    auto id = discardBatch(msgId);
     bool removed = false;
 
     std::map<MessageId, std::set<MessageId>&>::iterator exist = messageIdPartitionMap.find(id);

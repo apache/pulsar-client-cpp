@@ -47,7 +47,7 @@ MessageBatch& MessageBatch::parseFrom(const SharedBuffer& payload, uint32_t batc
     batch_.clear();
 
     for (int i = 0; i < batchSize; ++i) {
-        batch_.push_back(Commands::deSerializeSingleMessageInBatch(batchMessage_, i));
+        batch_.push_back(Commands::deSerializeSingleMessageInBatch(batchMessage_, i, batchSize));
     }
     return *this;
 }

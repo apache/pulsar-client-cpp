@@ -126,6 +126,8 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
         ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
         LOG_INFO("Receive " << msg.getLength() << " bytes from " << msg.getMessageId());
         ASSERT_EQ(msg.getDataAsString(), largeMessage);
+        ASSERT_EQ(msg.getMessageId().batchIndex(), -1);
+        ASSERT_EQ(msg.getMessageId().batchSize(), 0);
         receivedMessageIds.emplace_back(msg.getMessageId());
     }
     ASSERT_EQ(receivedMessageIds, sendMessageIds);

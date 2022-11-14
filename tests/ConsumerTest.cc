@@ -31,6 +31,7 @@
 #include "lib/ClientConnection.h"
 #include "lib/Future.h"
 #include "lib/LogUtils.h"
+#include "lib/MessageIdUtil.h"
 #include "lib/MultiTopicsConsumerImpl.h"
 #include "lib/TimeUtils.h"
 #include "lib/UnAckedMessageTrackerDisabled.h"
@@ -683,8 +684,7 @@ TEST(ConsumerTest, testBatchUnAckedMessageTracker) {
         Message msg;
         ASSERT_EQ(ResultOk, consumer.receive(msg, 1000));
         MessageId msgId = msg.getMessageId();
-        MessageId id(msgId.partition(), msgId.ledgerId(), msgId.entryId(), -1);
-        msgIdInBatchMap[id].emplace_back(msgId);
+        msgIdInBatchMap[discardBatch(msgId)].emplace_back(msgId);
     }
 
     ASSERT_EQ(batchCount, msgIdInBatchMap.size());
