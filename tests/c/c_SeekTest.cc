@@ -56,7 +56,7 @@ TEST(c_SeekTest, testConsumerSeekMessageId) {
     result = pulsar_client_subscribe(client, topic_name, "seek-time", consumer_conf, &consumer);
     ASSERT_EQ(pulsar_result_Ok, result);
 
-    pulsar_message_t *seek_message;
+    pulsar_message_t *seek_message = nullptr;
 
     for (int i = 0; i < 10; i++) {
         char content[10];
@@ -88,7 +88,9 @@ TEST(c_SeekTest, testConsumerSeekMessageId) {
     ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_receive_with_timeout(consumer, &message, 1000));
     ASSERT_STREQ((const char *)pulsar_message_get_data(message), "msg-6");
 
-    pulsar_message_free(seek_message);
+    if (seek_message != NULL) {
+        pulsar_message_free(seek_message);
+    }
     pulsar_consumer_free(consumer);
     pulsar_consumer_configuration_free(consumer_conf);
     pulsar_producer_free(producer);
@@ -167,7 +169,7 @@ TEST(c_SeekTest, testReaderSeekMessageId) {
         pulsar_client_create_reader(client, topic_name, pulsar_message_id_earliest(), reader_conf, &reader);
     ASSERT_EQ(pulsar_result_Ok, result);
 
-    pulsar_message_t *seek_message;
+    pulsar_message_t *seek_message = nullptr;
 
     for (int i = 0; i < 10; i++) {
         char content[10];
@@ -198,7 +200,9 @@ TEST(c_SeekTest, testReaderSeekMessageId) {
     ASSERT_EQ(pulsar_result_Ok, pulsar_reader_read_next_with_timeout(reader, &message, 1000));
     ASSERT_STREQ((const char *)pulsar_message_get_data(message), "msg-6");
 
-    pulsar_message_free(seek_message);
+    if (seek_message != NULL) {
+        pulsar_message_free(seek_message);
+    }
     pulsar_reader_free(reader);
     pulsar_reader_configuration_free(reader_conf);
     pulsar_producer_free(producer);
