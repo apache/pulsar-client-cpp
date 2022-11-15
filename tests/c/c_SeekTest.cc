@@ -32,13 +32,19 @@ static void seek_callback(pulsar_result async_result, void *ctx) {
     seek_ctx->promise->set_value(async_result);
 }
 
-TEST(c_SeekTest, testConsumerSeekMessageId) {
+void prepare_client(pulsar_client_t **client) {
     const char *lookup_url = "pulsar://localhost:6650";
+    pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
+    *client = pulsar_client_create(lookup_url, conf);
+    pulsar_client_configuration_free(conf);
+}
+
+TEST(c_SeekTest, testConsumerSeekMessageId) {
     auto topic_name_str = "test-c-seek-msgid-" + std::to_string(time(nullptr));
     const char *topic_name = topic_name_str.c_str();
 
-    pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
-    pulsar_client_t *client = pulsar_client_create(lookup_url, conf);
+    pulsar_client_t *client;
+    prepare_client(&client);
 
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
     pulsar_producer_t *producer;
@@ -88,16 +94,14 @@ TEST(c_SeekTest, testConsumerSeekMessageId) {
     pulsar_producer_free(producer);
     pulsar_producer_configuration_free(producer_conf);
     pulsar_client_free(client);
-    pulsar_client_configuration_free(conf);
 }
 
 TEST(c_SeekTest, testConsumerSeekTime) {
-    const char *lookup_url = "pulsar://localhost:6650";
     auto topic_name_str = "test-c-seek-time-" + std::to_string(time(nullptr));
     const char *topic_name = topic_name_str.c_str();
 
-    pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
-    pulsar_client_t *client = pulsar_client_create(lookup_url, conf);
+    pulsar_client_t *client;
+    prepare_client(&client);
 
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
     pulsar_producer_t *producer;
@@ -143,16 +147,14 @@ TEST(c_SeekTest, testConsumerSeekTime) {
     pulsar_producer_free(producer);
     pulsar_producer_configuration_free(producer_conf);
     pulsar_client_free(client);
-    pulsar_client_configuration_free(conf);
 }
 
 TEST(c_SeekTest, testReaderSeekMessageId) {
-    const char *lookup_url = "pulsar://localhost:6650";
     auto topic_name_str = "test-c-reader-seek-msgid-" + std::to_string(time(nullptr));
     const char *topic_name = topic_name_str.c_str();
 
-    pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
-    pulsar_client_t *client = pulsar_client_create(lookup_url, conf);
+    pulsar_client_t *client;
+    prepare_client(&client);
 
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
     pulsar_producer_t *producer;
@@ -202,16 +204,14 @@ TEST(c_SeekTest, testReaderSeekMessageId) {
     pulsar_producer_free(producer);
     pulsar_producer_configuration_free(producer_conf);
     pulsar_client_free(client);
-    pulsar_client_configuration_free(conf);
 }
 
 TEST(c_SeekTest, testReaderSeekTime) {
-    const char *lookup_url = "pulsar://localhost:6650";
     auto topic_name_str = "test-c-reader-seek-time-" + std::to_string(time(nullptr));
     const char *topic_name = topic_name_str.c_str();
 
-    pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
-    pulsar_client_t *client = pulsar_client_create(lookup_url, conf);
+    pulsar_client_t *client;
+    prepare_client(&client);
 
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
     pulsar_producer_t *producer;
@@ -258,5 +258,4 @@ TEST(c_SeekTest, testReaderSeekTime) {
     pulsar_producer_free(producer);
     pulsar_producer_configuration_free(producer_conf);
     pulsar_client_free(client);
-    pulsar_client_configuration_free(conf);
 }
