@@ -146,7 +146,6 @@ TEST(c_SeekTest, testConsumerSeekTime) {
     pulsar_client_configuration_free(conf);
 }
 
-
 TEST(c_SeekTest, testReaderSeekMessageId) {
     const char *lookup_url = "pulsar://localhost:6650";
     auto topic_name_str = "test-c-reader-seek-msgid-" + std::to_string(time(nullptr));
@@ -162,7 +161,8 @@ TEST(c_SeekTest, testReaderSeekMessageId) {
 
     pulsar_reader_configuration_t *reader_conf = pulsar_reader_configuration_create();
     pulsar_reader_t *reader;
-    result = pulsar_client_create_reader(client, topic_name, pulsar_message_id_earliest(), reader_conf, &reader);
+    result =
+        pulsar_client_create_reader(client, topic_name, pulsar_message_id_earliest(), reader_conf, &reader);
     ASSERT_EQ(pulsar_result_Ok, result);
 
     pulsar_message_t *seek_message;
@@ -191,8 +191,7 @@ TEST(c_SeekTest, testReaderSeekMessageId) {
     std::promise<pulsar_result> seek_promise;
     std::future<pulsar_result> seek_future = seek_promise.get_future();
     struct seek_ctx seek_ctx = {&seek_promise};
-    pulsar_reader_seek_async(reader, pulsar_message_get_message_id(seek_message), seek_callback,
-                             &seek_ctx);
+    pulsar_reader_seek_async(reader, pulsar_message_get_message_id(seek_message), seek_callback, &seek_ctx);
     ASSERT_EQ(pulsar_result_Ok, seek_future.get());
     ASSERT_EQ(pulsar_result_Ok, pulsar_reader_read_next_with_timeout(reader, &message, 1000));
     ASSERT_STREQ((const char *)pulsar_message_get_data(message), "msg-6");
@@ -261,4 +260,3 @@ TEST(c_SeekTest, testReaderSeekTime) {
     pulsar_client_free(client);
     pulsar_client_configuration_free(conf);
 }
-
