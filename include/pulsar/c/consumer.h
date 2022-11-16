@@ -241,10 +241,50 @@ PULSAR_PUBLIC pulsar_result resume_message_listener(pulsar_consumer_t *consumer)
  */
 PULSAR_PUBLIC void pulsar_consumer_redeliver_unacknowledged_messages(pulsar_consumer_t *consumer);
 
+/**
+ * Reset the subscription associated with this consumer to a specific message id.
+ *
+ * @param consumer The consumer
+ * @param messageId The message id can either be a specific message or represent the first or last messages in
+ * the topic.
+ * @param callback The callback for this async operation
+ * @param ctx The context for the callback
+ */
 PULSAR_PUBLIC void pulsar_consumer_seek_async(pulsar_consumer_t *consumer, pulsar_message_id_t *messageId,
                                               pulsar_result_callback callback, void *ctx);
 
+/**
+ * Reset the subscription asynchronously associated with this consumer to a specific message id.
+ *
+ * @param consumer The consumer
+ * @param messageId The message id can either be a specific message or represent the first or last messages in
+ * the topic.
+ * @return Operation result
+ */
 PULSAR_PUBLIC pulsar_result pulsar_consumer_seek(pulsar_consumer_t *consumer, pulsar_message_id_t *messageId);
+
+/**
+ * Reset the subscription associated with this consumer to a specific message publish time.
+ *
+ * @param consumer The consumer
+ * @param timestamp The message publish time where to reposition the subscription. The timestamp format should
+ * be Unix time in milliseconds.
+ * @param callback The callback for this async operation
+ * @param ctx The context for the callback
+ */
+PULSAR_PUBLIC void pulsar_consumer_seek_by_timestamp_async(pulsar_consumer_t *consumer, uint64_t timestamp,
+                                                           pulsar_result_callback callback, void *ctx);
+
+/**
+ * Reset the subscription asynchronously associated with this consumer to a specific message publish time.
+ *
+ * @param consumer The consumer
+ * @param timestamp The message publish time where to reposition the subscription. The timestamp format should
+ * be Unix time in milliseconds.
+ * @return Operation result
+ */
+PULSAR_PUBLIC pulsar_result pulsar_consumer_seek_by_timestamp(pulsar_consumer_t *consumer,
+                                                              uint64_t timestamp);
 
 PULSAR_PUBLIC int pulsar_consumer_is_connected(pulsar_consumer_t *consumer);
 

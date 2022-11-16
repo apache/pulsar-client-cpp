@@ -156,6 +156,16 @@ pulsar_result pulsar_consumer_seek(pulsar_consumer_t *consumer, pulsar_message_i
     return (pulsar_result)consumer->consumer.seek(messageId->messageId);
 }
 
+void pulsar_consumer_seek_by_timestamp_async(pulsar_consumer_t *consumer, uint64_t timestamp,
+                                             pulsar_result_callback callback, void *ctx) {
+    consumer->consumer.seekAsync(timestamp,
+                                 std::bind(handle_result_callback, std::placeholders::_1, callback, ctx));
+}
+
+pulsar_result pulsar_consumer_seek_by_timestamp(pulsar_consumer_t *consumer, uint64_t timestamp) {
+    return (pulsar_result)consumer->consumer.seek(timestamp);
+}
+
 int pulsar_consumer_is_connected(pulsar_consumer_t *consumer) { return consumer->consumer.isConnected(); }
 
 pulsar_result pulsar_consumer_get_last_message_id(pulsar_consumer_t *consumer,
