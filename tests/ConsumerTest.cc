@@ -858,9 +858,7 @@ TEST(ConsumerTest, testGetLastMessageId) {
     ASSERT_EQ(ResultOk, producer.send(msg));
 
     ASSERT_EQ(ResultOk, consumer.getLastMessageId(msgId));
-    ASSERT_TRUE(msgId != MessageId(-1, -1, -1, -1));
-
-    std::cout << msgId << std::endl;
+    ASSERT_NE(msgId, MessageId(-1, -1, -1, -1));
 
     client.close();
 }
