@@ -44,7 +44,6 @@ class BatchAcknowledgementTracker;
 class MessageCrypto;
 class GetLastMessageIdResponse;
 typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
-typedef std::function<void(Result, const GetLastMessageIdResponse&)> BrokerGetLastMessageIdCallback;
 typedef std::shared_ptr<Backoff> BackoffPtr;
 
 class AckGroupingTracker;
@@ -124,6 +123,7 @@ class ConsumerImpl : public ConsumerImplBase {
     const std::string& getName() const override;
     int getNumOfPrefetchedMessages() const override;
     void getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) override;
+    void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) override;
     void seekAsync(const MessageId& msgId, ResultCallback callback) override;
     void seekAsync(uint64_t timestamp, ResultCallback callback) override;
     void negativeAcknowledge(const MessageId& msgId) override;
@@ -139,7 +139,6 @@ class ConsumerImpl : public ConsumerImplBase {
 
     virtual bool isReadCompacted();
     virtual void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
-    virtual void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback);
     void beforeConnectionChange(ClientConnection& cnx) override;
 
    protected:

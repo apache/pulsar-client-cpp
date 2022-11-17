@@ -295,7 +295,8 @@ void Consumer::getLastMessageIdAsync(GetLastMessageIdCallback callback) {
         callback(ResultConsumerNotInitialized, MessageId());
         return;
     }
-    getLastMessageIdAsync([callback](Result result, const GetLastMessageIdResponse& response) {
+
+    impl_->getLastMessageIdAsync([callback](Result result, const GetLastMessageIdResponse& response) {
         callback(result, response.getLastMessageId());
     });
 }

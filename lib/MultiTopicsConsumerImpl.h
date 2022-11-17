@@ -82,6 +82,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     const std::string& getName() const override;
     int getNumOfPrefetchedMessages() const override;
     void getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) override;
+    void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) override;
     void seekAsync(const MessageId& msgId, ResultCallback callback) override;
     void seekAsync(uint64_t timestamp, ResultCallback callback) override;
     void negativeAcknowledge(const MessageId& msgId) override;

@@ -19,6 +19,7 @@
 #pragma once
 
 #include <pulsar/MessageId.h>
+#include <pulsar/Result.h>
 
 #include <iostream>
 
@@ -53,5 +54,7 @@ class GetLastMessageIdResponse {
     MessageId markDeletePosition_;
     bool hasMarkDeletePosition_;
 };
+
+typedef std::function<void(Result, const GetLastMessageIdResponse&)> BrokerGetLastMessageIdCallback;
 
 }  // namespace pulsar
