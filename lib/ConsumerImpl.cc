@@ -125,11 +125,13 @@ ConsumerImpl::~ConsumerImpl() {
 
         ClientConnectionPtr cnx = getCnx().lock();
         ClientImplPtr client = client_.lock();
-        int requestId = client->newRequestId();
-        if (cnx) {
+        if (client && cnx) {
+            int requestId = client->newRequestId();
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
             cnx->removeConsumer(consumerId_);
             LOG_INFO(getName() << "Closed consumer for race condition: " << consumerId_);
+        } else {
+            LOG_WARN(getName() << "Client is destroyed and cannot send the CloseConsumer command");
         }
     }
     shutdown();
