@@ -1130,6 +1130,7 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                             }
                         }
                     }
+                    checkServerError(error.error());
                     break;
                 }
 
@@ -1707,6 +1708,9 @@ void ClientConnection::checkServerError(ServerError error) {
         case proto::ServerError::TooManyRequests:
             // TODO: Implement maxNumberOfRejectedRequestPerConnection like
             // https://github.com/apache/pulsar/pull/274
+            closeSocket();
+            break;
+        case proto::ServerError::AuthorizationError:
             closeSocket();
             break;
         default:
