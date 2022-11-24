@@ -45,6 +45,9 @@ with urllib.request.urlopen(request) as response:
     data = json.loads(response.read().decode("utf-8"))
     for artifact in data['artifacts']:
         name = artifact['name']
+        # Skip debug artifact
+        if name.endswith("-Debug"):
+            continue
         url = artifact['archive_download_url']
 
         print('Downloading %s from %s' % (name, url))
