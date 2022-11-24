@@ -39,6 +39,12 @@ cd $PULSAR_CPP_PATH
 build-support/generate-source-archive.sh $DEST_PATH
 build-support/download-release-artifacts.py $WORKFLOW_ID $DEST_PATH
 
+pushd "$DEST_PATH"
+tar cvzf x64-windows-static.tar.gz x64-windows-static
+tar cvzf x86-windows-static.tar.gz x86-windows-static
+rm -r x64-windows-static x86-windows-static
+popd
+
 # Sign all files
 cd $DEST_PATH
 find . -type f | xargs $PULSAR_CPP_PATH/build-support/sign-files.sh
