@@ -269,7 +269,7 @@ void PartitionedProducerImpl::closeAsync(CloseCallback originalCallback) {
 
     State previous_state = state_.exchange(Closed);
     if (previous_state == Closed) {
-      return closeCallback(ResultAlreadyClosed);
+        return closeCallback(ResultAlreadyClosed);
     }
 
     cancelTimers();
