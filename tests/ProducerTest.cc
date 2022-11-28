@@ -406,7 +406,7 @@ TEST_P(ProducerTest, testCloseSubProducerWhenFail) {
         producers.push_back(producer);
     }
 
-    // create partitoined producer, should fail because partition-0 already reach max producer limit
+    // create partitioned producer, should fail because partition-0 already reach max producer limit
     for (int i = 0; i < maxProducersPerTopic; ++i) {
         auto partitionedProducer = std::make_shared<PartitionedProducerImpl>(
             PulsarFriend::getClientImplPtr(client), TopicName::get(topicName), partitionNum,
