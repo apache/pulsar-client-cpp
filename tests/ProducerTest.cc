@@ -22,7 +22,6 @@
 #include <thread>
 
 #include "HttpHelper.h"
-#include "PulsarFriend.h"
 #include "lib/Future.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
