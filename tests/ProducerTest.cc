@@ -421,7 +421,7 @@ TEST_P(ProducerTest, testCloseSubProducerWhenFail) {
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
 
-    // create producer for partition-1, should succ
+    // create producer for partition-1, should succeed
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName + "-partition-1", producerConfiguration, producer));
     producers.push_back(producer);
