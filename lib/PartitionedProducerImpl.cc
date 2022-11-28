@@ -266,12 +266,9 @@ void PartitionedProducerImpl::closeAsync(CloseCallback originalCallback) {
             originalCallback(result);
         }
     };
-    if (state_ == Closed) {
+
+    if (state_ == Closed || state_.exchange(Closing) == Closing) {
         closeCallback(ResultAlreadyClosed);
-        return;
-    }
-    State expectedState = Ready;
-    if (!state_.compare_exchange_strong(expectedState, Closing)) {
         return;
     }
 
