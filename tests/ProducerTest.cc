@@ -408,15 +408,8 @@ TEST_P(ProducerTest, testCloseSubProducerWhenFail) {
 
     // create partitioned producer, should fail because partition-0 already reach max producer limit
     for (int i = 0; i < maxProducersPerTopic; ++i) {
-        auto partitionedProducer = std::make_shared<PartitionedProducerImpl>(
-            PulsarFriend::getClientImplPtr(client), TopicName::get(topicName), partitionNum,
-            producerConfiguration);
-        partitionedProducer->start();
-        Result result;
-        ProducerImplBaseWeakPtr ptr;
-        ASSERT_TRUE(
-            partitionedProducer->getProducerCreatedFuture().get(result, ptr, std::chrono::seconds(1)));
-        ASSERT_EQ(result, ResultProducerBusy);  // reach max producer limit
+        Producer producer;
+        ASSERT_EQ(ResultProducerBusy, client.createProducer(topicName, producer));
     }
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
