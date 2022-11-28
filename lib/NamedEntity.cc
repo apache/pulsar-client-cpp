@@ -22,7 +22,7 @@
 
 /**
  * Allowed characters for property, namespace, cluster and topic names are
- * alphanumeric (a-zA-Z_0-9) and these special chars -=:.
+ * alphanumeric (a-zA-Z0-9) and these special chars _-=:.
  * @param name
  * @return
  */
@@ -33,6 +33,7 @@ bool NamedEntity::checkName(const std::string& name) {
         }
 
         switch (c) {
+            case '_':
             case '-':
             case '=':
             case ':':

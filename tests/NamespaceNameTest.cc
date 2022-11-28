@@ -44,9 +44,10 @@ TEST(NamespaceNameTest, testNamespaceNameV2) {
 }
 
 TEST(NamespaceNameTest, testNamespaceNameLegalCharacters) {
-    std::shared_ptr<NamespaceName> nn1 = NamespaceName::get("cluster-1:=.", "namespace-1:=.");
-    ASSERT_EQ("cluster-1:=.", nn1->getProperty());
+    std::shared_ptr<NamespaceName> nn1 = NamespaceName::get("cluster-1:=._", "namespace-1:=._");
+    ASSERT_TRUE(nn1);
+    ASSERT_EQ("cluster-1:=._", nn1->getProperty());
     ASSERT_TRUE(nn1->getCluster().empty());
-    ASSERT_EQ("namespace-1:=.", nn1->getLocalName());
+    ASSERT_EQ("namespace-1:=._", nn1->getLocalName());
     ASSERT_TRUE(nn1->isV2());
 }
