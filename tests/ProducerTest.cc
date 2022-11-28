@@ -374,7 +374,7 @@ TEST_P(ProducerTest, testFlushNoBatch) {
     client.close();
 }
 
-TEST_P(ProducerTest, testCloseSubProducerWhenFail) {
+TEST(ProducerTest, testCloseSubProducerWhenFail) {
     Client client(serviceUrl);
 
     std::string ns = "test-close-sub-producer-when-fail";
