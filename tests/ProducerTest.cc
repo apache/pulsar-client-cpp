@@ -22,6 +22,7 @@
 #include <thread>
 
 #include "HttpHelper.h"
+#include "PulsarFriend.h"
 #include "lib/Future.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
@@ -370,6 +371,64 @@ TEST_P(ProducerTest, testFlushNoBatch) {
     ASSERT_EQ(needCallBack.load(), 0);
     producer.close();
 
+    client.close();
+}
+
+TEST_P(ProducerTest, testCloseSubProducerWhenFail) {
+    Client client(serviceUrl);
+
+    std::string ns = "test-close-sub-producer-when-fail";
+    std::string localName = std::string("testCloseSubProducerWhenFail") + std::to_string(time(nullptr));
+    std::string topicName = "persistent://public/" + ns + '/' + localName;
+    const int maxProducersPerTopic = 10;
+    const int partitionNum = 5;
+
+    // call admin api to create namespace with max prodcuer limit
+    std::string url = adminUrl + "admin/v2/namespaces/public/" + ns;
+    int res =
+        makePutRequest(url, "{\"max_producers_per_topic\": " + std::to_string(maxProducersPerTopic) + "}");
+    ASSERT_TRUE(res == 204 || res == 409) << "res:" << res;
+
+    // call admin api to create partitioned topic
+    res = makePutRequest(adminUrl + "admin/v2/persistent/public/" + ns + "/" + localName + "/partitions",
+                         std::to_string(partitionNum));
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setBatchingEnabled(false);
+
+    // create producers for partition-0 up to max producer limit
+    std::vector<Producer> producers;
+    for (int i = 0; i < maxProducersPerTopic; ++i) {
+        Producer producer;
+        ASSERT_EQ(ResultOk,
+                  client.createProducer(topicName + "-partition-0", producerConfiguration, producer));
+        producers.push_back(producer);
+    }
+
+    // create partitoined producer, should fail because partition-0 already reach max producer limit
+    for (int i = 0; i < maxProducersPerTopic; ++i) {
+        auto partitionedProducer = std::make_shared<PartitionedProducerImpl>(
+            PulsarFriend::getClientImplPtr(client), TopicName::get(topicName), partitionNum,
+            producerConfiguration);
+        partitionedProducer->start();
+        Result result;
+        ProducerImplBaseWeakPtr ptr;
+        ASSERT_TRUE(
+            partitionedProducer->getProducerCreatedFuture().get(result, ptr, std::chrono::seconds(1)));
+        ASSERT_EQ(result, ResultProducerBusy);  // reach max producer limit
+    }
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    // create producer for partition-1, should succ
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName + "-partition-1", producerConfiguration, producer));
+    producers.push_back(producer);
+
+    for (auto& producer : producers) {
+        producer.close();
+    }
     client.close();
 }
 
