@@ -4277,7 +4277,9 @@ TEST(BasicEndToEndTest, testBatchReceiveClose) { testBatchReceiveClose(false); }
 
 TEST(BasicEndToEndTest, testBatchReceiveCloseWithMultiConsumer) { testBatchReceiveClose(true); }
 
-TEST(BasicEndToEndTest, testAckMsgList) {
+class AcknowledgeTest : public testing::TestWithParam<int> {};
+
+TEST_P(AcknowledgeTest, testAckMsgList) {
     Client client(lookupUrl);
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
 
@@ -4291,6 +4293,7 @@ TEST(BasicEndToEndTest, testAckMsgList) {
 
     ConsumerConfiguration consumerConfig;
     consumerConfig.setAckGroupingMaxSize(numMsg);
+    consumerConfig.setAckGroupingTimeMs(GetParam());
     consumerConfig.setUnAckedMessagesTimeoutMs(10000);
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumerConfig, consumer));
@@ -4326,7 +4329,7 @@ TEST(BasicEndToEndTest, testAckMsgList) {
     client.close();
 }
 
-TEST(BasicEndToEndTest, testAckMsgListWithMultiConsumer) {
+TEST_P(AcknowledgeTest, testAckMsgListWithMultiConsumer) {
     Client client(lookupUrl);
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
 
@@ -4353,6 +4356,7 @@ TEST(BasicEndToEndTest, testAckMsgListWithMultiConsumer) {
     ConsumerConfiguration consumerConfig;
     // set ack grouping max size is 10
     consumerConfig.setAckGroupingMaxSize(10);
+    consumerConfig.setAckGroupingTimeMs(GetParam());
     consumerConfig.setUnAckedMessagesTimeoutMs(10000);
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumerConfig, consumer));
@@ -4391,3 +4395,5 @@ TEST(BasicEndToEndTest, testAckMsgListWithMultiConsumer) {
     consumer.close();
     client.close();
 }
+
+INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest, testing::Values(100, 0));

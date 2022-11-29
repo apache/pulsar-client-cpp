@@ -36,6 +36,14 @@ void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId) {
     this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, CommandAck_AckType_Individual);
 }
 
+void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds) {
+    std::set<MessageId> msgIdSet;
+    for (auto&& msgId : msgIds) {
+        msgIdSet.emplace(msgId);
+    }
+    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgIdSet);
+}
+
 void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId) {
     this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, CommandAck_AckType_Cumulative);
 }

@@ -44,6 +44,7 @@ class AckGroupingTrackerDisabled : public AckGroupingTracker {
     AckGroupingTrackerDisabled(HandlerBase& handler, uint64_t consumerId);
 
     void addAcknowledge(const MessageId& msgId) override;
+    void addAcknowledgeList(const MessageIdList& msgIds) override;
     void addAcknowledgeCumulative(const MessageId& msgId) override;
 
    private:
