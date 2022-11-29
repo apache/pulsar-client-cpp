@@ -60,10 +60,12 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const ExecutorServicePtr listenerExecutor /* = NULL by default */,
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
-                           Commands::SubscriptionMode subscriptionMode,
-                           boost::optional<MessageId> startMessageId)
-    : ConsumerImplBase(client, topic, Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
-                       listenerExecutor ? listenerExecutor : client->getListenerExecutorProvider()->get()),
+                           Commands::SubscriptionMode subscriptionMode, Optional<MessageId> startMessageId)
+    : ConsumerImplBase(
+          client, topic,
+          Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
+                  milliseconds(client->getClientConfig().getMaxBackoffIntervalMs()), milliseconds(0)),
+          conf, listenerExecutor ? listenerExecutor : client->getListenerExecutorProvider()->get()),
       waitingForZeroQueueSizeMessage(false),
       config_(conf),
       subscription_(subscriptionName),

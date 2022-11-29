@@ -42,7 +42,6 @@ const static std::string V2_PATH = "/lookup/v2/topic/";
 const static std::string ADMIN_PATH_V1 = "/admin/";
 const static std::string ADMIN_PATH_V2 = "/admin/v2/";
 
-const static int MAX_HTTP_REDIRECTS = 20;
 const static std::string PARTITION_METHOD_NAME = "partitions";
 const static int NUMBER_OF_LOOKUP_THREADS = 1;
 
@@ -63,6 +62,7 @@ HTTPLookupService::HTTPLookupService(ServiceNameResolver &serviceNameResolver,
       serviceNameResolver_(serviceNameResolver),
       authenticationPtr_(authData),
       lookupTimeoutInSeconds_(clientConfiguration.getOperationTimeoutSeconds()),
+      maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()),
       tlsPrivateFilePath_(clientConfiguration.getTlsPrivateKeyFilePath()),
       tlsCertificateFilePath_(clientConfiguration.getTlsCertificateFilePath()),
       tlsTrustCertsFilePath_(clientConfiguration.getTlsTrustCertsFilePath()),
@@ -189,7 +189,7 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
                                           long &responseCode) {
     uint16_t reqCount = 0;
     Result retResult = ResultOk;
-    while (++reqCount <= MAX_HTTP_REDIRECTS) {
+    while (++reqCount <= maxLookupRedirects_) {
         CURL *handle;
         CURLcode res;
         std::string version = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;

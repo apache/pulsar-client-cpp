@@ -26,22 +26,25 @@ namespace pulsar {
 struct ClientConfigurationImpl {
     AuthenticationPtr authenticationPtr{AuthFactory::Disabled()};
     uint64_t memoryLimit{0ull};
-    int ioThreads{1};
-    int operationTimeoutSeconds{30};
-    int messageListenerThreads{1};
-    int concurrentLookupRequest{50000};
+    int32_t ioThreads{1};
+    int32_t operationTimeoutSeconds{30};
+    int32_t messageListenerThreads{1};
+    int32_t concurrentLookupRequest{50000};
+    int32_t maxLookupRedirects{20};
+    int32_t initialBackoffIntervalMs{100};
+    int32_t maxBackoffIntervalMs{60000};
     std::string logConfFilePath;
     bool useTls{false};
     std::string tlsPrivateKeyFilePath;
     std::string tlsCertificateFilePath;
     std::string tlsTrustCertsFilePath;
     bool tlsAllowInsecureConnection{false};
-    unsigned int statsIntervalInSeconds{600};  // 10 minutes
+    uint32_t statsIntervalInSeconds{600};  // 10 minutes
     std::unique_ptr<LoggerFactory> loggerFactory;
     bool validateHostName{false};
-    unsigned int partitionsUpdateInterval{60};  // 1 minute
+    uint32_t partitionsUpdateInterval{60};  // 1 minute
     std::string listenerName;
-    int connectionTimeoutMs{10000};  // 10 seconds
+    int32_t connectionTimeoutMs{10000};  // 10 seconds
 
     std::unique_ptr<LoggerFactory> takeLogger() { return std::move(loggerFactory); }
 };

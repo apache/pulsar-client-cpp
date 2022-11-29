@@ -56,9 +56,10 @@ struct ProducerImpl::PendingCallbacks {
 
 ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
                            const ProducerConfiguration& conf, int32_t partition)
-    : HandlerBase(
-          client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
-          Backoff(milliseconds(100), seconds(60), milliseconds(std::max(100, conf.getSendTimeout() - 100)))),
+    : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
+                  Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
+                          milliseconds(client->getClientConfig().getMaxBackoffIntervalMs()),
+                          milliseconds(std::max(100, conf.getSendTimeout() - 100)))),
       conf_(conf),
       semaphore_(),
       pendingMessagesQueue_(),
@@ -978,4 +979,4 @@ void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
 ProducerImplWeakPtr ProducerImpl::weak_from_this() noexcept { return shared_from_this(); }
 
 }  // namespace pulsar
-/* namespace pulsar */
+   /* namespace pulsar */

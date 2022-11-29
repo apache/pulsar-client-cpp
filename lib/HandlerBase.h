@@ -113,13 +113,14 @@ class HandlerBase {
 
     enum State
     {
-        NotStarted,
-        Pending,
-        Ready,
-        Closing,
-        Closed,
-        Failed,
-        Producer_Fenced
+        NotStarted,       // Not initialized, in Java client: HandlerState.State.Uninitialized
+        Pending,          // Client connecting to broker, in Java client: HandlerState.State.Connecting
+        Ready,            // Handler is being used, in Java client: HandlerState.State.Ready
+        Closing,          // Close cmd has been sent to broker, in Java client: HandlerState.State.Closing
+        Closed,           // Broker acked the close, in Java client: HandlerState.State.Closed
+        Failed,           // Handler is failed, in Java client: HandlerState.State.Failed
+        Producer_Fenced,  // The producer has been fenced by the broker
+                          // in Java client: HandlerState.State.ProducerFenced
     };
 
     std::atomic<State> state_;
