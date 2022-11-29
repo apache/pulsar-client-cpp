@@ -30,17 +30,26 @@ DECLARE_LOG_OBJECT()
 namespace pulsar {
 
 auto BinaryProtoLookupService::getBroker(const TopicName& topicName) -> LookupResultFuture {
-    return findBroker(serviceNameResolver_.resolveHost(), false, topicName.toString());
+    return findBroker(serviceNameResolver_.resolveHost(), false, topicName.toString(), 0);
 }
 
 auto BinaryProtoLookupService::findBroker(const std::string& address, bool authoritative,
-                                          const std::string& topic) -> LookupResultFuture {
-    LOG_DEBUG("find broker from " << address << ", authoritative: " << authoritative << ", topic: " << topic);
+                                          const std::string& topic, size_t redirectCount)
+    -> LookupResultFuture {
+    LOG_DEBUG("find broker from " << address << ", authoritative: " << authoritative << ", topic: " << topic
+                                  << ", redirect count: " << redirectCount);
     auto promise = std::make_shared<Promise<Result, LookupResult>>();
+    if (maxLookupRedirects_ > 0 && redirectCount > maxLookupRedirects_) {
+        LOG_ERROR("Too many lookup request redirects on topic " << topic << ", configured limit is "
+                                                                << maxLookupRedirects_);
+        promise->setFailed(ResultTooManyLookupRequestException);
+        return promise->getFuture();
+    }
+
     // NOTE: we can use move capture for topic since C++14
-    cnxPool_.getConnectionAsync(address).addListener([this, promise, topic, address, authoritative](
-                                                         Result result,
-                                                         const ClientConnectionWeakPtr& weakCnx) {
+    cnxPool_.getConnectionAsync(address).addListener([this, promise, topic, address, authoritative,
+                                                      redirectCount](Result result,
+                                                                     const ClientConnectionWeakPtr& weakCnx) {
         if (result != ResultOk) {
             promise->setFailed(result);
             return;
@@ -53,7 +62,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
         }
         auto lookupPromise = std::make_shared<LookupDataResultPromise>();
         cnx->newTopicLookup(topic, authoritative, listenerName_, newRequestId(), lookupPromise);
-        lookupPromise->getFuture().addListener([this, cnx, promise, topic, address](
+        lookupPromise->getFuture().addListener([this, cnx, promise, topic, address, redirectCount](
                                                    Result result, const LookupDataResultPtr& data) {
             if (result != ResultOk || !data) {
                 LOG_ERROR("Lookup failed for " << topic << ", result " << result);
@@ -65,7 +74,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
                 (serviceNameResolver_.useTls() ? data->getBrokerUrlTls() : data->getBrokerUrl());
             if (data->isRedirect()) {
                 LOG_DEBUG("Lookup request is for " << topic << " redirected to " << responseBrokerAddress);
-                findBroker(responseBrokerAddress, data->isAuthoritative(), topic)
+                findBroker(responseBrokerAddress, data->isAuthoritative(), topic, redirectCount + 1)
                     .addListener([promise](Result result, const LookupResult& value) {
                         if (result == ResultOk) {
                             promise->setValue(value);

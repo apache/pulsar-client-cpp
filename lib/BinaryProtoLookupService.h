@@ -20,6 +20,7 @@
 #define _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 
 #include <pulsar/Authentication.h>
+#include <pulsar/ClientConfiguration.h>
 
 #include <mutex>
 
@@ -36,8 +37,11 @@ using NamespaceTopicsPromisePtr = std::shared_ptr<Promise<Result, NamespaceTopic
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
     BinaryProtoLookupService(ServiceNameResolver& serviceNameResolver, ConnectionPool& pool,
-                             const std::string& listenerName)
-        : serviceNameResolver_(serviceNameResolver), cnxPool_(pool), listenerName_(listenerName) {}
+                             const ClientConfiguration& clientConfiguration)
+        : serviceNameResolver_(serviceNameResolver),
+          cnxPool_(pool),
+          listenerName_(clientConfiguration.getListenerName()),
+          maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()) {}
 
     LookupResultFuture getBroker(const TopicName& topicName) override;
 
@@ -48,13 +52,14 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    private:
     std::mutex mutex_;
     uint64_t requestIdGenerator_ = 0;
+    const int32_t maxLookupRedirects_;
 
     ServiceNameResolver& serviceNameResolver_;
     ConnectionPool& cnxPool_;
     std::string listenerName_;
 
-    // TODO: limit the redirect count, see https://github.com/apache/pulsar/pull/7096
-    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic);
+    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
+                                  size_t redirectCount);
 
     void sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
                                             const ClientConnectionWeakPtr& clientCnx,
