@@ -56,11 +56,11 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    private:
     std::mutex mutex_;
     uint64_t requestIdGenerator_ = 0;
-    const int32_t maxLookupRedirects_;
 
     ServiceNameResolver& serviceNameResolver_;
     ConnectionPool& cnxPool_;
     std::string listenerName_;
+    const int32_t maxLookupRedirects_;
 
     LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
                                   size_t redirectCount);
