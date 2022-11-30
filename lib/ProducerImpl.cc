@@ -172,6 +172,8 @@ void ProducerImpl::connectionFailed(Result result) {
 
 void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
                                         const ResponseData& responseData) {
+    Lock lock(mutex_);
+
     LOG_DEBUG(getName() << "ProducerImpl::handleCreateProducer res: " << strResult(result));
 
     // make sure we're still in the Pending/Ready state, closeAsync could have been invoked
@@ -180,11 +182,18 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
     if (state != Ready && state != Pending) {
         LOG_DEBUG("Producer created response received but producer already closed");
         failPendingMessages(ResultAlreadyClosed, false);
+        if (result == ResultOk || result == ResultTimeout) {
+            int requestId = client_.lock()->newRequestId();
+            cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+        }
+        if (!producerCreatedPromise_.isComplete()) {
+            lock.unlock();
+            producerCreatedPromise_.setFailed(ResultAlreadyClosed);
+        }
         return;
     }
 
     if (result == ResultOk) {
-        Lock lock(mutex_);
         // We are now reconnected to broker and clear to send messages. Re-send all pending messages and
         // set the cnx pointer so that new messages will be sent immediately
         LOG_INFO(getName() << "Created producer on broker " << cnx->cnxString());
@@ -203,7 +212,6 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
         setCnx(cnx);
         state_ = Ready;
         backoff_.reset();
-        lock.unlock();
 
         if (conf_.isEncryptionEnabled()) {
             auto weakSelf = weak_from_this();
@@ -226,6 +234,7 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             startSendTimeoutTimer();
         }
 
+        lock.unlock();
         producerCreatedPromise_.setValue(shared_from_this());
 
     } else {
@@ -240,16 +249,17 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
 
         if (result == ResultProducerFenced) {
             state_ = Producer_Fenced;
-            failPendingMessages(result, true);
+            failPendingMessages(result, false);
             auto client = client_.lock();
             if (client) {
                 client->cleanupProducer(this);
             }
+            lock.unlock();
             producerCreatedPromise_.setFailed(result);
         } else if (producerCreatedPromise_.isComplete()) {
             if (result == ResultProducerBlockedQuotaExceededException) {
                 LOG_WARN(getName() << "Backlog is exceeded on topic. Sending exception to producer");
-                failPendingMessages(ResultProducerBlockedQuotaExceededException, true);
+                failPendingMessages(ResultProducerBlockedQuotaExceededException, false);
             } else if (result == ResultProducerBlockedQuotaExceededError) {
                 LOG_WARN(getName() << "Producer is blocked on creation because backlog is exceeded on topic");
             }
@@ -264,9 +274,10 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
                 scheduleReconnection(shared_from_this());
             } else {
                 LOG_ERROR(getName() << "Failed to create producer: " << strResult(result));
-                failPendingMessages(result, true);
-                producerCreatedPromise_.setFailed(result);
+                failPendingMessages(result, false);
                 state_ = Failed;
+                lock.unlock();
+                producerCreatedPromise_.setFailed(result);
             }
         }
     }
@@ -693,6 +704,8 @@ void ProducerImpl::closeAsync(CloseCallback originalCallback) {
             originalCallback(result);
         }
     };
+
+    Lock lock(mutex_);
 
     // if the producer was never started then there is nothing to clean up
     State expectedState = NotStarted;
