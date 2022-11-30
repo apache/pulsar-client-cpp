@@ -23,8 +23,8 @@
 
 #include <functional>
 #include <memory>
+#include <utility>
 
-#include "BatchAcknowledgementTracker.h"
 #include "BrokerConsumerStatsImpl.h"
 #include "Commands.h"
 #include "CompressionCodec.h"
@@ -40,7 +40,6 @@ namespace pulsar {
 class UnAckedMessageTrackerInterface;
 class ExecutorService;
 class ConsumerImpl;
-class BatchAcknowledgementTracker;
 class MessageCrypto;
 class GetLastMessageIdResponse;
 typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
@@ -84,21 +83,8 @@ class ConsumerImpl : public ConsumerImplBase {
     inline CommandSubscribe_SubType getSubType();
     inline CommandSubscribe_InitialPosition getInitialPosition();
 
-    /**
-     * Send individual ACK request of given message ID to broker.
-     * @param[in] messageId ID of the message to be ACKed.
-     * @param[in] callback call back function, which is called after sending ACK. For now, it's
-     *      always provided with ResultOk.
-     */
-    void doAcknowledgeIndividual(const MessageId& messageId, ResultCallback callback);
-
-    /**
-     * Send cumulative ACK request of given message ID to broker.
-     * @param[in] messageId ID of the message to be ACKed.
-     * @param[in] callback call back function, which is called after sending ACK. For now, it's
-     *      always provided with ResultOk.
-     */
-    void doAcknowledgeCumulative(const MessageId& messageId, ResultCallback callback);
+    std::pair<MessageId, bool /* readyToAck */> prepareIndividualAck(const MessageId& messageId);
+    std::pair<MessageId, bool /* readyToAck */> prepareCumulativeAck(const MessageId& messageId);
 
     // overrided methods from ConsumerImplBase
     Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() override;
@@ -183,8 +169,6 @@ class ConsumerImpl : public ConsumerImplBase {
     Result receiveHelper(Message& msg);
     Result receiveHelper(Message& msg, int timeout);
     void executeNotifyCallback(Message& msg);
-    void statsAckCallback(Result res, ResultCallback callback, CommandAck_AckType ackType,
-                          uint32_t numAcks = 1);
     void notifyPendingReceivedCallback(Result result, Message& message, const ReceiveCallback& callback);
     void failPendingReceiveCallback();
     void setNegativeAcknowledgeEnabledForTesting(bool enabled) override;
@@ -222,7 +206,6 @@ class ConsumerImpl : public ConsumerImplBase {
     std::atomic_bool messageListenerRunning_;
     CompressionCodecProvider compressionCodecProvider_;
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
-    BatchAcknowledgementTracker batchAcknowledgementTracker_;
     BrokerConsumerStatsImpl brokerConsumerStats_;
     NegativeAcksTracker negativeAcksTracker_;
     AckGroupingTrackerPtr ackGroupingTrackerPtr_;

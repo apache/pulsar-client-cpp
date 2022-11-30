@@ -35,6 +35,11 @@ using namespace pulsar;
 
 namespace pulsar {
 
+class BatchMessageAcker;
+using BatchMessageAckerPtr = std::shared_ptr<BatchMessageAcker>;
+class MessageIdImpl;
+using MessageIdImplPtr = std::shared_ptr<MessageIdImpl>;
+
 namespace proto {
 class BaseCommand;
 class MessageIdData;
@@ -133,7 +138,9 @@ class Commands {
         const Message& msg, SharedBuffer& batchPayLoad, unsigned long maxMessageSizeInBytes);
 
     static Message deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
-                                                   int32_t batchSize);
+                                                   int32_t batchSize, const BatchMessageAckerPtr& acker);
+
+    static MessageIdImplPtr getMessageIdImpl(const MessageId& messageId);
 
     static SharedBuffer newConsumerStats(uint64_t consumerId, uint64_t requestId);
 

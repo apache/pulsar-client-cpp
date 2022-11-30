@@ -19,6 +19,11 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <chrono>
+#include <set>
+#include <thread>
+
+#include "ConsumerWrapper.h"
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
 #include "lib/LogUtils.h"
@@ -149,6 +154,61 @@ TEST_P(AcknowledgeTest, testAckMsgListWithMultiConsumer) {
     producer.close();
     consumer.close();
     client.close();
+}
+
+TEST_F(AcknowledgeTest, testBatchedMessageId) {
+    Client client(lookupUrl);
+
+    const std::string topic = "test-batched-message-id-" + unique_str();
+    constexpr int batchingMaxMessages = 3;
+    constexpr int numMessages = batchingMaxMessages * 3;
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic,
+                                              ProducerConfiguration()
+                                                  .setBatchingMaxMessages(batchingMaxMessages)
+                                                  .setBatchingMaxPublishDelayMs(3600 * 1000 /* 1h */),
+                                              producer));
+    std::vector<ConsumerWrapper> consumers{4};
+    for (size_t i = 0; i < consumers.size(); i++) {
+        consumers[i].initialize(client, topic, "sub-" + std::to_string(i));
+    }
+    for (size_t i = 0; i < numMessages; i++) {
+        producer.sendAsync(MessageBuilder().setContent("msg-" + std::to_string(i)).build(), nullptr);
+    }
+    for (size_t i = 0; i < consumers.size(); i++) {
+        consumers[i].receiveAtMost(numMessages);
+        if (i > 0) {
+            ASSERT_EQ(consumers[i].messageIdList(), consumers[0].messageIdList());
+        }
+    }
+
+    Message msg;
+    // ack 2 messages of the batch that has 3 messages
+    consumers[0].acknowledgeAndRedeliver({0, 2}, CommandAck_AckType_Individual);
+    ASSERT_EQ(consumers[0].receive(msg), ResultOk);
+    EXPECT_EQ(msg.getMessageId(), consumers[0].messageIdList()[0]);
+    ASSERT_EQ(consumers[0].getNumAcked(CommandAck_AckType_Individual), 0);
+
+    // ack the whole batch
+    consumers[1].acknowledgeAndRedeliver({0, 1, 2}, CommandAck_AckType_Individual);
+    ASSERT_EQ(consumers[1].receive(msg), ResultOk);
+    EXPECT_EQ(msg.getMessageId(), consumers[1].messageIdList()[batchingMaxMessages]);
+    ASSERT_EQ(consumers[1].getNumAcked(CommandAck_AckType_Individual), 3);
+
+    // ack cumulatively the previous message id
+    consumers[2].acknowledgeAndRedeliver({batchingMaxMessages, batchingMaxMessages + 1},
+                                         CommandAck_AckType_Cumulative);
+    ASSERT_EQ(consumers[2].receive(msg), ResultOk);
+    EXPECT_EQ(msg.getMessageId(), consumers[2].messageIdList()[batchingMaxMessages]);
+    // the previous message id will only be acknowledged once
+    ASSERT_EQ(consumers[2].getNumAcked(CommandAck_AckType_Cumulative), 1);
+
+    // the whole 2nd batch is acknowledged
+    consumers[3].acknowledgeAndRedeliver({batchingMaxMessages + 2}, CommandAck_AckType_Cumulative);
+    ASSERT_EQ(consumers[3].receive(msg), ResultOk);
+    EXPECT_EQ(msg.getMessageId(), consumers[3].messageIdList()[batchingMaxMessages * 2]);
+    ASSERT_EQ(consumers[3].getNumAcked(CommandAck_AckType_Cumulative), 1);
 }
 
 INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest, testing::Values(100, 0));

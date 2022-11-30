@@ -26,6 +26,8 @@
 #include <algorithm>
 #include <mutex>
 
+#include "BatchMessageAcker.h"
+#include "BatchedMessageIdImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
 #include "PulsarApi.pb.h"
@@ -809,7 +811,7 @@ uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, 
 }
 
 Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
-                                                  int32_t batchSize) {
+                                                  int32_t batchSize, const BatchMessageAckerPtr& acker) {
     SharedBuffer& uncompressedPayload = batchedMessage.impl_->payload;
 
     // Format of batch message
@@ -827,13 +829,16 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
     uncompressedPayload.consume(payloadSize);
 
     const MessageId& m = batchedMessage.impl_->messageId;
-    auto singleMessageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
-    Message singleMessage(singleMessageId, batchedMessage.impl_->metadata, payload, metadata,
+    auto messageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
+    auto batchedMessageId = std::make_shared<BatchedMessageIdImpl>(*(messageId.impl_), acker);
+    Message singleMessage(MessageId{batchedMessageId}, batchedMessage.impl_->metadata, payload, metadata,
                           batchedMessage.impl_->getTopicName());
     singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;
 
     return singleMessage;
 }
+
+MessageIdImplPtr Commands::getMessageIdImpl(const MessageId& messageId) { return messageId.impl_; }
 
 bool Commands::peerSupportsGetLastMessageId(int32_t peerVersion) { return peerVersion >= proto::v12; }
 
