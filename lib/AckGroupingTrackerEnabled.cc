@@ -132,13 +132,7 @@ void AckGroupingTrackerEnabled::flush() {
     // Send ACK for individual ACK requests.
     std::lock_guard<std::recursive_mutex> lock(this->rmutexPendingIndAcks_);
     if (!this->pendingIndividualAcks_.empty()) {
-        if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
-            auto cmd = Commands::newMultiMessageAck(this->consumerId_, this->pendingIndividualAcks_);
-            cnx->sendCommand(cmd);
-        } else {
-            // Broker does not support multi-message ACK, use multiple individual ACK instead.
-            this->doImmediateAck(cnx, this->consumerId_, this->pendingIndividualAcks_);
-        }
+        this->doImmediateAck(cnx, consumerId_, this->pendingIndividualAcks_);
         this->pendingIndividualAcks_.clear();
     }
 }
