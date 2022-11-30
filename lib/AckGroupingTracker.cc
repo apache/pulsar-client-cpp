@@ -46,6 +46,19 @@ bool AckGroupingTracker::doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uin
     return true;
 }
 
+static std::ostream& operator<<(std::ostream& os, const std::set<MessageId>& msgIds) {
+    bool first = true;
+    for (auto&& msgId : msgIds) {
+        if (first) {
+            first = false;
+        } else {
+            os << ", ";
+        }
+        os << "[" << msgId << "]";
+    }
+    return os;
+}
+
 bool AckGroupingTracker::doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uint64_t consumerId,
                                         const std::set<MessageId>& msgIds) {
     auto cnx = connWeakPtr.lock();
@@ -54,8 +67,15 @@ bool AckGroupingTracker::doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uin
         return false;
     }
 
-    for (const auto& msgId : msgIds) {
-        sendAck(cnx, consumerId, msgId, CommandAck_AckType_Individual);
+    if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
+        auto cmd = Commands::newMultiMessageAck(consumerId, msgIds);
+        cnx->sendCommand(cmd);
+        LOG_DEBUG("ACK request is sent for " << msgIds.size() << " messages: " << msgIds);
+    } else {
+        // Broker does not support multi-message ACK, use multiple individual ACKs instead.
+        for (const auto& msgId : msgIds) {
+            sendAck(cnx, consumerId, msgId, CommandAck_AckType_Individual);
+        }
     }
     return true;
 }
