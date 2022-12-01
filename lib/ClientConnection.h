@@ -29,6 +29,7 @@
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/strand.hpp>
+#include <boost/optional.hpp>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -40,7 +41,6 @@
 #include "LookupDataResult.h"
 #include "SharedBuffer.h"
 #include "UtilAllocator.h"
-#include "Utils.h"
 
 namespace pulsar {
 
@@ -83,7 +83,7 @@ struct ResponseData {
     std::string producerName;
     int64_t lastSequenceId;
     std::string schemaVersion;
-    Optional<uint64_t> topicEpoch;
+    boost::optional<uint64_t> topicEpoch;
 };
 
 typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;

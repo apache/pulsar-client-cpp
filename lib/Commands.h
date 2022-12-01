@@ -25,11 +25,11 @@
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
 
+#include <boost/optional.hpp>
 #include <set>
 
 #include "ProtoApiEnums.h"
 #include "SharedBuffer.h"
-#include "Utils.h"
 
 using namespace pulsar;
 
@@ -89,16 +89,14 @@ class Commands {
                                     uint64_t sequenceId, ChecksumType checksumType,
                                     const proto::MessageMetadata& metadata, const SharedBuffer& payload);
 
-    static SharedBuffer newSubscribe(const std::string& topic, const std::string& subscription,
-                                     uint64_t consumerId, uint64_t requestId,
-                                     CommandSubscribe_SubType subType, const std::string& consumerName,
-                                     SubscriptionMode subscriptionMode, Optional<MessageId> startMessageId,
-                                     bool readCompacted, const std::map<std::string, std::string>& metadata,
-                                     const std::map<std::string, std::string>& subscriptionProperties,
-                                     const SchemaInfo& schemaInfo,
-                                     CommandSubscribe_InitialPosition subscriptionInitialPosition,
-                                     bool replicateSubscriptionState, KeySharedPolicy keySharedPolicy,
-                                     int priorityLevel = 0);
+    static SharedBuffer newSubscribe(
+        const std::string& topic, const std::string& subscription, uint64_t consumerId, uint64_t requestId,
+        CommandSubscribe_SubType subType, const std::string& consumerName, SubscriptionMode subscriptionMode,
+        boost::optional<MessageId> startMessageId, bool readCompacted,
+        const std::map<std::string, std::string>& metadata,
+        const std::map<std::string, std::string>& subscriptionProperties, const SchemaInfo& schemaInfo,
+        CommandSubscribe_InitialPosition subscriptionInitialPosition, bool replicateSubscriptionState,
+        KeySharedPolicy keySharedPolicy, int priorityLevel = 0);
 
     static SharedBuffer newUnsubscribe(uint64_t consumerId, uint64_t requestId);
 
@@ -107,7 +105,7 @@ class Commands {
                                     const std::map<std::string, std::string>& metadata,
                                     const SchemaInfo& schemaInfo, uint64_t epoch,
                                     bool userProvidedProducerName, bool encrypted,
-                                    ProducerAccessMode accessMode, Optional<uint64_t> topicEpoch);
+                                    ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch);
 
     static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
                                CommandAck_AckType ackType, CommandAck_ValidationError validationError);

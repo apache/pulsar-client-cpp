@@ -54,7 +54,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const ExecutorServicePtr listenerExecutor /* = NULL by default */,
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
-                           Commands::SubscriptionMode subscriptionMode, Optional<MessageId> startMessageId)
+                           Commands::SubscriptionMode subscriptionMode,
+                           boost::optional<MessageId> startMessageId)
     : ConsumerImplBase(client, topic, Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
                        listenerExecutor ? listenerExecutor : client->getListenerExecutorProvider()->get()),
       waitingForZeroQueueSizeMessage(false),
@@ -191,9 +192,8 @@ void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     Lock lockForMessageId(mutexForMessageId_);
     // Update startMessageId so that we can discard messages after delivery restarts
     const auto startMessageId = clearReceiveQueue();
-    const auto subscribeMessageId = (subscriptionMode_ == Commands::SubscriptionModeNonDurable)
-                                        ? startMessageId
-                                        : Optional<MessageId>::empty();
+    const auto subscribeMessageId =
+        (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId : boost::none;
     startMessageId_ = startMessageId;
     lockForMessageId.unlock();
 
@@ -373,11 +373,11 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
     });
 }
 
-Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
-                                                         const proto::MessageMetadata& metadata,
-                                                         const MessageId& messageId,
-                                                         const proto::MessageIdData& messageIdData,
-                                                         const ClientConnectionPtr& cnx) {
+boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
+                                                                const proto::MessageMetadata& metadata,
+                                                                const MessageId& messageId,
+                                                                const proto::MessageIdData& messageIdData,
+                                                                const ClientConnectionPtr& cnx) {
     const auto chunkId = metadata.chunk_id();
     const auto uuid = metadata.uuid();
     LOG_DEBUG("Process message chunk (chunkId: " << chunkId << ", uuid: " << uuid
@@ -422,14 +422,14 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
         lock.unlock();
         increaseAvailablePermits(cnx);
         trackMessage(messageId);
-        return Optional<SharedBuffer>::empty();
+        return boost::none;
     }
 
     chunkedMsgCtx.appendChunk(messageId, payload);
     if (!chunkedMsgCtx.isCompleted()) {
         lock.unlock();
         increaseAvailablePermits(cnx);
-        return Optional<SharedBuffer>::empty();
+        return boost::none;
     }
 
     LOG_DEBUG("Chunked message completed chunkId: " << chunkId << ", ChunkedMessageCtx: " << chunkedMsgCtx
@@ -438,9 +438,9 @@ Optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
     auto wholePayload = chunkedMsgCtx.getBuffer();
     chunkedMessageCache_.remove(uuid);
     if (uncompressMessageIfNeeded(cnx, messageIdData, metadata, wholePayload, false)) {
-        return Optional<SharedBuffer>::of(wholePayload);
+        return wholePayload;
     } else {
-        return Optional<SharedBuffer>::empty();
+        return boost::none;
     }
 }
 
@@ -477,7 +477,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         const auto& messageIdData = msg.message_id();
         auto messageId = MessageIdBuilder::from(messageIdData).build();
         auto optionalPayload = processMessageChunk(payload, metadata, messageId, messageIdData, cnx);
-        if (optionalPayload.is_present()) {
+        if (optionalPayload) {
             payload = optionalPayload.value();
         } else {
             return;
@@ -512,7 +512,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         m.impl_->convertPayloadToKeyValue(config_.getSchema());
 
         const auto startMessageId = startMessageId_.get();
-        if (isPersistent_ && startMessageId.is_present() &&
+        if (isPersistent_ && startMessageId.has_value() &&
             m.getMessageId().ledgerId() == startMessageId.value().ledgerId() &&
             m.getMessageId().entryId() == startMessageId.value().entryId() &&
             isPriorEntryIndex(m.getMessageId().entryId())) {
@@ -637,7 +637,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
         msg.impl_->setTopicName(batchedMessage.getTopicName());
         msg.impl_->convertPayloadToKeyValue(config_.getSchema());
 
-        if (startMessageId.is_present()) {
+        if (startMessageId) {
             const MessageId& msgId = msg.getMessageId();
 
             // If we are receiving a batch message, we need to discard messages that were prior
@@ -921,10 +921,10 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  * was
  * not seen by the application
  */
-Optional<MessageId> ConsumerImpl::clearReceiveQueue() {
+boost::optional<MessageId> ConsumerImpl::clearReceiveQueue() {
     bool expectedDuringSeek = true;
     if (duringSeek_.compare_exchange_strong(expectedDuringSeek, false)) {
-        return Optional<MessageId>::of(seekMessageId_.get());
+        return seekMessageId_.get();
     } else if (subscriptionMode_ == Commands::SubscriptionModeDurable) {
         return startMessageId_.get();
     }
@@ -943,12 +943,12 @@ Optional<MessageId> ConsumerImpl::clearReceiveQueue() {
                                            .ledgerId(nextMessageId.ledgerId())
                                            .entryId(nextMessageId.entryId() - 1)
                                            .build();
-        return Optional<MessageId>::of(previousMessageId);
+        return previousMessageId;
     } else if (lastDequedMessageId_ != MessageId::earliest()) {
         // If the queue was empty we need to restart from the message just after the last one that has been
         // dequeued
         // in the past
-        return Optional<MessageId>::of(lastDequedMessageId_);
+        return lastDequedMessageId_;
     } else {
         // No message was received or dequeued by this consumer. Next message would still be the
         // startMessageId

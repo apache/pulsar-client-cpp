@@ -36,21 +36,21 @@ ProducerConfiguration& ProducerConfiguration::operator=(const ProducerConfigurat
 }
 
 ProducerConfiguration& ProducerConfiguration::setProducerName(const std::string& producerName) {
-    impl_->producerName = Optional<std::string>::of(producerName);
+    impl_->producerName = boost::make_optional(producerName);
     return *this;
 }
 
 const std::string& ProducerConfiguration::getProducerName() const {
-    return impl_->producerName.is_present() ? impl_->producerName.value() : emptyString;
+    return !impl_->producerName ? emptyString : impl_->producerName.value();
 }
 
 ProducerConfiguration& ProducerConfiguration::setInitialSequenceId(int64_t initialSequenceId) {
-    impl_->initialSequenceId = Optional<int64_t>::of(initialSequenceId);
+    impl_->initialSequenceId = boost::make_optional(initialSequenceId);
     return *this;
 }
 
 int64_t ProducerConfiguration::getInitialSequenceId() const {
-    return impl_->initialSequenceId.is_present() ? impl_->initialSequenceId.value() : -1ll;
+    return !impl_->initialSequenceId ? -1ll : impl_->initialSequenceId.value();
 }
 
 ProducerConfiguration& ProducerConfiguration::setSendTimeout(int sendTimeoutMs) {

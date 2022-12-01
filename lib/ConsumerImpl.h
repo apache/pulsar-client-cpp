@@ -21,6 +21,7 @@
 
 #include <pulsar/Reader.h>
 
+#include <boost/optional.hpp>
 #include <functional>
 #include <memory>
 
@@ -71,7 +72,7 @@ class ConsumerImpl : public ConsumerImplBase {
                  const ExecutorServicePtr listenerExecutor = ExecutorServicePtr(), bool hasParent = false,
                  const ConsumerTopicType consumerTopicType = NonPartitioned,
                  Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
-                 Optional<MessageId> startMessageId = Optional<MessageId>::empty());
+                 boost::optional<MessageId> startMessageId = boost::none);
     ~ConsumerImpl();
     void setPartitionIndex(int partitionIndex);
     int getPartitionIndex();
@@ -193,7 +194,7 @@ class ConsumerImpl : public ConsumerImplBase {
                                        const DeadlineTimerPtr& timer,
                                        BrokerGetLastMessageIdCallback callback);
 
-    Optional<MessageId> clearReceiveQueue();
+    boost::optional<MessageId> clearReceiveQueue();
     void seekAsyncInternal(long requestId, SharedBuffer seek, const MessageId& seekId, long timestamp,
                            ResultCallback callback);
 
@@ -236,7 +237,7 @@ class ConsumerImpl : public ConsumerImplBase {
     MessageId lastMessageIdInBroker_{MessageId::earliest()};
 
     std::atomic_bool duringSeek_{false};
-    Synchronized<Optional<MessageId>> startMessageId_{Optional<MessageId>::empty()};
+    Synchronized<boost::optional<MessageId>> startMessageId_;
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
 
     class ChunkedMessageCtx {
@@ -321,11 +322,11 @@ class ConsumerImpl : public ConsumerImplBase {
      * @return the concatenated payload if chunks are concatenated into a completed message payload
      *   successfully, else Optional::empty()
      */
-    Optional<SharedBuffer> processMessageChunk(const SharedBuffer& payload,
-                                               const proto::MessageMetadata& metadata,
-                                               const MessageId& messageId,
-                                               const proto::MessageIdData& messageIdData,
-                                               const ClientConnectionPtr& cnx);
+    boost::optional<SharedBuffer> processMessageChunk(const SharedBuffer& payload,
+                                                      const proto::MessageMetadata& metadata,
+                                                      const MessageId& messageId,
+                                                      const proto::MessageIdData& messageIdData,
+                                                      const ClientConnectionPtr& cnx);
 
     friend class PulsarFriend;
 

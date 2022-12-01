@@ -20,6 +20,7 @@
 
 #include <pulsar/MessageIdBuilder.h>
 
+#include <boost/optional.hpp>
 #include <fstream>
 
 #include "Commands.h"
@@ -1079,9 +1080,9 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                                 data.schemaVersion = producerSuccess.schema_version();
                             }
                             if (producerSuccess.has_topic_epoch()) {
-                                data.topicEpoch = Optional<uint64_t>::of(producerSuccess.topic_epoch());
+                                data.topicEpoch = boost::make_optional(producerSuccess.topic_epoch());
                             } else {
-                                data.topicEpoch = Optional<uint64_t>::empty();
+                                data.topicEpoch = boost::none;
                             }
                             requestData.promise.setValue(data);
                             requestData.timer->cancel();
