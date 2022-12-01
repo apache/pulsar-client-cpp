@@ -424,4 +424,47 @@ TEST(ProducerTest, testCloseSubProducerWhenFail) {
     client.close();
 }
 
+TEST(ProducerTest, testCloseProducerBeforeCreated) {
+    Client client(serviceUrl);
+
+    std::string ns = "test-close-producer-before-created";
+    std::string localName = std::string("testCloseProducerBeforeCreated") + std::to_string(time(nullptr));
+    std::string topicName = "persistent://public/" + ns + '/' + localName;
+    const int maxProducersPerTopic = 10;
+    const int partitionNum = 5;
+
+    // call admin api to create namespace with max prodcuer limit
+    std::string url = adminUrl + "admin/v2/namespaces/public/" + ns;
+    int res =
+        makePutRequest(url, "{\"max_producers_per_topic\": " + std::to_string(maxProducersPerTopic) + "}");
+    ASSERT_TRUE(res == 204 || res == 409) << "res:" << res;
+
+    // call admin api to create partitioned topic
+    res = makePutRequest(adminUrl + "admin/v2/persistent/public/" + ns + "/" + localName + "/partitions",
+                         std::to_string(partitionNum));
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setLazyStartPartitionedProducers(true);
+    producerConfiguration.setPartitionsRoutingMode(ProducerConfiguration::RoundRobinDistribution);
+    producerConfiguration.setBatchingEnabled(false);
+
+    Message msg = MessageBuilder().setContent("test").build();
+    for (int i = 0; i < maxProducersPerTopic * 100; ++i) {
+        Producer producer;
+        ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfiguration, producer));
+        // trigger lazy producer creation
+        for (int j = 0; j < partitionNum; ++j) {
+            producer.sendAsync(msg, [](pulsar::Result, const pulsar::MessageId&) {});
+        }
+        producer.close();
+    }
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, {}, producer));
+    producer.close();
+
+    client.close();
+}
+
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerTest, ::testing::Values(true, false));
