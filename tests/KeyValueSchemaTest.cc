@@ -25,6 +25,12 @@ using namespace pulsar;
 
 static const std::string lookupUrl = "pulsar://localhost:6650";
 
+// NOTE: the default operator<< for KeyValueEncodingType (value, not const reference) might not work on some
+// GTest implementations. We need to implement the operator<< for const reference.
+inline std::ostream& operator<<(std::ostream& os, const KeyValueEncodingType& encodingType) {
+    return (os << strEncodingType(encodingType));
+}
+
 class KeyValueSchemaTest : public ::testing::TestWithParam<KeyValueEncodingType> {
    public:
     void TearDown() override { client.close(); }
@@ -85,5 +91,5 @@ TEST_P(KeyValueSchemaTest, testKeyValueSchema) {
     ASSERT_EQ(keyValueData.getValueAsString(), valueData);
 }
 
-INSTANTIATE_TEST_CASE_P(Pulsar, KeyValueSchemaTest,
-                        ::testing::Values(KeyValueEncodingType::INLINE, KeyValueEncodingType::SEPARATED));
+INSTANTIATE_TEST_SUITE_P(Pulsar, KeyValueSchemaTest,
+                         ::testing::Values(KeyValueEncodingType::INLINE, KeyValueEncodingType::SEPARATED));
