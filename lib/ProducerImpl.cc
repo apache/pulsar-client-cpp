@@ -183,8 +183,11 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
         LOG_DEBUG("Producer created response received but producer already closed");
         failPendingMessages(ResultAlreadyClosed, false);
         if (result == ResultOk || result == ResultTimeout) {
-            int requestId = client_.lock()->newRequestId();
-            cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+            auto client = client_.lock();
+            if (client) {
+                int requestId = client->newRequestId();
+                cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+            }
         }
         if (!producerCreatedPromise_.isComplete()) {
             lock.unlock();
@@ -243,8 +246,11 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             // Creating the producer has timed out. We need to ensure the broker closes the producer
             // in case it was indeed created, otherwise it might prevent new create producer operation,
             // since we are not closing the connection
-            int requestId = client_.lock()->newRequestId();
-            cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+            auto client = client_.lock();
+            if (client) {
+                int requestId = client->newRequestId();
+                cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+            }
         }
 
         if (result == ResultProducerFenced) {
