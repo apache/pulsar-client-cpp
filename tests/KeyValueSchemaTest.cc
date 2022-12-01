@@ -25,15 +25,13 @@ using namespace pulsar;
 
 static const std::string lookupUrl = "pulsar://localhost:6650";
 
-// NOTE: the default operator<< for KeyValueEncodingType (value, not const reference) might not work on some
-// GTest implementations. We need to implement the operator<< for const reference.
-inline std::ostream& operator<<(std::ostream& os, const KeyValueEncodingType& encodingType) {
-    return (os << strEncodingType(encodingType));
-}
-
-class KeyValueSchemaTest : public ::testing::TestWithParam<KeyValueEncodingType> {
+// NOTE: Here we use int instead of KeyValueEncodingType because of a bug of GTest with GCC 11, see
+// https://github.com/google/googletest/issues/4079
+class KeyValueSchemaTest : public ::testing::TestWithParam<int> {
    public:
     void TearDown() override { client.close(); }
+
+    KeyValueEncodingType getEncodingType() const { return static_cast<KeyValueEncodingType>(GetParam()); }
 
     void createProducer(const std::string& topic, Producer& producer) {
         ProducerConfiguration configProducer;
@@ -51,7 +49,7 @@ class KeyValueSchemaTest : public ::testing::TestWithParam<KeyValueEncodingType>
     SchemaInfo getKeyValueSchema() {
         SchemaInfo keySchema(JSON, "key-json", jsonSchema);
         SchemaInfo valueSchema(JSON, "value-json", jsonSchema);
-        return SchemaInfo(keySchema, valueSchema, GetParam());
+        return SchemaInfo(keySchema, valueSchema, getEncodingType());
     }
 
    private:
@@ -61,7 +59,7 @@ class KeyValueSchemaTest : public ::testing::TestWithParam<KeyValueEncodingType>
 };
 
 TEST_P(KeyValueSchemaTest, testKeyValueSchema) {
-    auto encodingType = GetParam();
+    auto encodingType = getEncodingType();
     const std::string topicName =
         "testKeyValueSchema-" + std::string(strEncodingType(encodingType)) + std::to_string(time(nullptr));
 
