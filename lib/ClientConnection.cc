@@ -279,22 +279,29 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         LOG_DEBUG("Current max message size is: " << maxMessageSize_);
     }
 
+    Lock lock(mutex_);
+
+    if (isClosed()) {
+        LOG_INFO(cnxString_ << "Connection already closed");
+        return;
+    }
     state_ = Ready;
     connectTimeoutTask_->stop();
     serverProtocolVersion_ = cmdConnected.protocol_version();
-    connectPromise_.setValue(shared_from_this());
 
     if (serverProtocolVersion_ >= proto::v1) {
         // Only send keep-alive probes if the broker supports it
         keepAliveTimer_ = executor_->createDeadlineTimer();
-        Lock lock(mutex_);
         if (keepAliveTimer_) {
             keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
             keepAliveTimer_->async_wait(
                 std::bind(&ClientConnection::handleKeepAliveTimeout, shared_from_this()));
         }
-        lock.unlock();
     }
+
+    lock.unlock();
+
+    connectPromise_.setValue(shared_from_this());
 
     if (serverProtocolVersion_ >= proto::v8) {
         startConsumerStatsTimer(std::vector<uint64_t>());
@@ -380,7 +387,14 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
         } else {
             LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_);
         }
+
+        Lock lock(mutex_);
+        if (isClosed()) {
+            LOG_INFO(cnxString_ << "Connection already closed");
+            return;
+        }
         state_ = TcpConnected;
+        lock.unlock();
 
         boost::system::error_code error;
         socket_->set_option(tcp::no_delay(true), error);

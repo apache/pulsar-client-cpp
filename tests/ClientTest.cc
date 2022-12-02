@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <chrono>
 #include <future>
 
 #include "HttpHelper.h"
@@ -292,4 +293,18 @@ TEST(ClientTest, testMultiBrokerUrl) {
     PulsarFriend::setServiceUrlIndex(client, 0);
     ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
     client.close();
+}
+
+TEST(ClientTest, testCloseClient) {
+    const std::string topic = "client-test-close-client-" + std::to_string(time(nullptr));
+
+    for (int i = 0; i < 1000; ++i) {
+        Client client(lookupUrl);
+        client.createProducerAsync(topic, [](Result result, Producer producer) { producer.close(); });
+        // simulate different time interval before close
+        auto t0 = std::chrono::steady_clock::now();
+        while ((std::chrono::steady_clock::now() - t0) < std::chrono::microseconds(i)) {
+        }
+        client.close();
+    }
 }
