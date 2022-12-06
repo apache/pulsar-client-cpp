@@ -512,7 +512,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         m.impl_->convertPayloadToKeyValue(config_.getSchema());
 
         const auto startMessageId = startMessageId_.get();
-        if (isPersistent_ && startMessageId.has_value() &&
+        if (isPersistent_ && startMessageId &&
             m.getMessageId().ledgerId() == startMessageId.value().ledgerId() &&
             m.getMessageId().entryId() == startMessageId.value().entryId() &&
             isPriorEntryIndex(m.getMessageId().entryId())) {
