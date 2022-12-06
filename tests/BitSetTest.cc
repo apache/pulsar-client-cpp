@@ -26,9 +26,9 @@
 
 using namespace pulsar;
 
-static std::vector<long> toLongVector(const BitSet& bitSet) {
-    std::vector<long> v;
-    for (long x : bitSet) {
+static std::vector<uint64_t> toLongVector(const BitSet& bitSet) {
+    std::vector<uint64_t> v;
+    for (uint64_t x : bitSet) {
         v.emplace_back(x);
     }
     return v;
@@ -36,16 +36,16 @@ static std::vector<long> toLongVector(const BitSet& bitSet) {
 
 TEST(BitSetTest, testFill) {
     // An int64_t has 64 bits, so we test 64*N + {-1, 0, 1}
-    std::map<int, std::vector<long>> expectedResults;
-    expectedResults[7] = {127L};
-    expectedResults[63] = {9223372036854775807L};
-    expectedResults[64] = {-1L};
-    expectedResults[65] = {-1L, 1L};
-    expectedResults[127] = {-1L, 9223372036854775807L};
-    expectedResults[128] = {-1L, -1L};
-    expectedResults[129] = {-1L, -1L, 1L};
+    std::map<int, std::vector<uint64_t>> expectedResults;
+    expectedResults[7] = {0x7f};
+    expectedResults[63] = {0x7fffffffffffffff};
+    expectedResults[64] = {0xffffffffffffffff};
+    expectedResults[65] = {0xffffffffffffffff, 1};
+    expectedResults[127] = {0xffffffffffffffff, 0x7fffffffffffffff};
+    expectedResults[128] = {0xffffffffffffffff, 0xffffffffffffffff};
+    expectedResults[129] = {0xffffffffffffffff, 0xffffffffffffffff, 1};
 
-    std::map<int, std::vector<long>> actualResults;
+    std::map<int, std::vector<uint64_t>> actualResults;
     for (const auto& kv : expectedResults) {
         BitSet bitSet(kv.first);
         ASSERT_TRUE(toLongVector(bitSet).empty());
@@ -61,36 +61,42 @@ TEST(BitSetTest, testSet) {
 
     // range contains one word
     bitSet.set(3, 29);
-    ASSERT_EQ(toLongVector(bitSet), std::vector<long>{536870904L});
+    ASSERT_EQ(toLongVector(bitSet), std::vector<uint64_t>{0x1ffffff8});
 
     // range contains multiple words
     bitSet.set(64 * 2 + 11, 64 * 4 + 19);
-    ASSERT_EQ(toLongVector(bitSet), (std::vector<long>{536870904L, 0L, -2048L, -1L, 524287L}));
+    ASSERT_EQ(toLongVector(bitSet),
+              (std::vector<uint64_t>{0x1ffffff8, 0, 0xfffffffffffff800, 0xffffffffffffffff, 0x7ffff}));
 }
 
 TEST(BitSetTest, testRangeClear) {
     BitSet bitSet(64 * 5 + 1);  // 6 words
     bitSet.set(0, 64 * 5 + 1);
-    ASSERT_EQ(toLongVector(bitSet), (std::vector<long>{-1L, -1L, -1L, -1L, -1L, 1L}));
+    ASSERT_EQ(toLongVector(bitSet),
+              (std::vector<uint64_t>{0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff,
+                                     0xffffffffffffffff, 0xffffffffffffffff, 1}));
 
     // range contains one word
     bitSet.clear(64 * 5, 64 * 5 + 1);
-    ASSERT_EQ(toLongVector(bitSet), (std::vector<long>{-1L, -1L, -1L, -1L, -1L}));
+    ASSERT_EQ(toLongVector(bitSet),
+              (std::vector<uint64_t>{0xffffffffffffffff, 0xffffffffffffffff, 0xffffffffffffffff,
+                                     0xffffffffffffffff, 0xffffffffffffffff}));
 
     // range contains multiple words
     bitSet.clear(64 * 2 + 13, 64 * 5);
-    ASSERT_EQ(toLongVector(bitSet), (std::vector<long>{-1L, -1L, 8191L}));
+    ASSERT_EQ(toLongVector(bitSet), (std::vector<uint64_t>{0xffffffffffffffff, 0xffffffffffffffff, 0x1fff}));
 }
 
 TEST(BitSetTest, testSingleClear) {
     BitSet bitSet(64 * 2 + 1);  // 3 words
     bitSet.set(0, 64 * 2 + 1);
+    ASSERT_EQ(toLongVector(bitSet), (std::vector<uint64_t>{0xffffffffffffffff, 0xffffffffffffffff, 1}));
 
     // words in use shrinked
     bitSet.clear(64 * 2);
-    ASSERT_EQ(toLongVector(bitSet), (std::vector<long>{-1L, -1L}));
+    ASSERT_EQ(toLongVector(bitSet), (std::vector<uint64_t>{0xffffffffffffffff, 0xffffffffffffffff}));
 
     // words in use doesn't change
     bitSet.clear(13);
-    ASSERT_EQ(toLongVector(bitSet), (std::vector<long>{-8193L, -1L}));
+    ASSERT_EQ(toLongVector(bitSet), (std::vector<uint64_t>{0xffffffffffffdfff, 0xffffffffffffffff}));
 }
