@@ -59,25 +59,25 @@ TEST(SynchronizedHashMap, testRemoveAndFind) {
 
     OptValue optValue;
     optValue = m.findFirstValueIf([](const int& x) { return x == 200; });
-    ASSERT_TRUE(optValue.is_present());
+    ASSERT_TRUE(optValue);
     ASSERT_EQ(optValue.value(), 200);
 
     optValue = m.findFirstValueIf([](const int& x) { return x >= 301; });
-    ASSERT_FALSE(optValue.is_present());
+    ASSERT_FALSE(optValue);
 
     optValue = m.find(1);
-    ASSERT_TRUE(optValue.is_present());
+    ASSERT_TRUE(optValue);
     ASSERT_EQ(optValue.value(), 100);
 
-    ASSERT_FALSE(m.find(0).is_present());
-    ASSERT_FALSE(m.remove(0).is_present());
+    ASSERT_FALSE(m.find(0));
+    ASSERT_FALSE(m.remove(0));
 
     optValue = m.remove(1);
-    ASSERT_TRUE(optValue.is_present());
+    ASSERT_TRUE(optValue);
     ASSERT_EQ(optValue.value(), 100);
 
-    ASSERT_FALSE(m.remove(1).is_present());
-    ASSERT_FALSE(m.find(1).is_present());
+    ASSERT_FALSE(m.remove(1));
+    ASSERT_FALSE(m.find(1));
 }
 
 TEST(SynchronizedHashMapTest, testForEach) {
@@ -99,7 +99,7 @@ TEST(SynchronizedHashMap, testRecursiveMutex) {
     m.forEach([&m, &optValue](const int& key, const int& value) {
         optValue = m.find(key);  // the internal mutex was locked again
     });
-    ASSERT_TRUE(optValue.is_present());
+    ASSERT_TRUE(optValue);
     ASSERT_EQ(optValue.value(), 100);
 }
 

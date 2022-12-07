@@ -373,7 +373,7 @@ void MultiTopicsConsumerImpl::unsubscribeOneTopicAsync(const std::string& topic,
     for (int i = 0; i < numberPartitions; i++) {
         std::string topicPartitionName = topicName->getTopicPartitionName(i);
         auto optConsumer = consumers_.find(topicPartitionName);
-        if (optConsumer.is_empty()) {
+        if (!optConsumer) {
             LOG_ERROR("TopicsConsumer not subscribed on topicPartitionName: " << topicPartitionName);
             callback(ResultUnknownError);
             continue;
@@ -400,7 +400,7 @@ void MultiTopicsConsumerImpl::handleOneTopicUnsubscribedAsync(
     LOG_DEBUG("Successfully Unsubscribed one Consumer. topicPartitionName - " << topicPartitionName);
 
     auto optConsumer = consumers_.remove(topicPartitionName);
-    if (optConsumer.is_present()) {
+    if (optConsumer) {
         optConsumer.value()->pauseMessageListener();
     }
 
@@ -638,7 +638,7 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCal
     const std::string& topicPartitionName = msgId.getTopicName();
     auto optConsumer = consumers_.find(topicPartitionName);
 
-    if (optConsumer.is_present()) {
+    if (optConsumer) {
         unAckedMessageTrackerPtr_->remove(msgId);
         optConsumer.value()->acknowledgeAsync(msgId, callback);
     } else {
@@ -674,7 +674,7 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
     };
     for (const auto& kv : topicToMessageId) {
         auto optConsumer = consumers_.find(kv.first);
-        if (optConsumer.is_present()) {
+        if (optConsumer) {
             unAckedMessageTrackerPtr_->remove(kv.second);
             optConsumer.value()->acknowledgeAsync(kv.second, cb);
         } else {
@@ -691,7 +691,7 @@ void MultiTopicsConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId,
 void MultiTopicsConsumerImpl::negativeAcknowledge(const MessageId& msgId) {
     auto optConsumer = consumers_.find(msgId.getTopicName());
 
-    if (optConsumer.is_present()) {
+    if (optConsumer) {
         unAckedMessageTrackerPtr_->remove(msgId);
         optConsumer.value()->negativeAcknowledge(msgId);
     }
@@ -868,9 +868,8 @@ bool MultiTopicsConsumerImpl::isConnected() const {
         return false;
     }
 
-    return consumers_
-        .findFirstValueIf([](const ConsumerImplPtr& consumer) { return !consumer->isConnected(); })
-        .is_empty();
+    return !consumers_.findFirstValueIf(
+        [](const ConsumerImplPtr& consumer) { return !consumer->isConnected(); });
 }
 
 uint64_t MultiTopicsConsumerImpl::getNumberOfConnectedConsumer() {

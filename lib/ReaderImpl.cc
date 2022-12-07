@@ -80,10 +80,9 @@ void ReaderImpl::start(const MessageId& startMessageId,
         test::consumerConfigOfReader = consumerConf.clone();
     }
 
-    consumer_ = std::make_shared<ConsumerImpl>(client_.lock(), topic_, subscription, consumerConf,
-                                               TopicName::get(topic_)->isPersistent(), ExecutorServicePtr(),
-                                               false, NonPartitioned, Commands::SubscriptionModeNonDurable,
-                                               Optional<MessageId>::of(startMessageId));
+    consumer_ = std::make_shared<ConsumerImpl>(
+        client_.lock(), topic_, subscription, consumerConf, TopicName::get(topic_)->isPersistent(),
+        ExecutorServicePtr(), false, NonPartitioned, Commands::SubscriptionModeNonDurable, startMessageId);
     consumer_->setPartitionIndex(TopicName::getPartitionIndex(topic_));
     auto self = shared_from_this();
     consumer_->getConsumerCreatedFuture().addListener(

@@ -19,6 +19,7 @@
 #ifndef LIB_PRODUCERIMPL_H_
 #define LIB_PRODUCERIMPL_H_
 
+#include <boost/optional.hpp>
 #include <memory>
 
 #include "Future.h"
@@ -31,7 +32,6 @@
 #include "PeriodicTask.h"
 #include "ProducerImplBase.h"
 #include "Semaphore.h"
-#include "Utils.h"
 
 namespace pulsar {
 
@@ -195,7 +195,7 @@ class ProducerImpl : public HandlerBase,
 
     MemoryLimitController& memoryLimitController_;
     const bool chunkingEnabled_;
-    Optional<uint64_t> topicEpoch{Optional<uint64_t>::empty()};
+    boost::optional<uint64_t> topicEpoch;
 };
 
 struct ProducerImplCmp {
