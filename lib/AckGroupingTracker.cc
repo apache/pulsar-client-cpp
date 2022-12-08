@@ -19,9 +19,11 @@
 
 #include "AckGroupingTracker.h"
 
+#include "BitSet.h"
 #include "ClientConnection.h"
 #include "Commands.h"
 #include "LogUtils.h"
+#include "MessageIdImpl.h"
 
 namespace pulsar {
 
@@ -29,7 +31,8 @@ DECLARE_LOG_OBJECT();
 
 inline void sendAck(ClientConnectionPtr cnx, uint64_t consumerId, const MessageId& msgId,
                     CommandAck_AckType ackType) {
-    auto cmd = Commands::newAck(consumerId, msgId.ledgerId(), msgId.entryId(), ackType, -1);
+    const auto& bitSet = Commands::getMessageIdImpl(msgId)->getBitSet();
+    auto cmd = Commands::newAck(consumerId, msgId.ledgerId(), msgId.entryId(), bitSet, ackType, -1);
     cnx->sendCommand(cmd);
     LOG_DEBUG("ACK request is sent for message - [" << msgId.ledgerId() << ", " << msgId.entryId() << "]");
 }

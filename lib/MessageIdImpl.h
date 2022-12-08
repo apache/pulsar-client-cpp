@@ -22,6 +22,8 @@
 #include <cstdint>
 #include <string>
 
+#include "BitSet.h"
+
 namespace pulsar {
 
 class MessageIdImpl {
@@ -43,6 +45,11 @@ class MessageIdImpl {
 
     const std::string& getTopicName() { return *topicName_; }
     void setTopicName(const std::string& topicName) { topicName_ = &topicName; }
+
+    virtual const BitSet& getBitSet() const noexcept {
+        static const BitSet emptyBitSet;
+        return emptyBitSet;
+    }
 
    private:
     const std::string* topicName_ = nullptr;

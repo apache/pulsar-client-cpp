@@ -39,6 +39,7 @@ class BatchMessageAcker;
 using BatchMessageAckerPtr = std::shared_ptr<BatchMessageAcker>;
 class MessageIdImpl;
 using MessageIdImplPtr = std::shared_ptr<MessageIdImpl>;
+class BitSet;
 
 namespace proto {
 class BaseCommand;
@@ -112,7 +113,7 @@ class Commands {
                                     bool userProvidedProducerName, bool encrypted,
                                     ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch);
 
-    static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+    static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
                                CommandAck_AckType ackType, CommandAck_ValidationError validationError);
     static SharedBuffer newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds);
 

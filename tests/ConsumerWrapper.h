@@ -26,20 +26,38 @@
 
 #include "lib/ProtoApiEnums.h"
 
-using namespace pulsar;
+namespace pulsar {
+
+enum class AckType
+{
+    INDIVIDUAL,
+    INDIVIDUAL_LIST,
+    CUMULATIVE
+};
+
+inline MessageIdList subMessageIdList(const MessageIdList& messageIdList,
+                                      const std::vector<size_t>& indexes) {
+    std::vector<MessageId> subMessageIdList;
+    for (size_t index : indexes) {
+        subMessageIdList.emplace_back(messageIdList.at(index));
+    }
+    return subMessageIdList;
+}
 
 class ConsumerWrapper {
    public:
-    void initialize(Client& client, const std::string& topic, const std::string& subscription) {
+    void initialize(Client& client, const std::string& topic, const std::string& subscription,
+                    bool enableBatchIndexAck = false) {
+        client_ = &client;
+        topic_ = topic;
+        subscription_ = subscription;
         // Enable the stats for cumulative ack
-        ConsumerConfiguration conf;
-        conf.setUnAckedMessagesTimeoutMs(10000);
-        ASSERT_EQ(ResultOk, client.subscribe(topic, subscription, conf, consumer_));
+        conf_.setUnAckedMessagesTimeoutMs(10000);
+        conf_.setBatchIndexAckEnabled(enableBatchIndexAck);
+        ASSERT_EQ(ResultOk, client_->subscribe(topic_, subscription_, conf_, consumer_));
     }
 
     const std::vector<MessageId>& messageIdList() const noexcept { return messageIdList_; }
-
-    Result receive(Message& msg) { return consumer_.receive(msg, 3000); }
 
     void receiveAtMost(int numMessages) {
         Message msg;
@@ -51,20 +69,46 @@ class ConsumerWrapper {
 
     unsigned long getNumAcked(CommandAck_AckType ackType) const;
 
-    void acknowledgeAndRedeliver(const std::vector<size_t>& indexes, CommandAck_AckType ackType) {
-        for (size_t index : indexes) {
-            if (ackType == CommandAck_AckType_Individual) {
-                consumer_.acknowledge(messageIdList_.at(index));
-            } else {
-                consumer_.acknowledgeCumulative(messageIdList_.at(index));
+    void acknowledge(const std::vector<size_t>& indexes, AckType ackType) {
+        auto msgIds = subMessageIdList(messageIdList_, indexes);
+        if (ackType == AckType::INDIVIDUAL_LIST) {
+            consumer_.acknowledge(msgIds);
+        } else {
+            for (auto&& msgId : msgIds) {
+                if (ackType == AckType::CUMULATIVE) {
+                    consumer_.acknowledgeCumulative(msgId);
+                } else {
+                    consumer_.acknowledge(msgId);
+                }
             }
         }
         // Wait until the acknowledge command is sent
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    void acknowledgeAndRedeliver(const std::vector<size_t>& indexes, AckType ackType) {
+        acknowledge(indexes, ackType);
         consumer_.redeliverUnacknowledgedMessages();
     }
 
+    // NOTE: Currently Pulsar broker doesn't support redelivery with batch index ACK well, so here we verify
+    // the acknowledgment by restarting the consumer.
+    void acknowledgeAndRestart(const std::vector<size_t>& indexes, AckType ackType) {
+        acknowledge(indexes, ackType);
+        messageIdList_.clear();
+        consumer_.close();
+        ASSERT_EQ(ResultOk, client_->subscribe(topic_, subscription_, conf_, consumer_));
+    }
+
+    Consumer& getConsumer() noexcept { return consumer_; }
+
    private:
+    Client* client_;
+    std::string topic_;
+    std::string subscription_;
+    ConsumerConfiguration conf_;
     Consumer consumer_;
     std::vector<MessageId> messageIdList_;
 };
+
+}  // namespace pulsar

@@ -27,6 +27,7 @@
 #include "AckGroupingTrackerEnabled.h"
 #include "BatchMessageAcker.h"
 #include "BatchedMessageIdImpl.h"
+#include "BitSet.h"
 #include "ChunkMessageIdImpl.h"
 #include "ClientConnection.h"
 #include "ClientImpl.h"
@@ -512,8 +513,13 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
     }
 
     if (metadata.has_num_messages_in_batch()) {
+        BitSet::Data words(msg.ack_set_size());
+        for (int i = 0; i < words.size(); i++) {
+            words[i] = msg.ack_set(i);
+        }
+        BitSet ackSet{std::move(words)};
         Lock lock(mutex_);
-        numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, msg.redelivery_count());
+        numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, ackSet, msg.redelivery_count());
     } else {
         // try convery key value data.
         m.impl_->convertPayloadToKeyValue(config_.getSchema());
@@ -628,7 +634,8 @@ void ConsumerImpl::notifyPendingReceivedCallback(Result result, Message& msg,
 
 // Zero Queue size is not supported with Batch Messages
 uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx,
-                                                          Message& batchedMessage, int redeliveryCount) {
+                                                          Message& batchedMessage, const BitSet& ackSet,
+                                                          int redeliveryCount) {
     auto batchSize = batchedMessage.impl_->metadata.num_messages_in_batch();
     LOG_DEBUG("Received Batch messages of size - " << batchSize
                                                    << " -- msgId: " << batchedMessage.getMessageId());
@@ -657,6 +664,13 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
                 ++skippedMessages;
                 continue;
             }
+        }
+
+        if (!ackSet.isEmpty() && !ackSet.get(i)) {
+            LOG_DEBUG(getName() << "Ignoring message from " << i
+                                << "th message, which has been acknowledged");
+            ++skippedMessages;
+            continue;
         }
 
         executeNotifyCallback(msg);
@@ -753,7 +767,7 @@ void ConsumerImpl::discardCorruptedMessage(const ClientConnectionPtr& cnx,
     LOG_ERROR(getName() << "Discarding corrupted message at " << messageId.ledgerid() << ":"
                         << messageId.entryid());
 
-    SharedBuffer cmd = Commands::newAck(consumerId_, messageId.ledgerid(), messageId.entryid(),
+    SharedBuffer cmd = Commands::newAck(consumerId_, messageId.ledgerid(), messageId.entryid(), {},
                                         CommandAck_AckType_Individual, validationError);
 
     cnx->sendCommand(cmd);
@@ -1066,6 +1080,8 @@ std::pair<MessageId, bool> ConsumerImpl::prepareIndividualAck(const MessageId& m
                                                    (batchSize > 0) ? batchSize : 1);
         unAckedMessageTrackerPtr_->remove(messageId);
         return std::make_pair(discardBatch(messageId), true);
+    } else if (config_.isBatchIndexAckEnabled()) {
+        return std::make_pair(messageId, true);
     } else {
         return std::make_pair(MessageId{}, false);
     }
@@ -1077,6 +1093,8 @@ std::pair<MessageId, bool> ConsumerImpl::prepareCumulativeAck(const MessageId& m
 
     if (!batchedMessageIdImpl || batchedMessageIdImpl->ackCumulative(messageId.batchIndex())) {
         return std::make_pair(discardBatch(messageId), true);
+    } else if (config_.isBatchIndexAckEnabled()) {
+        return std::make_pair(messageId, true);
     } else {
         if (batchedMessageIdImpl->shouldAckPreviousMessageId()) {
             return std::make_pair(batchedMessageIdImpl->getPreviousMessageId(), true);

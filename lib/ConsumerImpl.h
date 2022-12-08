@@ -48,6 +48,7 @@ typedef std::shared_ptr<Backoff> BackoffPtr;
 
 class AckGroupingTracker;
 using AckGroupingTrackerPtr = std::shared_ptr<AckGroupingTracker>;
+class BitSet;
 class ConsumerStatsBase;
 using ConsumerStatsBasePtr = std::shared_ptr<ConsumerStatsBase>;
 class UnAckedMessageTracker;
@@ -158,7 +159,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void increaseAvailablePermits(const ClientConnectionPtr& currentCnx, int delta = 1);
     void drainIncomingMessageQueue(size_t count);
     uint32_t receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx, Message& batchedMessage,
-                                                int redeliveryCount);
+                                                const BitSet& ackSet, int redeliveryCount);
     bool isPriorBatchIndex(int32_t idx);
     bool isPriorEntryIndex(int64_t idx);
     void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, BrokerConsumerStatsCallback);

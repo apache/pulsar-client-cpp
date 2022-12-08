@@ -553,6 +553,23 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      */
     bool isStartMessageIdInclusive() const;
 
+    /**
+     * Enable the batch index acknowledgment.
+     *
+     * It should be noted that this option can only work when the broker side also enables the batch index
+     * acknowledgment. See the `acknowledgmentAtBatchIndexLevelEnabled` config in `broker.conf`.
+     *
+     * Default: false
+     *
+     * @param enabled whether to enable the batch index acknowledgment
+     */
+    ConsumerConfiguration& setBatchIndexAckEnabled(bool enabled);
+
+    /**
+     * The associated getter of setBatchingEnabled
+     */
+    bool isBatchIndexAckEnabled() const;
+
     friend class PulsarWrapper;
 
    private:

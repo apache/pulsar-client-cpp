@@ -28,6 +28,7 @@
 
 #include "BatchMessageAcker.h"
 #include "BatchedMessageIdImpl.h"
+#include "BitSet.h"
 #include "ChunkMessageIdImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
@@ -420,7 +421,7 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     return writeMessageWithSize(cmd);
 }
 
-SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
                               CommandAck_AckType ackType, CommandAck_ValidationError validationError) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
@@ -433,6 +434,9 @@ SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t ent
     auto* msgId = ack->add_message_id();
     msgId->set_ledgerid(ledgerId);
     msgId->set_entryid(entryId);
+    for (auto x : ackSet) {
+        msgId->add_ack_set(x);
+    }
     return writeMessageWithSize(cmd);
 }
 
@@ -446,6 +450,9 @@ SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<Me
         auto newMsgId = ack->add_message_id();
         newMsgId->set_ledgerid(msgId.ledgerId());
         newMsgId->set_entryid(msgId.entryId());
+        for (auto x : getMessageIdImpl(msgId)->getBitSet()) {
+            newMsgId->add_ack_set(x);
+        }
     }
     return writeMessageWithSize(cmd);
 }

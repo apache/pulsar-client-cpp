@@ -59,6 +59,8 @@ class BatchMessageAcker {
         return prevBatchCumulativelyAcked_.compare_exchange_strong(expectedValue, true);
     }
 
+    const BitSet& getBitSet() const noexcept { return bitSet_; }
+
    private:
     BitSet bitSet_;
     // When a batched message is acknowledged cumulatively, the previous message id will be acknowledged
