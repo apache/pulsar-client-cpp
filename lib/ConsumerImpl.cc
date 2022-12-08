@@ -25,6 +25,8 @@
 #include "AckGroupingTracker.h"
 #include "AckGroupingTrackerDisabled.h"
 #include "AckGroupingTrackerEnabled.h"
+#include "BatchMessageAcker.h"
+#include "BatchedMessageIdImpl.h"
 #include "ClientConnection.h"
 #include "ClientImpl.h"
 #include "Commands.h"
@@ -75,7 +77,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       consumerId_(client->newConsumerId()),
       consumerName_(config_.getConsumerName()),
       messageListenerRunning_(true),
-      batchAcknowledgementTracker_(topic_, subscriptionName, (long)consumerId_),
       negativeAcksTracker_(client, *this, conf),
       ackGroupingTrackerPtr_(std::make_shared<AckGroupingTracker>()),
       readCompacted_(conf.isReadCompacted()),
@@ -198,7 +199,6 @@ void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     lockForMessageId.unlock();
 
     unAckedMessageTrackerPtr_->clear();
-    batchAcknowledgementTracker_.clear();
 
     ClientImplPtr client = client_.lock();
     uint64_t requestId = client->newRequestId();
@@ -328,7 +328,7 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
 
 void ConsumerImpl::discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck) {
     if (autoAck) {
-        doAcknowledgeIndividual(messageId, [uuid, messageId](Result result) {
+        acknowledgeAsync(messageId, [uuid, messageId](Result result) {
             if (result != ResultOk) {
                 LOG_WARN("Failed to acknowledge discarded chunk, uuid: " << uuid
                                                                          << ", messageId: " << messageId);
@@ -622,17 +622,17 @@ void ConsumerImpl::notifyPendingReceivedCallback(Result result, Message& msg,
 // Zero Queue size is not supported with Batch Messages
 uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx,
                                                           Message& batchedMessage, int redeliveryCount) {
-    unsigned int batchSize = batchedMessage.impl_->metadata.num_messages_in_batch();
-    batchAcknowledgementTracker_.receivedMessage(batchedMessage);
+    auto batchSize = batchedMessage.impl_->metadata.num_messages_in_batch();
     LOG_DEBUG("Received Batch messages of size - " << batchSize
                                                    << " -- msgId: " << batchedMessage.getMessageId());
     const auto startMessageId = startMessageId_.get();
 
     int skippedMessages = 0;
 
+    auto acker = BatchMessageAcker::create(batchSize);
     for (int i = 0; i < batchSize; i++) {
         // This is a cheap copy since message contains only one shared pointer (impl_)
-        Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize);
+        Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize, acker);
         msg.impl_->setRedeliveryCount(redeliveryCount);
         msg.impl_->setTopicName(batchedMessage.getTopicName());
         msg.impl_->convertPayloadToKeyValue(config_.getSchema());
@@ -997,53 +997,51 @@ inline CommandSubscribe_InitialPosition ConsumerImpl::getInitialPosition() {
     BOOST_THROW_EXCEPTION(std::logic_error("Invalid InitialPosition enumeration value"));
 }
 
-void ConsumerImpl::statsAckCallback(Result res, ResultCallback callback, CommandAck_AckType ackType,
-                                    uint32_t numAcks) {
-    consumerStatsBasePtr_->messageAcknowledged(res, ackType, numAcks);
-    if (callback) {
-        callback(res);
-    }
-}
-
 void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callback) {
-    ResultCallback cb = std::bind(&ConsumerImpl::statsAckCallback, get_shared_this_ptr(),
-                                  std::placeholders::_1, callback, CommandAck_AckType_Individual, 1);
-    if (msgId.batchIndex() != -1 &&
-        !batchAcknowledgementTracker_.isBatchReady(msgId, CommandAck_AckType_Individual)) {
-        cb(ResultOk);
-        return;
+    auto pair = prepareIndividualAck(msgId);
+    const auto& msgIdToAck = pair.first;
+    const bool readyToAck = pair.second;
+    if (readyToAck) {
+        ackGroupingTrackerPtr_->addAcknowledge(msgIdToAck);
     }
-    doAcknowledgeIndividual(msgId, cb);
+    if (callback) {
+        callback(ResultOk);
+    }
 }
 
 void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
-    ResultCallback cb =
-        std::bind(&ConsumerImpl::statsAckCallback, get_shared_this_ptr(), std::placeholders::_1, callback,
-                  proto::CommandAck_AckType_Individual, messageIdList.size());
-    // Currently not supported batch message id individual index ack.
-    this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdList);
-    this->unAckedMessageTrackerPtr_->remove(messageIdList);
-    cb(ResultOk);
+    MessageIdList messageIdListToAck;
+    for (auto&& msgId : messageIdList) {
+        auto pair = prepareIndividualAck(msgId);
+        const auto& msgIdToAck = pair.first;
+        const bool readyToAck = pair.second;
+        if (readyToAck) {
+            messageIdListToAck.emplace_back(msgIdToAck);
+        }
+    }
+    this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdListToAck);
+    if (callback) {
+        callback(ResultOk);
+    }
 }
 
 void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
-    ResultCallback cb = std::bind(&ConsumerImpl::statsAckCallback, get_shared_this_ptr(),
-                                  std::placeholders::_1, callback, CommandAck_AckType_Cumulative, 1);
     if (!isCumulativeAcknowledgementAllowed(config_.getConsumerType())) {
-        cb(ResultCumulativeAcknowledgementNotAllowedError);
+        if (callback) {
+            callback(ResultCumulativeAcknowledgementNotAllowedError);
+        }
         return;
     }
-    if (msgId.batchIndex() != -1 &&
-        !batchAcknowledgementTracker_.isBatchReady(msgId, CommandAck_AckType_Cumulative)) {
-        MessageId messageId = batchAcknowledgementTracker_.getGreatestCumulativeAckReady(msgId);
-        if (messageId == MessageId()) {
-            // Nothing to ACK, because the batch that msgId belongs to is NOT completely consumed.
-            cb(ResultOk);
-        } else {
-            doAcknowledgeCumulative(messageId, cb);
-        }
-    } else {
-        doAcknowledgeCumulative(msgId, cb);
+    auto pair = prepareCumulativeAck(msgId);
+    const auto& msgIdToAck = pair.first;
+    const auto& readyToAck = pair.second;
+    if (readyToAck) {
+        consumerStatsBasePtr_->messageAcknowledged(ResultOk, CommandAck_AckType_Cumulative, 1);
+        unAckedMessageTrackerPtr_->removeMessagesTill(msgIdToAck);
+        ackGroupingTrackerPtr_->addAcknowledgeCumulative(msgIdToAck);
+    }
+    if (callback) {
+        callback(ResultOk);
     }
 }
 
@@ -1051,18 +1049,34 @@ bool ConsumerImpl::isCumulativeAcknowledgementAllowed(ConsumerType consumerType)
     return consumerType != ConsumerKeyShared && consumerType != ConsumerShared;
 }
 
-void ConsumerImpl::doAcknowledgeIndividual(const MessageId& messageId, ResultCallback callback) {
-    this->unAckedMessageTrackerPtr_->remove(messageId);
-    this->batchAcknowledgementTracker_.deleteAckedMessage(messageId, proto::CommandAck::Individual);
-    this->ackGroupingTrackerPtr_->addAcknowledge(messageId);
-    callback(ResultOk);
+std::pair<MessageId, bool> ConsumerImpl::prepareIndividualAck(const MessageId& messageId) {
+    auto messageIdImpl = Commands::getMessageIdImpl(messageId);
+    auto batchedMessageIdImpl = std::dynamic_pointer_cast<BatchedMessageIdImpl>(messageIdImpl);
+
+    auto batchSize = messageId.batchSize();
+    if (!batchedMessageIdImpl || batchedMessageIdImpl->ackIndividual(messageId.batchIndex())) {
+        consumerStatsBasePtr_->messageAcknowledged(ResultOk, CommandAck_AckType_Individual,
+                                                   (batchSize > 0) ? batchSize : 1);
+        unAckedMessageTrackerPtr_->remove(messageId);
+        return std::make_pair(discardBatch(messageId), true);
+    } else {
+        return std::make_pair(MessageId{}, false);
+    }
 }
 
-void ConsumerImpl::doAcknowledgeCumulative(const MessageId& messageId, ResultCallback callback) {
-    this->unAckedMessageTrackerPtr_->removeMessagesTill(messageId);
-    this->batchAcknowledgementTracker_.deleteAckedMessage(messageId, proto::CommandAck::Cumulative);
-    this->ackGroupingTrackerPtr_->addAcknowledgeCumulative(messageId);
-    callback(ResultOk);
+std::pair<MessageId, bool> ConsumerImpl::prepareCumulativeAck(const MessageId& messageId) {
+    auto messageIdImpl = Commands::getMessageIdImpl(messageId);
+    auto batchedMessageIdImpl = std::dynamic_pointer_cast<BatchedMessageIdImpl>(messageIdImpl);
+
+    if (!batchedMessageIdImpl || batchedMessageIdImpl->ackCumulative(messageId.batchIndex())) {
+        return std::make_pair(discardBatch(messageId), true);
+    } else {
+        if (batchedMessageIdImpl->shouldAckPreviousMessageId()) {
+            return std::make_pair(batchedMessageIdImpl->getPreviousMessageId(), true);
+        } else {
+            return std::make_pair(MessageId{}, false);
+        }
+    }
 }
 
 void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {

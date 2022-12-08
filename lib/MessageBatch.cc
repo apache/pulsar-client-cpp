@@ -18,6 +18,7 @@
  */
 #include <pulsar/MessageBatch.h>
 
+#include "BatchMessageAcker.h"
 #include "Commands.h"
 #include "MessageImpl.h"
 #include "SharedBuffer.h"
@@ -46,8 +47,9 @@ MessageBatch& MessageBatch::parseFrom(const SharedBuffer& payload, uint32_t batc
     impl_->metadata.set_num_messages_in_batch(batchSize);
     batch_.clear();
 
+    auto acker = BatchMessageAcker::create(batchSize);
     for (int i = 0; i < batchSize; ++i) {
-        batch_.push_back(Commands::deSerializeSingleMessageInBatch(batchMessage_, i, batchSize));
+        batch_.push_back(Commands::deSerializeSingleMessageInBatch(batchMessage_, i, batchSize, acker));
     }
     return *this;
 }

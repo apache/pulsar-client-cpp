@@ -1100,6 +1100,7 @@ TEST(BasicEndToEndTest, testStatsLatencies) {
     int i = 0;
     ConsumerStatsImplPtr consumerStatsImplPtr = PulsarFriend::getConsumerStatsPtr(consumer);
 
+    unsigned long numAcks = 0;
     while (consumer.receive(receivedMsg, 5000) == ResultOk) {
         std::string expectedMessageContent = prefix + std::to_string(i);
         LOG_DEBUG("Received Message with [ content - " << receivedMsg.getDataAsString() << "] [ messageID = "
@@ -1107,9 +1108,16 @@ TEST(BasicEndToEndTest, testStatsLatencies) {
         ASSERT_EQ(receivedMsg.getProperty("msgIndex"), std::to_string(i++));
         ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getTotalReceivedMsgMap()), i);
         ASSERT_EQ(expectedMessageContent, receivedMsg.getDataAsString());
-        ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getTotalAckedMsgMap()), i - 1);
         ASSERT_EQ(ResultOk, consumer.acknowledge(receivedMsg));
-        ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getTotalAckedMsgMap()), i);
+
+        auto msgId = receivedMsg.getMessageId();
+        if (msgId.batchIndex() < 0) {
+            numAcks++;
+        } else if (msgId.batchIndex() + 1 == msgId.batchSize()) {
+            // The stats will only be updated after all messages in the batch are acknowledged
+            numAcks += msgId.batchSize();
+        }
+        ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), numAcks);
     }
     // Number of messages consumed
     ASSERT_EQ(i, numOfMessages);

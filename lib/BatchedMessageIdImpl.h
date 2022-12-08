@@ -16,38 +16,37 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #pragma once
 
-#include <cstdint>
-#include <string>
+#include <assert.h>
+#include <pulsar/MessageIdBuilder.h>
+
+#include <atomic>
+
+#include "BatchMessageAcker.h"
+#include "MessageIdImpl.h"
 
 namespace pulsar {
 
-class MessageIdImpl {
+class BatchedMessageIdImpl : public MessageIdImpl {
    public:
-    MessageIdImpl() = default;
-    MessageIdImpl(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex)
-        : ledgerId_(ledgerId),
-          entryId_(entryId),
-          partition_(partition),
-          batchIndex_(batchIndex),
-          topicName_() {}
-    virtual ~MessageIdImpl() {}
+    BatchedMessageIdImpl(const MessageIdImpl& messageIdImpl, const BatchMessageAckerPtr& acker)
+        : MessageIdImpl(messageIdImpl), acker_(acker) {
+        assert(acker);
+    }
 
-    int64_t ledgerId_ = -1;
-    int64_t entryId_ = -1;
-    int32_t partition_ = -1;
-    int32_t batchIndex_ = -1;
-    int32_t batchSize_ = 0;
+    bool ackIndividual(int32_t batchIndex) const { return acker_->ackIndividual(batchIndex); }
 
-    const std::string& getTopicName() { return *topicName_; }
-    void setTopicName(const std::string& topicName) { topicName_ = &topicName; }
+    bool ackCumulative(int32_t batchIndex) const { return acker_->ackCumulative(batchIndex); }
+
+    bool shouldAckPreviousMessageId() const { return acker_->shouldAckPreviousMessageId(); }
+
+    MessageId getPreviousMessageId() {
+        return MessageIdBuilder().ledgerId(ledgerId_).entryId(entryId_ - 1).partition(partition_).build();
+    }
 
    private:
-    const std::string* topicName_ = nullptr;
-    friend class MessageImpl;
-    friend class MultiTopicsConsumerImpl;
-    friend class UnAckedMessageTrackerEnabled;
+    BatchMessageAckerPtr acker_;
 };
+
 }  // namespace pulsar
