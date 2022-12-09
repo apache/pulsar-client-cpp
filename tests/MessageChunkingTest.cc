@@ -255,6 +255,27 @@ TEST_P(MessageChunkingTest, testMaxPendingChunkMessages) {
     consumer.close();
 }
 
+TEST(ChunkMessageIdTest, testSetChunkMessageId) {
+    MessageId msgId;
+    {
+        ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
+        chunkMsgId->setFirstChunkMessageId(MessageIdBuilder().ledgerId(1).entryId(2).partition(3).build());
+        chunkMsgId->setLastChunkMessageId(MessageIdBuilder().ledgerId(4).entryId(5).partition(6).build());
+        msgId = ChunkMessageIdImpl::buildMessageId(chunkMsgId);
+        // Test the destructor of the underlying message id should also work for the generated messageId.
+    }
+    ASSERT_EQ(msgId.ledgerId(), 1);
+    ASSERT_EQ(msgId.entryId(), 2);
+    ASSERT_EQ(msgId.partition(), 3);
+
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(msgId));
+    ASSERT_TRUE(chunkMsgId);
+    auto firstChunkMsgId = chunkMsgId->getFirstChunkMessageId();
+    ASSERT_EQ(firstChunkMsgId.ledgerId(), 4);
+    ASSERT_EQ(firstChunkMsgId.entryId(), 5);
+    ASSERT_EQ(firstChunkMsgId.partition(), 6);
+}
+
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P
 INSTANTIATE_TEST_CASE_P(Pulsar, MessageChunkingTest,
                         ::testing::Values(CompressionNone, CompressionLZ4, CompressionZLib, CompressionZSTD,
