@@ -155,6 +155,43 @@ Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespac
     return promise->getFuture();
 }
 
+Future<Result, boost::optional<SchemaInfo>> BinaryProtoLookupService::getSchema(
+    const TopicNamePtr& topicName) {
+    GetSchemaPromisePtr promise = std::make_shared<Promise<Result, boost::optional<SchemaInfo>>>();
+
+    if (!topicName) {
+        promise->setFailed(ResultInvalidTopicName);
+        return promise->getFuture();
+    }
+    cnxPool_.getConnectionAsync(serviceNameResolver_.resolveHost())
+        .addListener(std::bind(&BinaryProtoLookupService::sendGetSchemaRequest, this, topicName->toString(),
+                               std::placeholders::_1, std::placeholders::_2, promise));
+
+    return promise->getFuture();
+}
+
+void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topiName, Result result,
+                                                    const ClientConnectionWeakPtr& clientCnx,
+                                                    GetSchemaPromisePtr promise) {
+    if (result != ResultOk) {
+        promise->setFailed(result);
+        return;
+    }
+
+    ClientConnectionPtr conn = clientCnx.lock();
+    uint64_t requestId = newRequestId();
+    LOG_DEBUG("sendGetSchemaRequest. requestId: " << requestId << " topicName: " << topiName);
+
+    conn->newGetSchema(topiName, requestId)
+        .addListener([promise](Result result, boost::optional<SchemaInfo> schemaInfo) {
+            if (result != ResultOk) {
+                promise->setFailed(result);
+                return;
+            }
+            promise->setValue(schemaInfo);
+        });
+}
+
 void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string& nsName, Result result,
                                                                const ClientConnectionWeakPtr& clientCnx,
                                                                NamespaceTopicsPromisePtr promise) {

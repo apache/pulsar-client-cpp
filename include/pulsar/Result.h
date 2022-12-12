@@ -92,6 +92,8 @@ enum Result
     ResultMemoryBufferIsFull,  /// Client-wide memory limit has been reached
 
     ResultInterrupted,  /// Interrupted while waiting to dequeue
+
+    ResultNotFound  /// The generic was not found
 };
 
 // Return string representation of result code

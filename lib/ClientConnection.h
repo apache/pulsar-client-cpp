@@ -168,6 +168,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     Future<Result, NamespaceTopicsPtr> newGetTopicsOfNamespace(const std::string& nsName, uint64_t requestId);
 
+    Future<Result, boost::optional<SchemaInfo>> newGetSchema(const std::string& topicName,
+                                                             uint64_t requestId);
+
    private:
     struct PendingRequestData {
         Promise<Result, ResponseData> promise;
@@ -319,6 +322,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     typedef std::map<long, Promise<Result, NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
     PendingGetNamespaceTopicsMap pendingGetNamespaceTopicsRequests_;
+
+    typedef std::map<long, Promise<Result, boost::optional<SchemaInfo>>> PendingGetSchemaMap;
+    PendingGetSchemaMap pendingGetSchemaRequests_;
 
     mutable std::mutex mutex_;
     typedef std::unique_lock<std::mutex> Lock;
