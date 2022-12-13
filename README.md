@@ -75,7 +75,7 @@ cd pulsar-client-cpp
 #### Install all dependencies:
 
 ```shell
-sudo apt-get update -y && apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev \
+sudo apt-get update -y && sudo apt-get install -y g++ cmake libssl-dev libcurl4-openssl-dev \
                 libprotobuf-dev libboost-all-dev libgtest-dev libgmock-dev \
                 protobuf-compiler
 ```
