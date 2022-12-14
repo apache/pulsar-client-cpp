@@ -108,7 +108,7 @@ perf/perfConsumer
 #### Install all dependencies:
 
 ```shell
-brew install openssl protobuf boost boost-python3 googletest zstd snappy
+brew install cmake openssl protobuf boost boost-python3 googletest zstd snappy
 ```
 
 #### Compile Pulsar client library:
