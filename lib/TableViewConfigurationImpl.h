@@ -16,33 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef LIB_TABLEVIEW_CONFIGURATIONIMPL_H_
+#define LIB_TABLEVIEW_CONFIGURATIONIMPL_H_
 
-#ifndef PULSAR_CPP_TABLEVIEW_IMPL_H
-#define PULSAR_CPP_TABLEVIEW_IMPL_H
-
-#include <map>
-
-#include "ClientImpl.h"
-#include "SynchronizedHashMap.h"
+#include <pulsar/TableViewConfiguration.h>
 
 namespace pulsar {
 
-class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
-   public:
-    TableViewImpl(const ClientImplPtr client, const std::string& topic, const TableViewConfiguration& conf);
-
-    Future<Result, TableViewImplPtr> start();
-
-   private:
-    const ClientImplPtr client_;
-    const std::string topic_;
-    const TableViewConfiguration conf_;
-    Reader reader_;
-
-    SynchronizedHashMap<std::string, std::string> data_;
-    // todo 只支持持久化topic:
-    // https://github.com/apache/pulsar/pull/18375/files#diff-4c15ad9e44a19d82a9c40274cad3950b0af335cb40bd537b130300510a6857d8
+struct TableViewConfigurationImpl {
+    SchemaInfo schemaInfo_;
+    std::string subscriptionName_;
+    long autoUpdatePartitionSeconds_{60};
 };
 }  // namespace pulsar
 
-#endif  // PULSAR_CPP_TABLEVIEW_IMPL_H
+#endif /* LIB_TABLEVIEW_CONFIGURATIONIMPL_H_ */

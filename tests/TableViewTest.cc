@@ -16,23 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/TableView.h>
+#include <gtest/gtest.h>
+#include <pulsar/Client.h>
 
-#include "TableViewImpl.h"
+#include <chrono>
+#include <future>
 
-namespace pulsar {
+#include "PulsarFriend.h"
 
-const static std::string emptyString;
+using namespace pulsar;
 
-TableView::TableView() {}
-bool TableView::retrieveValue(const std::string& key, std::string& value) { return false; }
-bool TableView::getValue(const std::string& key, std::string& value) const { return false; }
-bool TableView::containsKey(const std::string& key) const { return false; }
-std::unordered_map<std::string, std::string> TableView::snapshot() const {
-    return std::unordered_map<std::string, std::string>();
+static std::string lookupUrl = "pulsar://localhost:6650";
+
+TEST(TableViewTest, testCreateTableView) {
+    const std::string topic = "testCreateTableView" + std::to_string(time(nullptr));
+    Client client(lookupUrl);
+
+    TableViewConfiguration tableViewConfiguration;
+    TableView tableView;
+    ASSERT_EQ(ResultOk, client.createTableView(topic, tableViewConfiguration, tableView));
+
+    client.close();
 }
-std::size_t TableView::size() const { return 0; }
-void TableView::forEach(TableViewAction action) {}
-void TableView::forEachAndListen(TableViewAction action) {}
-void TableView::closeAsync() {}
-}  // namespace pulsar

@@ -21,7 +21,30 @@
 
 namespace pulsar {
 
+TableViewImpl::TableViewImpl(const ClientImplPtr client, const std::string& topic,
+                             const TableViewConfiguration& conf)
+    : client_(client), topic_(topic), conf_(conf) {}
 
+Future<Result, TableViewImplPtr> TableViewImpl::start() {
+    Promise<Result, TableViewImplPtr> promise;
+    TableViewImplPtr self = shared_from_this();
 
+    ReaderConfiguration readerConfiguration;
+    readerConfiguration.setSchema(conf_.getSchemaInfo());
+    // TODO readerConfiguration.setAutoUpdatePatition();
+    readerConfiguration.setReadCompacted(true);
+    readerConfiguration.setInternalSubscriptionName(conf_.getSubscriptionName());
 
+    ReaderCallback readerCallback = [self, &promise](Result res, Reader reader) {
+        // todo log
+        if (res == ResultOk) {
+            self->reader_ = reader;
+            promise.setValue(self);
+        } else {
+            promise.setFailed(res);
+        }
+    };
+    client_->createReaderAsync(topic_, MessageId::earliest(), readerConfiguration, readerCallback);
+    return promise.getFuture();
+}
 }  // namespace pulsar

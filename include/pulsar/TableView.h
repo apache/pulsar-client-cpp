@@ -19,18 +19,16 @@
 #ifndef TABEL_VIEW_HPP_
 #define TABEL_VIEW_HPP_
 
-#include <iostream>
-#include <map>
+#include <pulsar/TableViewConfiguration.h>
+#include <pulsar/defines.h>
 
-#include "defines.h"
+#include <unordered_map>
 
 namespace pulsar {
 
 class TableViewImpl;
 
-typedef std::map<std::string, std::string> TableViewMap;
-typedef std::function<void(const std::string& key, const std::string& value )> TableViewAction;
-typedef std::shared_ptr<TableViewImpl> TableViewImplPtr;
+typedef std::function<void(const std::string& key, const std::string& value)> TableViewAction;
 /**
  *
  */
@@ -42,48 +40,63 @@ class PULSAR_PUBLIC TableView {
     TableView();
 
     /**
+     * Move the latest value associated with the key.
      *
-     * @return
-     */
-    int size() const;
-
-    /**
+     * Example:
      *
-     * @return
-     */
-    bool empty() const;
-
-    /**
+     * ```c++
+     * TableView view;
+     * std::string value;
+     * while (true) {
+     *     if (view.retrieveValue("key")) {
+     *         std::cout << "value is updated to: " << value;
+     *     } else {
+     *         // sleep for a while or print the message that value is not updated
+     *     }
+     * }
+     * ```
      *
      * @param key
-     * @return
+     * @param value the value associated with the key
+     * @return true if there is an associated value of the key, otherwise false
+     *
+     * NOTE: Once the value has been retrieved successfully, the associated value
+     * will be removed from the table view until next time the value is updated.
+     */
+    bool retrieveValue(const std::string& key, std::string& value);
+
+    /**
+     * It's similar with retrievedValue except the value is copied into `value`.
+     */
+    bool getValue(const std::string& key, std::string& value) const;
+
+    /**
+     * Check if the key exists in the table view.
+     *
+     * @return true if the key exists in the table view
      */
     bool containsKey(const std::string& key) const;
 
     /**
-     *
-     * @param key
-     * @return
+     * TODO name?
+     * Store the snapshot of the table view into the unordered map.
      */
-    const std::string& get(const std::string& key) const;
+    std::unordered_map<std::string, std::string> snapshot() const;
 
     /**
-     *
-     * @param action
+     * Get the size of the elements.
      */
-    void forEach(TableViewAction action) const;
+    std::size_t size() const;
 
     /**
-     *
-     * @param action
+     * Register the callback, which will be called each time a key-value pair is updated.
      */
-    void forEachAndListener(TableViewAction listener) const;
+    void forEach(TableViewAction action);
 
-//    /**
-//     * todo 不能把原始map返回给用户，如果用户用引用接收，及时只读取，但是会出现线程安全问题。
-//     * @return
-//     */
-//    const std::map<std::string, std::string>& getMap() const;
+    /**
+     * Register the callback, which will be called each time a key-value pair is updated.
+     */
+    void forEachAndListen(TableViewAction action);
 
     /**
      *
@@ -92,8 +105,12 @@ class PULSAR_PUBLIC TableView {
     void closeAsync();
 
    private:
+    typedef std::shared_ptr<TableViewImpl> TableViewImplPtr;
     TableViewImplPtr impl_;
+    explicit TableView(TableViewImplPtr);
 
+    friend class PulsarFriend;
+    friend class ClientImpl;
 };
 }  // namespace pulsar
 

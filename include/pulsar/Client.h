@@ -22,6 +22,7 @@
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/ConsoleLoggerFactory.h>
 #include <pulsar/Consumer.h>
+#include <pulsar/TableView.h>
 #include <pulsar/FileLoggerFactory.h>
 #include <pulsar/Message.h>
 #include <pulsar/MessageBuilder.h>
@@ -37,6 +38,7 @@ namespace pulsar {
 typedef std::function<void(Result, Producer)> CreateProducerCallback;
 typedef std::function<void(Result, Consumer)> SubscribeCallback;
 typedef std::function<void(Result, Reader)> ReaderCallback;
+typedef std::function<void(Result, TableView)> TableViewCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
 
@@ -300,6 +302,28 @@ class PULSAR_PUBLIC Client {
      */
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, ReaderCallback callback);
+
+    /**
+     * TODO
+     *
+     * @param topic
+     * @param conf
+     * @param tableView
+     * @return
+     */
+    Result createTableView(const std::string& topic, const TableViewConfiguration& conf,
+                           TableView& tableView);
+
+    /**
+     * TODO
+     *
+     * @param topic
+     * @param conf
+     * @param tableView
+     * @param callBack
+     */
+    void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                              TableViewCallback callBack);
 
     /**
      * Get the list of partitions for a given topic.
