@@ -270,16 +270,22 @@ TEST(ChunkMessageIdTest, testSetChunkMessageId) {
         msgId = ChunkMessageIdImpl::buildMessageId(chunkMsgId);
         // Test the destructor of the underlying message id should also work for the generated messageId.
     }
-    ASSERT_EQ(msgId.ledgerId(), 4);
-    ASSERT_EQ(msgId.entryId(), 5);
-    ASSERT_EQ(msgId.partition(), 6);
 
-    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(msgId));
+    std::string msgIdData;
+    msgId.serialize(msgIdData);
+    MessageId deserializedMsgId = MessageId::deserialize(msgIdData);
+
+    ASSERT_EQ(deserializedMsgId.ledgerId(), 4);
+    ASSERT_EQ(deserializedMsgId.entryId(), 5);
+    ASSERT_EQ(deserializedMsgId.partition(), 6);
+
+    auto chunkMsgId =
+        std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(deserializedMsgId));
     ASSERT_TRUE(chunkMsgId);
     auto firstChunkMsgId = chunkMsgId->getFirstChunkMessageId();
-    ASSERT_EQ(firstChunkMsgId.ledgerId(), 1);
-    ASSERT_EQ(firstChunkMsgId.entryId(), 2);
-    ASSERT_EQ(firstChunkMsgId.partition(), 3);
+    ASSERT_EQ(firstChunkMsgId->ledgerId_, 1);
+    ASSERT_EQ(firstChunkMsgId->entryId_, 2);
+    ASSERT_EQ(firstChunkMsgId->partition_, 3);
 }
 
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P

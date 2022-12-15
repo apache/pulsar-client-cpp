@@ -36,9 +36,9 @@ class ChunkMessageIdImpl : public MessageIdImpl {
         this->partition_ = msgId.partition();
     }
 
-    MessageId getFirstChunkMessageId() { return MessageId{firstChunkMsgId_}; }
+    std::shared_ptr<MessageIdImpl> getFirstChunkMessageId() { return firstChunkMsgId_; }
 
-    static MessageId buildMessageId(ChunkMessageIdImplPtr& msgIdImpl) { return MessageId{msgIdImpl}; }
+    static MessageId buildMessageId(const ChunkMessageIdImplPtr& msgIdImpl) { return MessageId{msgIdImpl}; }
 
    private:
     std::shared_ptr<MessageIdImpl> firstChunkMsgId_;

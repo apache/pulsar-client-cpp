@@ -25,6 +25,7 @@
 #include <memory>
 #include <stdexcept>
 
+#include "ChunkMessageIdImpl.h"
 #include "MessageIdImpl.h"
 #include "PulsarApi.pb.h"
 
@@ -68,6 +69,18 @@ void MessageId::serialize(std::string& result) const {
         idData.set_batch_index(impl_->batchIndex_);
     }
 
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(impl_);
+    if(chunkMsgId) {
+        auto* firstChunkIdData = new proto::MessageIdData();
+        auto firstChunkId = chunkMsgId->getFirstChunkMessageId();
+        firstChunkIdData->set_ledgerid(firstChunkId->ledgerId_);
+        firstChunkIdData->set_entryid(firstChunkId->entryId_);
+        if(chunkMsgId->partition_!=-1){
+            firstChunkIdData->set_partition(firstChunkId->partition_);
+        }
+        idData.set_allocated_first_chunk_message_id(firstChunkIdData);
+    }
+
     idData.SerializeToString(&result);
 }
 
@@ -80,7 +93,16 @@ MessageId MessageId::deserialize(const std::string& serializedMessageId) {
         throw std::invalid_argument("Failed to parse serialized message id");
     }
 
-    return MessageIdBuilder::from(idData).build();
+    MessageId msgId = MessageIdBuilder::from(idData).build();
+
+    if(idData.has_first_chunk_message_id()) {
+        ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
+        chunkMsgId->setFirstChunkMessageId(MessageIdBuilder::from(idData.first_chunk_message_id()).build());
+        chunkMsgId->setLastChunkMessageId(msgId);
+        return ChunkMessageIdImpl::buildMessageId(chunkMsgId);
+    }
+
+    return msgId;
 }
 
 int64_t MessageId::ledgerId() const { return impl_->ledgerId_; }
@@ -94,6 +116,12 @@ int32_t MessageId::partition() const { return impl_->partition_; }
 int32_t MessageId::batchSize() const { return impl_->batchSize_; }
 
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const pulsar::MessageId& messageId) {
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageId.impl_);
+    if(chunkMsgId) {
+        auto firstId = chunkMsgId->getFirstChunkMessageId();
+        s << '(' << firstId->ledgerId_ << ',' << firstId->entryId_ << ','
+          << firstId->partition_ << ',' << firstId->batchIndex_ << ");";
+    }
     s << '(' << messageId.impl_->ledgerId_ << ',' << messageId.impl_->entryId_ << ','
       << messageId.impl_->partition_ << ',' << messageId.impl_->batchIndex_ << ')';
     return s;
