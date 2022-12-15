@@ -26,13 +26,9 @@ class ChunkMessageIdImpl;
 typedef std::shared_ptr<ChunkMessageIdImpl> ChunkMessageIdImplPtr;
 class ChunkMessageIdImpl : public MessageIdImpl {
    public:
-    ChunkMessageIdImpl() {}
-//    ChunkMessageIdImpl(const MessageIdImpl& firstChunkMsgId, const MessageIdImpl& lastChunkMsgId)
-//        : MessageIdImpl(lastChunkMsgId), firstChunkMsgId_(firstChunkMsgId) {}
+    ChunkMessageIdImpl() : firstChunkMsgId_(std::make_shared<MessageIdImpl>()) {}
 
-    void setFirstChunkMessageId(const MessageId& msgId) {
-        *firstChunkMsgId_.impl_ = *msgId.impl_;
-    }
+    void setFirstChunkMessageId(const MessageId& msgId) { *firstChunkMsgId_ = *msgId.impl_; }
 
     void setLastChunkMessageId(const MessageId& msgId) {
         this->ledgerId_ = msgId.ledgerId();
@@ -40,13 +36,11 @@ class ChunkMessageIdImpl : public MessageIdImpl {
         this->partition_ = msgId.partition();
     }
 
-    const MessageId& getFirstChunkMessageId() const { return firstChunkMsgId_; }
+    MessageId getFirstChunkMessageId() { return MessageId{firstChunkMsgId_}; }
 
-    static MessageId buildMessageId(ChunkMessageIdImplPtr& msgIdImpl) {
-        return MessageId{msgIdImpl};
-    }
+    static MessageId buildMessageId(ChunkMessageIdImplPtr& msgIdImpl) { return MessageId{msgIdImpl}; }
 
    private:
-    MessageId firstChunkMsgId_;
+    std::shared_ptr<MessageIdImpl> firstChunkMsgId_;
 };
 }  // namespace pulsar

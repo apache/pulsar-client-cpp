@@ -24,6 +24,7 @@
 
 #include <boost/date_time/posix_time/ptime.hpp>
 
+#include "ChunkMessageIdImpl.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
 #include "TimeUtils.h"
@@ -40,6 +41,7 @@ struct OpSendMsg {
     uint32_t messagesCount_;
     uint64_t messagesSize_;
     std::vector<std::function<void(Result)>> trackerCallbacks_;
+    ChunkMessageIdImplPtr chunkedMessageId_;
 
     OpSendMsg() = default;
 

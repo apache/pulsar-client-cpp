@@ -868,22 +868,36 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
                             << " -- MessageId - " << messageId << " last-seq: " << expectedSequenceId
                             << " producer: " << producerId_);
         return true;
-    } else {
-        // Message was persisted correctly
-        LOG_DEBUG(getName() << "Received ack for msg " << sequenceId);
-        releaseSemaphoreForSendOp(op);
-        lastSequenceIdPublished_ = sequenceId + op.messagesCount_ - 1;
-
-        pendingMessagesQueue_.pop_front();
-
-        lock.unlock();
-        try {
-            op.complete(ResultOk, messageId);
-        } catch (const std::exception& e) {
-            LOG_ERROR(getName() << "Exception thrown from callback " << e.what());
-        }
-        return true;
     }
+
+    // Message was persisted correctly
+    LOG_DEBUG(getName() << "Received ack for msg " << sequenceId);
+
+    auto totalChunks = op.metadata_.num_chunks_from_msg();
+    if (totalChunks > 1) {
+        if (!op.chunkedMessageId_) {
+            op.chunkedMessageId_ = std::make_shared<ChunkMessageIdImpl>();
+        }
+        if (op.metadata_.chunk_id() == 0) {
+            op.chunkedMessageId_->setFirstChunkMessageId(messageId);
+        } else if (op.metadata_.chunk_id() == totalChunks - 1) {
+            op.chunkedMessageId_->setLastChunkMessageId(messageId);
+            messageId = ChunkMessageIdImpl::buildMessageId(op.chunkedMessageId_);
+        }
+    }
+
+    releaseSemaphoreForSendOp(op);
+    lastSequenceIdPublished_ = sequenceId + op.messagesCount_ - 1;
+
+    pendingMessagesQueue_.pop_front();
+
+    lock.unlock();
+    try {
+        op.complete(ResultOk, messageId);
+    } catch (const std::exception& e) {
+        LOG_ERROR(getName() << "Exception thrown from callback " << e.what());
+    }
+    return true;
 }
 
 bool ProducerImpl::encryptMessage(proto::MessageMetadata& metadata, SharedBuffer& payload,

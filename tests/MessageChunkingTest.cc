@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/MessageIdBuilder.h>
 
 #include <ctime>
 #include <random>
@@ -116,6 +117,8 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
     for (int i = 0; i < numMessages; i++) {
         MessageId messageId;
         ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeMessage).build(), messageId));
+        auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(messageId));
+        ASSERT_TRUE(chunkMsgId);
         LOG_INFO("Send " << i << " to " << messageId);
         sendMessageIds.emplace_back(messageId);
     }
@@ -264,16 +267,16 @@ TEST(ChunkMessageIdTest, testSetChunkMessageId) {
         msgId = ChunkMessageIdImpl::buildMessageId(chunkMsgId);
         // Test the destructor of the underlying message id should also work for the generated messageId.
     }
-    ASSERT_EQ(msgId.ledgerId(), 1);
-    ASSERT_EQ(msgId.entryId(), 2);
-    ASSERT_EQ(msgId.partition(), 3);
+    ASSERT_EQ(msgId.ledgerId(), 4);
+    ASSERT_EQ(msgId.entryId(), 5);
+    ASSERT_EQ(msgId.partition(), 6);
 
     auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(msgId));
     ASSERT_TRUE(chunkMsgId);
     auto firstChunkMsgId = chunkMsgId->getFirstChunkMessageId();
-    ASSERT_EQ(firstChunkMsgId.ledgerId(), 4);
-    ASSERT_EQ(firstChunkMsgId.entryId(), 5);
-    ASSERT_EQ(firstChunkMsgId.partition(), 6);
+    ASSERT_EQ(firstChunkMsgId.ledgerId(), 1);
+    ASSERT_EQ(firstChunkMsgId.entryId(), 2);
+    ASSERT_EQ(firstChunkMsgId.partition(), 3);
 }
 
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P
