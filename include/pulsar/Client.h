@@ -29,6 +29,7 @@
 #include <pulsar/Reader.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/TableView.h>
 #include <pulsar/defines.h>
 
 #include <string>
@@ -37,6 +38,7 @@ namespace pulsar {
 typedef std::function<void(Result, Producer)> CreateProducerCallback;
 typedef std::function<void(Result, Consumer)> SubscribeCallback;
 typedef std::function<void(Result, Reader)> ReaderCallback;
+typedef std::function<void(Result, TableView)> TableViewCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
 
@@ -300,6 +302,36 @@ class PULSAR_PUBLIC Client {
      */
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, ReaderCallback callback);
+
+    /**
+     * Create a table view with given {@code TableViewConfiguration} for specified topic.
+     *
+     * The TableView provides a key-value map view of a compacted topic. Messages without keys will
+     * be ignored.
+     *
+     * @param topic  the name of the topic.
+     * @param conf The {@code TableViewConfiguration} object
+     * @param tableView The {@code TableView} object
+     * @return Returned when the TableView is successfully linked to the topic and the map is built from a
+     * message that already exists
+     */
+    Result createTableView(const std::string& topic, const TableViewConfiguration& conf,
+                           TableView& tableView);
+
+    /**
+     * Async create a table view with given {@code TableViewConfiguration} for specified topic.
+     *
+     * The TableView provides a key-value map view of a compacted topic. Messages without keys will
+     * be ignored.
+     *
+     * @param topic  the name of the topic.
+     * @param conf The {@code TableViewConfiguration} object
+     * @param callBack
+     * The callback that is triggered when the TableView is successfully linked to the topic and the map is
+     * built from a message that already exists
+     */
+    void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                              TableViewCallback callBack);
 
     /**
      * Get the list of partitions for a given topic.

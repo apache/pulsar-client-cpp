@@ -582,7 +582,7 @@ Result MultiTopicsConsumerImpl::receive(Message& msg, int timeout) {
     }
 }
 
-void MultiTopicsConsumerImpl::receiveAsync(ReceiveCallback& callback) {
+void MultiTopicsConsumerImpl::receiveAsync(ReceiveCallback callback) {
     Message msg;
 
     // fail the callback if consumer is closing or closed

@@ -826,7 +826,7 @@ Result ConsumerImpl::receive(Message& msg) {
     return res;
 }
 
-void ConsumerImpl::receiveAsync(ReceiveCallback& callback) {
+void ConsumerImpl::receiveAsync(ReceiveCallback callback) {
     Message msg;
 
     // fail the callback if consumer is closing or closed
