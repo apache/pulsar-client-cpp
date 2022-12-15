@@ -131,7 +131,10 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
         ASSERT_EQ(msg.getDataAsString(), largeMessage);
         ASSERT_EQ(msg.getMessageId().batchIndex(), -1);
         ASSERT_EQ(msg.getMessageId().batchSize(), 0);
-        receivedMessageIds.emplace_back(msg.getMessageId());
+        auto messageId = msg.getMessageId();
+        auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(messageId));
+        ASSERT_TRUE(chunkMsgId);
+        receivedMessageIds.emplace_back(messageId);
     }
     ASSERT_EQ(receivedMessageIds, sendMessageIds);
     ASSERT_EQ(receivedMessageIds.front().ledgerId(), receivedMessageIds.front().ledgerId());

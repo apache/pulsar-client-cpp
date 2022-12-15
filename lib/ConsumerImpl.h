@@ -298,18 +298,18 @@ class ConsumerImpl : public ConsumerImplBase {
      *
      * @param payload the payload of a chunk
      * @param metadata the message metadata
-     * @param messageId
      * @param messageIdData
      * @param cnx
+     * @param messageId
      *
      * @return the concatenated payload if chunks are concatenated into a completed message payload
      *   successfully, else Optional::empty()
      */
     boost::optional<SharedBuffer> processMessageChunk(const SharedBuffer& payload,
                                                       const proto::MessageMetadata& metadata,
-                                                      const MessageId& messageId,
                                                       const proto::MessageIdData& messageIdData,
-                                                      const ClientConnectionPtr& cnx);
+                                                      const ClientConnectionPtr& cnx,
+                                                      MessageId& messageId);
 
     friend class PulsarFriend;
 
