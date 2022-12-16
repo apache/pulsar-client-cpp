@@ -65,9 +65,10 @@ class PULSAR_PUBLIC TableViewConfiguration {
     const std::string& getSubscriptionName() const;
 
     /**
-     * Set the subscription name of the {@link TableView}.
+     * Set the internal consumer subscription name of the {@link TableView}.
      *
-     * @param subscriptionName the name of the subscription to the topic
+     * @param subscriptionName the name of the subscription to the topic.
+     * Default value is reader-{random string}.
      */
     TableViewConfiguration& setSubscriptionName(const std::string subscriptionName);
 
