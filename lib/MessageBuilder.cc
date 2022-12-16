@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <assert.h>
 #include <pulsar/MessageBuilder.h>
 
 #include <memory>
@@ -155,4 +156,15 @@ MessageBuilder& MessageBuilder::disableReplication(bool flag) {
     r.Swap(impl_->metadata.mutable_replicate_to());
     return *this;
 }
+
+const char* MessageBuilder::data() const {
+    assert(impl_->payload.data());
+    return impl_->payload.data();
+}
+
+size_t MessageBuilder::size() const {
+    assert(impl_->payload.data());
+    return impl_->payload.readableBytes();
+}
+
 }  // namespace pulsar

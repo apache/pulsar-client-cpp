@@ -773,7 +773,8 @@ void ConsumerImpl::internalListener() {
     try {
         consumerStatsBasePtr_->receivedMessage(msg, ResultOk);
         lastDequedMessageId_ = msg.getMessageId();
-        messageListener_(Consumer(get_shared_this_ptr()), msg);
+        Consumer consumer{get_shared_this_ptr()};
+        messageListener_(consumer, msg);
     } catch (const std::exception& e) {
         LOG_ERROR(getName() << "Exception thrown from listener" << e.what());
     }

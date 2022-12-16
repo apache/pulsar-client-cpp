@@ -539,7 +539,8 @@ void MultiTopicsConsumerImpl::internalListener(Consumer consumer) {
     Message m;
     incomingMessages_.pop(m);
     try {
-        messageListener_(Consumer(get_shared_this_ptr()), m);
+        Consumer self{get_shared_this_ptr()};
+        messageListener_(self, m);
         messageProcessed(m);
     } catch (const std::exception& e) {
         LOG_ERROR("Exception thrown from listener of Partitioned Consumer" << e.what());

@@ -21,6 +21,7 @@
 
 #include <pulsar/BrokerConsumerStats.h>
 #include <pulsar/ConsumerConfiguration.h>
+#include <pulsar/TypedMessage.h>
 #include <pulsar/defines.h>
 
 #include <iostream>
@@ -91,6 +92,14 @@ class PULSAR_PUBLIC Consumer {
      */
     Result receive(Message& msg);
 
+    template <typename T>
+    Result receive(TypedMessage<T>& msg, typename TypedMessage<T>::Decoder decoder) {
+        Message rawMsg;
+        auto result = receive(rawMsg);
+        msg = TypedMessage<T>{rawMsg, decoder};
+        return result;
+    }
+
     /**
      *
      * @param msg a non-const reference where the received message will be copied
@@ -100,6 +109,14 @@ class PULSAR_PUBLIC Consumer {
      * @return ResultInvalidConfiguration if a message listener had been set in the configuration
      */
     Result receive(Message& msg, int timeoutMs);
+
+    template <typename T>
+    Result receive(TypedMessage<T>& msg, int timeoutMs, typename TypedMessage<T>::Decoder decoder) {
+        Message rawMsg;
+        auto result = receive(rawMsg, timeoutMs);
+        msg = TypedMessage<T>{rawMsg, decoder};
+        return result;
+    }
 
     /**
      * Receive a single message
@@ -113,6 +130,14 @@ class PULSAR_PUBLIC Consumer {
      * @param ReceiveCallback will be completed when message is available
      */
     void receiveAsync(ReceiveCallback callback);
+
+    template <typename T>
+    void receiveAsync(std::function<void(Result result, const TypedMessage<T>&)> callback,
+                      typename TypedMessage<T>::Decoder decoder) {
+        receiveAsync([callback, decoder](Result result, const Message& msg) {
+            callback(result, TypedMessage<T>{msg, decoder});
+        });
+    }
 
     /**
      * Batch receiving messages.
