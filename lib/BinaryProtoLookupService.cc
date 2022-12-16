@@ -38,7 +38,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
     LOG_DEBUG("find broker from " << address << ", authoritative: " << authoritative << ", topic: " << topic);
     auto promise = std::make_shared<Promise<Result, LookupResult>>();
     // NOTE: we can use move capture for topic since C++14
-    cnxPool_.getConnectionAsync(address).addListener([this, promise, topic, address](
+    cnxPool_.getConnectionAsync(address).addListener([this, promise, topic, address, authoritative](
                                                          Result result,
                                                          const ClientConnectionWeakPtr& weakCnx) {
         if (result != ResultOk) {
@@ -52,7 +52,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
             return;
         }
         auto lookupPromise = std::make_shared<LookupDataResultPromise>();
-        cnx->newTopicLookup(topic, false, listenerName_, newRequestId(), lookupPromise);
+        cnx->newTopicLookup(topic, authoritative, listenerName_, newRequestId(), lookupPromise);
         lookupPromise->getFuture().addListener([this, cnx, promise, topic, address](
                                                    Result result, const LookupDataResultPtr& data) {
             if (result != ResultOk || !data) {
