@@ -562,6 +562,8 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, const SendCallba
             msgMetadata.set_total_chunk_msg_size(compressedSize);
         }
 
+        auto chunkMessageId = totalChunks > 1 ? std::make_shared<ChunkMessageIdImpl>() : nullptr;
+
         int beginIndex = 0;
         for (int chunkId = 0; chunkId < totalChunks; chunkId++) {
             if (sendChunks) {
@@ -578,7 +580,7 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, const SendCallba
             }
             OpSendMsg op{msgMetadata, encryptedPayload, (chunkId == totalChunks - 1) ? callback : nullptr,
                          producerId_, sequenceId,       conf_.getSendTimeout(),
-                         1,           uncompressedSize};
+                         1,           uncompressedSize, chunkMessageId};
 
             if (!chunkingEnabled_) {
                 const uint32_t msgMetadataSize = op.metadata_.ByteSize();
@@ -873,14 +875,11 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
     // Message was persisted correctly
     LOG_DEBUG(getName() << "Received ack for msg " << sequenceId);
 
-    auto totalChunks = op.metadata_.num_chunks_from_msg();
-    if (totalChunks > 1) {
-        if (!op.chunkedMessageId_) {
-            op.chunkedMessageId_ = std::make_shared<ChunkMessageIdImpl>();
-        }
+    if (op.chunkedMessageId_) {
+        // Handling the chunk message id.
         if (op.metadata_.chunk_id() == 0) {
             op.chunkedMessageId_->setFirstChunkMessageId(messageId);
-        } else if (op.metadata_.chunk_id() == totalChunks - 1) {
+        } else if (op.metadata_.chunk_id() == op.metadata_.num_chunks_from_msg() - 1) {
             op.chunkedMessageId_->setLastChunkMessageId(messageId);
             messageId = ChunkMessageIdImpl::buildMessageId(op.chunkedMessageId_);
         }

@@ -47,8 +47,8 @@ struct OpSendMsg {
 
     OpSendMsg(const proto::MessageMetadata& metadata, const SharedBuffer& payload,
               const SendCallback& sendCallback, uint64_t producerId, uint64_t sequenceId, int sendTimeoutMs,
-              uint32_t messagesCount, uint64_t messagesSize)
-        : metadata_(metadata),  // the copy happens here because OpSendMsg of chunks are constructed with the
+              uint32_t messagesCount, uint64_t messagesSize, ChunkMessageIdImplPtr chunkedMessageId = nullptr)
+        : metadata_(metadata),  // the copy happens here because OpSendMsg of chunks are constructed with
                                 // a shared metadata object
           payload_(payload),
           sendCallback_(sendCallback),
@@ -56,7 +56,8 @@ struct OpSendMsg {
           sequenceId_(sequenceId),
           timeout_(TimeUtils::now() + milliseconds(sendTimeoutMs)),
           messagesCount_(messagesCount),
-          messagesSize_(messagesSize) {}
+          messagesSize_(messagesSize),
+          chunkedMessageId_(chunkedMessageId) {}
 
     void complete(Result result, const MessageId& messageId) const {
         if (sendCallback_) {
