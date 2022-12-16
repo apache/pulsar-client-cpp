@@ -308,8 +308,7 @@ class ConsumerImpl : public ConsumerImplBase {
     boost::optional<SharedBuffer> processMessageChunk(const SharedBuffer& payload,
                                                       const proto::MessageMetadata& metadata,
                                                       const proto::MessageIdData& messageIdData,
-                                                      const ClientConnectionPtr& cnx,
-                                                      MessageId& messageId);
+                                                      const ClientConnectionPtr& cnx, MessageId& messageId);
 
     friend class PulsarFriend;
 
