@@ -19,12 +19,14 @@
 
 #pragma once
 
+#include <pulsar/MessageId.h>
+
 #include "MessageIdImpl.h"
 
 namespace pulsar {
 class ChunkMessageIdImpl;
 typedef std::shared_ptr<ChunkMessageIdImpl> ChunkMessageIdImplPtr;
-class ChunkMessageIdImpl : public MessageIdImpl {
+class ChunkMessageIdImpl : public MessageIdImpl, public std::enable_shared_from_this<ChunkMessageIdImpl> {
    public:
     ChunkMessageIdImpl() : firstChunkMsgId_(std::make_shared<MessageIdImpl>()) {}
 
@@ -36,9 +38,9 @@ class ChunkMessageIdImpl : public MessageIdImpl {
         this->partition_ = msgId.partition();
     }
 
-    std::shared_ptr<MessageIdImpl> getFirstChunkMessageId() { return firstChunkMsgId_; }
+    std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const { return firstChunkMsgId_; }
 
-    static MessageId buildMessageId(const ChunkMessageIdImplPtr& msgIdImpl) { return MessageId{msgIdImpl}; }
+    MessageId build() { return MessageId{std::dynamic_pointer_cast<MessageIdImpl>(shared_from_this())}; }
 
    private:
     std::shared_ptr<MessageIdImpl> firstChunkMsgId_;

@@ -881,7 +881,7 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
             op.chunkedMessageId_->setFirstChunkMessageId(messageId);
         } else if (op.metadata_.chunk_id() == op.metadata_.num_chunks_from_msg() - 1) {
             op.chunkedMessageId_->setLastChunkMessageId(messageId);
-            messageId = ChunkMessageIdImpl::buildMessageId(op.chunkedMessageId_);
+            messageId = op.chunkedMessageId_->build();
         }
     }
 

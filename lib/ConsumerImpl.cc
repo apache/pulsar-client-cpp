@@ -436,7 +436,7 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
     ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
     chunkMsgId->setFirstChunkMessageId(chunkedMsgCtx.getChunkedMessageIds().front());
     chunkMsgId->setLastChunkMessageId(chunkedMsgCtx.getChunkedMessageIds().back());
-    messageId = ChunkMessageIdImpl::buildMessageId(chunkMsgId);
+    messageId = chunkMsgId->build();
 
     LOG_DEBUG("Chunked message completed chunkId: " << chunkId << ", ChunkedMessageCtx: " << chunkedMsgCtx
                                                     << ", sequenceId: " << metadata.sequence_id());

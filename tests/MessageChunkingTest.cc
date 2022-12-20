@@ -320,7 +320,7 @@ TEST(ChunkMessageIdTest, testSetChunkMessageId) {
         ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
         chunkMsgId->setFirstChunkMessageId(MessageIdBuilder().ledgerId(1).entryId(2).partition(3).build());
         chunkMsgId->setLastChunkMessageId(MessageIdBuilder().ledgerId(4).entryId(5).partition(6).build());
-        msgId = ChunkMessageIdImpl::buildMessageId(chunkMsgId);
+        msgId = chunkMsgId->build();
         // Test the destructor of the underlying message id should also work for the generated messageId.
     }
 
