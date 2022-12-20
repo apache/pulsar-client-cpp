@@ -28,6 +28,7 @@
 
 #include "BatchMessageAcker.h"
 #include "BatchedMessageIdImpl.h"
+#include "ChunkMessageIdImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
 #include "PulsarApi.pb.h"
@@ -512,8 +513,17 @@ SharedBuffer Commands::newSeek(uint64_t consumerId, uint64_t requestId, const Me
     commandSeek->set_request_id(requestId);
 
     MessageIdData& messageIdData = *commandSeek->mutable_message_id();
-    messageIdData.set_ledgerid(messageId.ledgerId());
-    messageIdData.set_entryid(messageId.entryId());
+
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageId.impl_);
+    if (chunkMsgId) {
+        auto firstId = chunkMsgId->getFirstChunkMessageId();
+        messageIdData.set_ledgerid(firstId->ledgerId_);
+        messageIdData.set_entryid(firstId->entryId_);
+    } else {
+        messageIdData.set_ledgerid(messageId.ledgerId());
+        messageIdData.set_entryid(messageId.entryId());
+    }
+
     return writeMessageWithSize(cmd);
 }
 

@@ -24,6 +24,7 @@
 
 #include <boost/date_time/posix_time/ptime.hpp>
 
+#include "ChunkMessageIdImpl.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
 #include "TimeUtils.h"
@@ -40,13 +41,14 @@ struct OpSendMsg {
     uint32_t messagesCount_;
     uint64_t messagesSize_;
     std::vector<std::function<void(Result)>> trackerCallbacks_;
+    ChunkMessageIdImplPtr chunkedMessageId_;
 
     OpSendMsg() = default;
 
     OpSendMsg(const proto::MessageMetadata& metadata, const SharedBuffer& payload,
               const SendCallback& sendCallback, uint64_t producerId, uint64_t sequenceId, int sendTimeoutMs,
-              uint32_t messagesCount, uint64_t messagesSize)
-        : metadata_(metadata),  // the copy happens here because OpSendMsg of chunks are constructed with the
+              uint32_t messagesCount, uint64_t messagesSize, ChunkMessageIdImplPtr chunkedMessageId = nullptr)
+        : metadata_(metadata),  // the copy happens here because OpSendMsg of chunks are constructed with
                                 // a shared metadata object
           payload_(payload),
           sendCallback_(sendCallback),
@@ -54,7 +56,8 @@ struct OpSendMsg {
           sequenceId_(sequenceId),
           timeout_(TimeUtils::now() + milliseconds(sendTimeoutMs)),
           messagesCount_(messagesCount),
-          messagesSize_(messagesSize) {}
+          messagesSize_(messagesSize),
+          chunkedMessageId_(chunkedMessageId) {}
 
     void complete(Result result, const MessageId& messageId) const {
         if (sendCallback_) {

@@ -179,6 +179,8 @@ class PulsarFriend {
     }
 
     static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }
+
+    static std::shared_ptr<MessageIdImpl> getMessageIdImpl(MessageId& msgId) { return msgId.impl_; }
 };
 }  // namespace pulsar
 

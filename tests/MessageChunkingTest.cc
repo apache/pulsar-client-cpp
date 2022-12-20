@@ -18,10 +18,12 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/MessageIdBuilder.h>
 
 #include <ctime>
 #include <random>
 
+#include "ChunkMessageIdImpl.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
 #include "lib/LogUtils.h"
@@ -116,6 +118,9 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
     for (int i = 0; i < numMessages; i++) {
         MessageId messageId;
         ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeMessage).build(), messageId));
+        auto chunkMsgId =
+            std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(messageId));
+        ASSERT_TRUE(chunkMsgId);
         LOG_INFO("Send " << i << " to " << messageId);
         sendMessageIds.emplace_back(messageId);
     }
@@ -128,7 +133,11 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
         ASSERT_EQ(msg.getDataAsString(), largeMessage);
         ASSERT_EQ(msg.getMessageId().batchIndex(), -1);
         ASSERT_EQ(msg.getMessageId().batchSize(), 0);
-        receivedMessageIds.emplace_back(msg.getMessageId());
+        auto messageId = msg.getMessageId();
+        auto chunkMsgId =
+            std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(messageId));
+        ASSERT_TRUE(chunkMsgId);
+        receivedMessageIds.emplace_back(messageId);
     }
     ASSERT_EQ(receivedMessageIds, sendMessageIds);
     ASSERT_EQ(receivedMessageIds.front().ledgerId(), receivedMessageIds.front().ledgerId());
@@ -253,6 +262,83 @@ TEST_P(MessageChunkingTest, testMaxPendingChunkMessages) {
 
     producer.close();
     consumer.close();
+}
+
+TEST_P(MessageChunkingTest, testSeekChunkMessages) {
+    const std::string topic =
+        "MessageChunkingTest-testSeekChunkMessages-" + toString(GetParam()) + std::to_string(time(nullptr));
+
+    constexpr int numMessages = 10;
+
+    Consumer consumer1;
+    ConsumerConfiguration consumer1Conf;
+    consumer1Conf.setStartMessageIdInclusive(true);
+    createConsumer(topic, consumer1, consumer1Conf);
+
+    Producer producer;
+    createProducer(topic, producer);
+
+    for (int i = 0; i < numMessages; i++) {
+        MessageId messageId;
+        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeMessage).build(), messageId));
+        LOG_INFO("Send " << i << " to " << messageId);
+    }
+
+    Message msg;
+    std::vector<MessageId> receivedMessageIds;
+    for (int i = 0; i < numMessages; i++) {
+        ASSERT_EQ(ResultOk, consumer1.receive(msg, 3000));
+        LOG_INFO("Receive " << msg.getLength() << " bytes from " << msg.getMessageId());
+        receivedMessageIds.emplace_back(msg.getMessageId());
+    }
+
+    consumer1.seek(receivedMessageIds[1]);
+    for (int i = 1; i < numMessages; i++) {
+        Message msgAfterSeek;
+        ASSERT_EQ(ResultOk, consumer1.receive(msgAfterSeek, 3000));
+        ASSERT_EQ(msgAfterSeek.getMessageId(), receivedMessageIds[i]);
+    }
+
+    consumer1.close();
+    Consumer consumer2;
+    createConsumer(topic, consumer2);
+
+    consumer2.seek(receivedMessageIds[1]);
+    for (int i = 2; i < numMessages; i++) {
+        Message msgAfterSeek;
+        ASSERT_EQ(ResultOk, consumer2.receive(msgAfterSeek, 3000));
+        ASSERT_EQ(msgAfterSeek.getMessageId(), receivedMessageIds[i]);
+    }
+
+    consumer2.close();
+    producer.close();
+}
+
+TEST(ChunkMessageIdTest, testSetChunkMessageId) {
+    MessageId msgId;
+    {
+        ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
+        chunkMsgId->setFirstChunkMessageId(MessageIdBuilder().ledgerId(1).entryId(2).partition(3).build());
+        chunkMsgId->setLastChunkMessageId(MessageIdBuilder().ledgerId(4).entryId(5).partition(6).build());
+        msgId = chunkMsgId->build();
+        // Test the destructor of the underlying message id should also work for the generated messageId.
+    }
+
+    std::string msgIdData;
+    msgId.serialize(msgIdData);
+    MessageId deserializedMsgId = MessageId::deserialize(msgIdData);
+
+    ASSERT_EQ(deserializedMsgId.ledgerId(), 4);
+    ASSERT_EQ(deserializedMsgId.entryId(), 5);
+    ASSERT_EQ(deserializedMsgId.partition(), 6);
+
+    auto chunkMsgId =
+        std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(deserializedMsgId));
+    ASSERT_TRUE(chunkMsgId);
+    auto firstChunkMsgId = chunkMsgId->getFirstChunkMessageId();
+    ASSERT_EQ(firstChunkMsgId->ledgerId_, 1);
+    ASSERT_EQ(firstChunkMsgId->entryId_, 2);
+    ASSERT_EQ(firstChunkMsgId->partition_, 3);
 }
 
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P

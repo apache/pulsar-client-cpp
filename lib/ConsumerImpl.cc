@@ -27,6 +27,7 @@
 #include "AckGroupingTrackerEnabled.h"
 #include "BatchMessageAcker.h"
 #include "BatchedMessageIdImpl.h"
+#include "ChunkMessageIdImpl.h"
 #include "ClientConnection.h"
 #include "ClientImpl.h"
 #include "Commands.h"
@@ -375,9 +376,9 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
 
 boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
                                                                 const proto::MessageMetadata& metadata,
-                                                                const MessageId& messageId,
                                                                 const proto::MessageIdData& messageIdData,
-                                                                const ClientConnectionPtr& cnx) {
+                                                                const ClientConnectionPtr& cnx,
+                                                                MessageId& messageId) {
     const auto chunkId = metadata.chunk_id();
     const auto uuid = metadata.uuid();
     LOG_DEBUG("Process message chunk (chunkId: " << chunkId << ", uuid: " << uuid
@@ -432,6 +433,11 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
         return boost::none;
     }
 
+    ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
+    chunkMsgId->setFirstChunkMessageId(chunkedMsgCtx.getChunkedMessageIds().front());
+    chunkMsgId->setLastChunkMessageId(chunkedMsgCtx.getChunkedMessageIds().back());
+    messageId = chunkMsgId->build();
+
     LOG_DEBUG("Chunked message completed chunkId: " << chunkId << ", ChunkedMessageCtx: " << chunkedMsgCtx
                                                     << ", sequenceId: " << metadata.sequence_id());
 
@@ -472,11 +478,12 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         }
     }
 
+    const auto& messageIdData = msg.message_id();
+    auto messageId = MessageIdBuilder::from(messageIdData).batchIndex(-1).build();
+
     // Only a non-batched messages can be a chunk
     if (!metadata.has_num_messages_in_batch() && isChunkedMessage) {
-        const auto& messageIdData = msg.message_id();
-        auto messageId = MessageIdBuilder::from(messageIdData).build();
-        auto optionalPayload = processMessageChunk(payload, metadata, messageId, messageIdData, cnx);
+        auto optionalPayload = processMessageChunk(payload, metadata, messageIdData, cnx, messageId);
         if (optionalPayload) {
             payload = optionalPayload.value();
         } else {
@@ -484,7 +491,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         }
     }
 
-    Message m(msg, metadata, payload, partitionIndex_);
+    Message m(messageId, metadata, payload);
     m.impl_->cnx_ = cnx.get();
     m.impl_->setTopicName(topic_);
     m.impl_->setRedeliveryCount(msg.redelivery_count());
