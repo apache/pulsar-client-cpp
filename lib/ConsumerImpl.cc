@@ -636,7 +636,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
 
     int skippedMessages = 0;
 
-    auto acker = BatchMessageAcker::create(batchSize);
+    auto acker = BatchMessageAckerImpl::create(batchSize);
     for (int i = 0; i < batchSize; i++) {
         // This is a cheap copy since message contains only one shared pointer (impl_)
         Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize, acker);

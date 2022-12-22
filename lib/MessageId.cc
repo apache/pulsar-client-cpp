@@ -69,6 +69,10 @@ void MessageId::serialize(std::string& result) const {
         idData.set_batch_index(impl_->batchIndex_);
     }
 
+    if (impl_->batchSize_ != 0) {
+        idData.set_batch_size(impl_->batchSize_);
+    }
+
     auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(impl_);
     if (chunkMsgId) {
         proto::MessageIdData& firstChunkIdData = *idData.mutable_first_chunk_message_id();

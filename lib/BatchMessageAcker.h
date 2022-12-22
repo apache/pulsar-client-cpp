@@ -32,27 +32,10 @@ using BatchMessageAckerPtr = std::shared_ptr<BatchMessageAcker>;
 
 class BatchMessageAcker {
    public:
-    using Lock = std::lock_guard<std::mutex>;
-
-    static BatchMessageAckerPtr create(int32_t batchSize) {
-        return std::make_shared<BatchMessageAcker>(batchSize);
-    }
-
-    BatchMessageAcker(int32_t batchSize) : bitSet_(batchSize) { bitSet_.set(0, batchSize); }
-
-    bool ackIndividual(int32_t batchIndex) {
-        Lock lock{mutex_};
-        bitSet_.clear(batchIndex);
-        return bitSet_.isEmpty();
-    }
-
-    bool ackCumulative(int32_t batchIndex) {
-        Lock lock{mutex_};
-        // The range of cumulative acknowledgment is closed while BitSet::clear accepts a left-closed
-        // right-open range.
-        bitSet_.clear(0, batchIndex + 1);
-        return bitSet_.isEmpty();
-    }
+    // Return false for these methods so that batch index ACK will be falled back to if the acker is created
+    // by deserializing from raw bytes.
+    virtual bool ackIndividual(int32_t) { return false; }
+    virtual bool ackCumulative(int32_t) { return false; }
 
     bool shouldAckPreviousMessageId() noexcept {
         bool expectedValue = false;
@@ -60,11 +43,42 @@ class BatchMessageAcker {
     }
 
    private:
-    BitSet bitSet_;
     // When a batched message is acknowledged cumulatively, the previous message id will be acknowledged
     // without batch index ACK enabled. However, it should be acknowledged only once. Use this flag to
     // determine whether to acknowledge the previous message id.
     std::atomic_bool prevBatchCumulativelyAcked_{false};
+};
+
+class BatchMessageAckerImpl : public BatchMessageAcker {
+   public:
+    using Lock = std::lock_guard<std::mutex>;
+
+    static BatchMessageAckerPtr create(int32_t batchSize) {
+        if (batchSize > 0) {
+            return std::make_shared<BatchMessageAckerImpl>(batchSize);
+        } else {
+            return std::make_shared<BatchMessageAcker>();
+        }
+    }
+
+    BatchMessageAckerImpl(int32_t batchSize) : bitSet_(batchSize) { bitSet_.set(0, batchSize); }
+
+    bool ackIndividual(int32_t batchIndex) override {
+        Lock lock{mutex_};
+        bitSet_.clear(batchIndex);
+        return bitSet_.isEmpty();
+    }
+
+    bool ackCumulative(int32_t batchIndex) override {
+        Lock lock{mutex_};
+        // The range of cumulative acknowledgment is closed while BitSet::clear accepts a left-closed
+        // right-open range.
+        bitSet_.clear(0, batchIndex + 1);
+        return bitSet_.isEmpty();
+    }
+
+   private:
+    BitSet bitSet_;
     mutable std::mutex mutex_;
 };
 

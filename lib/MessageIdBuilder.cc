@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <assert.h>
 #include <pulsar/MessageIdBuilder.h>
 
+#include "BatchedMessageIdImpl.h"
 #include "MessageIdImpl.h"
 #include "PulsarApi.pb.h"
 
@@ -42,8 +42,11 @@ MessageIdBuilder MessageIdBuilder::from(const proto::MessageIdData& messageIdDat
 }
 
 MessageId MessageIdBuilder::build() const {
-    assert(impl_->batchIndex_ < 0 || (impl_->batchSize_ > impl_->batchIndex_));
-    return MessageId{impl_};
+    if (impl_->batchIndex_ >= 0 && impl_->batchSize_ > 0) {
+        return MessageId{std::make_shared<BatchedMessageIdImpl>(*impl_, BatchMessageAckerImpl::create(0))};
+    } else {
+        return MessageId{impl_};
+    }
 }
 
 MessageIdBuilder& MessageIdBuilder::ledgerId(int64_t ledgerId) {

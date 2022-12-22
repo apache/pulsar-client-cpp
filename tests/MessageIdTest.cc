@@ -22,19 +22,43 @@
 #include <string>
 
 #include "PulsarFriend.h"
+#include "lib/BatchedMessageIdImpl.h"
+#include "lib/Commands.h"
 #include "lib/MessageIdUtil.h"
 
 using namespace pulsar;
 
 TEST(MessageIdTest, testSerialization) {
-    auto msgId = MessageIdBuilder().ledgerId(1L).entryId(2L).batchIndex(3L).build();
+    auto msgId = MessageIdBuilder().ledgerId(1L).entryId(2L).partition(10).batchIndex(3).build();
 
     std::string serialized;
     msgId.serialize(serialized);
 
     MessageId deserialized = MessageId::deserialize(serialized);
+    ASSERT_FALSE(std::dynamic_pointer_cast<BatchedMessageIdImpl>(Commands::getMessageIdImpl(deserialized)));
+    ASSERT_EQ(deserialized.ledgerId(), 1L);
+    ASSERT_EQ(deserialized.entryId(), 2L);
+    ASSERT_EQ(deserialized.partition(), 10);
+    ASSERT_EQ(deserialized.batchIndex(), 3);
+    ASSERT_EQ(deserialized.batchSize(), 0);
 
-    ASSERT_EQ(msgId, deserialized);
+    // Only a MessageId whose batch index and batch size are both valid can be deserialized as a batched
+    // message id.
+    msgId = MessageIdBuilder().ledgerId(3L).entryId(1L).batchIndex(0).batchSize(1).build();
+    msgId.serialize(serialized);
+    deserialized = MessageId::deserialize(serialized);
+    auto batchedMessageId =
+        std::dynamic_pointer_cast<BatchedMessageIdImpl>(Commands::getMessageIdImpl(deserialized));
+    ASSERT_TRUE(batchedMessageId);
+    // The BatchMessageAcker object created from deserialization is a fake implementation that all acknowledge
+    // methods return false.
+    ASSERT_FALSE(batchedMessageId->ackIndividual(0));
+    ASSERT_FALSE(batchedMessageId->ackCumulative(0));
+    ASSERT_EQ(deserialized.ledgerId(), 3L);
+    ASSERT_EQ(deserialized.entryId(), 1L);
+    ASSERT_EQ(deserialized.partition(), -1);
+    ASSERT_EQ(deserialized.batchIndex(), 0);
+    ASSERT_EQ(deserialized.batchSize(), 1);
 }
 
 TEST(MessageIdTest, testCompareLedgerAndEntryId) {
