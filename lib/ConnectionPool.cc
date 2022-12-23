@@ -53,7 +53,7 @@ bool ConnectionPool::close() {
         for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
             ClientConnectionPtr cnx = cnxIt->second.lock();
             if (cnx) {
-                cnx->close();
+                cnx->close(ResultDisconnected);
             }
         }
         pool_.clear();

@@ -92,6 +92,8 @@ enum Result
     ResultMemoryBufferIsFull,  /// Client-wide memory limit has been reached
 
     ResultInterrupted,  /// Interrupted while waiting to dequeue
+
+    ResultDisconnected,  /// Client connection has been disconnected
 };
 
 // Return string representation of result code
