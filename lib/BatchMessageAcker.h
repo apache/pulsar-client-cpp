@@ -32,6 +32,7 @@ using BatchMessageAckerPtr = std::shared_ptr<BatchMessageAcker>;
 
 class BatchMessageAcker {
    public:
+    virtual ~BatchMessageAcker() {}
     // Return false for these methods so that batch index ACK will be falled back to if the acker is created
     // by deserializing from raw bytes.
     virtual bool ackIndividual(int32_t) { return false; }
