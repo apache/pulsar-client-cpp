@@ -30,7 +30,7 @@ Pulsar C++ client uses [doxygen](https://www.doxygen.nl) to build API documents.
 ## Requirements
 
 * A C++ compiler that supports C++11, like GCC >= 4.8
-* CMake >= 3.4
+* CMake >= 3.13
 * [Boost](http://www.boost.org/)
 * [Protocol Buffer](https://developers.google.com/protocol-buffers/) >= 3
 * [libcurl](https://curl.se/libcurl/)
