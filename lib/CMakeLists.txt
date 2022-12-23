@@ -73,7 +73,7 @@ if (BUILD_DYNAMIC_LIB)
 endif()
 
 include(CheckCXXSymbolExists)
-check_cxx_symbol_exists(getauxval auvx.h HAVE_AUXV_GETAUXVAL)
+check_cxx_symbol_exists(getauxval sys/auxv.h HAVE_AUXV_GETAUXVAL)
 if(HAVE_AUXV_GETAUXVAL)
     add_definitions(-DPULSAR_AUXV_GETAUXVAL_PRESENT)
 endif()
