@@ -70,7 +70,6 @@ class ConsumerImpl : public ConsumerImplBase {
                  const ConsumerConfiguration&, bool isPersistent,
                  const ExecutorServicePtr listenerExecutor = ExecutorServicePtr(), bool hasParent = false,
                  const ConsumerTopicType consumerTopicType = NonPartitioned,
-                 Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                  boost::optional<MessageId> startMessageId = boost::none);
     ~ConsumerImpl();
     void setPartitionIndex(int partitionIndex);
@@ -116,6 +115,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
+    void hasMessageAvailableAsync(HasMessageAvailableCallback callback) override;
 
     virtual void disconnectConsumer();
     Result fetchSingleMessageFromBroker(Message& msg);
@@ -125,7 +125,6 @@ class ConsumerImpl : public ConsumerImplBase {
     virtual void redeliverMessages(const std::set<MessageId>& messageIds);
 
     virtual bool isReadCompacted();
-    virtual void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
     void beforeConnectionChange(ClientConnection& cnx) override;
 
    protected:
@@ -191,8 +190,6 @@ class ConsumerImpl : public ConsumerImplBase {
     ConsumerEventListenerPtr eventListener_;
     bool hasParent_;
     ConsumerTopicType consumerTopicType_;
-
-    const Commands::SubscriptionMode subscriptionMode_;
 
     UnboundedBlockingQueue<Message> incomingMessages_;
     std::atomic_int incomingMessagesSize_ = {0};

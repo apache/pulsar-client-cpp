@@ -65,6 +65,10 @@ class ConsumerImpl;
 typedef std::shared_ptr<ConsumerImpl> ConsumerImplPtr;
 typedef std::weak_ptr<ConsumerImpl> ConsumerImplWeakPtr;
 
+class ConsumerImplBase;
+typedef std::shared_ptr<ConsumerImplBase> ConsumerImplBasePtr;
+typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
+
 class LookupDataResult;
 class BrokerConsumerStatsImpl;
 class PeriodicTask;

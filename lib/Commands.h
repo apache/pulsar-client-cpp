@@ -23,6 +23,7 @@
 #include <pulsar/KeySharedPolicy.h>
 #include <pulsar/Message.h>
 #include <pulsar/Schema.h>
+#include <pulsar/SubscriptionMode.h>
 #include <pulsar/defines.h>
 
 #include <boost/optional.hpp>
@@ -64,17 +65,6 @@ class Commands {
     {
         DefaultMaxMessageSize = (5 * 1024 * 1024 - (10 * 1024)),
         MaxFrameSize = (5 * 1024 * 1024)
-    };
-
-    enum SubscriptionMode
-    {
-        // Make the subscription to be backed by a durable cursor that will retain messages and persist the
-        // current
-        // position
-        SubscriptionModeDurable,
-
-        // Lightweight subscription mode that doesn't have a durable cursor associated
-        SubscriptionModeNonDurable
     };
 
     const static uint16_t magicCrc32c = 0x0e01;

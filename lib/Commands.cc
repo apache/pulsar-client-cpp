@@ -315,7 +315,7 @@ SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string&
     subscribe->set_consumer_id(consumerId);
     subscribe->set_request_id(requestId);
     subscribe->set_consumer_name(consumerName);
-    subscribe->set_durable(subscriptionMode == SubscriptionModeDurable);
+    subscribe->set_durable(subscriptionMode == Durable);
     subscribe->set_read_compacted(readCompacted);
     subscribe->set_initialposition(
         static_cast<proto::CommandSubscribe_InitialPosition>(subscriptionInitialPosition));

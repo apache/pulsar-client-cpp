@@ -88,6 +88,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
+    void hasMessageAvailableAsync(HasMessageAvailableCallback callback) override;
 
     void handleGetConsumerStats(Result, BrokerConsumerStats, LatchPtr, MultiTopicsBrokerConsumerStatsPtr,
                                 size_t, BrokerConsumerStatsCallback);
@@ -95,6 +96,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     static std::shared_ptr<TopicName> topicNamesValid(const std::vector<std::string>& topics);
     void unsubscribeOneTopicAsync(const std::string& topic, ResultCallback callback);
     Future<Result, Consumer> subscribeOneTopicAsync(const std::string& topic);
+    void setStartMessageId(boost::optional<MessageId> startMessageId);
 
    protected:
     const ClientImplWeakPtr client_;
@@ -118,6 +120,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
     const std::vector<std::string> topics_;
     std::queue<ReceiveCallback> pendingReceives_;
+    boost::optional<MessageId> startMessageId_;
 
     /* methods */
     void handleSinglePartitionConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,

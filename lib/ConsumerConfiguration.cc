@@ -287,4 +287,10 @@ const BatchReceivePolicy& ConsumerConfiguration::getBatchReceivePolicy() const {
     return impl_->batchReceivePolicy;
 }
 
+void ConsumerConfiguration::setSubscriptionMode(SubscriptionMode subscriptionMode) {
+    impl_->subscriptionMode = subscriptionMode;
+}
+
+SubscriptionMode ConsumerConfiguration::getSubscriptionMode() const { return impl_->subscriptionMode; }
+
 }  // namespace pulsar
