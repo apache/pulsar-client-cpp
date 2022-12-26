@@ -17,7 +17,7 @@
 # under the License.
 #
 
-cmake_minimum_required(VERSION 3.4)
+cmake_minimum_required(VERSION 3.13)
 
 project (pulsar-cpp)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake_modules")
@@ -290,7 +290,7 @@ if (NOT APPLE AND NOT MSVC)
     # Hide all non-exported symbols to avoid conflicts
     add_compile_options(-fvisibility=hidden) 
     if (CMAKE_COMPILER_IS_GNUCC)
-        add_compile_options(-Wl,--exclude-libs,ALL)
+        add_link_options(-Wl,--exclude-libs=ALL)
     endif ()
 endif ()
 
