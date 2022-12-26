@@ -126,7 +126,7 @@ TEST(ClientTest, testConnectTimeout) {
     clientDefault.close();
 
     ASSERT_EQ(futureDefault.wait_for(std::chrono::milliseconds(10)), std::future_status::ready);
-    ASSERT_EQ(futureDefault.get(), ResultConnectError);
+    ASSERT_EQ(futureDefault.get(), ResultDisconnected);
 }
 
 TEST(ClientTest, testGetNumberOfReferences) {
