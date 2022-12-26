@@ -394,7 +394,7 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      *
      * @param subscriptionMode the subscription mode value
      */
-    void setSubscriptionMode(SubscriptionMode subscriptionMode);
+    ConsumerConfiguration& setSubscriptionMode(SubscriptionMode subscriptionMode);
 
     /**
      * Get subscription mode.

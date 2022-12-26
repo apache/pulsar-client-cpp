@@ -287,8 +287,9 @@ const BatchReceivePolicy& ConsumerConfiguration::getBatchReceivePolicy() const {
     return impl_->batchReceivePolicy;
 }
 
-void ConsumerConfiguration::setSubscriptionMode(SubscriptionMode subscriptionMode) {
+ConsumerConfiguration& ConsumerConfiguration::setSubscriptionMode(SubscriptionMode subscriptionMode) {
     impl_->subscriptionMode = subscriptionMode;
+    return *this;
 }
 
 SubscriptionMode ConsumerConfiguration::getSubscriptionMode() const { return impl_->subscriptionMode; }
