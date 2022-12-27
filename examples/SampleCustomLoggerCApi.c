@@ -19,29 +19,26 @@
 
 #include <pulsar/c/client.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 
-void format_time(char *output){
-    time_t rawtime;
-    struct tm * timeinfo;
-
-    time(&rawtime);
-    timeinfo = localtime(&rawtime);
-
-    sprintf(output, "%d %d %d %d:%d:%d",
-            timeinfo->tm_year + 1900, timeinfo->tm_mon + 1,  timeinfo->tm_mday,
-            timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec);
+char* current_time(){
+    char *time_str = malloc(128);
+    struct tm *p;
+    time_t now = time(0);
+    p=gmtime(&now);
+    strftime(time_str, 128, "%Y-%m-%d %H:%M:%S", p);
+    return time_str;
 }
 
 void custom_logger(pulsar_logger_level_t level, const char *file, int line, const char *message,
               void *ctx) {
-    time_t mytime = time(NULL);
-    char * time_str = ctime(&mytime);
     // Control the log level yourself.
     if (level >= pulsar_DEBUG) {
-        format_time(time_str);
+        char * time_str = current_time();
         printf("[%s] [%u] [%s] [%d] [%s] \n", time_str, level, file, line, message);
+        free(time_str);
     }
 }
 
