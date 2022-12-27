@@ -46,7 +46,7 @@ for source_dir in SOURCE_DIRS:
     for directory, subdirs, files in os.walk(source_dir):
         for name in files:
             name = os.path.join(directory, name)
-            if not (name.endswith('.h') or name.endswith('.cc')):
+            if not (name.endswith('.h') or name.endswith('.cc') or name.endswith('.c')):
                 continue
 
             excluded = False

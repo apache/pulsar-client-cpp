@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <stdio.h>
 #include <pulsar/c/client.h>
+#include <stdio.h>
 
 int main() {
     pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
@@ -27,8 +27,8 @@ int main() {
     pulsar_reader_configuration_t *reader_conf = pulsar_reader_configuration_create();
 
     pulsar_reader_t *reader;
-    pulsar_result res = pulsar_client_create_reader(client, "my-topic", pulsar_message_id_earliest(), reader_conf,
-                                                    &reader);
+    pulsar_result res =
+        pulsar_client_create_reader(client, "my-topic", pulsar_message_id_earliest(), reader_conf, &reader);
     if (res != pulsar_result_Ok) {
         printf("Failed to create reader: %s\n", pulsar_result_str(res));
         return 1;
@@ -43,7 +43,7 @@ int main() {
         }
 
         printf("Received message with payload: '%.*s'\n", pulsar_message_get_length(message),
-               (const char*)pulsar_message_get_data(message));
+               (const char *)pulsar_message_get_data(message));
 
         pulsar_message_free(message);
     }
