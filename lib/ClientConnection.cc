@@ -1596,7 +1596,7 @@ void ClientConnection::close(Result result) {
     }
 
     lock.unlock();
-    if (result != ResultDisconnected) {
+    if (result != ResultDisconnected && result != ResultRetryable) {
         LOG_ERROR(cnxString_ << "Connection closed with " << result);
     } else {
         LOG_INFO(cnxString_ << "Connection disconnected");
