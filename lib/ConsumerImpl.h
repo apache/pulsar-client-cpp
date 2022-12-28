@@ -315,6 +315,7 @@ class ConsumerImpl : public ConsumerImplBase {
     // these two declared friend to access setNegativeAcknowledgeEnabledForTesting
     friend class MultiTopicsConsumerImpl;
 
+    FRIEND_TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages);
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testBatchUnAckedMessageTracker);
