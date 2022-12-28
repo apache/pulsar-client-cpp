@@ -1596,7 +1596,11 @@ void ClientConnection::close(Result result) {
     }
 
     lock.unlock();
-    LOG_INFO(cnxString_ << "Connection closed with " << result);
+    if (result != ResultDisconnected && result != ResultRetryable) {
+        LOG_ERROR(cnxString_ << "Connection closed with " << result);
+    } else {
+        LOG_INFO(cnxString_ << "Connection disconnected");
+    }
 
     for (ProducersMap::iterator it = producers.begin(); it != producers.end(); ++it) {
         HandlerBase::handleDisconnection(result, shared_from_this(), it->second);
