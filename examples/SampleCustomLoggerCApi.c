@@ -33,18 +33,15 @@ char *current_time() {
 }
 
 void custom_logger(pulsar_logger_level_t level, const char *file, int line, const char *message, void *ctx) {
-    // Control the log level yourself.
-    if (level >= pulsar_DEBUG) {
-        char *time_str = current_time();
-        printf("[%s] [%u] [%s] [%d] [%s] \n", time_str, level, file, line, message);
-        free(time_str);
-    }
+    char *time_str = current_time();
+    printf("[%s] [%u] [%s] [%d] [%s] \n", time_str, level, file, line, message);
+    free(time_str);
 }
 
 int main() {
     pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
 
-    pulsar_client_configuration_set_logger(conf, custom_logger, NULL);
+    pulsar_client_configuration_set_logger_and_level(conf, custom_logger, pulsar_DEBUG, NULL);
     pulsar_client_configuration_set_memory_limit(conf, 64 * 1024 * 1024);
     pulsar_client_t *client = pulsar_client_create("pulsar://localhost:6650", conf);
 

@@ -134,6 +134,10 @@ PULSAR_PUBLIC int pulsar_client_configuration_get_concurrent_lookup_request(
 PULSAR_PUBLIC void pulsar_client_configuration_set_logger(pulsar_client_configuration_t *conf,
                                                           pulsar_logger logger, void *ctx);
 
+PULSAR_PUBLIC void pulsar_client_configuration_set_logger_and_level(pulsar_client_configuration_t *conf,
+                                                                    pulsar_logger logger,
+                                                                    pulsar_logger_level_t level, void *ctx);
+
 PULSAR_PUBLIC void pulsar_client_configuration_set_use_tls(pulsar_client_configuration_t *conf, int useTls);
 
 PULSAR_PUBLIC int pulsar_client_configuration_is_use_tls(pulsar_client_configuration_t *conf);
