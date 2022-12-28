@@ -57,7 +57,7 @@ jobs:
           sudo curl -o /gtest-parallel https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py 
 
       - name: CMake
-        run: cmake . -DBUILD_PERF_TOOLS=ON
+        run: cmake . -DCMAKE_BUILD_TYPE=Debug -DBUILD_PERF_TOOLS=ON
 
       - name: Check formatting
         run: make check-format
