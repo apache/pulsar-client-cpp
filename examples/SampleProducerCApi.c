@@ -18,18 +18,17 @@
  */
 
 #include <pulsar/c/client.h>
-
 #include <stdio.h>
 #include <string.h>
 
 int main() {
-    pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
+    pulsar_client_configuration_t* conf = pulsar_client_configuration_create();
     pulsar_client_configuration_set_memory_limit(conf, 64 * 1024 * 1024);
-    pulsar_client_t *client = pulsar_client_create("pulsar://localhost:6650", conf);
+    pulsar_client_t* client = pulsar_client_create("pulsar://localhost:6650", conf);
 
     pulsar_producer_configuration_t* producer_conf = pulsar_producer_configuration_create();
     pulsar_producer_configuration_set_batching_enabled(producer_conf, 1);
-    pulsar_producer_t *producer;
+    pulsar_producer_t* producer;
 
     pulsar_result err = pulsar_client_create_producer(client, "my-topic", producer_conf, &producer);
     if (err != pulsar_result_Ok) {
