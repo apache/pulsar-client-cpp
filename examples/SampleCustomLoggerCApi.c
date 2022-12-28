@@ -23,20 +23,19 @@
 #include <string.h>
 #include <time.h>
 
-char* current_time(){
+char *current_time() {
     char *time_str = malloc(128);
     struct tm *p;
     time_t now = time(0);
-    p=gmtime(&now);
+    p = gmtime(&now);
     strftime(time_str, 128, "%Y-%m-%d %H:%M:%S", p);
     return time_str;
 }
 
-void custom_logger(pulsar_logger_level_t level, const char *file, int line, const char *message,
-              void *ctx) {
+void custom_logger(pulsar_logger_level_t level, const char *file, int line, const char *message, void *ctx) {
     // Control the log level yourself.
     if (level >= pulsar_DEBUG) {
-        char * time_str = current_time();
+        char *time_str = current_time();
         printf("[%s] [%u] [%s] [%d] [%s] \n", time_str, level, file, line, message);
         free(time_str);
     }
@@ -49,7 +48,7 @@ int main() {
     pulsar_client_configuration_set_memory_limit(conf, 64 * 1024 * 1024);
     pulsar_client_t *client = pulsar_client_create("pulsar://localhost:6650", conf);
 
-    pulsar_producer_configuration_t* producer_conf = pulsar_producer_configuration_create();
+    pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
     pulsar_producer_configuration_set_batching_enabled(producer_conf, 1);
     pulsar_producer_t *producer;
 
@@ -60,8 +59,8 @@ int main() {
     }
 
     for (int i = 0; i < 10; i++) {
-        const char* data = "my-content";
-        pulsar_message_t* message = pulsar_message_create();
+        const char *data = "my-content";
+        pulsar_message_t *message = pulsar_message_create();
         pulsar_message_set_content(message, data, strlen(data));
 
         err = pulsar_producer_send(producer, message);
