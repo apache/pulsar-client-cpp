@@ -40,6 +40,9 @@ const char* strResult(Result result) {
         case ResultTimeout:
             return "TimeOut";
 
+        case ResultNotFound:
+            return "ResultNotFound";
+
         case ResultLookupError:
             return "LookupError";
 

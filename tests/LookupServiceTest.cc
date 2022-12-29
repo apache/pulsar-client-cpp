@@ -39,6 +39,9 @@ using namespace pulsar;
 
 DECLARE_LOG_OBJECT()
 
+static std::string binaryLookupUrl = "pulsar://localhost:6650";
+static std::string httpLookupUrl = "http://localhost:8080";
+
 TEST(LookupServiceTest, basicLookup) {
     ExecutorServiceProviderPtr service = std::make_shared<ExecutorServiceProvider>(1);
     AuthenticationPtr authData = AuthFactory::Disabled();
@@ -274,3 +277,82 @@ TEST(LookupServiceTest, testTimeout) {
 
     ASSERT_EQ(PulsarFriend::getNumberOfPendingTasks(*lookupService), 0);
 }
+
+class LookupServiceTest : public ::testing::TestWithParam<std::string> {
+   public:
+    void TearDown() override { client_.close(); }
+
+   protected:
+    Client client_{GetParam()};
+};
+
+TEST_P(LookupServiceTest, testGetSchema) {
+    const std::string topic = "testGetSchema" + std::to_string(time(nullptr)) + GetParam().substr(0, 4);
+    std::string jsonSchema =
+        R"({"type":"record","name":"cpx","fields":[{"name":"re","type":"double"},{"name":"im","type":"double"}]})";
+
+    StringMap properties;
+    properties.emplace("key1", "value1");
+    properties.emplace("key2", "value2");
+
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setSchema(SchemaInfo(SchemaType::JSON, "json", jsonSchema, properties));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConfiguration, producer));
+
+    auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
+    auto lookup = clientImplPtr->getLookup();
+
+    boost::optional<SchemaInfo> schemaInfo;
+    auto future = lookup->getSchema(TopicName::get(topic));
+    ASSERT_EQ(ResultOk, future.get(schemaInfo));
+    ASSERT_EQ(jsonSchema, schemaInfo->getSchema());
+    ASSERT_EQ(SchemaType::JSON, schemaInfo->getSchemaType());
+    ASSERT_EQ(properties, schemaInfo->getProperties());
+}
+
+TEST_P(LookupServiceTest, testGetSchemaNotFund) {
+    const std::string topic =
+        "testGetSchemaNotFund" + std::to_string(time(nullptr)) + GetParam().substr(0, 4);
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producer));
+
+    auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
+    auto lookup = clientImplPtr->getLookup();
+
+    boost::optional<SchemaInfo> schemaInfo;
+    auto future = lookup->getSchema(TopicName::get(topic));
+    ASSERT_EQ(ResultOk, future.get(schemaInfo));
+    ASSERT_TRUE(!schemaInfo);
+}
+
+TEST_P(LookupServiceTest, testGetKeyValueSchema) {
+    const std::string topic =
+        "testGetKeyValueSchema" + std::to_string(time(nullptr)) + GetParam().substr(0, 4);
+    StringMap properties;
+    properties.emplace("key1", "value1");
+    properties.emplace("key2", "value2");
+    std::string jsonSchema =
+        R"({"type":"record","name":"cpx","fields":[{"name":"re","type":"double"},{"name":"im","type":"double"}]})";
+    SchemaInfo keySchema(JSON, "key-json", jsonSchema, properties);
+    SchemaInfo valueSchema(JSON, "value-json", jsonSchema, properties);
+    SchemaInfo keyValueSchema(keySchema, valueSchema, KeyValueEncodingType::INLINE);
+
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setSchema(keyValueSchema);
+    Producer producer;
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConfiguration, producer));
+
+    auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
+    auto lookup = clientImplPtr->getLookup();
+
+    boost::optional<SchemaInfo> schemaInfo;
+    auto future = lookup->getSchema(TopicName::get(topic));
+    ASSERT_EQ(ResultOk, future.get(schemaInfo));
+    ASSERT_EQ(keyValueSchema.getSchema(), schemaInfo->getSchema());
+    ASSERT_EQ(SchemaType::KEY_VALUE, schemaInfo->getSchemaType());
+    ASSERT_TRUE(!schemaInfo->getProperties().empty());
+}
+
+INSTANTIATE_TEST_CASE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLookupUrl, httpLookupUrl));

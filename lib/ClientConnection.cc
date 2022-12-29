@@ -1308,6 +1308,52 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     break;
                 }
 
+                case BaseCommand::GET_SCHEMA_RESPONSE: {
+                    const auto& response = incomingCmd.getschemaresponse();
+                    LOG_DEBUG(cnxString_ << "Received GetSchemaResponse from server. req_id: "
+                                         << response.request_id());
+                    Lock lock(mutex_);
+                    PendingGetSchemaMap::iterator it = pendingGetSchemaRequests_.find(response.request_id());
+                    if (it != pendingGetSchemaRequests_.end()) {
+                        Promise<Result, boost::optional<SchemaInfo>> getSchemaPromise = it->second;
+                        pendingGetSchemaRequests_.erase(it);
+                        lock.unlock();
+
+                        if (response.has_error_code()) {
+                            if (response.error_code() == proto::TopicNotFound) {
+                                getSchemaPromise.setValue(boost::none);
+                            } else {
+                                Result result = getResult(response.error_code(), response.error_message());
+                                LOG_WARN(cnxString_ << "Received error GetSchemaResponse from server "
+                                                    << result
+                                                    << (response.has_error_message()
+                                                            ? (" (" + response.error_message() + ")")
+                                                            : "")
+                                                    << " -- req_id: " << response.request_id());
+                                getSchemaPromise.setFailed(result);
+                            }
+                            return;
+                        }
+
+                        auto schema = response.schema();
+                        auto properMap = schema.properties();
+                        StringMap properties;
+                        for (auto kv = properMap.begin(); kv != properMap.end(); ++kv) {
+                            properties[kv->key()] = kv->value();
+                        }
+                        SchemaInfo schemaInfo(static_cast<SchemaType>(schema.type()), "",
+                                              schema.schema_data(), properties);
+                        getSchemaPromise.setValue(schemaInfo);
+                    } else {
+                        lock.unlock();
+                        LOG_WARN(
+                            "GetSchemaResponse command - Received unknown request id from "
+                            "server: "
+                            << response.request_id());
+                    }
+                    break;
+                }
+
                 default: {
                     LOG_WARN(cnxString_ << "Received invalid message from server");
                     close();
@@ -1705,6 +1751,23 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(con
     pendingGetNamespaceTopicsRequests_.insert(std::make_pair(requestId, promise));
     lock.unlock();
     sendCommand(Commands::newGetTopicsOfNamespace(nsName, requestId));
+    return promise.getFuture();
+}
+
+Future<Result, boost::optional<SchemaInfo>> ClientConnection::newGetSchema(const std::string& topicName,
+                                                                           uint64_t requestId) {
+    Lock lock(mutex_);
+    Promise<Result, boost::optional<SchemaInfo>> promise;
+    if (isClosed()) {
+        lock.unlock();
+        LOG_ERROR(cnxString_ << "Client is not connected to the broker");
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
+    }
+
+    pendingGetSchemaRequests_.insert(std::make_pair(requestId, promise));
+    lock.unlock();
+    sendCommand(Commands::newGetSchema(topicName, requestId));
     return promise.getFuture();
 }
 
