@@ -68,6 +68,10 @@ set(SAMPLE_KEY_VALUE_SCHEMA_PRODUCER
         SampleKeyValueSchemaProducer.cc
 )
 
+set(SAMPLE_CUSTOM_LOGGER_CAPI
+        SampleCustomLoggerCApi.c
+        )
+
 add_executable(SampleAsyncProducer                    ${SAMPLE_ASYNC_PRODUCER_SOURCES})
 add_executable(SampleConsumer                         ${SAMPLE_CONSUMER_SOURCES})
 add_executable(SampleConsumerListener                 ${SAMPLE_CONSUMER_LISTENER_SOURCES})
@@ -80,6 +84,7 @@ add_executable(SampleConsumerListenerCApi             ${SAMPLE_CONSUMER_LISTENER
 add_executable(SampleReaderCApi                       ${SAMPLE_READER_C_SOURCES})
 add_executable(SampleKeyValueSchemaConsumer           ${SAMPLE_KEY_VALUE_SCHEMA_CONSUMER})
 add_executable(SampleKeyValueSchemaProducer           ${SAMPLE_KEY_VALUE_SCHEMA_PRODUCER})
+add_executable(SampleCustomLoggerCApi                 ${SAMPLE_CUSTOM_LOGGER_CAPI})
 
 target_link_libraries(SampleAsyncProducer              ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleConsumer                   ${CLIENT_LIBS} pulsarShared)
@@ -93,3 +98,4 @@ target_link_libraries(SampleConsumerListenerCApi       ${CLIENT_LIBS} pulsarShar
 target_link_libraries(SampleReaderCApi                 ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleKeyValueSchemaConsumer     ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleKeyValueSchemaProducer     ${CLIENT_LIBS} pulsarShared)
+target_link_libraries(SampleCustomLoggerCApi           ${CLIENT_LIBS} pulsarShared)
