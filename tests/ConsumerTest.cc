@@ -902,9 +902,8 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     std::string topicName = "testRedeliveryOfDecryptionFailedMessages" + std::to_string(time(nullptr));
     std::string subName = "sub-test";
 
-    // TODO remove ../
-    std::string PUBLIC_CERT_FILE_PATH = "../../test-conf//public-key.client-rsa.pem";
-    std::string PRIVATE_CERT_FILE_PATH = "../../test-conf//private-key.client-rsa.pem";
+    std::string PUBLIC_CERT_FILE_PATH = "../test-conf//public-key.client-rsa.pem";
+    std::string PRIVATE_CERT_FILE_PATH = "../test-conf//private-key.client-rsa.pem";
     std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader =
         std::make_shared<pulsar::DefaultCryptoKeyReader>(PUBLIC_CERT_FILE_PATH, PRIVATE_CERT_FILE_PATH);
 
