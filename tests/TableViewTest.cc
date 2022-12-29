@@ -62,7 +62,7 @@ TEST(TableViewTest, testCreateTableView) {
     client.createTableViewAsync(
         topic, tableViewConfiguration, [&latch](Result result, const TableView& tableView) {
             latch.countdown();
-            ASSERT_TRUE(result == ResultConnectError || result == ResultAlreadyClosed);
+            ASSERT_TRUE(result == ResultDisconnected || result == ResultAlreadyClosed);
         });
     client.close();
     latch.wait();
