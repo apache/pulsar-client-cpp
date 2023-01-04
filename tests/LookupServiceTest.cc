@@ -359,3 +359,43 @@ TEST_P(LookupServiceTest, testGetKeyValueSchema) {
 }
 
 INSTANTIATE_TEST_CASE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLookupUrl, httpLookupUrl));
+
+class BinaryProtoLookupServiceRedirectTestHelper : public BinaryProtoLookupService {
+   public:
+    BinaryProtoLookupServiceRedirectTestHelper(ServiceNameResolver& serviceNameResolver, ConnectionPool& pool,
+                                               const ClientConfiguration& clientConfiguration)
+        : BinaryProtoLookupService(serviceNameResolver, pool, clientConfiguration) {}
+
+    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
+                                  size_t redirectCount) {
+        return BinaryProtoLookupService::findBroker(address, authoritative, topic, redirectCount);
+    }
+};  // class BinaryProtoLookupServiceRedirectTestHelper
+
+TEST(LookupServiceTest, testRedirectionLimit) {
+    const auto redirect_limit = 5;
+    AuthenticationPtr authData = AuthFactory::Disabled();
+    ClientConfiguration conf;
+    conf.setMaxLookupRedirects(redirect_limit);
+    ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
+    ConnectionPool pool_(conf, ioExecutorProvider_, authData, true);
+    std::string url = "pulsar://localhost:6650";
+    ServiceNameResolver serviceNameResolver(url);
+    BinaryProtoLookupServiceRedirectTestHelper lookupService(serviceNameResolver, pool_, conf);
+
+    const auto topicNamePtr = TopicName::get("topic");
+    for (auto idx = 0; idx < redirect_limit + 5; ++idx) {
+        auto future =
+            lookupService.findBroker(serviceNameResolver.resolveHost(), false, topicNamePtr->toString(), idx);
+        LookupService::LookupResult lookupResult;
+        auto result = future.get(lookupResult);
+
+        if (idx <= redirect_limit) {
+            ASSERT_EQ(ResultOk, result);
+            ASSERT_EQ(url, lookupResult.logicalAddress);
+            ASSERT_EQ(url, lookupResult.physicalAddress);
+        } else {
+            ASSERT_EQ(ResultTooManyLookupRequestException, result);
+        }
+    }
+}
