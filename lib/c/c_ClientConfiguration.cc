@@ -70,45 +70,49 @@ int pulsar_client_configuration_get_concurrent_lookup_request(pulsar_client_conf
 }
 
 class PulsarCLogger : public pulsar::Logger {
-    std::string file_;
-    pulsar_logger logger_;
-    pulsar_logger_level_t level_;
-    void *ctx_;
-
    public:
-    PulsarCLogger(const std::string &file, pulsar_logger logger, pulsar_logger_level_t level, void *ctx)
-        : file_(file), logger_(logger), level_(level), ctx_(ctx) {}
+    PulsarCLogger(pulsar_logger_t logger, const std::string &fileName)
+        : logger_(logger), fileName_(fileName) {}
 
-    bool isEnabled(Level level) { return (pulsar_logger_level_t)level >= level_; }
-
-    void log(Level level, int line, const std::string &message) {
-        logger_((pulsar_logger_level_t)level, file_.c_str(), line, message.c_str(), ctx_);
+    bool isEnabled(Level level) override {
+        return logger_.is_enabled(static_cast<pulsar_logger_level_t>(level), logger_.ctx);
     }
+
+    void log(Level level, int line, const std::string &message) override {
+        logger_.log(static_cast<pulsar_logger_level_t>(level), fileName_.c_str(), line, message.c_str(),
+                    logger_.ctx);
+    }
+
+   private:
+    const pulsar_logger_t logger_;
+    const std::string fileName_;
 };
 
 class PulsarCLoggerFactory : public pulsar::LoggerFactory {
-    pulsar_logger logger_;
-    pulsar_logger_level_t level_;
-    void *ctx_;
-
    public:
-    PulsarCLoggerFactory(pulsar_logger logger, pulsar_logger_level_t level, void *ctx)
-        : logger_(logger), level_(level), ctx_(ctx) {}
+    PulsarCLoggerFactory(pulsar_logger_t logger) : logger_(logger) {}
 
-    pulsar::Logger *getLogger(const std::string &fileName) {
-        return new PulsarCLogger(fileName, logger_, level_, ctx_);
+    pulsar::Logger *getLogger(const std::string &fileName) override {
+        return new PulsarCLogger(logger_, fileName);
     }
+
+   private:
+    const pulsar_logger_t logger_;
 };
 
-void pulsar_client_configuration_set_logger(pulsar_client_configuration_t *conf, pulsar_logger logger,
-                                            void *ctx) {
-    conf->conf.setLogger(new PulsarCLoggerFactory(logger, pulsar_logger_level_t::pulsar_INFO, ctx));
+void pulsar_client_configuration_set_logger(pulsar_client_configuration_t *conf,
+                                            pulsar_logger logger_function, void *ctx) {
+    pulsar_logger_t logger;
+    logger.ctx = ctx;
+    logger.is_enabled = [](pulsar_logger_level_t level, void *ctx) {
+        return level >= pulsar_logger_level_t::pulsar_INFO;
+    };
+    logger.log = logger_function;
+    conf->conf.setLogger(new PulsarCLoggerFactory(logger));
 }
 
-void pulsar_client_configuration_set_logger_and_level(pulsar_client_configuration_t *conf,
-                                                      pulsar_logger logger, pulsar_logger_level_t level,
-                                                      void *ctx) {
-    conf->conf.setLogger(new PulsarCLoggerFactory(logger, level, ctx));
+void pulsar_client_configuration_set_logger_t(pulsar_client_configuration_t *conf, pulsar_logger_t logger) {
+    conf->conf.setLogger(new PulsarCLoggerFactory(logger));
 }
 
 void pulsar_client_configuration_set_use_tls(pulsar_client_configuration_t *conf, int useTls) {
