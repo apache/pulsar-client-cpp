@@ -49,6 +49,11 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) override;
 
+   protected:
+    // Mark findBroker as protected to make it accessible from test.
+    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
+                                  size_t redirectCount);
+
    private:
     std::mutex mutex_;
     uint64_t requestIdGenerator_ = 0;
@@ -57,9 +62,6 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     ConnectionPool& cnxPool_;
     std::string listenerName_;
     const int32_t maxLookupRedirects_;
-
-    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
-                                  size_t redirectCount);
 
     void sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
                                             const ClientConnectionWeakPtr& clientCnx,
