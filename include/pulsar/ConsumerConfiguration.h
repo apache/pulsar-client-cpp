@@ -28,6 +28,7 @@
 #include <pulsar/Message.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/TypedMessage.h>
 #include <pulsar/defines.h>
 
 #include <functional>
@@ -48,7 +49,7 @@ typedef std::function<void(Result, const Messages& msgs)> BatchReceiveCallback;
 typedef std::function<void(Result result, MessageId messageId)> GetLastMessageIdCallback;
 
 /// Callback definition for MessageListener
-typedef std::function<void(Consumer consumer, const Message& msg)> MessageListener;
+typedef std::function<void(Consumer& consumer, const Message& msg)> MessageListener;
 
 typedef std::shared_ptr<ConsumerEventListener> ConsumerEventListenerPtr;
 
@@ -125,6 +126,15 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * for every message received.
      */
     ConsumerConfiguration& setMessageListener(MessageListener messageListener);
+
+    template <typename T>
+    ConsumerConfiguration& setTypedMessageListener(
+        std::function<void(Consumer&, const TypedMessage<T>&)> listener,
+        typename TypedMessage<T>::Decoder decoder) {
+        return setMessageListener([listener, decoder](Consumer& consumer, const Message& msg) {
+            listener(consumer, TypedMessage<T>{msg, decoder});
+        });
+    }
 
     /**
      * @return the message listener
