@@ -36,10 +36,69 @@ using namespace pulsar;
 static std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string adminUrl = "http://localhost:8080/";
 
-TEST(ReaderTest, testSimpleReader) {
+TEST(ReaderTest, testPartitionIndex) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/test-simple-reader";
+    const std::string nonPartitionedTopic = "ReaderTestPartitionIndex-topic-" + std::to_string(time(nullptr));
+    const std::string partitionedTopic =
+        "ReaderTestPartitionIndex-par-topic-" + std::to_string(time(nullptr));
+
+    int res = makePutRequest(
+        adminUrl + "admin/v2/persistent/public/default/" + partitionedTopic + "/partitions", "2");
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    const std::string partition0 = partitionedTopic + "-partition-0";
+    const std::string partition1 = partitionedTopic + "-partition-1";
+
+    ReaderConfiguration readerConf;
+    Reader readers[3];
+    ASSERT_EQ(ResultOk,
+              client.createReader(nonPartitionedTopic, MessageId::earliest(), readerConf, readers[0]));
+    ASSERT_EQ(ResultOk, client.createReader(partition0, MessageId::earliest(), readerConf, readers[1]));
+    ASSERT_EQ(ResultOk, client.createReader(partition1, MessageId::earliest(), readerConf, readers[2]));
+
+    Producer producers[3];
+    ASSERT_EQ(ResultOk, client.createProducer(nonPartitionedTopic, producers[0]));
+    ASSERT_EQ(ResultOk, client.createProducer(partition0, producers[1]));
+    ASSERT_EQ(ResultOk, client.createProducer(partition1, producers[2]));
+
+    for (auto& producer : producers) {
+        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("hello").build()));
+    }
+
+    Message msg;
+    readers[0].readNext(msg);
+    ASSERT_EQ(msg.getMessageId().partition(), -1);
+    readers[1].readNext(msg);
+    ASSERT_EQ(msg.getMessageId().partition(), 0);
+    readers[2].readNext(msg);
+    ASSERT_EQ(msg.getMessageId().partition(), 1);
+
+    client.close();
+}
+
+class ReaderTest : public ::testing::TestWithParam<bool> {
+   public:
+    void initTopic(std::string topicName) {
+        if (isMultiTopic_) {
+            // call admin api to make it partitioned
+            std::string url = adminUrl + "admin/v2/persistent/public/default/" + topicName + "/partitions";
+            int res = makePutRequest(url, "5");
+            LOG_INFO("res = " << res);
+            ASSERT_FALSE(res != 204 && res != 409);
+        }
+    }
+
+   protected:
+    bool isMultiTopic_ = GetParam();
+};
+
+TEST_P(ReaderTest, testSimpleReader) {
+    Client client(serviceUrl);
+
+    std::string topicName =
+        "test-simple-reader" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     ReaderConfiguration readerConf;
     Reader reader;
@@ -68,10 +127,12 @@ TEST(ReaderTest, testSimpleReader) {
     client.close();
 }
 
-TEST(ReaderTest, testReaderAfterMessagesWerePublished) {
+TEST_P(ReaderTest, testReaderAfterMessagesWerePublished) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testReaderAfterMessagesWerePublished";
+    std::string topicName = "testReaderAfterMessagesWerePublished" + std::to_string(time(nullptr)) +
+                            std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
@@ -100,10 +161,12 @@ TEST(ReaderTest, testReaderAfterMessagesWerePublished) {
     client.close();
 }
 
-TEST(ReaderTest, testMultipleReaders) {
+TEST_P(ReaderTest, testMultipleReaders) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testMultipleReaders";
+    std::string topicName =
+        "testMultipleReaders" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
@@ -145,10 +208,12 @@ TEST(ReaderTest, testMultipleReaders) {
     client.close();
 }
 
-TEST(ReaderTest, testReaderOnLastMessage) {
+TEST_P(ReaderTest, testReaderOnLastMessage) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testReaderOnLastMessage";
+    std::string topicName =
+        "testReaderOnLastMessage" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
@@ -183,10 +248,12 @@ TEST(ReaderTest, testReaderOnLastMessage) {
     client.close();
 }
 
-TEST(ReaderTest, testReaderOnSpecificMessage) {
+TEST_P(ReaderTest, testReaderOnSpecificMessage) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testReaderOnSpecificMessage";
+    std::string topicName =
+        "testReaderOnSpecificMessage" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
@@ -232,12 +299,15 @@ TEST(ReaderTest, testReaderOnSpecificMessage) {
 }
 
 /**
- * Test that we can position on a particular message even within a batch
+ * build, file MessageIdBuilder.cc, line 45.?? Test that we can position on a particular message even within a
+ * batch
  */
-TEST(ReaderTest, testReaderOnSpecificMessageWithBatches) {
+TEST_P(ReaderTest, testReaderOnSpecificMessageWithBatches) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testReaderOnSpecificMessageWithBatches";
+    std::string topicName = "testReaderOnSpecificMessageWithBatches" + std::to_string(time(nullptr)) +
+                            std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Producer producer;
     // Enable batching
@@ -294,10 +364,12 @@ TEST(ReaderTest, testReaderOnSpecificMessageWithBatches) {
     client.close();
 }
 
-TEST(ReaderTest, testReaderReachEndOfTopic) {
+TEST_P(ReaderTest, testReaderReachEndOfTopic) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testReaderReachEndOfTopic";
+    std::string topicName =
+        "testReaderReachEndOfTopic" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     // 1. create producer
     Producer producer;
@@ -369,10 +441,12 @@ TEST(ReaderTest, testReaderReachEndOfTopic) {
     client.close();
 }
 
-TEST(ReaderTest, testReaderReachEndOfTopicMessageWithoutBatches) {
+TEST_P(ReaderTest, testReaderReachEndOfTopicMessageWithoutBatches) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testReaderReachEndOfTopicMessageWithBatches";
+    std::string topicName = "testReaderReachEndOfTopicMessageWithoutBatches" + std::to_string(time(nullptr)) +
+                            std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     // 1. create producer
     Producer producer;
@@ -424,51 +498,12 @@ TEST(ReaderTest, testReaderReachEndOfTopicMessageWithoutBatches) {
     client.close();
 }
 
-TEST(ReaderTest, testPartitionIndex) {
+TEST_P(ReaderTest, testSubscriptionNameSetting) {
     Client client(serviceUrl);
 
-    const std::string nonPartitionedTopic = "ReaderTestPartitionIndex-topic-" + std::to_string(time(nullptr));
-    const std::string partitionedTopic =
-        "ReaderTestPartitionIndex-par-topic-" + std::to_string(time(nullptr));
-
-    int res = makePutRequest(
-        adminUrl + "admin/v2/persistent/public/default/" + partitionedTopic + "/partitions", "2");
-    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
-
-    const std::string partition0 = partitionedTopic + "-partition-0";
-    const std::string partition1 = partitionedTopic + "-partition-1";
-
-    ReaderConfiguration readerConf;
-    Reader readers[3];
-    ASSERT_EQ(ResultOk,
-              client.createReader(nonPartitionedTopic, MessageId::earliest(), readerConf, readers[0]));
-    ASSERT_EQ(ResultOk, client.createReader(partition0, MessageId::earliest(), readerConf, readers[1]));
-    ASSERT_EQ(ResultOk, client.createReader(partition1, MessageId::earliest(), readerConf, readers[2]));
-
-    Producer producers[3];
-    ASSERT_EQ(ResultOk, client.createProducer(nonPartitionedTopic, producers[0]));
-    ASSERT_EQ(ResultOk, client.createProducer(partition0, producers[1]));
-    ASSERT_EQ(ResultOk, client.createProducer(partition1, producers[2]));
-
-    for (auto& producer : producers) {
-        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("hello").build()));
-    }
-
-    Message msg;
-    readers[0].readNext(msg);
-    ASSERT_EQ(msg.getMessageId().partition(), -1);
-    readers[1].readNext(msg);
-    ASSERT_EQ(msg.getMessageId().partition(), 0);
-    readers[2].readNext(msg);
-    ASSERT_EQ(msg.getMessageId().partition(), 1);
-
-    client.close();
-}
-
-TEST(ReaderTest, testSubscriptionNameSetting) {
-    Client client(serviceUrl);
-
-    std::string topicName = "persistent://public/default/test-subscription-name-setting";
+    std::string topicName =
+        "testSubscriptionNameSetting" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
     std::string subName = "test-sub";
 
     ReaderConfiguration readerConf;
@@ -482,10 +517,12 @@ TEST(ReaderTest, testSubscriptionNameSetting) {
     client.close();
 }
 
-TEST(ReaderTest, testSetSubscriptionNameAndPrefix) {
+TEST_P(ReaderTest, testSetSubscriptionNameAndPrefix) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testSetSubscriptionNameAndPrefix";
+    std::string topicName =
+        "testSetSubscriptionNameAndPrefix" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
     std::string subName = "test-sub";
 
     ReaderConfiguration readerConf;
@@ -500,10 +537,12 @@ TEST(ReaderTest, testSetSubscriptionNameAndPrefix) {
     client.close();
 }
 
-TEST(ReaderTest, testMultiSameSubscriptionNameReaderShouldFail) {
+TEST_P(ReaderTest, testMultiSameSubscriptionNameReaderShouldFail) {
     Client client(serviceUrl);
 
-    std::string topicName = "persistent://public/default/testMultiSameSubscriptionNameReaderShouldFail";
+    std::string topicName = "testMultiSameSubscriptionNameReaderShouldFail" + std::to_string(time(nullptr)) +
+                            std::to_string(isMultiTopic_);
+    initTopic(topicName);
     std::string subscriptionName = "test-sub";
 
     ReaderConfiguration readerConf1;
@@ -522,28 +561,33 @@ TEST(ReaderTest, testMultiSameSubscriptionNameReaderShouldFail) {
     client.close();
 }
 
-TEST(ReaderTest, testIsConnected) {
-    const std::string topic = "testReaderIsConnected-" + std::to_string(time(nullptr));
+TEST_P(ReaderTest, testIsConnected) {
     Client client(serviceUrl);
+
+    std::string topicName = "testIsConnected" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Reader reader;
     ASSERT_FALSE(reader.isConnected());
 
-    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), {}, reader));
     ASSERT_TRUE(reader.isConnected());
 
     ASSERT_EQ(ResultOk, reader.close());
     ASSERT_FALSE(reader.isConnected());
 }
 
-TEST(ReaderTest, testHasMessageAvailableWhenCreated) {
-    const std::string topic = "testHasMessageAvailableWhenCreated-" + std::to_string(time(nullptr));
+TEST_P(ReaderTest, testHasMessageAvailableWhenCreated) {
     Client client(serviceUrl);
+
+    std::string topicName =
+        "testHasMessageAvailableWhenCreated" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     ProducerConfiguration producerConf;
     producerConf.setBatchingMaxMessages(3);
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConf, producer));
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     std::vector<MessageId> messageIds;
     constexpr int numMessages = 7;
@@ -567,25 +611,28 @@ TEST(ReaderTest, testHasMessageAvailableWhenCreated) {
     bool hasMessageAvailable;
 
     for (size_t i = 0; i < messageIds.size() - 1; i++) {
-        ASSERT_EQ(ResultOk, client.createReader(topic, messageIds[i], {}, reader));
+        ASSERT_EQ(ResultOk, client.createReader(topicName, messageIds[i], {}, reader));
         ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
         EXPECT_TRUE(hasMessageAvailable);
     }
 
     // The start message ID is exclusive by default, so when we start at the last message, there should be no
     // message available.
-    ASSERT_EQ(ResultOk, client.createReader(topic, messageIds.back(), {}, reader));
+    ASSERT_EQ(ResultOk, client.createReader(topicName, messageIds.back(), {}, reader));
     ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     EXPECT_FALSE(hasMessageAvailable);
     client.close();
 }
 
-TEST(ReaderTest, testReceiveAfterSeek) {
+TEST_P(ReaderTest, testReceiveAfterSeek) {
     Client client(serviceUrl);
-    const std::string topic = "reader-test-receive-after-seek-" + std::to_string(time(nullptr));
+
+    std::string topicName =
+        "testReceiveAfterSeek" + std::to_string(time(nullptr)) + std::to_string(isMultiTopic_);
+    initTopic(topicName);
 
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
 
     MessageId seekMessageId;
     for (int i = 0; i < 5; i++) {
@@ -597,7 +644,7 @@ TEST(ReaderTest, testReceiveAfterSeek) {
     }
 
     Reader reader;
-    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::latest(), {}, reader));
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::latest(), {}, reader));
 
     reader.seek(seekMessageId);
 
@@ -606,3 +653,5 @@ TEST(ReaderTest, testReceiveAfterSeek) {
 
     client.close();
 }
+
+INSTANTIATE_TEST_CASE_P(Pulsar, ReaderTest, ::testing::Values(true, false));

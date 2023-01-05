@@ -98,7 +98,7 @@ class PulsarFriend {
     }
 
     static ConsumerImplPtr getConsumer(Reader reader) {
-        return std::static_pointer_cast<ConsumerImpl>(reader.impl_->getConsumer().lock());
+        return std::static_pointer_cast<ConsumerImpl>(reader.impl_->getConsumer());
     }
 
     static ReaderImplWeakPtr getReaderImplWeakPtr(Reader reader) { return reader.impl_; }

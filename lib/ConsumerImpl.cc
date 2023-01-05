@@ -57,7 +57,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const ExecutorServicePtr listenerExecutor /* = NULL by default */,
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
-                           Commands::SubscriptionMode subscriptionMode,
                            boost::optional<MessageId> startMessageId)
     : ConsumerImplBase(client, topic, Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
                        listenerExecutor ? listenerExecutor : client->getListenerExecutorProvider()->get()),
@@ -70,7 +69,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       eventListener_(config_.getConsumerEventListener()),
       hasParent_(hasParent),
       consumerTopicType_(consumerTopicType),
-      subscriptionMode_(subscriptionMode),
       // This is the initial capacity of the queue
       incomingMessages_(std::max(config_.getReceiverQueueSize(), 1)),
       availablePermits_(0),
@@ -195,7 +193,7 @@ void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     // Update startMessageId so that we can discard messages after delivery restarts
     const auto startMessageId = clearReceiveQueue();
     const auto subscribeMessageId =
-        (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId : boost::none;
+        (config_.getSubscriptionMode() == SubscriptionMode::NonDurable) ? startMessageId : boost::none;
     startMessageId_ = startMessageId;
     lockForMessageId.unlock();
 
@@ -204,10 +202,11 @@ void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     ClientImplPtr client = client_.lock();
     uint64_t requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
-        topic_, subscription_, consumerId_, requestId, getSubType(), consumerName_, subscriptionMode_,
-        subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
-        config_.getSchema(), getInitialPosition(), config_.isReplicateSubscriptionStateEnabled(),
-        config_.getKeySharedPolicy(), config_.getPriorityLevel());
+        topic_, subscription_, consumerId_, requestId, getSubType(), consumerName_,
+        config_.getSubscriptionMode(), subscribeMessageId, readCompacted_, config_.getProperties(),
+        config_.getSubscriptionProperties(), config_.getSchema(), getInitialPosition(),
+        config_.isReplicateSubscriptionStateEnabled(), config_.getKeySharedPolicy(),
+        config_.getPriorityLevel());
     cnx->sendRequestWithId(cmd, requestId)
         .addListener(std::bind(&ConsumerImpl::handleCreateConsumer, get_shared_this_ptr(), cnx,
                                std::placeholders::_1));
@@ -932,7 +931,7 @@ boost::optional<MessageId> ConsumerImpl::clearReceiveQueue() {
     bool expectedDuringSeek = true;
     if (duringSeek_.compare_exchange_strong(expectedDuringSeek, false)) {
         return seekMessageId_.get();
-    } else if (subscriptionMode_ == Commands::SubscriptionModeDurable) {
+    } else if (config_.getSubscriptionMode() == SubscriptionMode::Durable) {
         return startMessageId_.get();
     }
     Message nextMessageInQueue;

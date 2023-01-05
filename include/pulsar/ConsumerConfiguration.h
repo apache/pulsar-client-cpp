@@ -19,6 +19,7 @@
 #ifndef PULSAR_CONSUMERCONFIGURATION_H_
 #define PULSAR_CONSUMERCONFIGURATION_H_
 
+#include <pulsar/BatchReceivePolicy.h>
 #include <pulsar/ConsumerCryptoFailureAction.h>
 #include <pulsar/ConsumerEventListener.h>
 #include <pulsar/ConsumerType.h>
@@ -28,12 +29,11 @@
 #include <pulsar/Message.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/SubscriptionMode.h>
 #include <pulsar/defines.h>
 
 #include <functional>
 #include <memory>
-
-#include "BatchReceivePolicy.h"
 
 namespace pulsar {
 
@@ -382,6 +382,26 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * @return the configured `InitialPosition` for the consumer
      */
     InitialPosition getSubscriptionInitialPosition() const;
+
+    /**
+     * Selects the subscription mode to be used when subscribing to a topic.
+     *
+     * <p>Options are:
+     * <ul>
+     *  <li>{@link SubscriptionMode#Durable} (Default)</li>
+     *  <li>{@link SubscriptionMode#NonDurable}</li>
+     * </ul>
+     *
+     * @param subscriptionMode the subscription mode value
+     */
+    ConsumerConfiguration& setSubscriptionMode(SubscriptionMode subscriptionMode);
+
+    /**
+     * Get subscription mode.
+     *
+     * @return
+     */
+    SubscriptionMode getSubscriptionMode() const;
 
     /**
      * Set batch receive policy.

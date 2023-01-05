@@ -23,6 +23,7 @@
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
 #include "GetLastMessageIdResponse.h"
+#include "MultiTopicsConsumerImpl.h"
 #include "TopicName.h"
 
 namespace pulsar {
@@ -35,9 +36,14 @@ ConsumerConfiguration consumerConfigOfReader;
 
 static ResultCallback emptyCallback;
 
-ReaderImpl::ReaderImpl(const ClientImplPtr client, const std::string& topic, const ReaderConfiguration& conf,
-                       const ExecutorServicePtr listenerExecutor, ReaderCallback readerCreatedCallback)
-    : topic_(topic), client_(client), readerConf_(conf), readerCreatedCallback_(readerCreatedCallback) {}
+ReaderImpl::ReaderImpl(const ClientImplPtr client, const std::string& topic, const int partitions,
+                       const ReaderConfiguration& conf, const ExecutorServicePtr listenerExecutor,
+                       ReaderCallback readerCreatedCallback)
+    : topic_(topic),
+      partitions_(partitions),
+      client_(client),
+      readerConf_(conf),
+      readerCreatedCallback_(readerCreatedCallback) {}
 
 void ReaderImpl::start(const MessageId& startMessageId,
                        std::function<void(const ConsumerImplBaseWeakPtr&)> callback) {
@@ -53,6 +59,7 @@ void ReaderImpl::start(const MessageId& startMessageId,
     consumerConf.setCryptoKeyReader(readerConf_.getCryptoKeyReader());
     consumerConf.setCryptoFailureAction(readerConf_.getCryptoFailureAction());
     consumerConf.setProperties(readerConf_.getProperties());
+    consumerConf.setSubscriptionMode(SubscriptionMode::NonDurable);
 
     if (readerConf_.getReaderName().length() > 0) {
         consumerConf.setConsumerName(readerConf_.getReaderName());
@@ -80,10 +87,19 @@ void ReaderImpl::start(const MessageId& startMessageId,
         test::consumerConfigOfReader = consumerConf.clone();
     }
 
-    consumer_ = std::make_shared<ConsumerImpl>(
-        client_.lock(), topic_, subscription, consumerConf, TopicName::get(topic_)->isPersistent(),
-        ExecutorServicePtr(), false, NonPartitioned, Commands::SubscriptionModeNonDurable, startMessageId);
-    consumer_->setPartitionIndex(TopicName::getPartitionIndex(topic_));
+    if (partitions_ > 0) {
+        auto consumerImpl = std::make_shared<MultiTopicsConsumerImpl>(client_.lock(), TopicName::get(topic_),
+                                                                      partitions_, subscription, consumerConf,
+                                                                      client_.lock()->getLookup());
+        consumerImpl->setStartMessageId(startMessageId);
+        consumer_ = consumerImpl;
+    } else {
+        auto consumerImpl = std::make_shared<ConsumerImpl>(
+            client_.lock(), topic_, subscription, consumerConf, TopicName::get(topic_)->isPersistent(),
+            ExecutorServicePtr(), false, NonPartitioned, startMessageId);
+        consumerImpl->setPartitionIndex(TopicName::getPartitionIndex(topic_));
+        consumer_ = consumerImpl;
+    }
     auto self = shared_from_this();
     consumer_->getConsumerCreatedFuture().addListener(
         [this, self, callback](Result result, const ConsumerImplBaseWeakPtr& weakConsumerPtr) {

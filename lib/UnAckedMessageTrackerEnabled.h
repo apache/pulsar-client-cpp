@@ -64,6 +64,7 @@ class UnAckedMessageTrackerEnabled : public UnAckedMessageTrackerInterface {
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testBatchUnAckedMessageTracker);
+    FRIEND_TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition);
 };
 }  // namespace pulsar
 
