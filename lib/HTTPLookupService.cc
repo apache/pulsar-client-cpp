@@ -27,6 +27,7 @@
 #include "ExecutorService.h"
 #include "LogUtils.h"
 #include "NamespaceName.h"
+#include "SchemaUtils.h"
 #include "ServiceNameResolver.h"
 #include "TopicName.h"
 namespace ptree = boost::property_tree;
@@ -139,6 +140,25 @@ Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     }
 
     executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleNamespaceTopicsHTTPRequest,
+                                                 shared_from_this(), promise, completeUrlStream.str()));
+    return promise.getFuture();
+}
+
+Future<Result, boost::optional<SchemaInfo>> HTTPLookupService::getSchema(const TopicNamePtr &topicName) {
+    Promise<Result, boost::optional<SchemaInfo>> promise;
+    std::stringstream completeUrlStream;
+
+    const auto &url = serviceNameResolver_.resolveHost();
+    if (topicName->isV2Topic()) {
+        completeUrlStream << url << ADMIN_PATH_V2 << "schemas/" << topicName->getProperty() << '/'
+                          << topicName->getNamespacePortion() << '/' << topicName->getEncodedLocalName()
+                          << "/schema";
+    } else {
+        completeUrlStream << url << ADMIN_PATH_V1 << "schemas/" << topicName->getProperty() << '/'
+                          << topicName->getCluster() << '/' << topicName->getNamespacePortion() << '/'
+                          << topicName->getEncodedLocalName() << "/schema";
+    }
+    executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleGetSchemaHTTPRequest,
                                                  shared_from_this(), promise, completeUrlStream.str()));
     return promise.getFuture();
 }
@@ -263,9 +283,6 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
 
         switch (res) {
             case CURLE_OK:
-                long response_code;
-                curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
-                LOG_INFO("Response received for url " << completeUrl << " code " << response_code);
                 if (response_code == 200) {
                     retResult = ResultOk;
                 } else if (needRedirection(response_code)) {
@@ -286,7 +303,11 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
             case CURLE_COULDNT_RESOLVE_HOST:
             case CURLE_HTTP_RETURNED_ERROR:
                 LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultConnectError;
+                if (response_code == 404) {
+                    retResult = ResultNotFound;
+                } else {
+                    retResult = ResultConnectError;
+                }
                 break;
             case CURLE_READ_ERROR:
                 LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
@@ -406,6 +427,74 @@ void HTTPLookupService::handleLookupHTTPRequest(LookupPromise promise, const std
     } else {
         promise.setValue((requestType == PartitionMetaData) ? parsePartitionData(responseData)
                                                             : parseLookupData(responseData));
+    }
+}
+
+void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, const std::string completeUrl) {
+    std::string responseData;
+    Result result = sendHTTPRequest(completeUrl, responseData);
+
+    if (result == ResultNotFound) {
+        promise.setValue(boost::none);
+    } else if (result != ResultOk) {
+        promise.setFailed(result);
+    } else {
+        ptree::ptree root;
+        std::stringstream stream(responseData);
+        try {
+            ptree::read_json(stream, root);
+        } catch (ptree::json_parser_error &e) {
+            LOG_ERROR("Failed to parse json of Partition Metadata: " << e.what()
+                                                                     << "\nInput Json = " << responseData);
+            promise.setFailed(ResultInvalidMessage);
+            return;
+        }
+        const std::string defaultNotFoundString = "Not found";
+        auto schemaTypeStr = root.get<std::string>("type", defaultNotFoundString);
+        if (schemaTypeStr == defaultNotFoundString) {
+            LOG_ERROR("malformed json! - type not present" << responseData);
+            promise.setFailed(ResultInvalidMessage);
+            return;
+        }
+        auto schemaData = root.get<std::string>("data", defaultNotFoundString);
+        if (schemaData == defaultNotFoundString) {
+            LOG_ERROR("malformed json! - data not present" << responseData);
+            promise.setFailed(ResultInvalidMessage);
+            return;
+        }
+
+        auto schemaType = enumSchemaType(schemaTypeStr);
+        if (schemaType == KEY_VALUE) {
+            ptree::ptree kvRoot;
+            std::stringstream kvStream(schemaData);
+            try {
+                ptree::read_json(kvStream, kvRoot);
+            } catch (ptree::json_parser_error &e) {
+                LOG_ERROR("Failed to parse json of Partition Metadata: " << e.what()
+                                                                         << "\nInput Json = " << schemaData);
+                promise.setFailed(ResultInvalidMessage);
+                return;
+            }
+            std::stringstream keyStream;
+            ptree::write_json(keyStream, kvRoot.get_child("key"), false);
+            std::stringstream valueStream;
+            ptree::write_json(valueStream, kvRoot.get_child("value"), false);
+            auto keyData = keyStream.str();
+            auto valueData = valueStream.str();
+            // Remove the last line break.
+            keyData.pop_back();
+            valueData.pop_back();
+            schemaData = mergeKeyValueSchema(keyData, valueData);
+        }
+
+        StringMap properties;
+        auto propertiesTree = root.get_child("properties");
+        for (const auto &item : propertiesTree) {
+            properties[item.first] = item.second.get_value<std::string>();
+        }
+
+        SchemaInfo schemaInfo = SchemaInfo(schemaType, "", schemaData, properties);
+        promise.setValue(schemaInfo);
     }
 }
 

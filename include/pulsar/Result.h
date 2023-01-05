@@ -94,6 +94,7 @@ enum Result
     ResultInterrupted,  /// Interrupted while waiting to dequeue
 
     ResultDisconnected,  /// Client connection has been disconnected
+    ResultNotFound       /// The generic was not found
 };
 
 // Return string representation of result code

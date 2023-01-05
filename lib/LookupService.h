@@ -21,6 +21,7 @@
 
 #include <pulsar/Result.h>
 
+#include <boost/optional.hpp>
 #include <memory>
 #include <ostream>
 #include <vector>
@@ -71,6 +72,14 @@ class LookupService {
      * Returns all the topics name for a given namespace.
      */
     virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) = 0;
+
+    /**
+     * returns current SchemaInfo {@link SchemaInfo} for a given topic.
+     *
+     * @param topicName topic-name
+     * @return SchemaInfo
+     */
+    virtual Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) = 0;
 
     virtual ~LookupService() {}
 };

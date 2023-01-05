@@ -90,6 +90,8 @@ class Commands {
     static SharedBuffer newLookup(const std::string& topic, const bool authoritative, uint64_t requestId,
                                   const std::string& listenerName);
 
+    static SharedBuffer newGetSchema(const std::string& topic, uint64_t requestId);
+
     static PairSharedBuffer newSend(SharedBuffer& headers, proto::BaseCommand& cmd, uint64_t producerId,
                                     uint64_t sequenceId, ChecksumType checksumType,
                                     const proto::MessageMetadata& metadata, const SharedBuffer& payload);

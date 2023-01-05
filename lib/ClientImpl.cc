@@ -142,7 +142,7 @@ ExecutorServiceProviderPtr ClientImpl::getPartitionListenerExecutorProvider() {
 LookupServicePtr ClientImpl::getLookup() { return lookupServicePtr_; }
 
 void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfiguration conf,
-                                     CreateProducerCallback callback) {
+                                     CreateProducerCallback callback, bool autoDownloadSchema) {
     if (conf.isChunkingEnabled() && conf.getBatchingEnabled()) {
         throw std::invalid_argument("Batching and chunking of messages can't be enabled together");
     }
@@ -159,9 +159,28 @@ void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfigura
             return;
         }
     }
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
-        std::bind(&ClientImpl::handleCreateProducer, shared_from_this(), std::placeholders::_1,
-                  std::placeholders::_2, topicName, conf, callback));
+
+    if (autoDownloadSchema) {
+        auto self = shared_from_this();
+        auto confPtr = std::make_shared<ProducerConfiguration>(conf);
+        lookupServicePtr_->getSchema(topicName).addListener(
+            [self, topicName, confPtr, callback](Result res, boost::optional<SchemaInfo> topicSchema) {
+                if (res != ResultOk) {
+                    callback(res, Producer());
+                }
+                if (topicSchema) {
+                    confPtr->setSchema(topicSchema.get());
+                }
+
+                self->lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+                    std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
+                              std::placeholders::_2, topicName, *confPtr, callback));
+            });
+    } else {
+        lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+            std::bind(&ClientImpl::handleCreateProducer, shared_from_this(), std::placeholders::_1,
+                      std::placeholders::_2, topicName, conf, callback));
+    }
 }
 
 void ClientImpl::handleCreateProducer(const Result result, const LookupDataResultPtr partitionMetadata,

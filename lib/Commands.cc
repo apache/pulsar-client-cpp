@@ -160,6 +160,21 @@ SharedBuffer Commands::newLookup(const std::string& topic, const bool authoritat
     return buffer;
 }
 
+SharedBuffer Commands::newGetSchema(const std::string& topic, uint64_t requestId) {
+    static BaseCommand cmd;
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    cmd.set_type(BaseCommand::GET_SCHEMA);
+
+    auto getSchema = cmd.mutable_getschema();
+    getSchema->set_topic(topic);
+    getSchema->set_request_id(requestId);
+
+    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    cmd.clear_getschema();
+    return buffer;
+}
+
 SharedBuffer Commands::newConsumerStats(uint64_t consumerId, uint64_t requestId) {
     static BaseCommand cmd;
     static std::mutex mutex;
@@ -861,5 +876,6 @@ bool Commands::peerSupportsMultiMessageAcknowledgement(int32_t peerVersion) {
 bool Commands::peerSupportsJsonSchemaAvroFormat(int32_t peerVersion) { return peerVersion >= proto::v13; }
 
 bool Commands::peerSupportsGetOrCreateSchema(int32_t peerVersion) { return peerVersion >= proto::v15; }
+
 }  // namespace pulsar
 /* namespace pulsar */

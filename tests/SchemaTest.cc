@@ -19,12 +19,12 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include "PulsarFriend.h"
 #include "SharedBuffer.h"
 
 using namespace pulsar;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
-
 static const std::string exampleSchema =
     R"({"type":"record","name":"Example","namespace":"test","fields":[{"name":"a","type":"int"},{"name":"b","type":"int"}]})";
 
@@ -50,11 +50,10 @@ TEST(SchemaTest, testSchema) {
     res = client.createProducer("topic-avro", producerConf, producer);
     ASSERT_EQ(ResultIncompatibleSchema, res);
 
-    // Creating producer with no schema on same topic should succeed
-    // because standalone broker is configured by default to not
-    // require the schema to be set
+    // Creating producer with no schema on same topic should failed.
+    // Because we set broker config isSchemaValidationEnforced=true
     res = client.createProducer("topic-avro", producer);
-    ASSERT_EQ(ResultOk, res);
+    ASSERT_EQ(ResultIncompatibleSchema, res);
 
     ConsumerConfiguration consumerConf;
     Consumer consumer;
@@ -153,4 +152,34 @@ TEST(SchemaTest, testValueSchemaIsEmpty) {
     buffer.consume(keySchemaSize);
     int valueSchemaSize = buffer.readUnsignedInt();
     ASSERT_EQ(valueSchemaSize, -1);
+}
+
+TEST(SchemaTest, testAutoDownloadSchema) {
+    const std::string topic = "testAutoPublicSchema" + std::to_string(time(nullptr));
+    std::string jsonSchema =
+        R"({"type":"record","name":"cpx","fields":[{"name":"re","type":"double"},{"name":"im","type":"double"}]})";
+    SchemaInfo schema(JSON, "test-schema", jsonSchema);
+
+    Client client(lookupUrl);
+
+    ConsumerConfiguration consumerConfiguration;
+    consumerConfiguration.setSchema(schema);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "t-sub", consumerConfiguration, consumer));
+
+    ProducerConfiguration producerConfiguration;
+    Producer producer;
+
+    auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
+
+    Promise<Result, Producer> promise;
+    clientImplPtr->createProducerAsync(topic, producerConfiguration, WaitForCallbackValue<Producer>(promise),
+                                       true);
+    ASSERT_EQ(ResultOk, promise.getFuture().get(producer));
+
+    Message msg = MessageBuilder().setContent("content").build();
+    ASSERT_EQ(ResultOk, producer.send(msg));
+
+    ASSERT_EQ(ResultOk, consumer.receive(msg));
+    ASSERT_EQ("content", msg.getDataAsString());
 }
