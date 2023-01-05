@@ -687,6 +687,8 @@ bool ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const 
         } else {
             LOG_ERROR(getName() << "Message delivery failed since CryptoKeyReader is not implemented to "
                                    "consume encrypted message");
+            auto messageId = MessageIdBuilder::from(msg.message_id()).build();
+            unAckedMessageTrackerPtr_->add(messageId);
         }
         return false;
     }
@@ -707,6 +709,8 @@ bool ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const 
         discardCorruptedMessage(cnx, msg.message_id(), CommandAck_ValidationError_DecryptionError);
     } else {
         LOG_ERROR(getName() << "Message delivery failed since unable to decrypt incoming message");
+        auto messageId = MessageIdBuilder::from(msg.message_id()).build();
+        unAckedMessageTrackerPtr_->add(messageId);
     }
     return false;
 }
