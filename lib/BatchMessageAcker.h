@@ -43,6 +43,8 @@ class BatchMessageAcker {
         return prevBatchCumulativelyAcked_.compare_exchange_strong(expectedValue, true);
     }
 
+    const BitSet& getBitSet() const noexcept { return bitSet_; }
+
    private:
     // When a batched message is acknowledged cumulatively, the previous message id will be acknowledged
     // without batch index ACK enabled. However, it should be acknowledged only once. Use this flag to

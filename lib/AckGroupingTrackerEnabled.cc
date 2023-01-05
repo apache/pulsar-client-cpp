@@ -19,6 +19,7 @@
 
 #include "AckGroupingTrackerEnabled.h"
 
+#include <climits>
 #include <mutex>
 
 #include "ClientConnection.h"
@@ -27,10 +28,24 @@
 #include "ExecutorService.h"
 #include "HandlerBase.h"
 #include "LogUtils.h"
+#include "MessageIdUtil.h"
 
 namespace pulsar {
 
 DECLARE_LOG_OBJECT();
+
+// Define a customized compare logic whose difference with the default compare logic of MessageId is:
+// When two MessageId objects are in the same entry, if only one of them is a message in the batch, treat
+// it as a smaller one.
+static int compare(const MessageId& lhs, const MessageId& rhs) {
+    int result = compareLedgerAndEntryId(lhs, rhs);
+    if (result != 0) {
+        return result;
+    } else {
+        return internal::compare(lhs.batchIndex() < 0 ? INT_MAX : lhs.batchIndex(),
+                                 rhs.batchIndex() < 0 ? INT_MAX : rhs.batchIndex());
+    }
+}
 
 AckGroupingTrackerEnabled::AckGroupingTrackerEnabled(ClientImplPtr clientPtr,
                                                      const HandlerBasePtr& handlerPtr, uint64_t consumerId,
@@ -58,7 +73,7 @@ bool AckGroupingTrackerEnabled::isDuplicate(const MessageId& msgId) {
     {
         // Check if the message ID is already ACKed by a previous (or pending) cumulative request.
         std::lock_guard<std::mutex> lock(this->mutexCumulativeAckMsgId_);
-        if (msgId <= this->nextCumulativeAckMsgId_) {
+        if (compare(msgId, this->nextCumulativeAckMsgId_) <= 0) {
             return true;
         }
     }
@@ -88,7 +103,7 @@ void AckGroupingTrackerEnabled::addAcknowledgeList(const MessageIdList& msgIds) 
 
 void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId) {
     std::lock_guard<std::mutex> lock(this->mutexCumulativeAckMsgId_);
-    if (msgId > this->nextCumulativeAckMsgId_) {
+    if (compare(msgId, this->nextCumulativeAckMsgId_) > 0) {
         this->nextCumulativeAckMsgId_ = msgId;
         this->requireCumulativeAck_ = true;
     }

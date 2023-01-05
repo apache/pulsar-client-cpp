@@ -287,4 +287,11 @@ const BatchReceivePolicy& ConsumerConfiguration::getBatchReceivePolicy() const {
     return impl_->batchReceivePolicy;
 }
 
+ConsumerConfiguration& ConsumerConfiguration::setBatchIndexAckEnabled(bool enabled) {
+    impl_->batchIndexAckEnabled = enabled;
+    return *this;
+}
+
+bool ConsumerConfiguration::isBatchIndexAckEnabled() const { return impl_->batchIndexAckEnabled; }
+
 }  // namespace pulsar

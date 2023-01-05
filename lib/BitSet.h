@@ -39,6 +39,8 @@ class BitSet {
 
     BitSet(int32_t numBits) : words_((numBits / 64) + ((numBits % 64 == 0) ? 0 : 1)) { assert(numBits > 0); }
 
+    BitSet(Data&& words) : words_(std::move(words)), wordsInUse_(words_.size()) {}
+
     // Support range loop like:
     // ```c++
     // BitSet bitSet(129);
@@ -54,6 +56,15 @@ class BitSet {
      * @return boolean indicating whether this {@code BitSet} is empty
      */
     bool isEmpty() const noexcept { return wordsInUse_ == 0; }
+
+    /**
+     * Returns the value of the bit with the specific index. The value is {@code true} if the bit with the
+     * index {@code bitIndex} is currently set in this {@code BitSet}; otherwise, the result is {@code false}.
+     *
+     * @param  bitIndex   the bit index
+     * @return the value of the bit with the specified index
+     */
+    bool get(int32_t bitIndex) const;
 
     /**
      * Sets the bits from the specified {@code fromIndex} (inclusive) to the
@@ -163,6 +174,12 @@ class BitSet {
         return (x >> safeShiftCount(sizeof(x) * 8, n));
     }
 };
+
+inline bool BitSet::get(int32_t bitIndex) const {
+    assert(bitIndex >= 0);
+    auto wordIndex_ = wordIndex(bitIndex);
+    return (wordIndex_ < wordsInUse_) && ((words_[wordIndex_] & (1L << bitIndex)) != 0);
+}
 
 inline void BitSet::set(int32_t fromIndex, int32_t toIndex) {
     assert(fromIndex < toIndex && fromIndex >= 0 && toIndex >= 0);
