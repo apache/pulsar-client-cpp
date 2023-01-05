@@ -149,6 +149,21 @@ TEST(AuthPluginTest, testTlsDetectPulsarSslWithHostNameValidation) {
 
     Producer producer;
     Result res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectPulsarSslWithHostNameValidationMissingCertsFile) {
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsAllowInsecureConnection(false);
+    config.setValidateHostName(true);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    Client client(serviceUrlTls, config);
+    std::string topicName =
+        "persistent://private/auth/testTlsDetectPulsarSslWithHostNameValidationMissingCertsFile";
+
+    Producer producer;
+    Result res = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultConnectError, res);
 }
 
@@ -182,6 +197,23 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidation) {
     Client client(serviceUrlHttps, config);
 
     std::string topicName = "persistent://private/auth/test-tls-detect-https-with-hostname-validation";
+
+    Producer producer;
+    Result res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidationMissingCertsFile) {
+    ClientConfiguration config = ClientConfiguration();
+    config.setUseTls(true);  // shouldn't be needed soon
+    config.setTlsAllowInsecureConnection(false);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+    config.setValidateHostName(true);
+
+    Client client(serviceUrlHttps, config);
+
+    std::string topicName =
+        "persistent://private/auth/test-tls-detect-https-with-hostname-validation-missing-certs-file";
 
     Producer producer;
     Result res = client.createProducer(topicName, producer);
