@@ -111,6 +111,14 @@ Result ReaderImpl::readNext(Message& msg, int timeoutMs) {
     return res;
 }
 
+void ReaderImpl::readNextAsync(ReceiveCallback callback) {
+    auto self = shared_from_this();
+    consumer_->receiveAsync([self, callback](Result result, const Message& message) {
+        self->acknowledgeIfNecessary(result, message);
+        callback(result, message);
+    });
+}
+
 void ReaderImpl::messageListener(Consumer consumer, const Message& msg) {
     readerListener_(Reader(shared_from_this()), msg);
     acknowledgeIfNecessary(ResultOk, msg);

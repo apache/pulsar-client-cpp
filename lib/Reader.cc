@@ -49,6 +49,14 @@ Result Reader::readNext(Message& msg, int timeoutMs) {
     return impl_->readNext(msg, timeoutMs);
 }
 
+void Reader::readNextAsync(ReadNextCallback callback) {
+    if (!impl_) {
+        return callback(ResultConsumerNotInitialized, {});
+    }
+
+    impl_->readNextAsync(callback);
+}
+
 Result Reader::close() {
     Promise<bool, Result> promise;
     closeAsync(WaitForCallback(promise));

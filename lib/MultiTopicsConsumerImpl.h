@@ -65,7 +65,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     const std::string& getTopic() const override;
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
-    void receiveAsync(ReceiveCallback& callback) override;
+    void receiveAsync(ReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) override;
