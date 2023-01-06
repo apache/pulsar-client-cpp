@@ -287,4 +287,10 @@ const BatchReceivePolicy& ConsumerConfiguration::getBatchReceivePolicy() const {
     return impl_->batchReceivePolicy;
 }
 
+void ConsumerConfiguration::setDeadLetterPolicy(const DeadLetterPolicy& deadLetterPolicy) {
+    impl_->deadLetterPolicy = deadLetterPolicy;
+}
+
+const DeadLetterPolicy& ConsumerConfiguration::getDeadLetterPolicy() const { return impl_->deadLetterPolicy; }
+
 }  // namespace pulsar

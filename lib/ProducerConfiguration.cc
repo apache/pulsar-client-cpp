@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "pulsar/ProducerConfiguration.h"
+
 #include <stdexcept>
 
 #include "ProducerConfigurationImpl.h"
@@ -29,6 +31,8 @@ ProducerConfiguration::ProducerConfiguration() : impl_(std::make_shared<Producer
 ProducerConfiguration::~ProducerConfiguration() {}
 
 ProducerConfiguration::ProducerConfiguration(const ProducerConfiguration& x) : impl_(x.impl_) {}
+
+ProducerConfiguration::ProducerConfiguration(ProducerConfigurationImplPtr& impl) : impl_(impl) {}
 
 ProducerConfiguration& ProducerConfiguration::operator=(const ProducerConfiguration& x) {
     impl_ = x.impl_;

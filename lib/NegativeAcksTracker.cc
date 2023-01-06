@@ -80,7 +80,7 @@ void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
     }
 
     if (!messagesToRedeliver.empty()) {
-        consumer_.redeliverMessages(messagesToRedeliver);
+        consumer_.redeliverUnacknowledgedMessages(messagesToRedeliver);
     }
     scheduleTimer();
 }

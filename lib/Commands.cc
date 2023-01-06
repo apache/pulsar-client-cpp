@@ -386,7 +386,8 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
                                    const std::map<std::string, std::string>& metadata,
                                    const SchemaInfo& schemaInfo, uint64_t epoch,
                                    bool userProvidedProducerName, bool encrypted,
-                                   ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch) {
+                                   ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                   std::string initialSubscriptionName) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::PRODUCER);
     CommandProducer* producer = cmd.mutable_producer();
@@ -399,6 +400,9 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     producer->set_producer_access_mode(static_cast<proto::ProducerAccessMode>(accessMode));
     if (topicEpoch) {
         producer->set_topic_epoch(topicEpoch.value());
+    }
+    if (!initialSubscriptionName.empty()) {
+        producer->set_initial_subscription_name(initialSubscriptionName);
     }
 
     for (std::map<std::string, std::string>::const_iterator it = metadata.begin(); it != metadata.end();
