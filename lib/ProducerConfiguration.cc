@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/ProducerConfiguration.h>
+
 #include <stdexcept>
 
 #include "ProducerConfigurationImpl.h"
@@ -264,6 +266,17 @@ ProducerConfiguration& ProducerConfiguration::setAccessMode(const ProducerAccess
 }
 ProducerConfiguration::ProducerAccessMode ProducerConfiguration::getAccessMode() const {
     return impl_->accessMode;
+}
+ProducerConfiguration& ProducerConfiguration::intercept(
+    const std::initializer_list<ProducerInterceptorPtr> interceptors) {
+    for (const ProducerInterceptorPtr& interceptor : interceptors) {
+        impl_->interceptors.push_back(interceptor);
+    }
+    return *this;
+}
+
+std::vector<ProducerInterceptorPtr> ProducerConfiguration::getInterceptors() const {
+    return impl_->interceptors;
 }
 
 }  // namespace pulsar

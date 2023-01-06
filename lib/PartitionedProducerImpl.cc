@@ -59,6 +59,8 @@ PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const Top
         partitionsUpdateInterval_ = boost::posix_time::seconds(partitionsUpdateInterval);
         lookupServicePtr_ = client->getLookup();
     }
+
+    interceptors_ = conf_.getInterceptors();
 }
 
 MessageRoutingPolicyPtr PartitionedProducerImpl::getMessageRouter() {
@@ -443,6 +445,7 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
                 producers_.push_back(producer);
             }
             // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
+            onPartitionsChange(getTopic(), newNumPartitions);
             return;
         }
     } else {
@@ -485,6 +488,17 @@ void PartitionedProducerImpl::cancelTimers() noexcept {
     if (partitionsUpdateTimer_) {
         boost::system::error_code ec;
         partitionsUpdateTimer_->cancel(ec);
+    }
+}
+
+void PartitionedProducerImpl::onPartitionsChange(const std::string& topicName, const int partitions) const {
+    for (const ProducerInterceptorPtr& interceptor : interceptors_) {
+        try {
+            interceptor->onPartitionsChange(topicName, partitions);
+        } catch (const std::exception& e) {
+            LOG_WARN("Error executing interceptor onPartitionsChange callback for topicName: "
+                     << topicName << ", exception: " << e.what());
+        }
     }
 }
 

@@ -23,6 +23,7 @@
 #include <pulsar/defines.h>
 #include <stdint.h>
 
+#include <functional>
 #include <memory>
 
 namespace pulsar {
@@ -30,6 +31,8 @@ class ProducerImplBase;
 class PulsarWrapper;
 class PulsarFriend;
 
+typedef std::function<void(Result, const MessageId& messageId)> SendCallback;
+typedef std::function<void(Result)> CloseCallback;
 typedef std::function<void(Result)> FlushCallback;
 typedef std::shared_ptr<ProducerImplBase> ProducerImplBasePtr;
 
@@ -166,6 +169,7 @@ class PULSAR_PUBLIC Producer {
     friend class ClientImpl;
     friend class PulsarFriend;
     friend class PulsarWrapper;
+    friend class ProducerImpl;
 
     ProducerImplBasePtr impl_;
 
