@@ -156,6 +156,11 @@ class ProducerImpl : public HandlerBase,
     bool isValidProducerState(const SendCallback& callback) const;
     bool canAddToBatch(const Message& msg) const;
 
+    Message beforeSend(const Producer& producer, const Message& message) const;
+
+    void onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
+                               const MessageId& messageID) const;
+
     typedef std::unique_lock<std::mutex> Lock;
 
     ProducerConfiguration conf_;

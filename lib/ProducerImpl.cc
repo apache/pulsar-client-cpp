@@ -79,6 +79,8 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
     lastSequenceIdPublished_ = initialSequenceId;
     msgSequenceGenerator_ = initialSequenceId + 1;
 
+    interceptors_ = conf.getInterceptors();
+
     if (!producerName_.empty()) {
         userProvidedProducerName_ = true;
     }
@@ -429,10 +431,17 @@ static SharedBuffer applyCompression(const SharedBuffer& uncompressedPayload,
 void ProducerImpl::sendAsync(const Message& msg, SendCallback callback) {
     producerStatsBasePtr_->messageSent(msg);
 
+    Producer producer = Producer(shared_from_this());
+    auto interceptorMessage = beforeSend(producer, msg);
+
     const auto now = boost::posix_time::microsec_clock::universal_time();
     auto self = shared_from_this();
-    sendAsyncWithStatsUpdate(msg, [this, self, now, callback](Result result, const MessageId& messageId) {
+    sendAsyncWithStatsUpdate(interceptorMessage, [this, self, now, callback, producer, interceptorMessage](
+                                                     Result result, const MessageId& messageId) {
         producerStatsBasePtr_->messageReceived(result, now);
+
+        onSendAcknowledgement(producer, result, interceptorMessage, messageId);
+
         if (callback) {
             callback(result, messageId);
         }
@@ -974,6 +983,34 @@ void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
 }
 
 ProducerImplWeakPtr ProducerImpl::weak_from_this() noexcept { return shared_from_this(); }
+
+Message ProducerImpl::beforeSend(const Producer& producer, const Message& message) const {
+    if (interceptors_.size() == 0) {
+        return message;
+    }
+
+    Message interceptorMessage = message;
+    for (const ProducerInterceptorPtr& interceptor : interceptors_) {
+        try {
+            interceptorMessage = interceptor->beforeSend(producer, interceptorMessage);
+        } catch (const std::exception& e) {
+            LOG_WARN("Error executing interceptor beforeSend callback for topicName: "
+                     << producer.getTopic() << ", exception: " << e.what());
+        }
+    }
+    return interceptorMessage;
+}
+void ProducerImpl::onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
+                                         const MessageId& messageID) const {
+    for (const ProducerInterceptorPtr& interceptor : interceptors_) {
+        try {
+            interceptor->onSendAcknowledgement(producer, result, message, messageID);
+        } catch (const std::exception& e) {
+            LOG_WARN("Error executing interceptor onSendAcknowledgement callback for topicName: "
+                     << producer.getTopic() << ", exception: " << e.what());
+        }
+    }
+}
 
 }  // namespace pulsar
 /* namespace pulsar */

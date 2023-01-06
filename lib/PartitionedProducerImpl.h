@@ -138,6 +138,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     void getPartitionMetadata();
     void handleGetPartitions(const Result result, const LookupDataResultPtr& partitionMetadata);
     void cancelTimers() noexcept;
+    void onPartitionsChange(const std::string& topicName, const int partitions) const;
 };
 
 }  // namespace pulsar

@@ -23,6 +23,7 @@
 #include <pulsar/Message.h>
 #include <pulsar/MessageRoutingPolicy.h>
 #include <pulsar/ProducerCryptoFailureAction.h>
+#include <pulsar/ProducerInterceptor.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
@@ -531,6 +532,10 @@ class PULSAR_PUBLIC ProducerConfiguration {
      * Get the type of access mode that the producer requires on the topic.
      */
     ProducerAccessMode getAccessMode() const;
+
+    ProducerConfiguration& intercept(const std::initializer_list<ProducerInterceptorPtr> interceptors);
+
+    std::vector<ProducerInterceptorPtr> getInterceptors() const;
 
     friend class PulsarWrapper;
 
