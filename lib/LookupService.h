@@ -72,6 +72,11 @@ class LookupService {
      */
     virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) = 0;
 
+    /**
+     * Instruct the LookupService to switch to a new service URL for all subsequent requests.
+     */
+    virtual void updateServiceUrl(const std::string& serviceUrl) = 0;
+
     virtual ~LookupService() {}
 };
 

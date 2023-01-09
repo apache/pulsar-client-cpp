@@ -51,6 +51,11 @@ class PULSAR_PUBLIC ConnectionPool {
     bool close();
 
     /**
+     * Disconnect and clear all connect.
+     */
+    void disconnect();
+
+    /**
      * Get a connection from the pool.
      * <p>
      * The connection can either be created or be coming from the pool itself.

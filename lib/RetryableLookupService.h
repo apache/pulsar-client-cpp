@@ -66,6 +66,10 @@ class RetryableLookupService : public LookupService,
             [this, nsName] { return lookupService_->getTopicsOfNamespaceAsync(nsName); });
     }
 
+    void updateServiceUrl(const std::string& serviceUrl) override {
+        return lookupService_->updateServiceUrl(serviceUrl);
+    }
+
     template <typename T>
     Future<Result, T> executeAsync(const std::string& key, std::function<Future<Result, T>()> f) {
         Promise<Result, T> promise;

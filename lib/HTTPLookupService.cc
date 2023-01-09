@@ -143,6 +143,10 @@ Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     return promise.getFuture();
 }
 
+void HTTPLookupService::updateServiceUrl(const std::string &serviceUrl) {
+    serviceNameResolver_.updateServiceUrl(serviceUrl);
+}
+
 static size_t curlWriteCallback(void *contents, size_t size, size_t nmemb, void *responseDataPtr) {
     ((std::string *)responseDataPtr)->append((char *)contents, size * nmemb);
     return size * nmemb;

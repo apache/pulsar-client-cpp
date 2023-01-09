@@ -47,7 +47,11 @@ bool ConnectionPool::close() {
     if (!closed_.compare_exchange_strong(expectedState, true)) {
         return false;
     }
+    disconnect();
+    return true;
+}
 
+void ConnectionPool::disconnect() {
     std::unique_lock<std::mutex> lock(mutex_);
     if (poolConnections_) {
         for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
@@ -58,7 +62,6 @@ bool ConnectionPool::close() {
         }
         pool_.clear();
     }
-    return true;
 }
 
 Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(

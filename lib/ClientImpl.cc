@@ -74,6 +74,12 @@ typedef std::unique_lock<std::mutex> Lock;
 
 typedef std::vector<std::string> StringList;
 
+ClientImpl::ClientImpl(const ServiceUrlProviderPtr& serviceUrlProviderPtr,
+                       const ClientConfiguration& clientConfiguration)
+    : ClientImpl(serviceUrlProviderPtr->getServiceUrl(), clientConfiguration, true) {
+    serviceUrlProviderPtr_ = serviceUrlProviderPtr;
+}
+
 ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
                        bool poolConnections)
     : mutex_(),
@@ -497,6 +503,20 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, GetPartiti
                   std::placeholders::_2, topicName, callback));
 }
 
+Result ClientImpl::updateServiceUrl(const std::string& serviceUrl) {
+    LOG_INFO("Updating service URL to " << serviceUrl);
+
+    try {
+        serviceNameResolver_.updateServiceUrl(serviceUrl);
+        lookupServicePtr_->updateServiceUrl(serviceUrl);
+    } catch (const std::exception& e) {
+        LOG_ERROR("Invalid service-url " << serviceUrl << "provided " << e.what());
+        return ResultInvalidUrl;
+    }
+    pool_.disconnect();
+    return ResultOk;
+}
+
 void ClientImpl::closeAsync(CloseCallback callback) {
     if (state_ != Open) {
         if (callback) {
@@ -508,6 +528,9 @@ void ClientImpl::closeAsync(CloseCallback callback) {
     state_ = Closing;
 
     memoryLimitController_.close();
+    if (serviceUrlProviderPtr_) {
+        serviceUrlProviderPtr_->close();
+    }
 
     auto producers = producers_.move();
     auto consumers = consumers_.move();

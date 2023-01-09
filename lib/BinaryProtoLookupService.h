@@ -45,6 +45,8 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) override;
 
+    void updateServiceUrl(const std::string& serviceUrl) override;
+
    private:
     std::mutex mutex_;
     uint64_t requestIdGenerator_ = 0;
