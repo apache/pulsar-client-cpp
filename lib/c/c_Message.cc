@@ -127,3 +127,9 @@ const char *pulsar_message_get_topic_name(pulsar_message_t *message) {
 int pulsar_message_get_redelivery_count(pulsar_message_t *message) {
     return message->message.getRedeliveryCount();
 }
+
+const char *pulsar_message_get_schemaVersion(pulsar_message_t *message) {
+    return message->message.getSchemaVersion().c_str();
+}
+
+int pulsar_message_has_schema_version(pulsar_message_t *message) { return message->message.hasSchemaVersion(); }
