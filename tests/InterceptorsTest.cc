@@ -79,7 +79,7 @@ class PartitionsChangeInterceptor : public ProducerInterceptor {
     void onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
                                const MessageId& messageID) override {}
 
-    void onPartitionsChange(const std::string& topicName, const int partitions) override {
+    void onPartitionsChange(const std::string& topicName, int partitions) override {
         ASSERT_EQ(partitions, 3);
         latch_.countdown();
     }

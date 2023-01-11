@@ -985,7 +985,7 @@ void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
 ProducerImplWeakPtr ProducerImpl::weak_from_this() noexcept { return shared_from_this(); }
 
 Message ProducerImpl::beforeSend(const Producer& producer, const Message& message) const {
-    if (interceptors_.size() == 0) {
+    if (interceptors_.empty()) {
         return message;
     }
 

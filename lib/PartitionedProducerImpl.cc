@@ -444,6 +444,7 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
                 }
                 producers_.push_back(producer);
             }
+            producersLock.unlock();
             // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
             onPartitionsChange(getTopic(), newNumPartitions);
             return;

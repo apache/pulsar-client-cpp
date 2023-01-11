@@ -105,7 +105,7 @@ class PULSAR_PUBLIC ProducerInterceptor {
      * @param topicName topic name
      * @param partitions new updated partitions
      */
-    virtual void onPartitionsChange(const std::string& topicName, const int partitions) {}
+    virtual void onPartitionsChange(const std::string& topicName, int partitions) {}
 };
 
 typedef std::shared_ptr<ProducerInterceptor> ProducerInterceptorPtr;
