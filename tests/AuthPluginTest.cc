@@ -41,6 +41,12 @@ static const std::string caPath = "../test-conf/cacert.pem";
 static const std::string clientPublicKeyPath = "../test-conf/client-cert.pem";
 static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
 
+// Man in middle certificate which tries to act as a broker by sending its own valid certificate
+static const std::string mimServiceUrlTls = "pulsar+ssl://localhost:6653";
+static const std::string mimServiceUrlHttps = "https://localhost:8444";
+
+static const std::string mimCaPath = "../test-conf/hn-verification/cacert.pem";
+
 static void sendCallBackTls(Result r, const MessageId& msgId) {
     ASSERT_EQ(r, ResultOk);
     globalTestTlsMessagesCounter++;
@@ -167,6 +173,34 @@ TEST(AuthPluginTest, testTlsDetectPulsarSslWithHostNameValidationMissingCertsFil
     ASSERT_EQ(ResultConnectError, res);
 }
 
+TEST(AuthPluginTest, testTlsDetectPulsarSslWithInvalidBroker) {
+    ClientConfiguration configWithValidateHostname = ClientConfiguration();
+    configWithValidateHostname.setTlsTrustCertsFilePath(mimCaPath);
+    configWithValidateHostname.setTlsAllowInsecureConnection(false);
+    configWithValidateHostname.setValidateHostName(true);
+    configWithValidateHostname.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsTrustCertsFilePath(mimCaPath);
+    config.setTlsAllowInsecureConnection(false);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    Client clientWithValidateHostname(mimServiceUrlTls, configWithValidateHostname);
+    Client client(mimServiceUrlTls, config);
+
+    std::string topicName = "persistent://private/auth/testTlsDetectPulsarSslWithInvalidBroker";
+
+    // 1. Client tries to connect to broker with hostname="localhost"
+    // 2. Broker sends x509 certificates with CN = "pulsar"
+    // 3. Client verifies the host-name and closes the connection
+    Producer producer;
+    Result res = clientWithValidateHostname.createProducer(topicName, producer);
+    ASSERT_EQ(ResultConnectError, res);
+
+    res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
+}
+
 TEST(AuthPluginTest, testTlsDetectHttps) {
     ClientConfiguration config = ClientConfiguration();
     config.setUseTls(true);  // shouldn't be needed soon
@@ -218,6 +252,36 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidationMissingCertsFile) {
     Producer producer;
     Result res = client.createProducer(topicName, producer);
     ASSERT_NE(ResultOk, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectHttpsWithInvalidBroker) {
+    ClientConfiguration configWithValidateHostname = ClientConfiguration();
+    configWithValidateHostname.setUseTls(true);  // shouldn't be needed soon
+    configWithValidateHostname.setTlsTrustCertsFilePath(mimCaPath);
+    configWithValidateHostname.setTlsAllowInsecureConnection(false);
+    configWithValidateHostname.setValidateHostName(true);
+    configWithValidateHostname.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    ClientConfiguration config = ClientConfiguration();
+    config.setUseTls(true);  // shouldn't be needed soon
+    config.setTlsTrustCertsFilePath(mimCaPath);
+    config.setTlsAllowInsecureConnection(false);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    Client clientWithValidateHostname(mimServiceUrlHttps, configWithValidateHostname);
+    Client client(mimServiceUrlHttps, config);
+
+    std::string topicName = "persistent://private/auth/test-tls-detect-https-with-invalid-broker";
+
+    // 1. Client tries to connect to broker with hostname="localhost"
+    // 2. Broker sends x509 certificates with CN = "pulsar"
+    // 3. Client verifies the host-name and closes the connection
+    Producer producer;
+    Result res = clientWithValidateHostname.createProducer(topicName, producer);
+    ASSERT_NE(ResultOk, res);
+
+    res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
 }
 
 namespace testAthenz {

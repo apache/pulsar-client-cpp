@@ -18,19 +18,19 @@
 # under the License.
 #
 
-set -e
+set -e -x
 
-SRC_DIR=$(git rev-parse --show-toplevel)
-cd $SRC_DIR
+if [ $# -ne 2 ]; then
+    echo "Usage: $0 \$CONTAINER_ID \$START_TEST_SERVICE_INSIDE_CONTAINER"
+    exit 1
+fi
 
-./pulsar-test-service-stop.sh
+CONTAINER_ID=$1
+START_TEST_SERVICE_INSIDE_CONTAINER=$2
 
-CONTAINER_ID=$(docker run -i -p 8080:8080 -p 6650:6650 -p 8443:8443 -p 6651:6651 --rm --detach apachepulsar/pulsar:latest sleep 3600)
-build-support/setup-test-service-container.sh $CONTAINER_ID start-test-service-inside-container.sh
+echo $CONTAINER_ID >> .tests-container-id.txt
 
-docker cp $CONTAINER_ID:/pulsar/data/tokens/token.txt .test-token.txt
+docker cp test-conf $CONTAINER_ID:/pulsar/test-conf
+docker cp build-support/$START_TEST_SERVICE_INSIDE_CONTAINER $CONTAINER_ID:$START_TEST_SERVICE_INSIDE_CONTAINER
 
-CONTAINER_ID=$(docker run -i -p 8081:8081 -p 6652:6652 -p 8444:8444 -p 6653:6653 --rm --detach apachepulsar/pulsar:latest sleep 3600)
-build-support/setup-test-service-container.sh $CONTAINER_ID start-mim-test-service-inside-container.sh
-
-echo "-- Ready to start tests"
+docker exec -i $CONTAINER_ID /$START_TEST_SERVICE_INSIDE_CONTAINER
