@@ -251,7 +251,7 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidationMissingCertsFile) {
 
     Producer producer;
     Result res = client.createProducer(topicName, producer);
-    ASSERT_NE(ResultOk, res);
+    ASSERT_EQ(ResultLookupError, res);
 }
 
 TEST(AuthPluginTest, testTlsDetectHttpsWithInvalidBroker) {
@@ -278,7 +278,7 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithInvalidBroker) {
     // 3. Client verifies the host-name and closes the connection
     Producer producer;
     Result res = clientWithValidateHostname.createProducer(topicName, producer);
-    ASSERT_NE(ResultOk, res);
+    ASSERT_EQ(ResultLookupError, res);
 
     res = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultOk, res);
