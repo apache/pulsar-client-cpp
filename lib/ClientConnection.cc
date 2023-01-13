@@ -812,7 +812,7 @@ void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, b
 void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
     LOG_DEBUG(cnxString_ << "Handling incoming command: " << Commands::messageType(incomingCmd.type()));
 
-    switch (state_) {
+    switch (state_.load()) {
         case Pending: {
             LOG_ERROR(cnxString_ << "Connection is not ready yet");
             break;

@@ -22,6 +22,7 @@
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/defines.h>
 
+#include <atomic>
 #include <boost/any.hpp>
 #include <boost/asio/bind_executor.hpp>
 #include <boost/asio/deadline_timer.hpp>
@@ -235,6 +236,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     template <typename ConstBufferSequence, typename WriteHandler>
     inline void asyncWrite(const ConstBufferSequence& buffers, WriteHandler handler) {
+        if (isClosed()) {
+            return;
+        }
         if (tlsSocket_) {
 #if BOOST_VERSION >= 106600
             boost::asio::async_write(*tlsSocket_, buffers, boost::asio::bind_executor(strand_, handler));
@@ -248,6 +252,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     template <typename MutableBufferSequence, typename ReadHandler>
     inline void asyncReceive(const MutableBufferSequence& buffers, ReadHandler handler) {
+        if (isClosed()) {
+            return;
+        }
         if (tlsSocket_) {
 #if BOOST_VERSION >= 106600
             tlsSocket_->async_read_some(buffers, boost::asio::bind_executor(strand_, handler));
@@ -259,7 +266,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         }
     }
 
-    State state_ = Pending;
+    std::atomic<State> state_{Pending};
     TimeDuration operationsTimeout_;
     AuthenticationPtr authentication_;
     int serverProtocolVersion_;
