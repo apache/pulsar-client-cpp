@@ -203,7 +203,6 @@ TEST(AuthPluginTest, testTlsDetectPulsarSslWithInvalidBroker) {
 
 TEST(AuthPluginTest, testTlsDetectHttps) {
     ClientConfiguration config = ClientConfiguration();
-    config.setUseTls(true);  // shouldn't be needed soon
     config.setTlsTrustCertsFilePath(caPath);
     config.setTlsAllowInsecureConnection(false);
     config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
@@ -222,7 +221,6 @@ TEST(AuthPluginTest, testTlsDetectHttps) {
 
 TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidation) {
     ClientConfiguration config = ClientConfiguration();
-    config.setUseTls(true);  // shouldn't be needed soon
     config.setTlsTrustCertsFilePath(caPath);
     config.setTlsAllowInsecureConnection(false);
     config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
@@ -239,7 +237,6 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidation) {
 
 TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidationMissingCertsFile) {
     ClientConfiguration config = ClientConfiguration();
-    config.setUseTls(true);  // shouldn't be needed soon
     config.setTlsAllowInsecureConnection(false);
     config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
     config.setValidateHostName(true);
@@ -256,14 +253,12 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidationMissingCertsFile) {
 
 TEST(AuthPluginTest, testTlsDetectHttpsWithInvalidBroker) {
     ClientConfiguration configWithValidateHostname = ClientConfiguration();
-    configWithValidateHostname.setUseTls(true);  // shouldn't be needed soon
     configWithValidateHostname.setTlsTrustCertsFilePath(mimCaPath);
     configWithValidateHostname.setTlsAllowInsecureConnection(false);
     configWithValidateHostname.setValidateHostName(true);
     configWithValidateHostname.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
 
     ClientConfiguration config = ClientConfiguration();
-    config.setUseTls(true);  // shouldn't be needed soon
     config.setTlsTrustCertsFilePath(mimCaPath);
     config.setTlsAllowInsecureConnection(false);
     config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
