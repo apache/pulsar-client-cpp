@@ -20,6 +20,7 @@
 #define PULSAR_CPP_LOOKUPSERVICE_H
 
 #include <pulsar/Result.h>
+#include <pulsar/Schema.h>
 
 #include <boost/optional.hpp>
 #include <memory>

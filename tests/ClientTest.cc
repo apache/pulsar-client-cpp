@@ -305,6 +305,7 @@ TEST(ClientTest, testCloseClient) {
         auto t0 = std::chrono::steady_clock::now();
         while ((std::chrono::steady_clock::now() - t0) < std::chrono::microseconds(i)) {
         }
+        sleep(1);
         client.close();
     }
 }

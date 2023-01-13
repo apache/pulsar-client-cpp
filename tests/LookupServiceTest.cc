@@ -352,7 +352,7 @@ TEST_P(LookupServiceTest, testGetKeyValueSchema) {
     ASSERT_EQ(ResultOk, future.get(schemaInfo));
     ASSERT_EQ(keyValueSchema.getSchema(), schemaInfo->getSchema());
     ASSERT_EQ(SchemaType::KEY_VALUE, schemaInfo->getSchemaType());
-    ASSERT_TRUE(!schemaInfo->getProperties().empty());
+    ASSERT_FALSE(schemaInfo->getProperties().empty());
 }
 
 INSTANTIATE_TEST_CASE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLookupUrl, httpLookupUrl));

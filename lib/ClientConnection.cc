@@ -1313,7 +1313,7 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     LOG_DEBUG(cnxString_ << "Received GetSchemaResponse from server. req_id: "
                                          << response.request_id());
                     Lock lock(mutex_);
-                    PendingGetSchemaMap::iterator it = pendingGetSchemaRequests_.find(response.request_id());
+                    auto it = pendingGetSchemaRequests_.find(response.request_id());
                     if (it != pendingGetSchemaRequests_.end()) {
                         Promise<Result, boost::optional<SchemaInfo>> getSchemaPromise = it->second;
                         pendingGetSchemaRequests_.erase(it);
@@ -1335,8 +1335,8 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                             return;
                         }
 
-                        auto schema = response.schema();
-                        auto properMap = schema.properties();
+                        const auto& schema = response.schema();
+                        const auto& properMap = schema.properties();
                         StringMap properties;
                         for (auto kv = properMap.begin(); kv != properMap.end(); ++kv) {
                             properties[kv->key()] = kv->value();
