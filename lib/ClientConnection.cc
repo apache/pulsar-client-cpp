@@ -202,11 +202,6 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         } else {
             ctx.set_verify_mode(boost::asio::ssl::context::verify_peer);
 
-            if (clientConfiguration.isValidateHostName()) {
-                LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
-                ctx.set_verify_callback(boost::asio::ssl::rfc2818_verification(physicalAddress));
-            }
-
             std::string trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
             if (!trustCertFilePath.empty()) {
                 if (file_exists(trustCertFilePath)) {
@@ -254,6 +249,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         }
 
         tlsSocket_ = ExecutorService::createTlsSocket(socket_, ctx);
+
+        if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
+            LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
+            tlsSocket_->set_verify_callback(boost::asio::ssl::rfc2818_verification(serviceUrl.host()));
+        }
 
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
         if (!SSL_set_tlsext_host_name(tlsSocket_->native_handle(), serviceUrl.host().c_str())) {
