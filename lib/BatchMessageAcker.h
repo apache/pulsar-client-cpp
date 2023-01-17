@@ -37,7 +37,7 @@ class BatchMessageAcker {
     // by deserializing from raw bytes.
     virtual bool ackIndividual(int32_t) { return false; }
     virtual bool ackCumulative(int32_t) { return false; }
-    virtual const BitSet& getBitSet() noexcept {
+    virtual const BitSet& getBitSet() const noexcept {
         static BitSet emptyBitSet;
         return emptyBitSet;
     }
@@ -82,7 +82,7 @@ class BatchMessageAckerImpl : public BatchMessageAcker {
         return bitSet_.isEmpty();
     }
 
-    const BitSet& getBitSet() const noexcept { return bitSet_; }
+    const BitSet& getBitSet() const noexcept override { return bitSet_; }
 
    private:
     BitSet bitSet_;
