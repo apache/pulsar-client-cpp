@@ -62,6 +62,13 @@ TEST(BitSetTest, testSet) {
     // range contains one word
     bitSet.set(3, 29);
     ASSERT_EQ(toLongVector(bitSet), std::vector<uint64_t>{0x1ffffff8});
+    for (int i = 0; i < 64 * 5 + 1; i++) {
+        if (i >= 3 && i < 29) {
+            ASSERT_TRUE(bitSet.get(i));
+        } else {
+            ASSERT_FALSE(bitSet.get(i));
+        }
+    }
 
     // range contains multiple words
     bitSet.set(64 * 2 + 11, 64 * 4 + 19);
