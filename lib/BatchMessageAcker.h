@@ -37,13 +37,15 @@ class BatchMessageAcker {
     // by deserializing from raw bytes.
     virtual bool ackIndividual(int32_t) { return false; }
     virtual bool ackCumulative(int32_t) { return false; }
+    virtual const BitSet& getBitSet() noexcept {
+        static BitSet emptyBitSet;
+        return emptyBitSet;
+    }
 
     bool shouldAckPreviousMessageId() noexcept {
         bool expectedValue = false;
         return prevBatchCumulativelyAcked_.compare_exchange_strong(expectedValue, true);
     }
-
-    const BitSet& getBitSet() const noexcept { return bitSet_; }
 
    private:
     // When a batched message is acknowledged cumulatively, the previous message id will be acknowledged
@@ -79,6 +81,8 @@ class BatchMessageAckerImpl : public BatchMessageAcker {
         bitSet_.clear(0, batchIndex + 1);
         return bitSet_.isEmpty();
     }
+
+    const BitSet& getBitSet() const noexcept { return bitSet_; }
 
    private:
     BitSet bitSet_;

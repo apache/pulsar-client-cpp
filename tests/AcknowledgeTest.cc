@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/MessageIdBuilder.h>
 
 #include <chrono>
 #include <set>
@@ -300,6 +301,57 @@ TEST_F(AcknowledgeTest, testMixedCumulativeAck) {
     consumer.initialize(client, topic, "sub", true);
     Message msg;
     ASSERT_EQ(ResultTimeout, consumer.getConsumer().receive(msg, 1000));
+}
+
+TEST_F(AcknowledgeTest, testMessageIdFromBuild) {
+    Client client(lookupUrl);
+    const std::string topic = "test-message-id-from-build-" + unique_str();
+
+    ConsumerWrapper consumer0;
+    consumer0.initialize(client, topic, "sub-0", false);
+
+    ConsumerWrapper consumer1;
+    consumer1.initialize(client, topic, "sub-1", true /* batch index ACK enabled */);
+
+    Producer producer;
+    auto producerConf =
+        ProducerConfiguration().setBatchingMaxMessages(100).setBatchingMaxPublishDelayMs(3600 * 1000);
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConf, producer));
+
+    constexpr int numMessages = 5;
+    for (int i = 0; i < numMessages; i++) {
+        producer.sendAsync(MessageBuilder().setContent("msg").build(), nullptr);
+    }
+    producer.flush();
+
+    std::vector<MessageId> msgIds;
+    consumer0.receiveAtMost(numMessages);
+    for (auto&& msgId : consumer0.messageIdList()) {
+        msgIds.emplace_back(MessageIdBuilder()
+                                .ledgerId(msgId.ledgerId())
+                                .entryId(msgId.entryId())
+                                .batchIndex(msgId.batchIndex())
+                                .batchSize(msgId.batchSize())
+                                .build());
+    }
+
+    consumer0.acknowledgeMessageIdAndRestart(msgIds[0], AckType::INDIVIDUAL);
+    consumer1.acknowledgeMessageIdAndRestart(msgIds[0], AckType::INDIVIDUAL);
+
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer0.getConsumer().receive(msg, 1000));
+    EXPECT_EQ(msg.getMessageId().batchIndex(), 0);
+    ASSERT_EQ(ResultOk, consumer1.getConsumer().receive(msg, 1000));
+    EXPECT_EQ(msg.getMessageId().batchIndex(), 1);
+
+    consumer0.acknowledgeMessageIdAndRestart(msgIds[3], AckType::CUMULATIVE);
+    consumer1.acknowledgeMessageIdAndRestart(msgIds[3], AckType::CUMULATIVE);
+
+    ASSERT_EQ(ResultOk, consumer0.getConsumer().receive(msg, 1000));
+    EXPECT_EQ(msg.getMessageId().batchIndex(), 0);
+    ASSERT_EQ(ResultOk, consumer1.getConsumer().receive(msg, 1000));
+    EXPECT_EQ(msg.getMessageId().batchIndex(), 3 + 1);
+    client.close();
 }
 
 INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest, testing::Values(100, 0));

@@ -46,7 +46,7 @@ class MessageIdImpl {
     const std::string& getTopicName() { return *topicName_; }
     void setTopicName(const std::string& topicName) { topicName_ = &topicName; }
 
-    virtual const BitSet& getBitSet() const noexcept {
+    virtual const BitSet& getBitSet(bool individual) const noexcept {
         static const BitSet emptyBitSet;
         return emptyBitSet;
     }

@@ -450,7 +450,7 @@ SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<Me
         auto newMsgId = ack->add_message_id();
         newMsgId->set_ledgerid(msgId.ledgerId());
         newMsgId->set_entryid(msgId.entryId());
-        for (auto x : getMessageIdImpl(msgId)->getBitSet()) {
+        for (auto x : getMessageIdImpl(msgId)->getBitSet(true)) {
             newMsgId->add_ack_set(x);
         }
     }
