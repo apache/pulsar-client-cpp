@@ -54,6 +54,7 @@ class ConsumerWrapper {
         // Enable the stats for cumulative ack
         conf_.setUnAckedMessagesTimeoutMs(10000);
         conf_.setBatchIndexAckEnabled(enableBatchIndexAck);
+        conf_.setAckGroupingTimeMs(0);  // send ACK immediately
         ASSERT_EQ(ResultOk, client_->subscribe(topic_, subscription_, conf_, consumer_));
     }
 
@@ -95,9 +96,16 @@ class ConsumerWrapper {
     // the acknowledgment by restarting the consumer.
     void acknowledgeAndRestart(const std::vector<size_t>& indexes, AckType ackType) {
         acknowledge(indexes, ackType);
-        messageIdList_.clear();
-        consumer_.close();
-        ASSERT_EQ(ResultOk, client_->subscribe(topic_, subscription_, conf_, consumer_));
+        restart();
+    }
+
+    void acknowledgeMessageIdAndRestart(MessageId msgId, AckType ackType) {
+        if (ackType == AckType::CUMULATIVE) {
+            consumer_.acknowledgeCumulative(msgId);
+        } else {
+            consumer_.acknowledge(msgId);
+        }
+        restart();
     }
 
     Consumer& getConsumer() noexcept { return consumer_; }
@@ -109,6 +117,12 @@ class ConsumerWrapper {
     ConsumerConfiguration conf_;
     Consumer consumer_;
     std::vector<MessageId> messageIdList_;
+
+    void restart() {
+        messageIdList_.clear();
+        consumer_.close();
+        ASSERT_EQ(ResultOk, client_->subscribe(topic_, subscription_, conf_, consumer_));
+    }
 };
 
 }  // namespace pulsar

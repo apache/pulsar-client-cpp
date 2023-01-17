@@ -41,7 +41,21 @@ class BatchedMessageIdImpl : public MessageIdImpl {
 
     bool shouldAckPreviousMessageId() const { return acker_->shouldAckPreviousMessageId(); }
 
-    const BitSet& getBitSet() const noexcept override { return acker_->getBitSet(); }
+    const BitSet& getBitSet(bool individual) const noexcept override {
+        const auto& bitSet = acker_->getBitSet();
+        if (bitSet.isEmpty()) {
+            thread_local BitSet threadLocalBitSet;
+            threadLocalBitSet = BitSet{batchSize_};
+            threadLocalBitSet.set(0, batchSize_);
+            if (individual) {
+                threadLocalBitSet.clear(batchIndex_);
+            } else {
+                threadLocalBitSet.clear(0, batchIndex_ + 1);
+            }
+            return threadLocalBitSet;
+        }
+        return bitSet;
+    }
 
     MessageId getPreviousMessageId() {
         return MessageIdBuilder().ledgerId(ledgerId_).entryId(entryId_ - 1).partition(partition_).build();
