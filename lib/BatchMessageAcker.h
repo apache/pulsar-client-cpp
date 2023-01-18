@@ -43,7 +43,10 @@ class BatchMessageAcker {
         return prevBatchCumulativelyAcked_.compare_exchange_strong(expectedValue, true);
     }
 
-    const BitSet& getBitSet() const noexcept { return bitSet_; }
+    virtual const BitSet& getBitSet() const noexcept {
+        static BitSet emptyBitSet;
+        return emptyBitSet;
+    }
 
    private:
     // When a batched message is acknowledged cumulatively, the previous message id will be acknowledged
@@ -79,6 +82,8 @@ class BatchMessageAckerImpl : public BatchMessageAcker {
         bitSet_.clear(0, batchIndex + 1);
         return bitSet_.isEmpty();
     }
+
+    const BitSet& getBitSet() const noexcept override { return bitSet_; }
 
    private:
     BitSet bitSet_;
