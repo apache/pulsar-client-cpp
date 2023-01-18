@@ -170,7 +170,7 @@ Future<Result, boost::optional<SchemaInfo>> BinaryProtoLookupService::getSchema(
     return promise->getFuture();
 }
 
-void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topiName, Result result,
+void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName, Result result,
                                                     const ClientConnectionWeakPtr& clientCnx,
                                                     GetSchemaPromisePtr promise) {
     if (result != ResultOk) {
@@ -180,9 +180,9 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topiName,
 
     ClientConnectionPtr conn = clientCnx.lock();
     uint64_t requestId = newRequestId();
-    LOG_DEBUG("sendGetSchemaRequest. requestId: " << requestId << " topicName: " << topiName);
+    LOG_DEBUG("sendGetSchemaRequest. requestId: " << requestId << " topicName: " << topicName);
 
-    conn->newGetSchema(topiName, requestId)
+    conn->newGetSchema(topicName, requestId)
         .addListener([promise](Result result, boost::optional<SchemaInfo> schemaInfo) {
             if (result != ResultOk) {
                 promise->setFailed(result);
