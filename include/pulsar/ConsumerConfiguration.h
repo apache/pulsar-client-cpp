@@ -35,11 +35,13 @@
 #include <memory>
 
 #include "BatchReceivePolicy.h"
+#include "DeadLetterPolicy.h"
 
 namespace pulsar {
 
 class Consumer;
 class PulsarWrapper;
+class PulsarFriend;
 
 /// Callback definition for non-data operation
 typedef std::vector<Message> Messages;
@@ -409,6 +411,42 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     const BatchReceivePolicy& getBatchReceivePolicy() const;
 
     /**
+     * Set dead letter policy for consumer
+     *
+     * By default, some messages are redelivered many times, even to the extent that they can never be
+     * stopped. By using the dead letter mechanism, messages have the max redelivery count, when they
+     * exceeding the maximum number of redeliveries. Messages are sent to dead letter topics and acknowledged
+     * automatically.
+     *
+     * You can enable the dead letter mechanism by setting the dead letter policy.
+     * Example:
+     *
+     * <pre>
+     * * DeadLetterPolicy dlqPolicy = DeadLetterPolicyBuilder()
+     *                       .maxRedeliverCount(10)
+     *                       .build();
+     * </pre>
+     * Default dead letter topic name is {TopicName}-{Subscription}-DLQ.
+     * To set a custom dead letter topic name
+     * <pre>
+     * DeadLetterPolicy dlqPolicy = DeadLetterPolicyBuilder()
+     *                       .deadLetterTopic("dlq-topic")
+     *                       .maxRedeliverCount(10)
+     *                       .initialSubscriptionName("init-sub-name")
+     *                       .build();
+     * </pre>
+     * @param deadLetterPolicy Default value is empty
+     */
+    void setDeadLetterPolicy(const DeadLetterPolicy& deadLetterPolicy);
+
+    /**
+     * Get dead letter policy.
+     *
+     * @return dead letter policy
+     */
+    const DeadLetterPolicy& getDeadLetterPolicy() const;
+
+    /**
      * Set whether the subscription status should be replicated.
      * The default value is `false`.
      *
@@ -581,6 +619,7 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     bool isBatchIndexAckEnabled() const;
 
     friend class PulsarWrapper;
+    friend class PulsarFriend;
 
    private:
     std::shared_ptr<ConsumerConfigurationImpl> impl_;

@@ -23,6 +23,7 @@
 
 #include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
+#include "lib/ConsumerConfigurationImpl.h"
 #include "lib/ConsumerImpl.h"
 #include "lib/MessageImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
@@ -181,6 +182,11 @@ class PulsarFriend {
     static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }
 
     static std::shared_ptr<MessageIdImpl> getMessageIdImpl(MessageId& msgId) { return msgId.impl_; }
+
+    static void setConsumerUnAckMessagesTimeoutMs(const ConsumerConfiguration& consumerConfiguration,
+                                                  long unAckedMessagesTimeoutMs) {
+        consumerConfiguration.impl_->unAckedMessagesTimeoutMs = unAckedMessagesTimeoutMs;
+    }
 };
 }  // namespace pulsar
 

@@ -294,4 +294,10 @@ ConsumerConfiguration& ConsumerConfiguration::setBatchIndexAckEnabled(bool enabl
 
 bool ConsumerConfiguration::isBatchIndexAckEnabled() const { return impl_->batchIndexAckEnabled; }
 
+void ConsumerConfiguration::setDeadLetterPolicy(const DeadLetterPolicy& deadLetterPolicy) {
+    impl_->deadLetterPolicy = deadLetterPolicy;
+}
+
+const DeadLetterPolicy& ConsumerConfiguration::getDeadLetterPolicy() const { return impl_->deadLetterPolicy; }
+
 }  // namespace pulsar
