@@ -39,6 +39,7 @@ typedef std::function<void(Result, Consumer)> SubscribeCallback;
 typedef std::function<void(Result, Reader)> ReaderCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
+typedef std::function<const std::string&()> ServiceUrlProvider;
 
 class ClientImpl;
 class PulsarFriend;
@@ -65,6 +66,31 @@ class PULSAR_PUBLIC Client {
      * @throw std::invalid_argument if `serviceUrl` is invalid
      */
     Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
+
+    /**
+     * Create a Pulsar client object connecting to the specified cluster address and using the default
+     * configuration.
+     *
+     * <p>Instead of specifying a static service URL string (with {@link #serviceUrl(String)}), an application
+     * can pass a {@link ServiceUrlProvider} function that dynamically provide a service URL.
+     *
+     * @param serviceUrlProvider The serviceUrlProvider used to generate ServiceUrl.
+     * @throw std::invalid_argument if `serviceUrlProvider()` return a invalid url.
+     */
+    Client(ServiceUrlProvider serviceUrlProvider);
+
+    /**
+     * Create a Pulsar client object connecting to the specified cluster address and using the specified
+     * configuration.
+     *
+     * <p>Instead of specifying a static service URL string (with {@link #serviceUrl(String)}), an application
+     * can pass a {@link ServiceUrlProvider} instance that dynamically provide a service URL.
+     *
+     * @param serviceUrlProvider The serviceUrlProvider used to generate ServiceUrl.
+     * @param clientConfiguration the client configuration to use
+     * @throw std::invalid_argument if `serviceUrlProvider()` return a invalid url.
+     */
+    Client(ServiceUrlProvider serviceUrlProvider, const ClientConfiguration& clientConfiguration);
 
     /**
      * Create a producer with default configuration
@@ -332,6 +358,17 @@ class PULSAR_PUBLIC Client {
      * @since 2.3.0
      */
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
+
+    /**
+     * Update the service URL this client is using.
+     *
+     * <p>This will force the client close all existing connections and to restart service discovery to the
+     * new service endpoint.
+     *
+     * @param serviceUrl
+     *            the new service URL this client should connect to
+     */
+    Result updateServiceUrl(const std::string& serviceUrl);
 
     /**
      *

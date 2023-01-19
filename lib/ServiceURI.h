@@ -38,6 +38,8 @@ class ServiceURI {
 
     const std::vector<std::string>& getServiceHosts() const noexcept { return data_.second; }
 
+    size_t getNumAddresses() const noexcept { return data_.second.size(); };
+
    private:
     // The 2 elements of the pair are:
     // 1. The Scheme of the lookup protocol

@@ -497,6 +497,24 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, GetPartiti
                   std::placeholders::_2, topicName, callback));
 }
 
+Result ClientImpl::updateServiceUrl(const std::string& serviceUrl) {
+    Lock lock(mutex_);
+    if (state_ != Open) {
+        lock.unlock();
+        return ResultAlreadyClosed;
+    }
+
+    LOG_INFO("Updating service URL to " << serviceUrl);
+    try {
+        serviceNameResolver_.updateServiceUrl(serviceUrl);
+    } catch (const std::invalid_argument& e) {
+        LOG_ERROR("Invalid service-url " << serviceUrl << "provided " << e.what());
+        return ResultInvalidUrl;
+    }
+    pool_.disconnect();
+    return ResultOk;
+}
+
 void ClientImpl::closeAsync(CloseCallback callback) {
     if (state_ != Open) {
         if (callback) {

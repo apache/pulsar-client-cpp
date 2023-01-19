@@ -38,6 +38,11 @@ Client::Client(const std::string& serviceUrl)
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
     : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration, true)) {}
 
+Client::Client(ServiceUrlProvider serviceUrlProvider) : Client(serviceUrlProvider()) {}
+
+Client::Client(ServiceUrlProvider serviceUrlProvider, const ClientConfiguration& clientConfiguration)
+    : Client(serviceUrlProvider(), clientConfiguration) {}
+
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
                bool poolConnections)
     : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration, poolConnections)) {}
@@ -170,6 +175,8 @@ Result Client::close() {
     promise.getFuture().get(result);
     return result;
 }
+
+Result Client::updateServiceUrl(const std::string& serviceUrl) { return impl_->updateServiceUrl(serviceUrl); }
 
 void Client::closeAsync(CloseCallback callback) { impl_->closeAsync(callback); }
 
