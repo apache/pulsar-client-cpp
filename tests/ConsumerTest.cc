@@ -261,6 +261,53 @@ TEST(ConsumerTest, testConsumerEventWithPartition) {
     ASSERT_EQ(0, result.size());
 }
 
+TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition) {
+    Client client(lookupUrl);
+
+    const std::string topic = "testAcknowledgeCumulativeWithPartition-" + std::to_string(time(nullptr));
+    const std::string subName = "sub";
+
+    int res = makePutRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/partitions",
+                             std::to_string(2));
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    Consumer consumer;
+    ConsumerConfiguration consumerConfiguration;
+    consumerConfiguration.setUnAckedMessagesTimeoutMs(10000);
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "t-sub", consumerConfiguration, consumer));
+
+    Producer producer;
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setBatchingEnabled(false);
+    producerConfiguration.setPartitionsRoutingMode(
+        ProducerConfiguration::PartitionsRoutingMode::RoundRobinDistribution);
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConfiguration, producer));
+
+    const int numMessages = 100;
+    for (int i = 0; i < numMessages; ++i) {
+        Message msg = MessageBuilder().setContent(std::to_string(i)).build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    Message msg;
+    for (int i = 0; i < numMessages; i++) {
+        ASSERT_EQ(ResultOk, consumer.receive(msg));
+        // The last message of each partition topic be ACK
+        if (i >= numMessages - 2) {
+            consumer.acknowledgeCumulative(msg.getMessageId());
+        }
+    }
+    ASSERT_EQ(ResultTimeout, consumer.receive(msg, 2000));
+
+    // Assert that there is no message in the tracker.
+    auto multiConsumerImpl = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer);
+    auto tracker =
+        static_cast<UnAckedMessageTrackerEnabled*>(multiConsumerImpl->unAckedMessageTrackerPtr_.get());
+    ASSERT_EQ(0, tracker->size());
+
+    client.close();
+}
+
 TEST(ConsumerTest, consumerNotInitialized) {
     Consumer consumer;
 

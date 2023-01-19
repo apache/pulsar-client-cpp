@@ -236,15 +236,10 @@ void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDat
         return;
     }
 
-    if (partitionMetadata->getPartitions() > 0) {
-        LOG_ERROR("Topic reader cannot be created on a partitioned topic: " << topicName->toString());
-        callback(ResultOperationNotSupported, Reader());
-        return;
-    }
-
-    ReaderImplPtr reader = std::make_shared<ReaderImpl>(shared_from_this(), topicName->toString(), conf,
+    ReaderImplPtr reader = std::make_shared<ReaderImpl>(shared_from_this(), topicName->toString(),
+                                                        partitionMetadata->getPartitions(), conf,
                                                         getListenerExecutorProvider()->get(), callback);
-    ConsumerImplBasePtr consumer = reader->getConsumer().lock();
+    ConsumerImplBasePtr consumer = reader->getConsumer();
     auto self = shared_from_this();
     reader->start(startMessageId, [this, self](const ConsumerImplBaseWeakPtr& weakConsumerPtr) {
         auto consumer = weakConsumerPtr.lock();
