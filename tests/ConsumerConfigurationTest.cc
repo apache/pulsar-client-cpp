@@ -20,9 +20,13 @@
 #include <lib/LogUtils.h>
 #include <pulsar/Client.h>
 
+#include <climits>
+
 #include "NoOpsCryptoKeyReader.h"
 
 DECLARE_LOG_OBJECT()
+
+#include <pulsar/DeadLetterPolicyBuilder.h>
 
 #include "../lib/Future.h"
 #include "../lib/Utils.h"
@@ -320,4 +324,16 @@ TEST(ConsumerConfigurationTest, testResetAckTimeOut) {
     // should be able to set it back to 0.
     config.setUnAckedMessagesTimeoutMs(0);
     ASSERT_EQ(0, config.getUnAckedMessagesTimeoutMs());
+}
+
+TEST(ConsumerConfigurationTest, testDeadLetterPolicy) {
+    ConsumerConfiguration config;
+    auto dlqPolicy = config.getDeadLetterPolicy();
+    ASSERT_TRUE(dlqPolicy.getDeadLetterTopic().empty());
+    ASSERT_EQ(dlqPolicy.getMaxRedeliverCount(), INT_MAX);
+    ASSERT_TRUE(dlqPolicy.getInitialSubscriptionName().empty());
+
+    config.setDeadLetterPolicy(DeadLetterPolicyBuilder().maxRedeliverCount(10).build());
+    auto dlqPolicy2 = config.getDeadLetterPolicy();
+    ASSERT_EQ(dlqPolicy2.getMaxRedeliverCount(), 10);
 }

@@ -111,7 +111,8 @@ class Commands {
                                     const std::map<std::string, std::string>& metadata,
                                     const SchemaInfo& schemaInfo, uint64_t epoch,
                                     bool userProvidedProducerName, bool encrypted,
-                                    ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch);
+                                    ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                    const std::string& initialSubscriptionName);
 
     static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
                                CommandAck_AckType ackType, CommandAck_ValidationError validationError);

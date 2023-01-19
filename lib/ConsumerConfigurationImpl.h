@@ -46,6 +46,7 @@ struct ConsumerConfigurationImpl {
     bool readCompacted{false};
     InitialPosition subscriptionInitialPosition{InitialPosition::InitialPositionLatest};
     BatchReceivePolicy batchReceivePolicy{};
+    DeadLetterPolicy deadLetterPolicy;
     int patternAutoDiscoveryPeriod{60};
     bool replicateSubscriptionStateEnabled{false};
     std::map<std::string, std::string> properties;
