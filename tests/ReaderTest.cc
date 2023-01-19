@@ -25,6 +25,7 @@
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "WaitUtils.h"
 #include "lib/ClientConnection.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
@@ -62,6 +63,50 @@ TEST(ReaderTest, testSimpleReader) {
         std::string expected = "my-message-" + std::to_string(i);
         ASSERT_EQ(expected, content);
     }
+
+    producer.close();
+    reader.close();
+    client.close();
+}
+
+TEST(ReaderTest, testAsyncRead) {
+    Client client(serviceUrl);
+
+    std::string topicName = "persistent://public/default/test-simple-reader" + std::to_string(time(nullptr));
+
+    ReaderConfiguration readerConf;
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    for (int i = 0; i < 10; i++) {
+        std::string content = "my-message-" + std::to_string(i);
+        Message msg = MessageBuilder().setContent(content).build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    for (int i = 0; i < 10; i++) {
+        reader.readNextAsync([i](Result result, const Message& msg) {
+            ASSERT_EQ(ResultOk, result);
+            std::string content = msg.getDataAsString();
+            std::string expected = "my-message-" + std::to_string(i);
+            ASSERT_EQ(expected, content);
+        });
+    }
+
+    waitUntil(
+        std::chrono::seconds(5),
+        [&]() {
+            bool hasMsg;
+            reader.hasMessageAvailable(hasMsg);
+            return !hasMsg;
+        },
+        1000);
+    bool hasMsg;
+    reader.hasMessageAvailable(hasMsg);
+    ASSERT_FALSE(hasMsg);
 
     producer.close();
     reader.close();
