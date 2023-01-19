@@ -51,7 +51,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     virtual const std::string& getSubscriptionName() const = 0;
     virtual Result receive(Message& msg) = 0;
     virtual Result receive(Message& msg, int timeout) = 0;
-    virtual void receiveAsync(ReceiveCallback& callback) = 0;
+    virtual void receiveAsync(ReceiveCallback callback) = 0;
     void batchReceiveAsync(BatchReceiveCallback callback);
     virtual void unsubscribeAsync(ResultCallback callback) = 0;
     virtual void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) = 0;

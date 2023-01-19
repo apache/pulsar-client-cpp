@@ -67,6 +67,7 @@ class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl>
 
     Result readNext(Message& msg);
     Result readNext(Message& msg, int timeoutMs);
+    void readNextAsync(ReceiveCallback callback);
 
     void closeAsync(ResultCallback callback);
 

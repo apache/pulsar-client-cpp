@@ -162,6 +162,7 @@ class PULSAR_PUBLIC ReaderConfiguration {
      * Set the internal subscription name.
      *
      * @param internal subscriptionName
+     * Default value is reader-{random string}.
      */
     void setInternalSubscriptionName(std::string internalSubscriptionName);
 
