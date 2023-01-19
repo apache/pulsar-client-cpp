@@ -181,6 +181,12 @@ void HTTPLookupService::handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise 
 }
 
 Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData) {
+    long responseCode = -1;
+    return sendHTTPRequest(completeUrl, responseData, responseCode);
+}
+
+Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData,
+                                          long &responseCode) {
     uint16_t reqCount = 0;
     Result retResult = ResultOk;
     while (++reqCount <= MAX_HTTP_REDIRECTS) {
@@ -273,9 +279,8 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
         // Make get call to server
         res = curl_easy_perform(handle);
 
-        long response_code = -1;
-        curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
-        LOG_INFO("Response received for url " << completeUrl << " response_code " << response_code
+        curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &responseCode);
+        LOG_INFO("Response received for url " << completeUrl << " responseCode " << responseCode
                                               << " curl res " << res);
 
         // Free header list
@@ -283,9 +288,9 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
 
         switch (res) {
             case CURLE_OK:
-                if (response_code == 200) {
+                if (responseCode == 200) {
                     retResult = ResultOk;
-                } else if (needRedirection(response_code)) {
+                } else if (needRedirection(responseCode)) {
                     char *url = NULL;
                     curl_easy_getinfo(handle, CURLINFO_REDIRECT_URL, &url);
                     LOG_INFO("Response from url " << completeUrl << " to new url " << url);
@@ -303,11 +308,7 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
             case CURLE_COULDNT_RESOLVE_HOST:
             case CURLE_HTTP_RETURNED_ERROR:
                 LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                if (response_code == 404) {
-                    retResult = ResultNotFound;
-                } else {
-                    retResult = ResultConnectError;
-                }
+                retResult = ResultConnectError;
                 break;
             case CURLE_READ_ERROR:
                 LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
@@ -323,7 +324,7 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
                 break;
         }
         curl_easy_cleanup(handle);
-        if (!needRedirection(response_code)) {
+        if (!needRedirection(responseCode)) {
             break;
         }
     }
@@ -432,9 +433,10 @@ void HTTPLookupService::handleLookupHTTPRequest(LookupPromise promise, const std
 
 void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, const std::string completeUrl) {
     std::string responseData;
-    Result result = sendHTTPRequest(completeUrl, responseData);
+    long responseCode = -1;
+    Result result = sendHTTPRequest(completeUrl, responseData, responseCode);
 
-    if (result == ResultNotFound) {
+    if (responseCode == 404) {
         promise.setValue(boost::none);
     } else if (result != ResultOk) {
         promise.setFailed(result);

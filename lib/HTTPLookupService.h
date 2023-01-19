@@ -67,6 +67,8 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
 
     Result sendHTTPRequest(std::string completeUrl, std::string& responseData);
 
+    Result sendHTTPRequest(std::string completeUrl, std::string& responseData, long& responseCode);
+
    public:
     HTTPLookupService(ServiceNameResolver&, const ClientConfiguration&, const AuthenticationPtr&);
 

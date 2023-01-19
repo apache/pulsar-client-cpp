@@ -324,7 +324,7 @@ TEST_P(LookupServiceTest, testGetSchemaNotFund) {
     boost::optional<SchemaInfo> schemaInfo;
     auto future = lookup->getSchema(TopicName::get(topic));
     ASSERT_EQ(ResultOk, future.get(schemaInfo));
-    ASSERT_TRUE(!schemaInfo);
+    ASSERT_FALSE(schemaInfo);
 }
 
 TEST_P(LookupServiceTest, testGetKeyValueSchema) {
