@@ -70,7 +70,6 @@ $ sudo apt install wireshark-dev
 Compile the dissector.
 
 ```shell
-cd pulsar-client-cpp
 cmake -DBUILD_WIRESHARK=ON .
 make pulsar-dissector
 ```
@@ -91,18 +90,18 @@ You can see the location of personal plugins, which is important for the next st
 
 Example
 
-Wireshark 3.6.0 on macOS
+Wireshark 4.0.3 on macOS
 
 ```shell
-~/.local/lib/wireshark/plugins/3-6/
+~/.local/lib/wireshark/plugins/4-0/
 ```
 
 ### Copy Wireshark dissector to appropriate location
 
 ```shell
-mkdir -p ~/.local/lib/wireshark/plugins/3-6/epan
-cd pulsar-client-cpp/wireshark
-cp pulsar-dissector.so ~/.local/lib/wireshark/plugins/3-6/epan
+mkdir -p ~/.local/lib/wireshark/plugins/4-0/epan
+cd wireshark
+cp pulsar-dissector.so ~/.local/lib/wireshark/plugins/4-0/epan
 ```
 
 ### Complete installation
