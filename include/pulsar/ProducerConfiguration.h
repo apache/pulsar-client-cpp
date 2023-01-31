@@ -533,9 +533,9 @@ class PULSAR_PUBLIC ProducerConfiguration {
      */
     ProducerAccessMode getAccessMode() const;
 
-    ProducerConfiguration& intercept(const std::initializer_list<ProducerInterceptorPtr> interceptors);
+    ProducerConfiguration& intercept(std::initializer_list<ProducerInterceptorPtr> interceptors);
 
-    std::vector<ProducerInterceptorPtr> getInterceptors() const;
+    const std::vector<ProducerInterceptorPtr>& getInterceptors() const;
 
     friend class PulsarWrapper;
 

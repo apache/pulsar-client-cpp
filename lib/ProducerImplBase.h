@@ -50,6 +50,7 @@ class ProducerImplBase {
     virtual uint64_t getNumberOfConnectedProducer() = 0;
 
    protected:
+    void closeInterceptors();
     std::vector<ProducerInterceptorPtr> interceptors_;
 };
 }  // namespace pulsar

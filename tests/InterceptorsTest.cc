@@ -32,6 +32,7 @@ using namespace pulsar;
 
 class TestInterceptor : public ProducerInterceptor {
    public:
+    TestInterceptor() : latch_(1){} // TODO: remove this line
     explicit TestInterceptor(Latch latch) : latch_(std::move(latch)) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override {
@@ -42,9 +43,8 @@ class TestInterceptor : public ProducerInterceptor {
                                const MessageId& messageID) override {
         ASSERT_EQ(result, ResultOk);
         auto properties = message.getProperties();
-        if (properties.find("key") != properties.end() && properties["key"] == "set") {
-            latch_.countdown();
-        }
+        ASSERT_TRUE(properties.find("key") != properties.end() && properties["key"] == "set");
+        latch_.countdown();
     }
 
    private:
@@ -88,8 +88,21 @@ class PartitionsChangeInterceptor : public ProducerInterceptor {
     Latch latch_;
 };
 
-TEST(InterceptorsTest, testProducerInterceptor) {
+void createPartitionedTopic(std::string topic) {
+    std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" + topic + "/partitions";
+
+    int res = makePutRequest(topicOperateUrl, "2");
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+}
+
+class InterceptorsTest : public ::testing::TestWithParam<bool> {};
+
+TEST_P(InterceptorsTest, testProducerInterceptor) {
     const std::string topic = "InterceptorsTest-testProducerInterceptor-" + std::to_string(time(nullptr));
+
+    if(GetParam()) {
+        createPartitionedTopic(topic);
+    }
 
     Latch latch(1);
 
@@ -103,15 +116,19 @@ TEST(InterceptorsTest, testProducerInterceptor) {
     Result result = producer.send(msg);
     ASSERT_EQ(result, ResultOk);
 
-    latch.wait(std::chrono::seconds(5));
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 
     producer.close();
     client.close();
 }
 
-TEST(InterceptorsTest, testProducerInterceptorWithException) {
+TEST_P(InterceptorsTest, testProducerInterceptorWithException) {
     const std::string topic =
         "InterceptorsTest-testProducerInterceptorWithException-" + std::to_string(time(nullptr));
+
+    if(GetParam()) {
+        createPartitionedTopic(topic);
+    }
 
     Latch latch(2);
 
@@ -125,7 +142,7 @@ TEST(InterceptorsTest, testProducerInterceptorWithException) {
     Result result = producer.send(msg);
     ASSERT_EQ(result, ResultOk);
 
-    latch.wait(std::chrono::seconds(5));
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 
     producer.close();
     client.close();
@@ -141,17 +158,21 @@ TEST(InterceptorsTest, testProducerInterceptorOnPartitionsChange) {
 
     Latch latch(1);
 
-    Client client(serviceUrl);
+    ClientConfiguration clientConf;
+    clientConf.setPartititionsUpdateInterval(1);
+    Client client(serviceUrl, clientConf);
     ProducerConfiguration conf;
-    conf.intercept({std::make_shared<ExceptionInterceptor>(latch)});
+    conf.intercept({std::make_shared<PartitionsChangeInterceptor>(latch)});
     Producer producer;
     client.createProducer(topic, conf, producer);
 
     res = makePostRequest(topicOperateUrl, "3");  // update partitions to 3
     ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
 
-    latch.wait(std::chrono::seconds(5));
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 
     producer.close();
     client.close();
 }
+
+INSTANTIATE_TEST_CASE_P(Pulsar, InterceptorsTest, ::testing::Values(true, false));

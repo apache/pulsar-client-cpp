@@ -31,8 +31,6 @@ class ProducerImplBase;
 class PulsarWrapper;
 class PulsarFriend;
 
-typedef std::function<void(Result, const MessageId& messageId)> SendCallback;
-typedef std::function<void(Result)> CloseCallback;
 typedef std::function<void(Result)> FlushCallback;
 typedef std::shared_ptr<ProducerImplBase> ProducerImplBasePtr;
 

@@ -268,14 +268,12 @@ ProducerConfiguration::ProducerAccessMode ProducerConfiguration::getAccessMode()
     return impl_->accessMode;
 }
 ProducerConfiguration& ProducerConfiguration::intercept(
-    const std::initializer_list<ProducerInterceptorPtr> interceptors) {
-    for (const ProducerInterceptorPtr& interceptor : interceptors) {
-        impl_->interceptors.push_back(interceptor);
-    }
+    std::initializer_list<ProducerInterceptorPtr> interceptors) {
+    impl_->interceptors.insert(impl_->interceptors.end(), interceptors.begin(), interceptors.end());
     return *this;
 }
 
-std::vector<ProducerInterceptorPtr> ProducerConfiguration::getInterceptors() const {
+const std::vector<ProducerInterceptorPtr>& ProducerConfiguration::getInterceptors() const {
     return impl_->interceptors;
 }
 
