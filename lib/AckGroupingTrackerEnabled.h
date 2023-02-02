@@ -71,6 +71,15 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
     //! Method for scheduling grouping timer.
     void scheduleTimer();
 
+    //! State
+    enum State
+    {
+        NotStarted,
+        Ready,
+        Closed,
+    };
+    std::atomic<State> state_;
+
     //! The connection handler.
     HandlerBaseWeakPtr handlerWeakPtr_;
 
