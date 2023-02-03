@@ -225,6 +225,10 @@ cd tests
 ./pulsar-test-service-stop.sh
 ```
 
+## Wireshark Dissector
+
+See the [wireshark](wireshark/) directory for details.
+
 ## Requirements for Contributors
 
 It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` **11** to format files.  `make format` automatically formats the files.
