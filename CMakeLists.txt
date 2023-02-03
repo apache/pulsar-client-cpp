@@ -71,9 +71,6 @@ MESSAGE(STATUS "BUILD_STATIC_LIB:  " ${BUILD_STATIC_LIB})
 option(BUILD_TESTS "Build tests" ON)
 MESSAGE(STATUS "BUILD_TESTS:  " ${BUILD_TESTS})
 
-option(BUILD_WIRESHARK "Build Pulsar Wireshark dissector" OFF)
-MESSAGE(STATUS "BUILD_WIRESHARK:  " ${BUILD_WIRESHARK})
-
 option(BUILD_PERF_TOOLS "Build Pulsar CLI perf producer/consumer" OFF)
 MESSAGE(STATUS "BUILD_PERF_TOOLS:  " ${BUILD_PERF_TOOLS})
 
@@ -414,10 +411,6 @@ endif()
 
 if (BUILD_TESTS)
     add_subdirectory(tests)
-endif()
-
-if (BUILD_WIRESHARK)
-    add_subdirectory(wireshark)
 endif()
 
 find_package(ClangTools)
