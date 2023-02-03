@@ -22,19 +22,19 @@ project(pulsar-cpp-wireshark)
 
 set(CMAKE_CXX_STANDARD 11)
 
-find_path(WIRESHARK_INCLUDE_PATH wireshark/ws_version.h)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+    execute_process(COMMAND sh -c "find $(brew --prefix)/Cellar/wireshark -name 'include' -type d"
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            OUTPUT_VARIABLE
+            EXTRA_INCLUDE_PATH)
+endif()
+find_path(WIRESHARK_INCLUDE_PATH wireshark/ws_version.h PATHS ${EXTRA_INCLUDE_PATH})
 if (WIRESHARK_INCLUDE_PATH)
     add_definitions("-DWITH_WS_VERSION")
 else ()
     message(STATUS "Cannot find ws_version.h, fallback to find config.h")
-    find_path(WIRESHARK_INCLUDE_PATH wireshark/config.h)
+    find_path(WIRESHARK_INCLUDE_PATH wireshark/config.h PATHS ${EXTRA_INCLUDE_PATH})
 endif ()
-if (NOT WIRESHARK_INCLUDE_PATH AND CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-    execute_process(COMMAND sh -c "find $(brew --prefix)/Cellar/wireshark -name 'include' -type d"
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-            OUTPUT_VARIABLE
-            WIRESHARK_INCLUDE_PATH)
-endif()
 if (NOT WIRESHARK_INCLUDE_PATH)
     message(FATAL_ERROR "Failed to find WIRESHARK_INCLUDE_PATH")
 endif ()
