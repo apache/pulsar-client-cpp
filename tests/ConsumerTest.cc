@@ -958,6 +958,36 @@ TEST_P(ConsumerSeekTest, testSeekForMessageId) {
     producer.close();
 }
 
+TEST(ConsumerTest, testNegativeAcksTrackerClose) {
+    Client client(lookupUrl);
+    auto topicName = "testNegativeAcksTrackerClose";
+
+    ConsumerConfiguration consumerConfig;
+    consumerConfig.setNegativeAckRedeliveryDelayMs(100);
+    Consumer consumer;
+    client.subscribe(topicName, "test-sub", consumerConfig, consumer);
+
+    Producer producer;
+    client.createProducer(topicName, producer);
+
+    for (int i = 0; i < 10; ++i) {
+        producer.send(MessageBuilder().setContent(std::to_string(i)).build());
+    }
+
+    Message msg;
+    PulsarFriend::setNegativeAckEnabled(consumer, false);
+    for (int i = 0; i < 10; ++i) {
+        consumer.receive(msg);
+        consumer.negativeAcknowledge(msg);
+    }
+
+    consumer.close();
+    auto consumerImplPtr = PulsarFriend::getConsumerImplPtr(consumer);
+    ASSERT_TRUE(consumerImplPtr->negativeAcksTracker_.nackedMessages_.empty());
+
+    client.close();
+}
+
 INSTANTIATE_TEST_CASE_P(Pulsar, ConsumerSeekTest, ::testing::Values(true, false));
 
 }  // namespace pulsar

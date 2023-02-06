@@ -1186,6 +1186,7 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
     if (ackGroupingTrackerPtr_) {
         ackGroupingTrackerPtr_->close();
     }
+    negativeAcksTracker_.close();
 
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
@@ -1219,6 +1220,7 @@ void ConsumerImpl::shutdown() {
     if (client) {
         client->cleanupConsumer(this);
     }
+    negativeAcksTracker_.close();
     cancelTimers();
     consumerCreatedPromise_.setFailed(ResultAlreadyClosed);
     failPendingReceiveCallback();

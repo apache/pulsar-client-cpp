@@ -332,6 +332,7 @@ class ConsumerImpl : public ConsumerImplBase {
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testBatchUnAckedMessageTracker);
+    FRIEND_TEST(ConsumerTest, testNegativeAcksTrackerClose);
     FRIEND_TEST(DeadLetterQueueTest, testAutoSetDLQTopicName);
 };
 
