@@ -51,6 +51,7 @@ AckGroupingTrackerEnabled::AckGroupingTrackerEnabled(ClientImplPtr clientPtr,
                                                      const HandlerBasePtr& handlerPtr, uint64_t consumerId,
                                                      long ackGroupingTimeMs, long ackGroupingMaxSize)
     : AckGroupingTracker(),
+      isClosed_(false),
       handlerWeakPtr_(handlerPtr),
       consumerId_(consumerId),
       nextCumulativeAckMsgId_(MessageId::earliest()),
@@ -110,6 +111,7 @@ void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId)
 }
 
 void AckGroupingTrackerEnabled::close() {
+    isClosed_ = true;
     this->flush();
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     if (this->timer_) {
@@ -164,6 +166,10 @@ void AckGroupingTrackerEnabled::flushAndClean() {
 }
 
 void AckGroupingTrackerEnabled::scheduleTimer() {
+    if (isClosed_) {
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     this->timer_ = this->executor_->createDeadlineTimer();
     this->timer_->expires_from_now(boost::posix_time::milliseconds(std::max(1L, this->ackGroupingTimeMs_)));

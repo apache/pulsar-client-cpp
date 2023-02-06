@@ -21,6 +21,7 @@
 
 #include <pulsar/MessageId.h>
 
+#include <atomic>
 #include <boost/asio/deadline_timer.hpp>
 #include <cstdint>
 #include <mutex>
@@ -70,6 +71,9 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
    protected:
     //! Method for scheduling grouping timer.
     void scheduleTimer();
+
+    //! State
+    std::atomic_bool isClosed_;
 
     //! The connection handler.
     HandlerBaseWeakPtr handlerWeakPtr_;
