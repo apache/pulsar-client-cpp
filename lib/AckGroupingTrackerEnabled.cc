@@ -51,7 +51,6 @@ AckGroupingTrackerEnabled::AckGroupingTrackerEnabled(ClientImplPtr clientPtr,
                                                      const HandlerBasePtr& handlerPtr, uint64_t consumerId,
                                                      long ackGroupingTimeMs, long ackGroupingMaxSize)
     : AckGroupingTracker(),
-      state_(NotStarted),
       handlerWeakPtr_(handlerPtr),
       consumerId_(consumerId),
       nextCumulativeAckMsgId_(MessageId::earliest()),
@@ -68,10 +67,7 @@ AckGroupingTrackerEnabled::AckGroupingTrackerEnabled(ClientImplPtr clientPtr,
                                                         << ackGroupingMaxSize);
 }
 
-void AckGroupingTrackerEnabled::start() {
-    state_ = Ready;
-    this->scheduleTimer();
-}
+void AckGroupingTrackerEnabled::start() { this->scheduleTimer(); }
 
 bool AckGroupingTrackerEnabled::isDuplicate(const MessageId& msgId) {
     {
@@ -114,7 +110,6 @@ void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId)
 }
 
 void AckGroupingTrackerEnabled::close() {
-    state_ = Closed;
     this->flush();
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     if (this->timer_) {
@@ -169,10 +164,6 @@ void AckGroupingTrackerEnabled::flushAndClean() {
 }
 
 void AckGroupingTrackerEnabled::scheduleTimer() {
-    if (state_ != Ready) {
-        return;
-    }
-
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     this->timer_ = this->executor_->createDeadlineTimer();
     this->timer_->expires_from_now(boost::posix_time::milliseconds(std::max(1L, this->ackGroupingTimeMs_)));
