@@ -40,16 +40,20 @@ using namespace pulsar;
 MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName,
                                                  int numPartitions, const std::string& subscriptionName,
                                                  const ConsumerConfiguration& conf,
-                                                 LookupServicePtr lookupServicePtr)
+                                                 LookupServicePtr lookupServicePtr,
+                                                 const Commands::SubscriptionMode subscriptionMode,
+                                                 boost::optional<MessageId> startMessageId)
     : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
-                              lookupServicePtr) {
+                              lookupServicePtr, subscriptionMode, startMessageId) {
     topicsPartitions_[topicName->toString()] = numPartitions;
 }
 
 MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                                                  const std::string& subscriptionName, TopicNamePtr topicName,
                                                  const ConsumerConfiguration& conf,
-                                                 LookupServicePtr lookupServicePtr)
+                                                 LookupServicePtr lookupServicePtr,
+                                                 const Commands::SubscriptionMode subscriptionMode,
+                                                 boost::optional<MessageId> startMessageId)
     : ConsumerImplBase(client, topicName ? topicName->toString() : "EmptyTopics",
                        Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
                        client->getListenerExecutorProvider()->get()),
@@ -60,7 +64,9 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
       messageListener_(conf.getMessageListener()),
       lookupServicePtr_(lookupServicePtr),
       numberTopicPartitions_(std::make_shared<std::atomic<int>>(0)),
-      topics_(topics) {
+      topics_(topics),
+      subscriptionMode_(subscriptionMode),
+      startMessageId_(startMessageId) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[Muti Topics Consumer: "
                       << "TopicName - " << topic_ << " - Subscription - " << subscriptionName << "]";
@@ -226,7 +232,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
         // We don't have to add partition-n suffix
         consumer = std::make_shared<ConsumerImpl>(client, topicName->toString(), subscriptionName_, config,
                                                   topicName->isPersistent(), internalListenerExecutor, true,
-                                                  NonPartitioned);
+                                                  NonPartitioned, subscriptionMode_, startMessageId_);
         consumer->getConsumerCreatedFuture().addListener(std::bind(
             &MultiTopicsConsumerImpl::handleSingleConsumerCreated, get_shared_this_ptr(),
             std::placeholders::_1, std::placeholders::_2, partitionsNeedCreate, topicSubResultPromise));
@@ -239,7 +245,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
             std::string topicPartitionName = topicName->getTopicPartitionName(i);
             consumer = std::make_shared<ConsumerImpl>(client, topicPartitionName, subscriptionName_, config,
                                                       topicName->isPersistent(), internalListenerExecutor,
-                                                      true, Partitioned);
+                                                      true, Partitioned, subscriptionMode_, startMessageId_);
             consumer->getConsumerCreatedFuture().addListener(std::bind(
                 &MultiTopicsConsumerImpl::handleSingleConsumerCreated, get_shared_this_ptr(),
                 std::placeholders::_1, std::placeholders::_2, partitionsNeedCreate, topicSubResultPromise));
@@ -686,7 +692,12 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
 }
 
 void MultiTopicsConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
-    callback(ResultOperationNotSupported);
+    msgId.getTopicName();
+    auto optConsumer = consumers_.find(msgId.getTopicName());
+    if (optConsumer) {
+        unAckedMessageTrackerPtr_->removeMessagesTill(msgId);
+        optConsumer.value()->acknowledgeCumulativeAsync(msgId, callback);
+    }
 }
 
 void MultiTopicsConsumerImpl::negativeAcknowledge(const MessageId& msgId) {
@@ -1046,4 +1057,36 @@ void MultiTopicsConsumerImpl::cancelTimers() noexcept {
         boost::system::error_code ec;
         partitionsUpdateTimer_->cancel(ec);
     }
+}
+
+void MultiTopicsConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
+    if (incomingMessagesSize_ > 0) {
+        callback(ResultOk, true);
+        return;
+    }
+
+    auto hasMessageAvailable = std::make_shared<std::atomic<bool>>();
+    auto needCallBack = std::make_shared<std::atomic<int>>(consumers_.size());
+    auto self = get_shared_this_ptr();
+
+    consumers_.forEachValue([self, needCallBack, callback, hasMessageAvailable](ConsumerImplPtr consumer) {
+        consumer->hasMessageAvailableAsync(
+            [self, needCallBack, callback, hasMessageAvailable](Result result, bool hasMsg) {
+                if (result != ResultOk) {
+                    LOG_ERROR("Filed when acknowledge list: " << result);
+                    // set needCallBack is -1 to avoid repeated callback.
+                    needCallBack->store(-1);
+                    callback(result, false);
+                    return;
+                }
+
+                if (hasMsg) {
+                    hasMessageAvailable->store(hasMsg);
+                }
+
+                if (--(*needCallBack) == 0) {
+                    callback(result, hasMessageAvailable->load() || self->incomingMessagesSize_ > 0);
+                }
+            });
+    });
 }

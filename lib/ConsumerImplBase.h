@@ -29,6 +29,7 @@
 #include "HandlerBase.h"
 
 namespace pulsar {
+typedef std::function<void(Result result, bool hasMessageAvailable)> HasMessageAvailableCallback;
 class ConsumerImplBase;
 using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
 class OpBatchReceive {
@@ -76,6 +77,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     virtual uint64_t getNumberOfConnectedConsumer() = 0;
     // overrided methods from HandlerBase
     virtual const std::string& getName() const override = 0;
+    virtual void hasMessageAvailableAsync(HasMessageAvailableCallback callback) = 0;
 
    protected:
     // overrided methods from HandlerBase
