@@ -55,13 +55,13 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName, int numPartitions,
                             const std::string& subscriptionName, const ConsumerConfiguration& conf,
                             LookupServicePtr lookupServicePtr,
-                            const Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
+                            Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                             boost::optional<MessageId> startMessageId = boost::none);
 
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
                             const ConsumerConfiguration& conf, LookupServicePtr lookupServicePtr_,
-                            const Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
+                            Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                             boost::optional<MessageId> startMessageId = boost::none);
 
     ~MultiTopicsConsumerImpl();
