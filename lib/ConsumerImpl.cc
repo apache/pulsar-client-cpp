@@ -1128,6 +1128,9 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
 
 void ConsumerImpl::shutdown() {
+    if (ackGroupingTrackerPtr_) {
+        ackGroupingTrackerPtr_->close();
+    }
     incomingMessages_.clear();
     resetCnx();
     auto client = client_.lock();
