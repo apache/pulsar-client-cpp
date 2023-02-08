@@ -25,6 +25,7 @@
 #include <sstream>
 #include <stdexcept>
 
+#include "InitialAuthData.h"
 #include "lib/LogUtils.h"
 DECLARE_LOG_OBJECT()
 
@@ -191,6 +192,10 @@ void ClientCredentialFlow::initialize() {
     char errorBuffer[CURL_ERROR_SIZE];
     curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errorBuffer);
 
+    if (!tlsTrustCertsFilePath_.empty()) {
+        curl_easy_setopt(handle, CURLOPT_CAINFO, tlsTrustCertsFilePath_.c_str());
+    }
+
     // Make get call to server
     res = curl_easy_perform(handle);
 
@@ -317,6 +322,10 @@ Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
     char errorBuffer[CURL_ERROR_SIZE];
     curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errorBuffer);
 
+    if (!tlsTrustCertsFilePath_.empty()) {
+        curl_easy_setopt(handle, CURLOPT_CAINFO, tlsTrustCertsFilePath_.c_str());
+    }
+
     // Make get call to server
     res = curl_easy_perform(handle);
 
@@ -401,6 +410,15 @@ AuthenticationPtr AuthOauth2::create(ParamMap& params) { return AuthenticationPt
 const std::string AuthOauth2::getAuthMethodName() const { return "token"; }
 
 Result AuthOauth2::getAuthData(AuthenticationDataPtr& authDataContent) {
+    auto initialAuthData = std::dynamic_pointer_cast<InitialAuthData>(authDataContent);
+    if (initialAuthData) {
+        auto flowPtr = std::dynamic_pointer_cast<ClientCredentialFlow>(flowPtr_);
+        if (!flowPtr_) {
+            throw std::invalid_argument("AuthOauth2::flowPtr_ is not a ClientCredentialFlow");
+        }
+        flowPtr->setTlsTrustCertsFilePath(initialAuthData->tlsTrustCertsFilePath_);
+    }
+
     if (cachedTokenPtr_ == nullptr || cachedTokenPtr_->isExpired()) {
         try {
             cachedTokenPtr_ = CachedTokenPtr(new Oauth2CachedToken(flowPtr_->authenticate()));

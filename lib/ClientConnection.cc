@@ -30,6 +30,7 @@
 #include "ProducerImpl.h"
 #include "PulsarApi.pb.h"
 #include "Url.h"
+#include "auth/InitialAuthData.h"
 #include "checksum/ChecksumProvider.h"
 
 DECLARE_LOG_OBJECT()
@@ -224,7 +225,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         std::string tlsCertificates = clientConfiguration.getTlsCertificateFilePath();
         std::string tlsPrivateKey = clientConfiguration.getTlsPrivateKeyFilePath();
 
-        AuthenticationDataPtr authData;
+        auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
+            std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
         if (authentication_->getAuthData(authData) == ResultOk && authData->hasDataForTls()) {
             tlsCertificates = authData->getTlsCertificates();
             tlsPrivateKey = authData->getTlsPrivateKey();
