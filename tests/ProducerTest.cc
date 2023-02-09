@@ -22,6 +22,7 @@
 #include <thread>
 
 #include "HttpHelper.h"
+#include "PulsarFriend.h"
 #include "lib/Future.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
@@ -464,6 +465,29 @@ TEST(ProducerTest, testCloseProducerBeforeCreated) {
     ASSERT_EQ(ResultOk, client.createProducer(topicName, {}, producer));
     producer.close();
 
+    client.close();
+}
+
+TEST(ProducerTest, testNoDeadlockWhenClosingPartitionedProducerAfterPartitionsUpdate) {
+    const std::string topic = "public/default/partition-test" + std::to_string(time(nullptr));
+    std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" + topic + "/partitions";
+
+    int res = makePutRequest(topicOperateUrl, "2");
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    ClientConfiguration clientConf;
+    clientConf.setPartititionsUpdateInterval(1);
+    Client client(serviceUrl, clientConf);
+    ProducerConfiguration conf;
+    Producer producer;
+    client.createProducer(topic, conf, producer);
+    PartitionedProducerImpl& partitionedProducer = PulsarFriend::getPartitionedProducerImpl(producer);
+
+    // TODO: Replace by producer interceptor to reproduce the issue then we can remove
+    // PulsarFriend::updatePartitions
+    PulsarFriend::updatePartitions(partitionedProducer, 3);
+
+    producer.close();
     client.close();
 }
 
