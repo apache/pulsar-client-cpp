@@ -105,6 +105,8 @@ void NegativeAcksTracker::close() {
         boost::system::error_code ec;
         timer_->cancel(ec);
     }
+    timer_ = nullptr;
+    nackedMessages_.clear();
 }
 
 void NegativeAcksTracker::setEnabledForTesting(bool enabled) {
