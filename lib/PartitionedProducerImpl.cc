@@ -148,6 +148,10 @@ void PartitionedProducerImpl::handleSinglePartitionProducerCreated(Result result
     const auto numPartitions = getNumPartitionsWithLock();
     assert(numProducersCreated_ <= numPartitions && partitionIndex <= numPartitions);
 
+    if (state_ == Closing) {
+        return;
+    }
+
     if (state_ == Failed) {
         // We have already informed client that producer creation failed
         if (++numProducersCreated_ == numPartitions) {

@@ -187,6 +187,18 @@ class PulsarFriend {
                                                   long unAckedMessagesTimeoutMs) {
         consumerConfiguration.impl_->unAckedMessagesTimeoutMs = unAckedMessagesTimeoutMs;
     }
+
+    static PartitionedProducerImpl& getPartitionedProducerImpl(Producer producer) {
+        PartitionedProducerImpl* partitionedProducer =
+            static_cast<PartitionedProducerImpl*>(producer.impl_.get());
+        return *partitionedProducer;
+    }
+
+    static void updatePartitions(PartitionedProducerImpl& partitionedProducer, int newPartitions) {
+        LookupDataResultPtr lookupData = std::make_shared<LookupDataResult>();
+        lookupData->setPartitions(newPartitions);
+        partitionedProducer.handleGetPartitions(ResultOk, lookupData);
+    }
 };
 }  // namespace pulsar
 
