@@ -16,12 +16,19 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#if WITH_WS_VERSION
+#include <ws_version.h>
+constexpr int kWiresharkMajorVersion = WIRESHARK_VERSION_MAJOR;
+constexpr int kWiresharkMinorVersion = WIRESHARK_VERSION_MINOR;
+#else
 #include <config.h>
+constexpr int kWiresharkMajorVersion = VERSION_MAJOR;
+constexpr int kWiresharkMinorVersion = VERSION_MINOR;
+#endif
+
 #include <epan/column-utils.h>
 #include <epan/dissectors/packet-tcp.h>
-#include <epan/expert.h>
 #include <epan/packet.h>
-#include <epan/prefs.h>
 #include <epan/proto.h>
 #include <epan/value_string.h>
 #include <glib.h>
@@ -1055,6 +1062,14 @@ static int dissect_pulsar_message(tvbuff_t* tvb, packet_info* pinfo, proto_tree*
             break;
         case BaseCommand::TC_CLIENT_CONNECT_RESPONSE:
             break;
+        case BaseCommand::WATCH_TOPIC_LIST:
+            break;
+        case BaseCommand::WATCH_TOPIC_LIST_SUCCESS:
+            break;
+        case BaseCommand::WATCH_TOPIC_UPDATE:
+            break;
+        case BaseCommand::WATCH_TOPIC_LIST_CLOSE:
+            break;
     }
 
     return maxOffset;
@@ -1210,8 +1225,8 @@ void proto_register_pulsar() {
 extern "C" {
 
 extern __attribute__((unused)) WS_DLL_PUBLIC_DEF const gchar plugin_version[] = VERSION;
-extern __attribute__((unused)) WS_DLL_PUBLIC_DEF const int plugin_want_major = VERSION_MAJOR;
-extern __attribute__((unused)) WS_DLL_PUBLIC_DEF const int plugin_want_minor = VERSION_MINOR;
+extern __attribute__((unused)) WS_DLL_PUBLIC_DEF const int plugin_want_major = kWiresharkMajorVersion;
+extern __attribute__((unused)) WS_DLL_PUBLIC_DEF const int plugin_want_minor = kWiresharkMinorVersion;
 
 WS_DLL_PUBLIC void plugin_register(void);
 

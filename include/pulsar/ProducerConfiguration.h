@@ -537,11 +537,12 @@ class PULSAR_PUBLIC ProducerConfiguration {
 
     const std::vector<ProducerInterceptorPtr>& getInterceptors() const;
 
-    friend class PulsarWrapper;
-
    private:
-    struct Impl;
     std::shared_ptr<ProducerConfigurationImpl> impl_;
+
+    friend class PulsarWrapper;
+    friend class ConsumerImpl;
+    friend class ProducerImpl;
 };
 }  // namespace pulsar
 #endif /* PULSAR_PRODUCERCONFIGURATION_H_ */

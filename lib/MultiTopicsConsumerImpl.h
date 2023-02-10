@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "BlockingQueue.h"
+#include "Commands.h"
 #include "ConsumerImplBase.h"
 #include "Future.h"
 #include "Latch.h"
@@ -53,10 +54,15 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
    public:
     MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName, int numPartitions,
                             const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                            LookupServicePtr lookupServicePtr);
+                            LookupServicePtr lookupServicePtr,
+                            Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
+                            boost::optional<MessageId> startMessageId = boost::none);
+
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
-                            const ConsumerConfiguration& conf, LookupServicePtr lookupServicePtr_);
+                            const ConsumerConfiguration& conf, LookupServicePtr lookupServicePtr_,
+                            Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
+                            boost::optional<MessageId> startMessageId = boost::none);
 
     ~MultiTopicsConsumerImpl();
     // overrided methods from ConsumerImplBase
@@ -65,7 +71,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     const std::string& getTopic() const override;
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
-    void receiveAsync(ReceiveCallback& callback) override;
+    void receiveAsync(ReceiveCallback callback) override;
     void unsubscribeAsync(ResultCallback callback) override;
     void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
     void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) override;
@@ -88,6 +94,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
+    void hasMessageAvailableAsync(HasMessageAvailableCallback callback) override;
 
     void handleGetConsumerStats(Result, BrokerConsumerStats, LatchPtr, MultiTopicsBrokerConsumerStatsPtr,
                                 size_t, BrokerConsumerStatsCallback);
@@ -118,6 +125,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
     const std::vector<std::string> topics_;
     std::queue<ReceiveCallback> pendingReceives_;
+    const Commands::SubscriptionMode subscriptionMode_;
+    boost::optional<MessageId> startMessageId_;
 
     /* methods */
     void handleSinglePartitionConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
@@ -167,6 +176,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
 
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
+    FRIEND_TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition);
 };
 
 typedef std::shared_ptr<MultiTopicsConsumerImpl> MultiTopicsConsumerImplPtr;

@@ -29,6 +29,7 @@ class PulsarFriend;
 class ReaderImpl;
 
 typedef std::function<void(Result result, bool hasMessageAvailable)> HasMessageAvailableCallback;
+typedef std::function<void(Result result, const Message& message)> ReadNextCallback;
 
 /**
  * A Reader can be used to scan through all the messages currently available in a topic.
@@ -67,6 +68,13 @@ class PULSAR_PUBLIC Reader {
      * @return ResultInvalidConfiguration if a message listener had been set in the configuration
      */
     Result readNext(Message& msg, int timeoutMs);
+
+    /**
+     * Read asynchronously the next message in the topic.
+     *
+     * @param callback
+     */
+    void readNextAsync(ReadNextCallback callback);
 
     /**
      * Close the reader and stop the broker to push more messages

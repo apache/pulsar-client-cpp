@@ -28,17 +28,20 @@
 #include <pulsar/Message.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/TypedMessage.h>
 #include <pulsar/defines.h>
 
 #include <functional>
 #include <memory>
 
 #include "BatchReceivePolicy.h"
+#include "DeadLetterPolicy.h"
 
 namespace pulsar {
 
 class Consumer;
 class PulsarWrapper;
+class PulsarFriend;
 
 /// Callback definition for non-data operation
 typedef std::vector<Message> Messages;
@@ -48,7 +51,7 @@ typedef std::function<void(Result, const Messages& msgs)> BatchReceiveCallback;
 typedef std::function<void(Result result, MessageId messageId)> GetLastMessageIdCallback;
 
 /// Callback definition for MessageListener
-typedef std::function<void(Consumer consumer, const Message& msg)> MessageListener;
+typedef std::function<void(Consumer& consumer, const Message& msg)> MessageListener;
 
 typedef std::shared_ptr<ConsumerEventListener> ConsumerEventListenerPtr;
 
@@ -125,6 +128,15 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * for every message received.
      */
     ConsumerConfiguration& setMessageListener(MessageListener messageListener);
+
+    template <typename T>
+    ConsumerConfiguration& setTypedMessageListener(
+        std::function<void(Consumer&, const TypedMessage<T>&)> listener,
+        typename TypedMessage<T>::Decoder decoder) {
+        return setMessageListener([listener, decoder](Consumer& consumer, const Message& msg) {
+            listener(consumer, TypedMessage<T>{msg, decoder});
+        });
+    }
 
     /**
      * @return the message listener
@@ -399,6 +411,42 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     const BatchReceivePolicy& getBatchReceivePolicy() const;
 
     /**
+     * Set dead letter policy for consumer
+     *
+     * By default, some messages are redelivered many times, even to the extent that they can never be
+     * stopped. By using the dead letter mechanism, messages have the max redelivery count, when they
+     * exceeding the maximum number of redeliveries. Messages are sent to dead letter topics and acknowledged
+     * automatically.
+     *
+     * You can enable the dead letter mechanism by setting the dead letter policy.
+     * Example:
+     *
+     * <pre>
+     * * DeadLetterPolicy dlqPolicy = DeadLetterPolicyBuilder()
+     *                       .maxRedeliverCount(10)
+     *                       .build();
+     * </pre>
+     * Default dead letter topic name is {TopicName}-{Subscription}-DLQ.
+     * To set a custom dead letter topic name
+     * <pre>
+     * DeadLetterPolicy dlqPolicy = DeadLetterPolicyBuilder()
+     *                       .deadLetterTopic("dlq-topic")
+     *                       .maxRedeliverCount(10)
+     *                       .initialSubscriptionName("init-sub-name")
+     *                       .build();
+     * </pre>
+     * @param deadLetterPolicy Default value is empty
+     */
+    void setDeadLetterPolicy(const DeadLetterPolicy& deadLetterPolicy);
+
+    /**
+     * Get dead letter policy.
+     *
+     * @return dead letter policy
+     */
+    const DeadLetterPolicy& getDeadLetterPolicy() const;
+
+    /**
      * Set whether the subscription status should be replicated.
      * The default value is `false`.
      *
@@ -553,7 +601,25 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      */
     bool isStartMessageIdInclusive() const;
 
+    /**
+     * Enable the batch index acknowledgment.
+     *
+     * It should be noted that this option can only work when the broker side also enables the batch index
+     * acknowledgment. See the `acknowledgmentAtBatchIndexLevelEnabled` config in `broker.conf`.
+     *
+     * Default: false
+     *
+     * @param enabled whether to enable the batch index acknowledgment
+     */
+    ConsumerConfiguration& setBatchIndexAckEnabled(bool enabled);
+
+    /**
+     * The associated getter of setBatchingEnabled
+     */
+    bool isBatchIndexAckEnabled() const;
+
     friend class PulsarWrapper;
+    friend class PulsarFriend;
 
    private:
     std::shared_ptr<ConsumerConfigurationImpl> impl_;

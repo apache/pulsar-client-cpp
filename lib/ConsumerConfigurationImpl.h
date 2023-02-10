@@ -46,6 +46,7 @@ struct ConsumerConfigurationImpl {
     bool readCompacted{false};
     InitialPosition subscriptionInitialPosition{InitialPosition::InitialPositionLatest};
     BatchReceivePolicy batchReceivePolicy{};
+    DeadLetterPolicy deadLetterPolicy;
     int patternAutoDiscoveryPeriod{60};
     bool replicateSubscriptionStateEnabled{false};
     std::map<std::string, std::string> properties;
@@ -56,6 +57,7 @@ struct ConsumerConfigurationImpl {
     bool autoAckOldestChunkedMessageOnQueueFull{false};
     bool startMessageIdInclusive{false};
     long expireTimeOfIncompleteChunkedMessageMs{60000};
+    bool batchIndexAckEnabled{false};
 };
 }  // namespace pulsar
 #endif /* LIB_CONSUMERCONFIGURATIONIMPL_H_ */

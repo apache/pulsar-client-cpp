@@ -28,6 +28,8 @@
 #include <memory>
 #include <mutex>
 
+#include "TestUtil.h"
+
 namespace pulsar {
 
 class ConsumerImpl;
@@ -66,6 +68,8 @@ class NegativeAcksTracker {
     ExecutorServicePtr executor_;
     DeadlineTimerPtr timer_;
     bool enabledForTesting_;  // to be able to test deterministically
+
+    FRIEND_TEST(ConsumerTest, testNegativeAcksTrackerClose);
 };
 
 }  // namespace pulsar

@@ -23,6 +23,7 @@
 
 #include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
+#include "lib/ConsumerConfigurationImpl.h"
 #include "lib/ConsumerImpl.h"
 #include "lib/MessageImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
@@ -98,7 +99,7 @@ class PulsarFriend {
     }
 
     static ConsumerImplPtr getConsumer(Reader reader) {
-        return std::static_pointer_cast<ConsumerImpl>(reader.impl_->getConsumer().lock());
+        return std::static_pointer_cast<ConsumerImpl>(reader.impl_->getConsumer());
     }
 
     static ReaderImplWeakPtr getReaderImplWeakPtr(Reader reader) { return reader.impl_; }
@@ -181,6 +182,23 @@ class PulsarFriend {
     static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }
 
     static std::shared_ptr<MessageIdImpl> getMessageIdImpl(MessageId& msgId) { return msgId.impl_; }
+
+    static void setConsumerUnAckMessagesTimeoutMs(const ConsumerConfiguration& consumerConfiguration,
+                                                  long unAckedMessagesTimeoutMs) {
+        consumerConfiguration.impl_->unAckedMessagesTimeoutMs = unAckedMessagesTimeoutMs;
+    }
+
+    static PartitionedProducerImpl& getPartitionedProducerImpl(Producer producer) {
+        PartitionedProducerImpl* partitionedProducer =
+            static_cast<PartitionedProducerImpl*>(producer.impl_.get());
+        return *partitionedProducer;
+    }
+
+    static void updatePartitions(PartitionedProducerImpl& partitionedProducer, int newPartitions) {
+        LookupDataResultPtr lookupData = std::make_shared<LookupDataResult>();
+        lookupData->setPartitions(newPartitions);
+        partitionedProducer.handleGetPartitions(ResultOk, lookupData);
+    }
 };
 }  // namespace pulsar
 

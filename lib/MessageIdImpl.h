@@ -19,8 +19,35 @@
 
 #pragma once
 
+#include <boost/functional/hash.hpp>
 #include <cstdint>
 #include <string>
+
+#include "BitSet.h"
+
+namespace std {
+
+template <>
+struct hash<pulsar::MessageId> {
+    std::size_t operator()(const pulsar::MessageId& msgId) const {
+        using boost::hash_combine;
+        using boost::hash_value;
+
+        // Start with a hash value of 0    .
+        std::size_t seed = 0;
+
+        // Modify 'seed' by XORing and bit-shifting in
+        // one member of 'Key' after the other:
+        hash_combine(seed, hash_value(msgId.ledgerId()));
+        hash_combine(seed, hash_value(msgId.entryId()));
+        hash_combine(seed, hash_value(msgId.batchIndex()));
+        hash_combine(seed, hash_value(msgId.partition()));
+
+        // Return the result.
+        return seed;
+    }
+};
+}  // namespace std
 
 namespace pulsar {
 
@@ -43,6 +70,11 @@ class MessageIdImpl {
 
     const std::string& getTopicName() { return *topicName_; }
     void setTopicName(const std::string& topicName) { topicName_ = &topicName; }
+
+    virtual const BitSet& getBitSet() const noexcept {
+        static const BitSet emptyBitSet;
+        return emptyBitSet;
+    }
 
    private:
     const std::string* topicName_ = nullptr;

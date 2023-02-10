@@ -39,6 +39,7 @@ class BatchMessageAcker;
 using BatchMessageAckerPtr = std::shared_ptr<BatchMessageAcker>;
 class MessageIdImpl;
 using MessageIdImplPtr = std::shared_ptr<MessageIdImpl>;
+class BitSet;
 
 namespace proto {
 class BaseCommand;
@@ -90,6 +91,8 @@ class Commands {
     static SharedBuffer newLookup(const std::string& topic, const bool authoritative, uint64_t requestId,
                                   const std::string& listenerName);
 
+    static SharedBuffer newGetSchema(const std::string& topic, uint64_t requestId);
+
     static PairSharedBuffer newSend(SharedBuffer& headers, proto::BaseCommand& cmd, uint64_t producerId,
                                     uint64_t sequenceId, ChecksumType checksumType,
                                     const proto::MessageMetadata& metadata, const SharedBuffer& payload);
@@ -110,9 +113,10 @@ class Commands {
                                     const std::map<std::string, std::string>& metadata,
                                     const SchemaInfo& schemaInfo, uint64_t epoch,
                                     bool userProvidedProducerName, bool encrypted,
-                                    ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch);
+                                    ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                    const std::string& initialSubscriptionName);
 
-    static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+    static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
                                CommandAck_AckType ackType, CommandAck_ValidationError validationError);
     static SharedBuffer newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds);
 

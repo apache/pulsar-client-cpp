@@ -80,7 +80,7 @@ void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
     }
 
     if (!messagesToRedeliver.empty()) {
-        consumer_.redeliverMessages(messagesToRedeliver);
+        consumer_.redeliverUnacknowledgedMessages(messagesToRedeliver);
     }
     scheduleTimer();
 }
@@ -105,6 +105,8 @@ void NegativeAcksTracker::close() {
         boost::system::error_code ec;
         timer_->cancel(ec);
     }
+    timer_ = nullptr;
+    nackedMessages_.clear();
 }
 
 void NegativeAcksTracker::setEnabledForTesting(bool enabled) {

@@ -31,6 +31,7 @@
 #include "ProducerImpl.h"
 #include "PulsarApi.pb.h"
 #include "Url.h"
+#include "auth/InitialAuthData.h"
 #include "checksum/ChecksumProvider.h"
 
 DECLARE_LOG_OBJECT()
@@ -202,11 +203,6 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         } else {
             ctx.set_verify_mode(boost::asio::ssl::context::verify_peer);
 
-            if (clientConfiguration.isValidateHostName()) {
-                LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
-                ctx.set_verify_callback(boost::asio::ssl::rfc2818_verification(physicalAddress));
-            }
-
             std::string trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
             if (!trustCertFilePath.empty()) {
                 if (file_exists(trustCertFilePath)) {
@@ -230,7 +226,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         std::string tlsCertificates = clientConfiguration.getTlsCertificateFilePath();
         std::string tlsPrivateKey = clientConfiguration.getTlsPrivateKeyFilePath();
 
-        AuthenticationDataPtr authData;
+        auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
+            std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
         if (authentication_->getAuthData(authData) == ResultOk && authData->hasDataForTls()) {
             tlsCertificates = authData->getTlsCertificates();
             tlsPrivateKey = authData->getTlsPrivateKey();
@@ -254,6 +251,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         }
 
         tlsSocket_ = ExecutorService::createTlsSocket(socket_, ctx);
+
+        if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
+            LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
+            tlsSocket_->set_verify_callback(boost::asio::ssl::rfc2818_verification(serviceUrl.host()));
+        }
 
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
         if (!SSL_set_tlsext_host_name(tlsSocket_->native_handle(), serviceUrl.host().c_str())) {
@@ -812,7 +814,7 @@ void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, b
 void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
     LOG_DEBUG(cnxString_ << "Handling incoming command: " << Commands::messageType(incomingCmd.type()));
 
-    switch (state_) {
+    switch (state_.load()) {
         case Pending: {
             LOG_ERROR(cnxString_ << "Connection is not ready yet");
             break;
@@ -1308,6 +1310,52 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     break;
                 }
 
+                case BaseCommand::GET_SCHEMA_RESPONSE: {
+                    const auto& response = incomingCmd.getschemaresponse();
+                    LOG_DEBUG(cnxString_ << "Received GetSchemaResponse from server. req_id: "
+                                         << response.request_id());
+                    Lock lock(mutex_);
+                    auto it = pendingGetSchemaRequests_.find(response.request_id());
+                    if (it != pendingGetSchemaRequests_.end()) {
+                        Promise<Result, boost::optional<SchemaInfo>> getSchemaPromise = it->second;
+                        pendingGetSchemaRequests_.erase(it);
+                        lock.unlock();
+
+                        if (response.has_error_code()) {
+                            if (response.error_code() == proto::TopicNotFound) {
+                                getSchemaPromise.setValue(boost::none);
+                            } else {
+                                Result result = getResult(response.error_code(), response.error_message());
+                                LOG_WARN(cnxString_ << "Received error GetSchemaResponse from server "
+                                                    << result
+                                                    << (response.has_error_message()
+                                                            ? (" (" + response.error_message() + ")")
+                                                            : "")
+                                                    << " -- req_id: " << response.request_id());
+                                getSchemaPromise.setFailed(result);
+                            }
+                            return;
+                        }
+
+                        const auto& schema = response.schema();
+                        const auto& properMap = schema.properties();
+                        StringMap properties;
+                        for (auto kv = properMap.begin(); kv != properMap.end(); ++kv) {
+                            properties[kv->key()] = kv->value();
+                        }
+                        SchemaInfo schemaInfo(static_cast<SchemaType>(schema.type()), "",
+                                              schema.schema_data(), properties);
+                        getSchemaPromise.setValue(schemaInfo);
+                    } else {
+                        lock.unlock();
+                        LOG_WARN(
+                            "GetSchemaResponse command - Received unknown request id from "
+                            "server: "
+                            << response.request_id());
+                    }
+                    break;
+                }
+
                 default: {
                     LOG_WARN(cnxString_ << "Received invalid message from server");
                     close();
@@ -1705,6 +1753,23 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(con
     pendingGetNamespaceTopicsRequests_.insert(std::make_pair(requestId, promise));
     lock.unlock();
     sendCommand(Commands::newGetTopicsOfNamespace(nsName, requestId));
+    return promise.getFuture();
+}
+
+Future<Result, boost::optional<SchemaInfo>> ClientConnection::newGetSchema(const std::string& topicName,
+                                                                           uint64_t requestId) {
+    Lock lock(mutex_);
+    Promise<Result, boost::optional<SchemaInfo>> promise;
+    if (isClosed()) {
+        lock.unlock();
+        LOG_ERROR(cnxString_ << "Client is not connected to the broker");
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
+    }
+
+    pendingGetSchemaRequests_.insert(std::make_pair(requestId, promise));
+    lock.unlock();
+    sendCommand(Commands::newGetSchema(topicName, requestId));
     return promise.getFuture();
 }
 

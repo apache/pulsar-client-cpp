@@ -43,6 +43,11 @@ class BatchMessageAcker {
         return prevBatchCumulativelyAcked_.compare_exchange_strong(expectedValue, true);
     }
 
+    virtual const BitSet& getBitSet() const noexcept {
+        static BitSet emptyBitSet;
+        return emptyBitSet;
+    }
+
    private:
     // When a batched message is acknowledged cumulatively, the previous message id will be acknowledged
     // without batch index ACK enabled. However, it should be acknowledged only once. Use this flag to
@@ -77,6 +82,8 @@ class BatchMessageAckerImpl : public BatchMessageAcker {
         bitSet_.clear(0, batchIndex + 1);
         return bitSet_.isEmpty();
     }
+
+    const BitSet& getBitSet() const noexcept override { return bitSet_; }
 
    private:
     BitSet bitSet_;

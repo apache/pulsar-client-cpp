@@ -28,6 +28,7 @@
 
 #include "BatchMessageAcker.h"
 #include "BatchedMessageIdImpl.h"
+#include "BitSet.h"
 #include "ChunkMessageIdImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
@@ -157,6 +158,21 @@ SharedBuffer Commands::newLookup(const std::string& topic, const bool authoritat
     lookup->set_advertised_listener_name(listenerName);
     const SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_lookuptopic();
+    return buffer;
+}
+
+SharedBuffer Commands::newGetSchema(const std::string& topic, uint64_t requestId) {
+    static BaseCommand cmd;
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    cmd.set_type(BaseCommand::GET_SCHEMA);
+
+    auto getSchema = cmd.mutable_getschema();
+    getSchema->set_topic(topic);
+    getSchema->set_request_id(requestId);
+
+    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    cmd.clear_getschema();
     return buffer;
 }
 
@@ -386,7 +402,8 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
                                    const std::map<std::string, std::string>& metadata,
                                    const SchemaInfo& schemaInfo, uint64_t epoch,
                                    bool userProvidedProducerName, bool encrypted,
-                                   ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch) {
+                                   ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                   const std::string& initialSubscriptionName) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::PRODUCER);
     CommandProducer* producer = cmd.mutable_producer();
@@ -399,6 +416,9 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     producer->set_producer_access_mode(static_cast<proto::ProducerAccessMode>(accessMode));
     if (topicEpoch) {
         producer->set_topic_epoch(topicEpoch.value());
+    }
+    if (!initialSubscriptionName.empty()) {
+        producer->set_initial_subscription_name(initialSubscriptionName);
     }
 
     for (std::map<std::string, std::string>::const_iterator it = metadata.begin(); it != metadata.end();
@@ -420,7 +440,7 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     return writeMessageWithSize(cmd);
 }
 
-SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
                               CommandAck_AckType ackType, CommandAck_ValidationError validationError) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
@@ -433,6 +453,9 @@ SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t ent
     auto* msgId = ack->add_message_id();
     msgId->set_ledgerid(ledgerId);
     msgId->set_entryid(entryId);
+    for (auto x : ackSet) {
+        msgId->add_ack_set(x);
+    }
     return writeMessageWithSize(cmd);
 }
 
@@ -446,6 +469,9 @@ SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<Me
         auto newMsgId = ack->add_message_id();
         newMsgId->set_ledgerid(msgId.ledgerId());
         newMsgId->set_entryid(msgId.entryId());
+        for (auto x : getMessageIdImpl(msgId)->getBitSet()) {
+            newMsgId->add_ack_set(x);
+        }
     }
     return writeMessageWithSize(cmd);
 }
@@ -861,5 +887,6 @@ bool Commands::peerSupportsMultiMessageAcknowledgement(int32_t peerVersion) {
 bool Commands::peerSupportsJsonSchemaAvroFormat(int32_t peerVersion) { return peerVersion >= proto::v13; }
 
 bool Commands::peerSupportsGetOrCreateSchema(int32_t peerVersion) { return peerVersion >= proto::v15; }
+
 }  // namespace pulsar
 /* namespace pulsar */

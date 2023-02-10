@@ -183,7 +183,7 @@ class PULSAR_PUBLIC Message {
 
     bool operator==(const Message& msg) const;
 
-   private:
+   protected:
     typedef std::shared_ptr<MessageImpl> MessageImplPtr;
     MessageImplPtr impl_;
 

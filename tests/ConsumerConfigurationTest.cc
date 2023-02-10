@@ -20,9 +20,13 @@
 #include <lib/LogUtils.h>
 #include <pulsar/Client.h>
 
+#include <climits>
+
 #include "NoOpsCryptoKeyReader.h"
 
 DECLARE_LOG_OBJECT()
+
+#include <pulsar/DeadLetterPolicyBuilder.h>
 
 #include "../lib/Future.h"
 #include "../lib/Utils.h"
@@ -65,6 +69,7 @@ TEST(ConsumerConfigurationTest, testDefaultConfig) {
     ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumMessages(), -1);
     ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumBytes(), 10 * 1024 * 1024);
     ASSERT_EQ(conf.getBatchReceivePolicy().getTimeoutMs(), 100);
+    ASSERT_EQ(conf.isBatchIndexAckEnabled(), false);
 }
 
 TEST(ConsumerConfigurationTest, testCustomConfig) {
@@ -160,6 +165,9 @@ TEST(ConsumerConfigurationTest, testCustomConfig) {
     ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumMessages(), 10);
     ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumBytes(), 10);
     ASSERT_EQ(conf.getBatchReceivePolicy().getTimeoutMs(), 100);
+
+    conf.setBatchIndexAckEnabled(true);
+    ASSERT_EQ(conf.isBatchIndexAckEnabled(), true);
 }
 
 TEST(ConsumerConfigurationTest, testReadCompactPersistentExclusive) {
@@ -316,4 +324,16 @@ TEST(ConsumerConfigurationTest, testResetAckTimeOut) {
     // should be able to set it back to 0.
     config.setUnAckedMessagesTimeoutMs(0);
     ASSERT_EQ(0, config.getUnAckedMessagesTimeoutMs());
+}
+
+TEST(ConsumerConfigurationTest, testDeadLetterPolicy) {
+    ConsumerConfiguration config;
+    auto dlqPolicy = config.getDeadLetterPolicy();
+    ASSERT_TRUE(dlqPolicy.getDeadLetterTopic().empty());
+    ASSERT_EQ(dlqPolicy.getMaxRedeliverCount(), INT_MAX);
+    ASSERT_TRUE(dlqPolicy.getInitialSubscriptionName().empty());
+
+    config.setDeadLetterPolicy(DeadLetterPolicyBuilder().maxRedeliverCount(10).build());
+    auto dlqPolicy2 = config.getDeadLetterPolicy();
+    ASSERT_EQ(dlqPolicy2.getMaxRedeliverCount(), 10);
 }

@@ -20,6 +20,7 @@
 #define _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 
 #include <pulsar/Authentication.h>
+#include <pulsar/Schema.h>
 
 #include <mutex>
 
@@ -32,6 +33,7 @@ class ConnectionPool;
 class LookupDataResult;
 class ServiceNameResolver;
 using NamespaceTopicsPromisePtr = std::shared_ptr<Promise<Result, NamespaceTopicsPtr>>;
+using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, boost::optional<SchemaInfo>>>;
 
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
@@ -44,6 +46,8 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override;
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) override;
+
+    Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override;
 
    private:
     std::mutex mutex_;
@@ -67,6 +71,9 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     void sendGetTopicsOfNamespaceRequest(const std::string& nsName, Result result,
                                          const ClientConnectionWeakPtr& clientCnx,
                                          NamespaceTopicsPromisePtr promise);
+
+    void sendGetSchemaRequest(const std::string& topiName, Result result,
+                              const ClientConnectionWeakPtr& clientCnx, GetSchemaPromisePtr promise);
 
     void getTopicsOfNamespaceListener(Result result, NamespaceTopicsPtr topicsPtr,
                                       NamespaceTopicsPromisePtr promise);

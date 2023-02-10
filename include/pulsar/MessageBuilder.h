@@ -162,8 +162,11 @@ class PULSAR_PUBLIC MessageBuilder {
      */
     MessageBuilder& create();
 
+   protected:
+    const char* data() const;
+    std::size_t size() const;
+
    private:
-    MessageBuilder(const MessageBuilder&);
     void checkMetadata();
     static std::shared_ptr<MessageImpl> createMessageImpl();
     Message::MessageImplPtr impl_;

@@ -68,8 +68,12 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                bool poolConnections);
     ~ClientImpl();
 
+    /**
+     * @param autoDownloadSchema When it is true, Before creating a producer, it will try to get the schema
+     * that exists for the topic.
+     */
     void createProducerAsync(const std::string& topic, ProducerConfiguration conf,
-                             CreateProducerCallback callback);
+                             CreateProducerCallback callback, bool autoDownloadSchema = false);
 
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, SubscribeCallback callback);
