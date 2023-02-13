@@ -21,6 +21,7 @@
 
 #include <pulsar/ProducerInterceptor.h>
 
+#include <atomic>
 #include <utility>
 #include <vector>
 
