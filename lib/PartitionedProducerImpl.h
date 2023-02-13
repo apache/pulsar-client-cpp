@@ -27,6 +27,7 @@
 
 #include "LookupDataResult.h"
 #include "ProducerImplBase.h"
+#include "ProducerInterceptors.h"
 
 namespace pulsar {
 
@@ -59,7 +60,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     typedef std::unique_lock<std::mutex> Lock;
 
     PartitionedProducerImpl(ClientImplPtr ptr, const TopicNamePtr topicName, const unsigned int numPartitions,
-                            const ProducerConfiguration& config);
+                            const ProducerConfiguration& config, ProducerInterceptorsPtr interceptors);
     virtual ~PartitionedProducerImpl();
 
     // overrided methods from ProducerImplBase

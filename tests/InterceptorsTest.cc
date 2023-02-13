@@ -89,7 +89,7 @@ class PartitionsChangeInterceptor : public ProducerInterceptor {
 };
 
 void createPartitionedTopic(std::string topic) {
-    std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" + topic + "/partitions";
+    std::string topicOperateUrl = adminUrl + "admin/v2/persistent/public/default/" + topic + "/partitions";
 
     int res = makePutRequest(topicOperateUrl, "2");
     ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;

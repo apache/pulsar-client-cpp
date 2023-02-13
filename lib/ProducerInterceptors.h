@@ -16,12 +16,31 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "ProducerImplBase.h"
+
+#pragma once
+
+#include <pulsar/ProducerInterceptor.h>
+
+#include <utility>
+#include <vector>
 
 namespace pulsar {
 
-void ProducerImplBase::closeInterceptors() {
+class ProducerInterceptors {
+   public:
+    explicit ProducerInterceptors(std::vector<ProducerInterceptorPtr> interceptors)
+        : interceptors_(std::move(interceptors)) {}
 
-}
+    void onPartitionsChange(const std::string& topicName, int partitions) const;
 
+    Message beforeSend(const Producer& producer, const Message& message);
+
+    void onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
+                               const MessageId& messageID);
+
+   private:
+    std::vector<ProducerInterceptorPtr> interceptors_;
+};
+
+typedef std::shared_ptr<ProducerInterceptors> ProducerInterceptorsPtr;
 }  // namespace pulsar

@@ -22,6 +22,7 @@
 #include <pulsar/Producer.h>
 
 #include "Future.h"
+#include "ProducerInterceptors.h"
 
 namespace pulsar {
 class ProducerImplBase;
@@ -51,7 +52,7 @@ class ProducerImplBase {
 
    protected:
     void closeInterceptors();
-    std::vector<ProducerInterceptorPtr> interceptors_;
+    ProducerInterceptorsPtr interceptors_;
 };
 }  // namespace pulsar
 #endif  // PULSAR_PRODUCER_IMPL_BASE_HEADER

@@ -21,6 +21,7 @@
 #define PULSAR_PRODUCER_INTERCEPTOR_H
 
 #include <pulsar/Message.h>
+#include <pulsar/Result.h>
 #include <pulsar/defines.h>
 
 /**

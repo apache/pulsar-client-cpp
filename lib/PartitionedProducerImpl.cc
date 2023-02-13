@@ -38,7 +38,8 @@ const std::string PartitionedProducerImpl::PARTITION_NAME_SUFFIX = "-partition-"
 
 PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const TopicNamePtr topicName,
                                                  const unsigned int numPartitions,
-                                                 const ProducerConfiguration& config)
+                                                 const ProducerConfiguration& config,
+                                                 ProducerInterceptorsPtr interceptors)
     : client_(client),
       topicName_(topicName),
       topic_(topicName_->toString()),
@@ -60,7 +61,7 @@ PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const Top
         lookupServicePtr_ = client->getLookup();
     }
 
-    interceptors_ = conf_.getInterceptors();
+    interceptors_ = interceptors;
 }
 
 MessageRoutingPolicyPtr PartitionedProducerImpl::getMessageRouter() {
@@ -95,7 +96,7 @@ unsigned int PartitionedProducerImpl::getNumPartitionsWithLock() const {
 ProducerImplPtr PartitionedProducerImpl::newInternalProducer(unsigned int partition, bool lazy) {
     using namespace std::placeholders;
     auto client = client_.lock();
-    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, partition);
+    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, interceptors_, partition);
     if (!client) {
         return producer;
     }
@@ -497,14 +498,7 @@ void PartitionedProducerImpl::cancelTimers() noexcept {
 }
 
 void PartitionedProducerImpl::onPartitionsChange(const std::string& topicName, const int partitions) const {
-    for (const ProducerInterceptorPtr& interceptor : interceptors_) {
-        try {
-            interceptor->onPartitionsChange(topicName, partitions);
-        } catch (const std::exception& e) {
-            LOG_WARN("Error executing interceptor onPartitionsChange callback for topicName: "
-                     << topicName << ", exception: " << e.what());
-        }
-    }
+    interceptors_->onPartitionsChange(topicName, partitions);
 }
 
 }  // namespace pulsar
