@@ -38,8 +38,17 @@ class ProducerInterceptors {
     void onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
                                const MessageId& messageID);
 
+    void close();
+
    private:
+    enum State
+    {
+        Ready,
+        Closing,
+        Closed
+    };
     std::vector<ProducerInterceptorPtr> interceptors_;
+    std::atomic<State> state_{Ready};
 };
 
 typedef std::shared_ptr<ProducerInterceptors> ProducerInterceptorsPtr;

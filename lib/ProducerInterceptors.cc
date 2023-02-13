@@ -18,6 +18,7 @@
  */
 
 #include "ProducerInterceptors.h"
+
 #include <pulsar/Producer.h>
 
 #include "LogUtils.h"
@@ -53,7 +54,8 @@ Message ProducerInterceptors::beforeSend(const Producer& producer, const Message
     return interceptorMessage;
 }
 
-void ProducerInterceptors::onSendAcknowledgement(const Producer& producer, Result result, const Message& message, const MessageId& messageID) {
+void ProducerInterceptors::onSendAcknowledgement(const Producer& producer, Result result,
+                                                 const Message& message, const MessageId& messageID) {
     for (const ProducerInterceptorPtr& interceptor : interceptors_) {
         try {
             interceptor->onSendAcknowledgement(producer, result, message, messageID);
@@ -62,6 +64,21 @@ void ProducerInterceptors::onSendAcknowledgement(const Producer& producer, Resul
                      << producer.getTopic() << ", exception: " << e.what());
         }
     }
+}
+
+void ProducerInterceptors::close() {
+    State state = Ready;
+    if (!state_.compare_exchange_strong(state, Closing)) {
+        return;
+    }
+    for (const ProducerInterceptorPtr& interceptor : interceptors_) {
+        try {
+            interceptor->close();
+        } catch (const std::exception& e) {
+            LOG_WARN("Failed to close producer interceptor: " << e.what());
+        }
+    }
+    state_ = Closed;
 }
 
 }  // namespace pulsar

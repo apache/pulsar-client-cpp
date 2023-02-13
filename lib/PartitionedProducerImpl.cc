@@ -230,6 +230,7 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
 // override
 void PartitionedProducerImpl::shutdown() {
     cancelTimers();
+    interceptors_->close();
     auto client = client_.lock();
     if (client) {
         client->cleanupProducer(this);

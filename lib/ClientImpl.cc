@@ -193,8 +193,8 @@ void ClientImpl::handleCreateProducer(const Result result, const LookupDataResul
         auto interceptors = std::make_shared<ProducerInterceptors>(conf.getInterceptors());
 
         if (partitionMetadata->getPartitions() > 0) {
-            producer = std::make_shared<PartitionedProducerImpl>(shared_from_this(), topicName,
-                                                                 partitionMetadata->getPartitions(), conf, interceptors);
+            producer = std::make_shared<PartitionedProducerImpl>(
+                shared_from_this(), topicName, partitionMetadata->getPartitions(), conf, interceptors);
         } else {
             producer = std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors);
         }

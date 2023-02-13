@@ -32,8 +32,7 @@ using namespace pulsar;
 
 class TestInterceptor : public ProducerInterceptor {
    public:
-    TestInterceptor() : latch_(1){} // TODO: remove this line
-    explicit TestInterceptor(Latch latch) : latch_(std::move(latch)) {}
+    TestInterceptor(Latch& latch, Latch& closeLatch) : latch_(latch), closeLatch_(closeLatch) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override {
         return MessageBuilder().setProperty("key", "set").setContent(message.getDataAsString()).build();
@@ -47,13 +46,16 @@ class TestInterceptor : public ProducerInterceptor {
         latch_.countdown();
     }
 
+    void close() override { closeLatch_.countdown(); }
+
    private:
     Latch latch_;
+    Latch closeLatch_;
 };
 
 class ExceptionInterceptor : public ProducerInterceptor {
    public:
-    explicit ExceptionInterceptor(Latch latch) : latch_(std::move(latch)) {}
+    explicit ExceptionInterceptor(Latch& latch) : latch_(latch) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override {
         latch_.countdown();
@@ -66,13 +68,18 @@ class ExceptionInterceptor : public ProducerInterceptor {
         throw std::runtime_error("expected exception");
     }
 
+    void close() override {
+        latch_.countdown();
+        throw std::runtime_error("expected exception");
+    }
+
    private:
     Latch latch_;
 };
 
 class PartitionsChangeInterceptor : public ProducerInterceptor {
    public:
-    explicit PartitionsChangeInterceptor(Latch latch) : latch_(std::move(latch)) {}
+    explicit PartitionsChangeInterceptor(Latch& latch) : latch_(latch) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override { return message; }
 
@@ -100,15 +107,16 @@ class InterceptorsTest : public ::testing::TestWithParam<bool> {};
 TEST_P(InterceptorsTest, testProducerInterceptor) {
     const std::string topic = "InterceptorsTest-testProducerInterceptor-" + std::to_string(time(nullptr));
 
-    if(GetParam()) {
+    if (GetParam()) {
         createPartitionedTopic(topic);
     }
 
     Latch latch(1);
+    Latch closeLatch(1);
 
     Client client(serviceUrl);
     ProducerConfiguration conf;
-    conf.intercept({std::make_shared<TestInterceptor>(latch)});
+    conf.intercept({std::make_shared<TestInterceptor>(latch, closeLatch)});
     Producer producer;
     client.createProducer(topic, conf, producer);
 
@@ -119,6 +127,7 @@ TEST_P(InterceptorsTest, testProducerInterceptor) {
     ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 
     producer.close();
+    ASSERT_TRUE(closeLatch.wait(std::chrono::seconds(5)));
     client.close();
 }
 
@@ -126,11 +135,11 @@ TEST_P(InterceptorsTest, testProducerInterceptorWithException) {
     const std::string topic =
         "InterceptorsTest-testProducerInterceptorWithException-" + std::to_string(time(nullptr));
 
-    if(GetParam()) {
+    if (GetParam()) {
         createPartitionedTopic(topic);
     }
 
-    Latch latch(2);
+    Latch latch(3);
 
     Client client(serviceUrl);
     ProducerConfiguration conf;
@@ -142,9 +151,8 @@ TEST_P(InterceptorsTest, testProducerInterceptorWithException) {
     Result result = producer.send(msg);
     ASSERT_EQ(result, ResultOk);
 
-    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
-
     producer.close();
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
     client.close();
 }
 

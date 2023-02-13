@@ -940,6 +940,7 @@ void ProducerImpl::start() {
 
 void ProducerImpl::shutdown() {
     resetCnx();
+    interceptors_->close();
     auto client = client_.lock();
     if (client) {
         client->cleanupProducer(this);
