@@ -23,7 +23,6 @@
 #include <pulsar/defines.h>
 #include <stdint.h>
 
-#include <functional>
 #include <memory>
 
 namespace pulsar {

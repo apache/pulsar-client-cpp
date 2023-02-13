@@ -51,7 +51,6 @@ class ProducerImplBase {
     virtual uint64_t getNumberOfConnectedProducer() = 0;
 
    protected:
-    void closeInterceptors();
     ProducerInterceptorsPtr interceptors_;
 };
 }  // namespace pulsar

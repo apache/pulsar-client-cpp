@@ -452,7 +452,7 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
             }
             producersLock.unlock();
             // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
-            onPartitionsChange(getTopic(), newNumPartitions);
+            interceptors_->onPartitionsChange(getTopic(), newNumPartitions);
             return;
         }
     } else {
@@ -496,10 +496,6 @@ void PartitionedProducerImpl::cancelTimers() noexcept {
         boost::system::error_code ec;
         partitionsUpdateTimer_->cancel(ec);
     }
-}
-
-void PartitionedProducerImpl::onPartitionsChange(const std::string& topicName, const int partitions) const {
-    interceptors_->onPartitionsChange(topicName, partitions);
 }
 
 }  // namespace pulsar

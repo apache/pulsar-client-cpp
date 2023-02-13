@@ -435,7 +435,7 @@ void ProducerImpl::sendAsync(const Message& msg, SendCallback callback) {
     producerStatsBasePtr_->messageSent(msg);
 
     Producer producer = Producer(shared_from_this());
-    auto interceptorMessage = beforeSend(producer, msg);
+    auto interceptorMessage = interceptors_->beforeSend(producer, msg);
 
     const auto now = boost::posix_time::microsec_clock::universal_time();
     auto self = shared_from_this();
@@ -443,7 +443,7 @@ void ProducerImpl::sendAsync(const Message& msg, SendCallback callback) {
                                                      Result result, const MessageId& messageId) {
         producerStatsBasePtr_->messageReceived(result, now);
 
-        onSendAcknowledgement(producer, result, interceptorMessage, messageId);
+        interceptors_->onSendAcknowledgement(producer, result, interceptorMessage, messageId);
 
         if (callback) {
             callback(result, messageId);
@@ -987,14 +987,6 @@ void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
 }
 
 ProducerImplWeakPtr ProducerImpl::weak_from_this() noexcept { return shared_from_this(); }
-
-Message ProducerImpl::beforeSend(const Producer& producer, const Message& message) const {
-    return interceptors_->beforeSend(producer, message);
-}
-void ProducerImpl::onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
-                                         const MessageId& messageID) const {
-    interceptors_->onSendAcknowledgement(producer, result, message, messageID);
-}
 
 }  // namespace pulsar
 /* namespace pulsar */
