@@ -64,12 +64,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param timeout the timeout after which the operation will be considered as failed
      */
-    ClientConfiguration& setOperationTimeoutSeconds(int32_t timeout);
+    ClientConfiguration& setOperationTimeoutSeconds(int timeout);
 
     /**
      * @return the client operations timeout in seconds
      */
-    int32_t getOperationTimeoutSeconds() const;
+    int getOperationTimeoutSeconds() const;
 
     /**
      * Set the number of IO threads to be used by the Pulsar client. Default is 1
@@ -77,12 +77,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param threads number of threads
      */
-    ClientConfiguration& setIOThreads(int32_t threads);
+    ClientConfiguration& setIOThreads(int threads);
 
     /**
      * @return the number of IO threads to use
      */
-    int32_t getIOThreads() const;
+    int getIOThreads() const;
 
     /**
      * Set the number of threads to be used by the Pulsar client when delivering messages
@@ -94,12 +94,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param threads number of threads
      */
-    ClientConfiguration& setMessageListenerThreads(int32_t threads);
+    ClientConfiguration& setMessageListenerThreads(int threads);
 
     /**
      * @return the number of IO threads to use
      */
-    int32_t getMessageListenerThreads() const;
+    int getMessageListenerThreads() const;
 
     /**
      * Number of concurrent lookup-requests allowed on each broker-connection to prevent overload on broker.
@@ -109,12 +109,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param concurrentLookupRequest
      */
-    ClientConfiguration& setConcurrentLookupRequest(int32_t concurrentLookupRequest);
+    ClientConfiguration& setConcurrentLookupRequest(int concurrentLookupRequest);
 
     /**
      * @return Get configured total allowed concurrent lookup-request.
      */
-    int32_t getConcurrentLookupRequest() const;
+    int getConcurrentLookupRequest() const;
 
     /**
      * Max number of lookup redirection allowed on each look request to prevent overload on broker.
@@ -122,12 +122,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param maxLookupRedirects
      */
-    ClientConfiguration& setMaxLookupRedirects(int32_t maxLookupRedirects);
+    ClientConfiguration& setMaxLookupRedirects(int maxLookupRedirects);
 
     /**
      * @return Get configured total allowed lookup redirecting.
      */
-    int32_t getMaxLookupRedirects() const;
+    int getMaxLookupRedirects() const;
 
     /**
      * Initial backoff interval in milliseconds.
@@ -135,12 +135,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param initialBackoffIntervalMs
      */
-    ClientConfiguration& setInitialBackoffIntervalMs(int32_t initialBackoffIntervalMs);
+    ClientConfiguration& setInitialBackoffIntervalMs(int initialBackoffIntervalMs);
 
     /**
      * @return Get initial backoff interval in milliseconds.
      */
-    int32_t getInitialBackoffIntervalMs() const;
+    int getInitialBackoffIntervalMs() const;
 
     /**
      * Max backoff interval in milliseconds.
@@ -148,12 +148,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param maxBackoffIntervalMs
      */
-    ClientConfiguration& setMaxBackoffIntervalMs(int32_t maxBackoffIntervalMs);
+    ClientConfiguration& setMaxBackoffIntervalMs(int maxBackoffIntervalMs);
 
     /**
      * @return Get max backoff interval in milliseconds.
      */
-    int32_t getMaxBackoffIntervalMs() const;
+    int getMaxBackoffIntervalMs() const;
 
     /**
      * Initialize the log configuration
@@ -284,12 +284,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * Set to 0 means disabling stats collection.
      */
-    ClientConfiguration& setStatsIntervalInSeconds(const uint32_t&);
+    ClientConfiguration& setStatsIntervalInSeconds(const unsigned int&);
 
     /**
      * @return the stats interval configured for the client
      */
-    const uint32_t& getStatsIntervalInSeconds() const;
+    const unsigned int& getStatsIntervalInSeconds() const;
 
     /**
      * Set partitions update interval in seconds.
@@ -300,12 +300,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      *
      * @param intervalInSeconds the seconds between two lookup request for partitioned topic's metadata
      */
-    ClientConfiguration& setPartititionsUpdateInterval(uint32_t intervalInSeconds);
+    ClientConfiguration& setPartititionsUpdateInterval(unsigned int intervalInSeconds);
 
     /**
      * Get partitions update interval in seconds.
      */
-    uint32_t getPartitionsUpdateInterval() const;
+    unsigned int getPartitionsUpdateInterval() const;
 
     /**
      * Set the duration of time to wait for a connection to a broker to be established. If the duration passes
@@ -316,12 +316,12 @@ class PULSAR_PUBLIC ClientConfiguration {
      * @param timeoutMs the duration in milliseconds
      * @return
      */
-    ClientConfiguration& setConnectionTimeout(int32_t timeoutMs);
+    ClientConfiguration& setConnectionTimeout(int timeoutMs);
 
     /**
      * The getter associated with setConnectionTimeout().
      */
-    int32_t getConnectionTimeout() const;
+    int getConnectionTimeout() const;
 
     friend class ClientImpl;
     friend class PulsarWrapper;

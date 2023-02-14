@@ -47,26 +47,26 @@ Authentication& ClientConfiguration::getAuth() const { return *impl_->authentica
 
 const AuthenticationPtr& ClientConfiguration::getAuthPtr() const { return impl_->authenticationPtr; }
 
-ClientConfiguration& ClientConfiguration::setOperationTimeoutSeconds(int32_t timeout) {
+ClientConfiguration& ClientConfiguration::setOperationTimeoutSeconds(int timeout) {
     impl_->operationTimeoutSeconds = timeout;
     return *this;
 }
 
-int32_t ClientConfiguration::getOperationTimeoutSeconds() const { return impl_->operationTimeoutSeconds; }
+int ClientConfiguration::getOperationTimeoutSeconds() const { return impl_->operationTimeoutSeconds; }
 
-ClientConfiguration& ClientConfiguration::setIOThreads(int32_t threads) {
+ClientConfiguration& ClientConfiguration::setIOThreads(int threads) {
     impl_->ioThreads = threads;
     return *this;
 }
 
-int32_t ClientConfiguration::getIOThreads() const { return impl_->ioThreads; }
+int ClientConfiguration::getIOThreads() const { return impl_->ioThreads; }
 
-ClientConfiguration& ClientConfiguration::setMessageListenerThreads(int32_t threads) {
+ClientConfiguration& ClientConfiguration::setMessageListenerThreads(int threads) {
     impl_->messageListenerThreads = threads;
     return *this;
 }
 
-int32_t ClientConfiguration::getMessageListenerThreads() const { return impl_->messageListenerThreads; }
+int ClientConfiguration::getMessageListenerThreads() const { return impl_->messageListenerThreads; }
 
 ClientConfiguration& ClientConfiguration::setUseTls(bool useTls) {
     impl_->useTls = useTls;
@@ -116,33 +116,33 @@ ClientConfiguration& ClientConfiguration::setTlsAllowInsecureConnection(bool all
 
 bool ClientConfiguration::isTlsAllowInsecureConnection() const { return impl_->tlsAllowInsecureConnection; }
 
-ClientConfiguration& ClientConfiguration::setConcurrentLookupRequest(int32_t concurrentLookupRequest) {
+ClientConfiguration& ClientConfiguration::setConcurrentLookupRequest(int concurrentLookupRequest) {
     impl_->concurrentLookupRequest = concurrentLookupRequest;
     return *this;
 }
 
-int32_t ClientConfiguration::getConcurrentLookupRequest() const { return impl_->concurrentLookupRequest; }
+int ClientConfiguration::getConcurrentLookupRequest() const { return impl_->concurrentLookupRequest; }
 
-ClientConfiguration& ClientConfiguration::setMaxLookupRedirects(int32_t maxLookupRedirects) {
+ClientConfiguration& ClientConfiguration::setMaxLookupRedirects(int maxLookupRedirects) {
     impl_->maxLookupRedirects = maxLookupRedirects;
     return *this;
 }
 
-int32_t ClientConfiguration::getMaxLookupRedirects() const { return impl_->maxLookupRedirects; }
+int ClientConfiguration::getMaxLookupRedirects() const { return impl_->maxLookupRedirects; }
 
-ClientConfiguration& ClientConfiguration::setInitialBackoffIntervalMs(int32_t initialBackoffIntervalMs) {
+ClientConfiguration& ClientConfiguration::setInitialBackoffIntervalMs(int initialBackoffIntervalMs) {
     impl_->initialBackoffIntervalMs = initialBackoffIntervalMs;
     return *this;
 }
 
-int32_t ClientConfiguration::getInitialBackoffIntervalMs() const { return impl_->initialBackoffIntervalMs; }
+int ClientConfiguration::getInitialBackoffIntervalMs() const { return impl_->initialBackoffIntervalMs; }
 
-ClientConfiguration& ClientConfiguration::setMaxBackoffIntervalMs(int32_t maxBackoffIntervalMs) {
+ClientConfiguration& ClientConfiguration::setMaxBackoffIntervalMs(int maxBackoffIntervalMs) {
     impl_->maxBackoffIntervalMs = maxBackoffIntervalMs;
     return *this;
 }
 
-int32_t ClientConfiguration::getMaxBackoffIntervalMs() const { return impl_->maxBackoffIntervalMs; }
+int ClientConfiguration::getMaxBackoffIntervalMs() const { return impl_->maxBackoffIntervalMs; }
 
 ClientConfiguration& ClientConfiguration::setLogConfFilePath(const std::string& logConfFilePath) {
     impl_->logConfFilePath = logConfFilePath;
@@ -156,21 +156,24 @@ ClientConfiguration& ClientConfiguration::setLogger(LoggerFactory* loggerFactory
     return *this;
 }
 
-ClientConfiguration& ClientConfiguration::setStatsIntervalInSeconds(const uint32_t& statsIntervalInSeconds) {
+ClientConfiguration& ClientConfiguration::setStatsIntervalInSeconds(
+    const unsigned int& statsIntervalInSeconds) {
     impl_->statsIntervalInSeconds = statsIntervalInSeconds;
     return *this;
 }
 
-const uint32_t& ClientConfiguration::getStatsIntervalInSeconds() const {
+const unsigned int& ClientConfiguration::getStatsIntervalInSeconds() const {
     return impl_->statsIntervalInSeconds;
 }
 
-ClientConfiguration& ClientConfiguration::setPartititionsUpdateInterval(uint32_t intervalInSeconds) {
+ClientConfiguration& ClientConfiguration::setPartititionsUpdateInterval(unsigned int intervalInSeconds) {
     impl_->partitionsUpdateInterval = intervalInSeconds;
     return *this;
 }
 
-uint32_t ClientConfiguration::getPartitionsUpdateInterval() const { return impl_->partitionsUpdateInterval; }
+unsigned int ClientConfiguration::getPartitionsUpdateInterval() const {
+    return impl_->partitionsUpdateInterval;
+}
 
 ClientConfiguration& ClientConfiguration::setListenerName(const std::string& listenerName) {
     impl_->listenerName = listenerName;
@@ -179,11 +182,11 @@ ClientConfiguration& ClientConfiguration::setListenerName(const std::string& lis
 
 const std::string& ClientConfiguration::getListenerName() const { return impl_->listenerName; }
 
-ClientConfiguration& ClientConfiguration::setConnectionTimeout(int32_t timeoutMs) {
+ClientConfiguration& ClientConfiguration::setConnectionTimeout(int timeoutMs) {
     impl_->connectionTimeoutMs = timeoutMs;
     return *this;
 }
 
-int32_t ClientConfiguration::getConnectionTimeout() const { return impl_->connectionTimeoutMs; }
+int ClientConfiguration::getConnectionTimeout() const { return impl_->connectionTimeoutMs; }
 
 }  // namespace pulsar
