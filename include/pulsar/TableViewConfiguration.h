@@ -22,52 +22,15 @@
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
 
-#include <memory>
-
 namespace pulsar {
 
-struct TableViewConfigurationImpl;
-
-/**
- * Class specifying the configuration of a consumer.
- */
-class PULSAR_PUBLIC TableViewConfiguration {
-   public:
-    TableViewConfiguration();
-    ~TableViewConfiguration();
-    TableViewConfiguration(const TableViewConfiguration&);
-    TableViewConfiguration& operator=(const TableViewConfiguration&);
-
-    /**
-     * @return the schema information declared for this consumer
-     */
-    const SchemaInfo& getSchemaInfo() const;
-
-    /**
-     * Declare the schema of the data that this table view will be accepting.
-     *
-     * The schema will be checked against the schema of the topic, and the
-     * table view creation will fail if it's not compatible.
-     *
-     * @param schemaInfo the schema definition object
-     */
-    TableViewConfiguration& setSchemaInfo(const SchemaInfo& schemaInfo);
-
-    /**
-     * @return subscriptionName
-     */
-    const std::string& getSubscriptionName() const;
-
-    /**
-     * Set the internal consumer subscription name of the {@link TableView}.
-     *
-     * @param subscriptionName the name of the subscription to the topic.
-     * Default value is reader-{random string}.
-     */
-    TableViewConfiguration& setSubscriptionName(const std::string subscriptionName);
-
-   private:
-    std::shared_ptr<TableViewConfigurationImpl> impl_;
+struct TableViewConfiguration {
+    // Declare the schema of the data that this table view will be accepting.
+    // The schema will be checked against the schema of the topic, and the
+    // table view creation will fail if it's not compatible.
+    SchemaInfo schemaInfo;
+    // The name of the subscription to the topic. Default value is reader-{random string}.
+    std::string subscriptionName;
 };
 }  // namespace pulsar
 #endif /* PULSAR_TABLEVIEW_CONFIGURATION_H_ */
