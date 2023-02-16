@@ -995,7 +995,7 @@ void MultiTopicsConsumerImpl::subscribeSingleNewConsumer(
 
     auto consumer = std::make_shared<ConsumerImpl>(client, topicPartitionName, subscriptionName_, config,
                                                    topicName->isPersistent(), internalListenerExecutor, true,
-                                                   Partitioned);
+                                                   Partitioned, subscriptionMode_, startMessageId_);
     consumer->getConsumerCreatedFuture().addListener(
         [this, weakSelf, partitionsNeedCreate, topicSubResultPromise](
             Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr) {

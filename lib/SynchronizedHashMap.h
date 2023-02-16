@@ -122,7 +122,6 @@ class SynchronizedHashMap {
         return pairs;
     }
 
-    // This method is only used for test
     size_t size() const noexcept {
         Lock lock(mutex_);
         return data_.size();

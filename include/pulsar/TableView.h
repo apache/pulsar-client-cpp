@@ -112,7 +112,7 @@ class PULSAR_PUBLIC TableView {
     void closeAsync(ResultCallback callback);
 
     /**
-     * Close the consumer and stop the broker to push more messages
+     * Close the table view and stop the broker to push more messages
      */
     Result close();
 
