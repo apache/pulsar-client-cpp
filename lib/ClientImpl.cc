@@ -117,9 +117,8 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
             std::cref(clientConfiguration_.getAuthPtr()));
     } else {
         LOG_DEBUG("Using Binary Lookup");
-        underlyingLookupServicePtr =
-            std::make_shared<BinaryProtoLookupService>(std::ref(serviceNameResolver_), std::ref(pool_),
-                                                       std::cref(clientConfiguration_.getListenerName()));
+        underlyingLookupServicePtr = std::make_shared<BinaryProtoLookupService>(
+            std::ref(serviceNameResolver_), std::ref(pool_), std::cref(clientConfiguration_));
     }
 
     lookupServicePtr_ = RetryableLookupService::create(

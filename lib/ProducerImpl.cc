@@ -55,11 +55,11 @@ struct ProducerImpl::PendingCallbacks {
 };
 
 ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
-                           const ProducerConfiguration& conf, ProducerInterceptorsPtr interceptors,
-                           int32_t partition)
-    : HandlerBase(
-          client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
-          Backoff(milliseconds(100), seconds(60), milliseconds(std::max(100, conf.getSendTimeout() - 100)))),
+                           const ProducerConfiguration& conf, ProducerInterceptorsPtr interceptors, int32_t partition)
+    : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
+                  Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
+                          milliseconds(client->getClientConfig().getMaxBackoffIntervalMs()),
+                          milliseconds(std::max(100, conf.getSendTimeout() - 100)))),
       conf_(conf),
       semaphore_(),
       pendingMessagesQueue_(),

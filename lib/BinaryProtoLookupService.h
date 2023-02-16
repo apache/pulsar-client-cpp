@@ -20,6 +20,7 @@
 #define _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 
 #include <pulsar/Authentication.h>
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/Schema.h>
 
 #include <mutex>
@@ -38,8 +39,11 @@ using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, boost::optional<Sche
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
     BinaryProtoLookupService(ServiceNameResolver& serviceNameResolver, ConnectionPool& pool,
-                             const std::string& listenerName)
-        : serviceNameResolver_(serviceNameResolver), cnxPool_(pool), listenerName_(listenerName) {}
+                             const ClientConfiguration& clientConfiguration)
+        : serviceNameResolver_(serviceNameResolver),
+          cnxPool_(pool),
+          listenerName_(clientConfiguration.getListenerName()),
+          maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()) {}
 
     LookupResultFuture getBroker(const TopicName& topicName) override;
 
@@ -49,6 +53,11 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
 
     Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override;
 
+   protected:
+    // Mark findBroker as protected to make it accessible from test.
+    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
+                                  size_t redirectCount);
+
    private:
     std::mutex mutex_;
     uint64_t requestIdGenerator_ = 0;
@@ -56,9 +65,7 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     ServiceNameResolver& serviceNameResolver_;
     ConnectionPool& cnxPool_;
     std::string listenerName_;
-
-    // TODO: limit the redirect count, see https://github.com/apache/pulsar/pull/7096
-    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic);
+    const int32_t maxLookupRedirects_;
 
     void sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
                                             const ClientConnectionWeakPtr& clientCnx,

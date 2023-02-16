@@ -30,6 +30,9 @@ struct ClientConfigurationImpl {
     int operationTimeoutSeconds{30};
     int messageListenerThreads{1};
     int concurrentLookupRequest{50000};
+    int maxLookupRedirects{20};
+    int initialBackoffIntervalMs{100};
+    int maxBackoffIntervalMs{60000};
     std::string logConfFilePath;
     bool useTls{false};
     std::string tlsPrivateKeyFilePath;
