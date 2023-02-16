@@ -123,6 +123,27 @@ ClientConfiguration& ClientConfiguration::setConcurrentLookupRequest(int concurr
 
 int ClientConfiguration::getConcurrentLookupRequest() const { return impl_->concurrentLookupRequest; }
 
+ClientConfiguration& ClientConfiguration::setMaxLookupRedirects(int maxLookupRedirects) {
+    impl_->maxLookupRedirects = maxLookupRedirects;
+    return *this;
+}
+
+int ClientConfiguration::getMaxLookupRedirects() const { return impl_->maxLookupRedirects; }
+
+ClientConfiguration& ClientConfiguration::setInitialBackoffIntervalMs(int initialBackoffIntervalMs) {
+    impl_->initialBackoffIntervalMs = initialBackoffIntervalMs;
+    return *this;
+}
+
+int ClientConfiguration::getInitialBackoffIntervalMs() const { return impl_->initialBackoffIntervalMs; }
+
+ClientConfiguration& ClientConfiguration::setMaxBackoffIntervalMs(int maxBackoffIntervalMs) {
+    impl_->maxBackoffIntervalMs = maxBackoffIntervalMs;
+    return *this;
+}
+
+int ClientConfiguration::getMaxBackoffIntervalMs() const { return impl_->maxBackoffIntervalMs; }
+
 ClientConfiguration& ClientConfiguration::setLogConfFilePath(const std::string& logConfFilePath) {
     impl_->logConfFilePath = logConfFilePath;
     return *this;

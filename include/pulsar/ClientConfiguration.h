@@ -117,6 +117,45 @@ class PULSAR_PUBLIC ClientConfiguration {
     int getConcurrentLookupRequest() const;
 
     /**
+     * Max number of lookup redirection allowed on each look request to prevent overload on broker.
+     * <i>(default: 20)</i>
+     *
+     * @param maxLookupRedirects
+     */
+    ClientConfiguration& setMaxLookupRedirects(int maxLookupRedirects);
+
+    /**
+     * @return Get configured total allowed lookup redirecting.
+     */
+    int getMaxLookupRedirects() const;
+
+    /**
+     * Initial backoff interval in milliseconds.
+     * <i>(default: 100)</i>
+     *
+     * @param initialBackoffIntervalMs
+     */
+    ClientConfiguration& setInitialBackoffIntervalMs(int initialBackoffIntervalMs);
+
+    /**
+     * @return Get initial backoff interval in milliseconds.
+     */
+    int getInitialBackoffIntervalMs() const;
+
+    /**
+     * Max backoff interval in milliseconds.
+     * <i>(default: 60000)</i>
+     *
+     * @param maxBackoffIntervalMs
+     */
+    ClientConfiguration& setMaxBackoffIntervalMs(int maxBackoffIntervalMs);
+
+    /**
+     * @return Get max backoff interval in milliseconds.
+     */
+    int getMaxBackoffIntervalMs() const;
+
+    /**
      * Initialize the log configuration
      *
      * @param logConfFilePath  path of the configuration file
