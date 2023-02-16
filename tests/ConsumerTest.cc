@@ -902,8 +902,8 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     std::string topicName = "testRedeliveryOfDecryptionFailedMessages" + std::to_string(time(nullptr));
     std::string subName = "sub-test";
 
-    std::string PUBLIC_CERT_FILE_PATH = "../test-conf//public-key.client-rsa.pem";
-    std::string PRIVATE_CERT_FILE_PATH = "../test-conf//private-key.client-rsa.pem";
+    std::string PUBLIC_CERT_FILE_PATH = "../test-conf/public-key.client-rsa.pem";
+    std::string PRIVATE_CERT_FILE_PATH = "../test-conf/private-key.client-rsa.pem";
     std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader =
         std::make_shared<pulsar::DefaultCryptoKeyReader>(PUBLIC_CERT_FILE_PATH, PRIVATE_CERT_FILE_PATH);
 
@@ -946,9 +946,7 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     std::string msgContent = "msg-content";
     Message msg;
     for (int i = 0; i < numberOfMessages; i++) {
-        std::stringstream stream;
-        stream << msgContent << i;
-        msg = MessageBuilder().setContent(stream.str()).build();
+        msg = MessageBuilder().setContent(msgContent + std::to_string(i)).build();
         ASSERT_EQ(ResultOk, producer.send(msg));
     }
 
@@ -958,19 +956,22 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     ASSERT_EQ(ResultTimeout, consumer3.receive(msg, 1000));
 
     // All messages would be received by consumer 1
-    std::unordered_set<std::string> receivedMsgs;
+    std::set<std::string> valuesSent;
+    for (int i = 0; i < numberOfMessages; i++) {
+        auto value = msgContent + std::to_string(i);
+        valuesSent.emplace(value);
+        msg = MessageBuilder().setContent(value).build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    // All messages would be received by consumer 1
+    std::set<std::string> valuesReceived;
     for (int i = 0; i < numberOfMessages; i++) {
         ASSERT_EQ(ResultOk, consumer1.receive(msg, 2000));
         ASSERT_EQ(ResultOk, consumer1.acknowledge(msg));
-        receivedMsgs.insert(msg.getDataAsString());
+        valuesReceived.emplace(msg.getDataAsString());
     }
-
-    ASSERT_EQ(receivedMsgs.size(), numberOfMessages);
-    for (int i = 0; i < numberOfMessages; i++) {
-        std::stringstream expected;
-        expected << msgContent << i;
-        ASSERT_TRUE(receivedMsgs.count(expected.str()));
-    }
+    ASSERT_EQ(valuesSent, valuesReceived);
 
     // Consuming from consumer 2 and 3 again just to be sure
     // no message should be returned since they can't decrypt the message
