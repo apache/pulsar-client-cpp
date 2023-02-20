@@ -39,13 +39,14 @@ const std::string PartitionedProducerImpl::PARTITION_NAME_SUFFIX = "-partition-"
 PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const TopicNamePtr topicName,
                                                  const unsigned int numPartitions,
                                                  const ProducerConfiguration& config,
-                                                 ProducerInterceptorsPtr interceptors)
+                                                 const ProducerInterceptorsPtr& interceptors)
     : client_(client),
       topicName_(topicName),
       topic_(topicName_->toString()),
       conf_(config),
       topicMetadata_(new TopicMetadataImpl(numPartitions)),
-      flushedPartitions_(0) {
+      flushedPartitions_(0),
+      interceptors_(interceptors) {
     routerPolicy_ = getMessageRouter();
 
     int maxPendingMessagesPerPartition =
@@ -60,8 +61,6 @@ PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const Top
         partitionsUpdateInterval_ = boost::posix_time::seconds(partitionsUpdateInterval);
         lookupServicePtr_ = client->getLookup();
     }
-
-    interceptors_ = interceptors;
 }
 
 MessageRoutingPolicyPtr PartitionedProducerImpl::getMessageRouter() {

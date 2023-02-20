@@ -55,7 +55,7 @@ struct ProducerImpl::PendingCallbacks {
 };
 
 ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
-                           const ProducerConfiguration& conf, ProducerInterceptorsPtr interceptors,
+                           const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
                            int32_t partition)
     : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
                   Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
@@ -74,15 +74,14 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       sendTimer_(executor_->getIOService()),
       dataKeyRefreshTask_(executor_->getIOService(), 4 * 60 * 60 * 1000),
       memoryLimitController_(client->getMemoryLimitController()),
-      chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()) {
+      chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()),
+      interceptors_(interceptors) {
     LOG_DEBUG("ProducerName - " << producerName_ << " Created producer on topic " << topic_
                                 << " id: " << producerId_);
 
     int64_t initialSequenceId = conf.getInitialSequenceId();
     lastSequenceIdPublished_ = initialSequenceId;
     msgSequenceGenerator_ = initialSequenceId + 1;
-
-    interceptors_ = interceptors;
 
     if (!producerName_.empty()) {
         userProvidedProducerName_ = true;
