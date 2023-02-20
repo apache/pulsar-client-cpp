@@ -50,7 +50,7 @@ jobs:
       - name: Install deps (macOS)
         if: ${{ startsWith(matrix.os, 'macos') }}
         run:
-          brew install wireshark protobuf
+          brew install pkg-config wireshark protobuf
 
       - name: Build wireshark plugin
         run: |
