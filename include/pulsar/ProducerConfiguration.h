@@ -94,7 +94,13 @@ class PULSAR_PUBLIC ProducerConfiguration {
         /**
          * Producer creation is pending until it can acquire exclusive access.
          */
-        WaitForExclusive = 2
+        WaitForExclusive = 2,
+
+        /**
+         * Acquire exclusive access for the producer. Any existing producer will be removed and
+         * invalidated immediately.
+         */
+        ExclusiveWithFencing = 3
     };
 
     ProducerConfiguration();
