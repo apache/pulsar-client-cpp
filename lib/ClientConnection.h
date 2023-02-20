@@ -76,7 +76,20 @@ namespace proto {
 class BaseCommand;
 class CommandActiveConsumerChange;
 class CommandMessage;
+class CommandCloseConsumer;
+class CommandCloseProducer;
 class CommandConnected;
+class CommandConsumerStatsResponse;
+class CommandGetSchemaResponse;
+class CommandGetTopicsOfNamespaceResponse;
+class CommandError;
+class CommandGetLastMessageIdResponse;
+class CommandLookupTopicResponse;
+class CommandPartitionedTopicMetadataResponse;
+class CommandProducerSuccess;
+class CommandSendReceipt;
+class CommandSendError;
+class CommandSuccess;
 }  // namespace proto
 
 // Data returned on the request operation. Mostly used on create-producer command
@@ -362,6 +375,21 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void closeSocket();
     void checkServerError(ServerError error);
+
+    void handleSendReceipt(const proto::CommandSendReceipt&);
+    void handleSendError(const proto::CommandSendError&);
+    void handleSuccess(const proto::CommandSuccess&);
+    void handlePartitionedMetadataResponse(const proto::CommandPartitionedTopicMetadataResponse&);
+    void handleConsumerStatsResponse(const proto::CommandConsumerStatsResponse&);
+    void handleLookupTopicRespose(const proto::CommandLookupTopicResponse&);
+    void handleProducerSuccess(const proto::CommandProducerSuccess&);
+    void handleError(const proto::CommandError&);
+    void handleCloseProducer(const proto::CommandCloseProducer&);
+    void handleCloseConsumer(const proto::CommandCloseConsumer&);
+    void handleAuthChallenge();
+    void handleGetLastMessageIdResponse(const proto::CommandGetLastMessageIdResponse&);
+    void handleGetTopicOfNamespaceResponse(const proto::CommandGetTopicsOfNamespaceResponse&);
+    void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
 };
 }  // namespace pulsar
 
