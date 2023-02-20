@@ -55,7 +55,8 @@ struct ProducerImpl::PendingCallbacks {
 };
 
 ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
-                           const ProducerConfiguration& conf, int32_t partition)
+                           const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
+                           int32_t partition)
     : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
                   Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
                           milliseconds(client->getClientConfig().getMaxBackoffIntervalMs()),
@@ -73,7 +74,8 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       sendTimer_(executor_->getIOService()),
       dataKeyRefreshTask_(executor_->getIOService(), 4 * 60 * 60 * 1000),
       memoryLimitController_(client->getMemoryLimitController()),
-      chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()) {
+      chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()),
+      interceptors_(interceptors) {
     LOG_DEBUG("ProducerName - " << producerName_ << " Created producer on topic " << topic_
                                 << " id: " << producerId_);
 
@@ -432,10 +434,17 @@ static SharedBuffer applyCompression(const SharedBuffer& uncompressedPayload,
 void ProducerImpl::sendAsync(const Message& msg, SendCallback callback) {
     producerStatsBasePtr_->messageSent(msg);
 
+    Producer producer = Producer(shared_from_this());
+    auto interceptorMessage = interceptors_->beforeSend(producer, msg);
+
     const auto now = boost::posix_time::microsec_clock::universal_time();
     auto self = shared_from_this();
-    sendAsyncWithStatsUpdate(msg, [this, self, now, callback](Result result, const MessageId& messageId) {
+    sendAsyncWithStatsUpdate(interceptorMessage, [this, self, now, callback, producer, interceptorMessage](
+                                                     Result result, const MessageId& messageId) {
         producerStatsBasePtr_->messageReceived(result, now);
+
+        interceptors_->onSendAcknowledgement(producer, result, interceptorMessage, messageId);
+
         if (callback) {
             callback(result, messageId);
         }
@@ -931,6 +940,7 @@ void ProducerImpl::start() {
 
 void ProducerImpl::shutdown() {
     resetCnx();
+    interceptors_->close();
     auto client = client_.lock();
     if (client) {
         client->cleanupProducer(this);
@@ -979,3 +989,4 @@ void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
 ProducerImplWeakPtr ProducerImpl::weak_from_this() noexcept { return shared_from_this(); }
 
 }  // namespace pulsar
+/* namespace pulsar */

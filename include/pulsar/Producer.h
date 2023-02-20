@@ -166,6 +166,7 @@ class PULSAR_PUBLIC Producer {
     friend class ClientImpl;
     friend class PulsarFriend;
     friend class PulsarWrapper;
+    friend class ProducerImpl;
 
     ProducerImplBasePtr impl_;
 

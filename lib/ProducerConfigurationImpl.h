@@ -51,6 +51,7 @@ struct ProducerConfigurationImpl {
     bool chunkingEnabled{false};
     ProducerConfiguration::ProducerAccessMode accessMode{ProducerConfiguration::Shared};
     std::string initialSubscriptionName;
+    std::vector<ProducerInterceptorPtr> interceptors;
 };
 }  // namespace pulsar
 

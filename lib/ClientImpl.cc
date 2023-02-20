@@ -33,6 +33,7 @@
 #include "PartitionedProducerImpl.h"
 #include "PatternMultiTopicsConsumerImpl.h"
 #include "ProducerImpl.h"
+#include "ProducerInterceptors.h"
 #include "ReaderImpl.h"
 #include "RetryableLookupService.h"
 #include "TimeUtils.h"
@@ -187,11 +188,14 @@ void ClientImpl::handleCreateProducer(const Result result, const LookupDataResul
                                       CreateProducerCallback callback) {
     if (!result) {
         ProducerImplBasePtr producer;
+
+        auto interceptors = std::make_shared<ProducerInterceptors>(conf.getInterceptors());
+
         if (partitionMetadata->getPartitions() > 0) {
-            producer = std::make_shared<PartitionedProducerImpl>(shared_from_this(), topicName,
-                                                                 partitionMetadata->getPartitions(), conf);
+            producer = std::make_shared<PartitionedProducerImpl>(
+                shared_from_this(), topicName, partitionMetadata->getPartitions(), conf, interceptors);
         } else {
-            producer = std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf);
+            producer = std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors);
         }
         producer->getProducerCreatedFuture().addListener(
             std::bind(&ClientImpl::handleProducerCreated, shared_from_this(), std::placeholders::_1,

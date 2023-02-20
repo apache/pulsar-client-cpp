@@ -38,13 +38,15 @@ const std::string PartitionedProducerImpl::PARTITION_NAME_SUFFIX = "-partition-"
 
 PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const TopicNamePtr topicName,
                                                  const unsigned int numPartitions,
-                                                 const ProducerConfiguration& config)
+                                                 const ProducerConfiguration& config,
+                                                 const ProducerInterceptorsPtr& interceptors)
     : client_(client),
       topicName_(topicName),
       topic_(topicName_->toString()),
       conf_(config),
       topicMetadata_(new TopicMetadataImpl(numPartitions)),
-      flushedPartitions_(0) {
+      flushedPartitions_(0),
+      interceptors_(interceptors) {
     routerPolicy_ = getMessageRouter();
 
     int maxPendingMessagesPerPartition =
@@ -93,7 +95,7 @@ unsigned int PartitionedProducerImpl::getNumPartitionsWithLock() const {
 ProducerImplPtr PartitionedProducerImpl::newInternalProducer(unsigned int partition, bool lazy) {
     using namespace std::placeholders;
     auto client = client_.lock();
-    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, partition);
+    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, interceptors_, partition);
     if (!client) {
         return producer;
     }
@@ -227,6 +229,7 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
 // override
 void PartitionedProducerImpl::shutdown() {
     cancelTimers();
+    interceptors_->close();
     auto client = client_.lock();
     if (client) {
         client->cleanupProducer(this);
@@ -446,7 +449,9 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
                 }
                 producers_.push_back(producer);
             }
+            producersLock.unlock();
             // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
+            interceptors_->onPartitionsChange(getTopic(), newNumPartitions);
             return;
         }
     } else {

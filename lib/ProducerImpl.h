@@ -64,7 +64,8 @@ class ProducerImpl : public HandlerBase,
                      public ProducerImplBase {
    public:
     ProducerImpl(ClientImplPtr client, const TopicName& topic,
-                 const ProducerConfiguration& producerConfiguration, int32_t partition = -1);
+                 const ProducerConfiguration& producerConfiguration,
+                 const ProducerInterceptorsPtr& interceptors, int32_t partition = -1);
     ~ProducerImpl();
 
     // overrided methods from ProducerImplBase
@@ -196,6 +197,8 @@ class ProducerImpl : public HandlerBase,
     MemoryLimitController& memoryLimitController_;
     const bool chunkingEnabled_;
     boost::optional<uint64_t> topicEpoch;
+
+    ProducerInterceptorsPtr interceptors_;
 };
 
 struct ProducerImplCmp {
