@@ -70,9 +70,9 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       producerStr_("[" + topic_ + ", " + producerName_ + "] "),
       producerId_(client->newProducerId()),
       msgSequenceGenerator_(0),
-      batchTimer_(executor_->getIOService()),
-      sendTimer_(executor_->getIOService()),
-      dataKeyRefreshTask_(executor_->getIOService(), 4 * 60 * 60 * 1000),
+      batchTimer_(executor_->createDeadlineTimer()),
+      sendTimer_(executor_->createDeadlineTimer()),
+      dataKeyRefreshTask_(*executor_, 4 * 60 * 60 * 1000),
       memoryLimitController_(client->getMemoryLimitController()),
       chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()),
       interceptors_(interceptors) {
@@ -536,10 +536,10 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, const SendCallba
         bool isFirstMessage = batchMessageContainer_->isFirstMessageToAdd(msg);
         bool isFull = batchMessageContainer_->add(msg, callback);
         if (isFirstMessage) {
-            batchTimer_.expires_from_now(
+            batchTimer_->expires_from_now(
                 boost::posix_time::milliseconds(conf_.getBatchingMaxPublishDelayMs()));
             auto weakSelf = weak_from_this();
-            batchTimer_.async_wait([this, weakSelf](const boost::system::error_code& ec) {
+            batchTimer_->async_wait([this, weakSelf](const boost::system::error_code& ec) {
                 auto self = weakSelf.lock();
                 if (!self) {
                     return;
@@ -666,7 +666,7 @@ void ProducerImpl::releaseSemaphoreForSendOp(const OpSendMsg& op) {
 PendingFailures ProducerImpl::batchMessageAndSend(const FlushCallback& flushCallback) {
     PendingFailures failures;
     LOG_DEBUG("batchMessageAndSend " << *batchMessageContainer_);
-    batchTimer_.cancel();
+    batchTimer_->cancel();
 
     batchMessageContainer_->processAndClear(
         [this, &failures](Result result, const OpSendMsg& opSendMsg) {
@@ -953,8 +953,8 @@ void ProducerImpl::shutdown() {
 void ProducerImpl::cancelTimers() noexcept {
     dataKeyRefreshTask_.stop();
     boost::system::error_code ec;
-    batchTimer_.cancel(ec);
-    sendTimer_.cancel(ec);
+    batchTimer_->cancel(ec);
+    sendTimer_->cancel(ec);
 }
 
 bool ProducerImplCmp::operator()(const ProducerImplPtr& a, const ProducerImplPtr& b) const {
@@ -975,10 +975,10 @@ void ProducerImpl::startSendTimeoutTimer() {
 }
 
 void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
-    sendTimer_.expires_from_now(expiryTime);
+    sendTimer_->expires_from_now(expiryTime);
 
     auto weakSelf = weak_from_this();
-    sendTimer_.async_wait([weakSelf](const boost::system::error_code& err) {
+    sendTimer_->async_wait([weakSelf](const boost::system::error_code& err) {
         auto self = weakSelf.lock();
         if (self) {
             std::static_pointer_cast<ProducerImpl>(self)->handleSendTimeout(err);
