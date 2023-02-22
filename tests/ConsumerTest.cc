@@ -944,9 +944,12 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
 
     int numberOfMessages = 20;
     std::string msgContent = "msg-content";
+    std::set<std::string> valuesSent;
     Message msg;
     for (int i = 0; i < numberOfMessages; i++) {
-        msg = MessageBuilder().setContent(msgContent + std::to_string(i)).build();
+        auto value = msgContent + std::to_string(i);
+        valuesSent.emplace(value);
+        msg = MessageBuilder().setContent(value).build();
         ASSERT_EQ(ResultOk, producer.send(msg));
     }
 
@@ -954,15 +957,6 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     // no message should be returned since they can't decrypt the message
     ASSERT_EQ(ResultTimeout, consumer2.receive(msg, 1000));
     ASSERT_EQ(ResultTimeout, consumer3.receive(msg, 1000));
-
-    // All messages would be received by consumer 1
-    std::set<std::string> valuesSent;
-    for (int i = 0; i < numberOfMessages; i++) {
-        auto value = msgContent + std::to_string(i);
-        valuesSent.emplace(value);
-        msg = MessageBuilder().setContent(value).build();
-        ASSERT_EQ(ResultOk, producer.send(msg));
-    }
 
     // All messages would be received by consumer 1
     std::set<std::string> valuesReceived;
