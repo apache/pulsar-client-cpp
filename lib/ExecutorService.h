@@ -73,19 +73,13 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
     std::atomic_bool closed_{false};
     std::mutex mutex_;
     std::condition_variable cond_;
-    std::atomic_bool ioServiceDone_{false};
+    bool ioServiceDone_{false};
 
     ExecutorService();
 
     void start();
 
-    void restart() {
-        close();
-        closed_ = false;
-        ioServiceDone_ = false;
-        io_service_.restart();
-        start();
-    }
+    void restart();
 };
 
 using ExecutorServicePtr = ExecutorService::SharedPtr;

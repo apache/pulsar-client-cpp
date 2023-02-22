@@ -31,9 +31,6 @@ ExecutorService::~ExecutorService() { close(0); }
 void ExecutorService::start() {
     auto self = shared_from_this();
     std::thread t{[self] {
-        if (self->isClosed()) {
-            return;
-        }
         LOG_DEBUG("Run io_service in a single thread");
         boost::system::error_code ec;
         IOService::work work_{self->getIOService()};
@@ -43,7 +40,11 @@ void ExecutorService::start() {
         } else {
             LOG_DEBUG("Event loop of ExecutorService exits successfully");
         }
-        self->ioServiceDone_ = true;
+
+        {
+            std::lock_guard<std::mutex> lock{self->mutex_};
+            self->ioServiceDone_ = true;
+        }
         self->cond_.notify_all();
     }};
     t.detach();
@@ -102,6 +103,17 @@ DeadlineTimerPtr ExecutorService::createDeadlineTimer() {
     }
 }
 
+void ExecutorService::restart() {
+    close(-1);  // make sure it's closed
+    closed_ = false;
+    {
+        std::lock_guard<std::mutex> lock{mutex_};
+        ioServiceDone_ = false;
+    }
+    io_service_.restart();
+    start();
+}
+
 void ExecutorService::close(long timeoutMs) {
     bool expectedState = false;
     if (!closed_.compare_exchange_strong(expectedState, true)) {
@@ -115,9 +127,9 @@ void ExecutorService::close(long timeoutMs) {
     std::unique_lock<std::mutex> lock{mutex_};
     io_service_.stop();
     if (timeoutMs > 0) {
-        cond_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return ioServiceDone_.load(); });
+        cond_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return ioServiceDone_; });
     } else {  // < 0
-        cond_.wait(lock, [this] { return ioServiceDone_.load(); });
+        cond_.wait(lock, [this] { return ioServiceDone_; });
     }
 }
 
