@@ -20,7 +20,13 @@
 
 #include <curl/curl.h>
 
-static int makeRequest(const std::string& method, const std::string& url, const std::string& body) {
+static size_t curlWriteCallback(void* contents, size_t size, size_t nmemb, void* responseDataPtr) {
+    ((std::string*)responseDataPtr)->append((char*)contents, size * nmemb);
+    return size * nmemb;
+}
+
+static int makeRequest(const std::string& method, const std::string& url, const std::string& body,
+                       const std::string& responseData) {
     CURL* curl = curl_easy_init();
 
     struct curl_slist* list = NULL;
@@ -33,6 +39,11 @@ static int makeRequest(const std::string& method, const std::string& url, const 
     if (!body.empty()) {
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
     }
+
+    // Write callback
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCallback);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &responseData);
+
     int res = curl_easy_perform(curl);
     curl_slist_free_all(list); /* free the list again */
 
@@ -46,10 +57,16 @@ static int makeRequest(const std::string& method, const std::string& url, const 
     return (int)httpResult;
 }
 
-int makePutRequest(const std::string& url, const std::string& body) { return makeRequest("PUT", url, body); }
-
-int makePostRequest(const std::string& url, const std::string& body) {
-    return makeRequest("POST", url, body);
+int makePutRequest(const std::string& url, const std::string& body) {
+    return makeRequest("PUT", url, body, "");
 }
 
-int makeDeleteRequest(const std::string& url) { return makeRequest("DELETE", url, ""); }
+int makePostRequest(const std::string& url, const std::string& body) {
+    return makeRequest("POST", url, body, "");
+}
+
+int makeDeleteRequest(const std::string& url) { return makeRequest("DELETE", url, "", ""); }
+
+int makeGetRequest(const std::string& url, const std::string& responseData) {
+    return makeRequest("GET", url, "", responseData);
+}
