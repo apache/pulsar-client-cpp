@@ -465,9 +465,9 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
                 }
             }
             producersLock.unlock();
-            // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
             interceptors_->onPartitionsChange(getTopic(), newNumPartitions);
-            runPartitionUpdateTask();
+            // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
+            return;
         }
     } else {
         LOG_WARN("Failed to getPartitionMetadata: " << strResult(result));
