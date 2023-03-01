@@ -294,7 +294,7 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
     BaseCommand cmd;
     cmd.set_type(BaseCommand::AUTH_RESPONSE);
     CommandAuthResponse* authResponse = cmd.mutable_authresponse();
-    authResponse->set_client_version(std::string("Pulsar-C++-v") + PULSAR_VERSION_STR);
+    authResponse->set_client_version(std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR);
 
     AuthData* authData = authResponse->mutable_response();
     authData->set_auth_method_name(authentication->getAuthMethodName());

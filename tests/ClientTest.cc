@@ -313,7 +313,7 @@ TEST(ClientTest, testCloseClient) {
 
 TEST(ClientTest, testClientVersion) {
     const std::string topic = "testClientVersion" + std::to_string(time(nullptr));
-    const std::string expectedVersion = std::string("Pulsar-C++-v") + PULSAR_VERSION_STR;
+    const std::string expectedVersion = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
 
     Client client(lookupUrl);
 
