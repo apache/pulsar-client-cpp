@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/Version.h>
 
 #include <chrono>
 #include <future>
@@ -34,6 +35,7 @@ DECLARE_LOG_OBJECT()
 using namespace pulsar;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
+static std::string adminUrl = "http://localhost:8080/";
 
 TEST(ClientTest, testChecksumComputation) {
     std::string data = "test";
@@ -307,4 +309,35 @@ TEST(ClientTest, testCloseClient) {
         }
         client.close();
     }
+}
+
+TEST(ClientTest, testClientVersion) {
+    const std::string topic = "testClientVersion" + std::to_string(time(nullptr));
+    const std::string expectedVersion = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
+
+    Client client(lookupUrl);
+
+    std::string responseData;
+
+    Producer producer;
+    Result result = client.createProducer(topic, producer);
+    ASSERT_EQ(ResultOk, result);
+    int res =
+        makeGetRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats", responseData);
+    ASSERT_TRUE(res == 200) << "res: " << res;
+
+    ASSERT_TRUE(responseData.find(expectedVersion) != std::string::npos);
+    producer.close();
+
+    responseData.clear();
+    Consumer consumer;
+    result = client.subscribe(topic, "consumer-1", consumer);
+    ASSERT_EQ(ResultOk, result);
+    res = makeGetRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats", responseData);
+    ASSERT_TRUE(res == 200) << "res: " << res;
+
+    ASSERT_TRUE(responseData.find(expectedVersion) != std::string::npos);
+    consumer.close();
+
+    client.close();
 }

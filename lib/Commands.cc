@@ -266,7 +266,7 @@ SharedBuffer Commands::newConnect(const AuthenticationPtr& authentication, const
     BaseCommand cmd;
     cmd.set_type(BaseCommand::CONNECT);
     CommandConnect* connect = cmd.mutable_connect();
-    connect->set_client_version(PULSAR_VERSION_STR);
+    connect->set_client_version(std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR);
     connect->set_auth_method_name(authentication->getAuthMethodName());
     connect->set_protocol_version(ProtocolVersion_MAX);
 
@@ -294,7 +294,7 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
     BaseCommand cmd;
     cmd.set_type(BaseCommand::AUTH_RESPONSE);
     CommandAuthResponse* authResponse = cmd.mutable_authresponse();
-    authResponse->set_client_version(PULSAR_VERSION_STR);
+    authResponse->set_client_version(std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR);
 
     AuthData* authData = authResponse->mutable_response();
     authData->set_auth_method_name(authentication->getAuthMethodName());
