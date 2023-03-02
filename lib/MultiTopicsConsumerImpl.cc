@@ -230,9 +230,15 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
     // non-partitioned topic
     if (numPartitions == 0) {
         // We don't have to add partition-n suffix
-        consumer = std::make_shared<ConsumerImpl>(client, topicName->toString(), subscriptionName_, config,
-                                                  topicName->isPersistent(), internalListenerExecutor, true,
-                                                  NonPartitioned, subscriptionMode_, startMessageId_);
+        try {
+            consumer = std::make_shared<ConsumerImpl>(
+                client, topicName->toString(), subscriptionName_, config, topicName->isPersistent(),
+                internalListenerExecutor, true, NonPartitioned, subscriptionMode_, startMessageId_);
+        } catch (const std::runtime_error& e) {
+            LOG_ERROR("Failed to create ConsumerImpl for " << topicName->toString() << ": " << e.what());
+            topicSubResultPromise->setFailed(ResultConnectError);
+            return;
+        }
         consumer->getConsumerCreatedFuture().addListener(std::bind(
             &MultiTopicsConsumerImpl::handleSingleConsumerCreated, get_shared_this_ptr(),
             std::placeholders::_1, std::placeholders::_2, partitionsNeedCreate, topicSubResultPromise));
@@ -241,11 +247,23 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
         consumer->start();
 
     } else {
+        std::vector<ConsumerImplPtr> consumers;
         for (int i = 0; i < numPartitions; i++) {
             std::string topicPartitionName = topicName->getTopicPartitionName(i);
-            consumer = std::make_shared<ConsumerImpl>(client, topicPartitionName, subscriptionName_, config,
-                                                      topicName->isPersistent(), internalListenerExecutor,
-                                                      true, Partitioned, subscriptionMode_, startMessageId_);
+            try {
+                consumer = std::make_shared<ConsumerImpl>(
+                    client, topicPartitionName, subscriptionName_, config, topicName->isPersistent(),
+                    internalListenerExecutor, true, Partitioned, subscriptionMode_, startMessageId_);
+            } catch (const std::runtime_error& e) {
+                LOG_ERROR("Failed to create ConsumerImpl for " << topicPartitionName << ": " << e.what());
+                topicSubResultPromise->setFailed(ResultConnectError);
+                return;
+            }
+            consumers.emplace_back(consumer);
+        }
+        for (size_t i = 0; i < consumers.size(); i++) {
+            std::string topicPartitionName = topicName->getTopicPartitionName(i);
+            auto&& consumer = consumers[i];
             consumer->getConsumerCreatedFuture().addListener(std::bind(
                 &MultiTopicsConsumerImpl::handleSingleConsumerCreated, get_shared_this_ptr(),
                 std::placeholders::_1, std::placeholders::_2, partitionsNeedCreate, topicSubResultPromise));

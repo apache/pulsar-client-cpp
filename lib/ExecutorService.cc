@@ -31,18 +31,20 @@ ExecutorService::~ExecutorService() { close(0); }
 void ExecutorService::start() {
     auto self = shared_from_this();
     std::thread t{[self] {
-        if (self->isClosed()) {
-            return;
-        }
         LOG_DEBUG("Run io_service in a single thread");
         boost::system::error_code ec;
+        IOService::work work_{self->getIOService()};
         self->getIOService().run(ec);
         if (ec) {
             LOG_ERROR("Failed to run io_service: " << ec.message());
         } else {
             LOG_DEBUG("Event loop of ExecutorService exits successfully");
         }
-        self->ioServiceDone_ = true;
+
+        {
+            std::lock_guard<std::mutex> lock{self->mutex_};
+            self->ioServiceDone_ = true;
+        }
         self->cond_.notify_all();
     }};
     t.detach();
@@ -62,7 +64,15 @@ ExecutorServicePtr ExecutorService::create() {
  *  factory method of boost::asio::ip::tcp::socket associated with io_service_ instance
  *  @ returns shared_ptr to this socket
  */
-SocketPtr ExecutorService::createSocket() { return SocketPtr(new boost::asio::ip::tcp::socket(io_service_)); }
+SocketPtr ExecutorService::createSocket() {
+    try {
+        return SocketPtr(new boost::asio::ip::tcp::socket(io_service_));
+    } catch (const boost::system::system_error &e) {
+        restart();
+        auto error = std::string("Failed to create socket: ") + e.what();
+        throw std::runtime_error(error);
+    }
+}
 
 TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, boost::asio::ssl::context &ctx) {
     return std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket &> >(
@@ -74,11 +84,34 @@ TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, boost::asio::ss
  *  @returns shraed_ptr to resolver object
  */
 TcpResolverPtr ExecutorService::createTcpResolver() {
-    return TcpResolverPtr(new boost::asio::ip::tcp::resolver(io_service_));
+    try {
+        return TcpResolverPtr(new boost::asio::ip::tcp::resolver(io_service_));
+    } catch (const boost::system::system_error &e) {
+        restart();
+        auto error = std::string("Failed to create resolver: ") + e.what();
+        throw std::runtime_error(error);
+    }
 }
 
 DeadlineTimerPtr ExecutorService::createDeadlineTimer() {
-    return DeadlineTimerPtr(new boost::asio::deadline_timer(io_service_));
+    try {
+        return DeadlineTimerPtr(new boost::asio::deadline_timer(io_service_));
+    } catch (const boost::system::system_error &e) {
+        restart();
+        auto error = std::string("Failed to create deadline_timer: ") + e.what();
+        throw std::runtime_error(error);
+    }
+}
+
+void ExecutorService::restart() {
+    close(-1);  // make sure it's closed
+    closed_ = false;
+    {
+        std::lock_guard<std::mutex> lock{mutex_};
+        ioServiceDone_ = false;
+    }
+    io_service_.restart();
+    start();
 }
 
 void ExecutorService::close(long timeoutMs) {
@@ -94,9 +127,9 @@ void ExecutorService::close(long timeoutMs) {
     std::unique_lock<std::mutex> lock{mutex_};
     io_service_.stop();
     if (timeoutMs > 0) {
-        cond_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return ioServiceDone_.load(); });
+        cond_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return ioServiceDone_; });
     } else {  // < 0
-        cond_.wait(lock, [this] { return ioServiceDone_.load(); });
+        cond_.wait(lock, [this] { return ioServiceDone_; });
     }
 }
 

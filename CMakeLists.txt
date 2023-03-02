@@ -423,6 +423,7 @@ add_custom_target(format ${BUILD_SUPPORT_DIR}/run_clang_format.py
         ${PROJECT_SOURCE_DIR}/perf
         ${PROJECT_SOURCE_DIR}/examples
         ${PROJECT_SOURCE_DIR}/tests
+        ${PROJECT_SOURCE_DIR}/tests/unix
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/wireshark)
 
@@ -435,5 +436,6 @@ add_custom_target(check-format ${BUILD_SUPPORT_DIR}/run_clang_format.py
         ${PROJECT_SOURCE_DIR}/perf
         ${PROJECT_SOURCE_DIR}/examples
         ${PROJECT_SOURCE_DIR}/tests
+        ${PROJECT_SOURCE_DIR}/tests/unix
         ${PROJECT_SOURCE_DIR}/include
         ${PROJECT_SOURCE_DIR}/wireshark)

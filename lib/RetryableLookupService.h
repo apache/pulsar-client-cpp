@@ -85,9 +85,7 @@ class RetryableLookupService : public LookupService,
     Backoff backoff_;
     const ExecutorServiceProviderPtr executorProvider_;
 
-    using Timer = boost::asio::deadline_timer;
-    using TimerPtr = std::unique_ptr<Timer>;
-    SynchronizedHashMap<std::string, TimerPtr> backoffTimers_;
+    SynchronizedHashMap<std::string, DeadlineTimerPtr> backoffTimers_;
 
     RetryableLookupService(std::shared_ptr<LookupService> lookupService, int timeoutSeconds,
                            ExecutorServiceProviderPtr executorProvider)
@@ -124,8 +122,15 @@ class RetryableLookupService : public LookupService,
                     return;
                 }
 
-                auto it = backoffTimers_.emplace(
-                    key, TimerPtr{new Timer(executorProvider_->get()->getIOService())});
+                DeadlineTimerPtr timerPtr;
+                try {
+                    timerPtr = executorProvider_->get()->createDeadlineTimer();
+                } catch (const std::runtime_error& e) {
+                    LOG_ERROR("Failed to retry lookup for " << key << ": " << e.what());
+                    promise.setFailed(ResultConnectError);
+                    return;
+                }
+                auto it = backoffTimers_.emplace(key, timerPtr);
                 auto& timer = *(it.first->second);
                 auto delay = std::min(backoff_.next(), remainingTime);
                 timer.expires_from_now(delay);

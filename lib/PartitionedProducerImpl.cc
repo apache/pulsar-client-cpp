@@ -439,26 +439,40 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
             LOG_INFO("new partition count: " << newNumPartitions);
             topicMetadata_.reset(new TopicMetadataImpl(newNumPartitions));
 
+            std::vector<ProducerImplPtr> producers;
+            auto lazy = conf_.getLazyStartPartitionedProducers() &&
+                        conf_.getAccessMode() == ProducerConfiguration::Shared;
             for (unsigned int i = currentNumPartitions; i < newNumPartitions; i++) {
-                auto lazy = conf_.getLazyStartPartitionedProducers() &&
-                            conf_.getAccessMode() == ProducerConfiguration::Shared;
-                auto producer = newInternalProducer(i, lazy);
-
+                ProducerImplPtr producer;
+                try {
+                    producer = newInternalProducer(i, lazy);
+                } catch (const std::runtime_error& e) {
+                    LOG_ERROR("Failed to create producer for partition " << i << ": " << e.what());
+                    producers.clear();
+                    break;
+                }
+                producers.emplace_back(producer);
+            }
+            if (producers.empty()) {
+                runPartitionUpdateTask();
+                return;
+            }
+            for (unsigned int i = 0; i < producers.size(); i++) {
+                auto&& producer = producers[i];
+                producers_.emplace_back(producer);
                 if (!lazy) {
                     producer->start();
                 }
-                producers_.push_back(producer);
             }
             producersLock.unlock();
-            // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
             interceptors_->onPartitionsChange(getTopic(), newNumPartitions);
+            // `runPartitionUpdateTask()` will be called in `handleSinglePartitionProducerCreated()`
             return;
         }
     } else {
         LOG_WARN("Failed to getPartitionMetadata: " << strResult(result));
+        runPartitionUpdateTask();
     }
-
-    runPartitionUpdateTask();
 }
 
 bool PartitionedProducerImpl::isConnected() const {

@@ -49,9 +49,12 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
     ExecutorService(const ExecutorService &) = delete;
     ExecutorService &operator=(const ExecutorService &) = delete;
 
+    // throws std::runtime_error if failed
     SocketPtr createSocket();
     static TlsSocketPtr createTlsSocket(SocketPtr &socket, boost::asio::ssl::context &ctx);
+    // throws std::runtime_error if failed
     TcpResolverPtr createTcpResolver();
+    // throws std::runtime_error if failed
     DeadlineTimerPtr createDeadlineTimer();
     void postWork(std::function<void(void)> task);
 
@@ -67,20 +70,16 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
      */
     IOService io_service_;
 
-    /*
-     * work will not let io_service.run() return even after it has finished work
-     * it will keep it running in the background so we don't have to take care of it
-     */
-    IOService::work work_{io_service_};
-
     std::atomic_bool closed_{false};
     std::mutex mutex_;
     std::condition_variable cond_;
-    std::atomic_bool ioServiceDone_{false};
+    bool ioServiceDone_{false};
 
     ExecutorService();
 
     void start();
+
+    void restart();
 };
 
 using ExecutorServicePtr = ExecutorService::SharedPtr;

@@ -91,8 +91,17 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(
     }
 
     // No valid or pending connection found in the pool, creating a new one
-    ClientConnectionPtr cnx(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(),
-                                                 clientConfiguration_, authentication_));
+    ClientConnectionPtr cnx;
+    try {
+        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(),
+                                       clientConfiguration_, authentication_));
+    } catch (const std::runtime_error& e) {
+        lock.unlock();
+        LOG_ERROR("Failed to create connection: " << e.what())
+        Promise<Result, ClientConnectionWeakPtr> promise;
+        promise.setFailed(ResultConnectError);
+        return promise.getFuture();
+    }
 
     LOG_INFO("Created connection for " << logicalAddress);
 

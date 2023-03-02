@@ -35,7 +35,7 @@ TEST(PeriodicTaskTest, testCountdownTask) {
 
     std::atomic_int count{5};
 
-    auto task = std::make_shared<PeriodicTask>(executor->getIOService(), 200);
+    auto task = std::make_shared<PeriodicTask>(*executor, 200);
     task->setCallback([task, &count](const PeriodicTask::ErrorCode& ec) {
         if (--count <= 0) {
             task->stop();
@@ -64,7 +64,7 @@ TEST(PeriodicTaskTest, testCountdownTask) {
 TEST(PeriodicTaskTest, testNegativePeriod) {
     auto executor = ExecutorService::create();
 
-    auto task = std::make_shared<PeriodicTask>(executor->getIOService(), -1);
+    auto task = std::make_shared<PeriodicTask>(*executor, -1);
     std::atomic_bool callbackTriggered{false};
     task->setCallback([&callbackTriggered](const PeriodicTask::ErrorCode& ec) { callbackTriggered = true; });
 

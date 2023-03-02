@@ -25,6 +25,8 @@ cd $ROOT_DIR
 
 pushd tests
 
+./ConnectionFailTest
+
 export RETRY_FAILED="${RETRY_FAILED:-1}"
 
 if [ -f /gtest-parallel ]; then

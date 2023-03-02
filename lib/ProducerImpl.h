@@ -38,6 +38,7 @@ namespace pulsar {
 class BatchMessageContainerBase;
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 class MessageCrypto;
 using MessageCryptoPtr = std::shared_ptr<MessageCrypto>;
 class ProducerImpl;
@@ -172,13 +173,13 @@ class ProducerImpl : public HandlerBase,
     int64_t msgSequenceGenerator_;
 
     std::unique_ptr<BatchMessageContainerBase> batchMessageContainer_;
-    boost::asio::deadline_timer batchTimer_;
+    DeadlineTimerPtr batchTimer_;
     PendingFailures batchMessageAndSend(const FlushCallback& flushCallback = nullptr);
 
     volatile int64_t lastSequenceIdPublished_;
     std::string schemaVersion_;
 
-    boost::asio::deadline_timer sendTimer_;
+    DeadlineTimerPtr sendTimer_;
     void handleSendTimeout(const boost::system::error_code& err);
     using DurationType = typename boost::asio::deadline_timer::duration_type;
     void asyncWaitSendTimeout(DurationType expiryTime);
