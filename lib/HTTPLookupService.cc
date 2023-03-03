@@ -192,7 +192,6 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
     while (++reqCount <= maxLookupRedirects_) {
         CURL *handle;
         CURLcode res;
-        std::string version = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
         handle = curl_easy_init();
 
         if (!handle) {
@@ -218,7 +217,7 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
         curl_easy_setopt(handle, CURLOPT_TIMEOUT, lookupTimeoutInSeconds_);
 
         // Set User Agent
-        curl_easy_setopt(handle, CURLOPT_USERAGENT, version.c_str());
+        curl_easy_setopt(handle, CURLOPT_USERAGENT, getClientVersion());
 
         // Fail if HTTP return code >=400
         curl_easy_setopt(handle, CURLOPT_FAILONERROR, 1L);

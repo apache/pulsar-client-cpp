@@ -21,6 +21,7 @@
 #include <pulsar/Version.h>
 
 #include <chrono>
+#include <fstream>
 #include <future>
 
 #include "HttpHelper.h"
@@ -311,10 +312,7 @@ TEST(ClientTest, testCloseClient) {
     }
 }
 
-TEST(ClientTest, testClientVersion) {
-    const std::string topic = "testClientVersion" + std::to_string(time(nullptr));
-    const std::string expectedVersion = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
-
+static void testClientVersion(const std::string &topic) {
     Client client(lookupUrl);
 
     std::string responseData;
@@ -326,7 +324,7 @@ TEST(ClientTest, testClientVersion) {
         makeGetRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats", responseData);
     ASSERT_TRUE(res == 200) << "res: " << res;
 
-    ASSERT_TRUE(responseData.find(expectedVersion) != std::string::npos);
+    ASSERT_TRUE(responseData.find(getClientVersion()) != std::string::npos);
     producer.close();
 
     responseData.clear();
@@ -336,8 +334,22 @@ TEST(ClientTest, testClientVersion) {
     res = makeGetRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats", responseData);
     ASSERT_TRUE(res == 200) << "res: " << res;
 
-    ASSERT_TRUE(responseData.find(expectedVersion) != std::string::npos);
+    ASSERT_TRUE(responseData.find(getClientVersion()) != std::string::npos);
     consumer.close();
 
     client.close();
+}
+
+TEST(ClientTest, testClientVersion) {
+    const std::string topic = "testClientVersion" + std::to_string(time(nullptr));
+    std::ifstream fin(PULSAR_VERSION_FILE);
+    std::string version;
+    fin >> version;
+    fin.close();
+    ASSERT_EQ("Pulsar-CPP-v" + version, pulsar::getClientVersion());
+    testClientVersion(topic);
+
+    setClientVersion("custom-client-1.0.0");
+    ASSERT_EQ("custom-client-1.0.0", pulsar::getClientVersion());
+    testClientVersion(topic);
 }

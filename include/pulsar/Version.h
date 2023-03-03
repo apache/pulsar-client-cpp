@@ -16,14 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <gtest/gtest.h>
-#include <pulsar/Version.h>
+#pragma once
 
-TEST(VersionTest, testMacro) {
-#ifdef PULSAR_VERSION
-    ASSERT_GE(PULSAR_VERSION, 2000000);
-    ASSERT_LE(PULSAR_VERSION, 999999999);
-#else
-    FAIL();
-#endif
-}
+#include <pulsar/defines.h>
+
+#include <string>
+
+namespace pulsar {
+
+/**
+ * Get the client version string.
+ */
+PULSAR_PUBLIC std::string getClientVersion();
+
+/**
+ * Set the client version string.
+ *
+ * The client version will be sent to the broker as the identifier of the current client. The broker will
+ * show the client version when querying which clients are connected.
+ *
+ * @param version the custom version string
+ *
+ * NOTE: This function is not thread safe, so you have to call it before creating any `Client` instance.
+ */
+PULSAR_PUBLIC void setClientVersion(const std::string& version);
+
+}  // namespace pulsar

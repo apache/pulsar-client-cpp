@@ -16,12 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/Version.h>
 
-/**
- * @PVM_COMMENT@
- */
-#pragma once
+#ifndef PULSAR_CLIENT_VERSION
+#define PULSAR_CLIENT_VERSION "Unknown"
+#endif
 
-#define PULSAR_VERSION @PULSAR_CLIENT_VERSION_MACRO@
+namespace pulsar {
 
-#define PULSAR_VERSION_STR "@PULSAR_CLIENT_VERSION@"
+static std::string gClientVersion = PULSAR_CLIENT_VERSION;
+
+std::string getClientVersion() { return gClientVersion; }
+
+void setClientVersion(const std::string& version) { gClientVersion = version; }
+
+}  // namespace pulsar

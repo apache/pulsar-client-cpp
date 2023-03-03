@@ -25,13 +25,8 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake_modules"
 execute_process(COMMAND cat ${PROJECT_SOURCE_DIR}/version.txt OUTPUT_STRIP_TRAILING_WHITESPACE
             OUTPUT_VARIABLE PULSAR_CLIENT_VERSION)
 message(STATUS "Pulsar Client version: ${PULSAR_CLIENT_VERSION}")
-
-execute_process(COMMAND ${PROJECT_SOURCE_DIR}/build-support/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
-        OUTPUT_VARIABLE PULSAR_CLIENT_VERSION_MACRO)
-message(STATUS "Pulsar Client version macro: ${PULSAR_CLIENT_VERSION_MACRO}")
-
-set(PVM_COMMENT "This is generated from Version.h.in by CMAKE. DO NOT EDIT DIRECTLY")
-configure_file(templates/Version.h.in include/pulsar/Version.h @ONLY)
+set(PULSAR_CLIENT_VERSION "Pulsar-CPP-v${PULSAR_CLIENT_VERSION}")
+add_definitions(-DPULSAR_CLIENT_VERSION="${PULSAR_CLIENT_VERSION}")
 
 option(LINK_STATIC "Link against static libraries" OFF)
 if (VCPKG_TRIPLET)
