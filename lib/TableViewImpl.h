@@ -20,16 +20,28 @@
 #ifndef PULSAR_CPP_TABLEVIEW_IMPL_H
 #define PULSAR_CPP_TABLEVIEW_IMPL_H
 
+#include <pulsar/Message.h>
+#include <pulsar/TableView.h>
+
 #include <map>
 
-#include "ClientImpl.h"
+#include "Future.h"
 #include "SynchronizedHashMap.h"
 
 namespace pulsar {
 
+class ClientImpl;
+typedef std::shared_ptr<ClientImpl> ClientImplPtr;
+
+class TableViewImpl;
+typedef std::shared_ptr<TableViewImpl> TableViewImplPtr;
+
+class ReaderImpl;
+typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
+
 class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
    public:
-    TableViewImpl(const ClientImplPtr client, const std::string& topic, const TableViewConfiguration& conf);
+    TableViewImpl(ClientImplPtr client, const std::string& topic, const TableViewConfiguration& conf);
 
     ~TableViewImpl(){};
 

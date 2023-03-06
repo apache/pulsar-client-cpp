@@ -113,7 +113,7 @@ TEST(TableViewTest, testSimpleTableView) {
     client.close();
 }
 
-TEST(TableViewTest, testPublishNullValue) {
+TEST(TableViewTest, testPublishEmptyValue) {
     const std::string topic = "testTableView" + std::to_string(time(nullptr));
     Client client(lookupUrl);
 

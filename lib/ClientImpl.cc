@@ -263,8 +263,7 @@ void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewC
 
     TableViewImplPtr tableViewPtr =
         std::make_shared<TableViewImpl>(shared_from_this(), topicName->toString(), conf);
-    auto self = shared_from_this();
-    tableViewPtr->start().addListener([callback, self](Result result, TableViewImplPtr tableViewImplPtr) {
+    tableViewPtr->start().addListener([callback](Result result, TableViewImplPtr tableViewImplPtr) {
         if (result == ResultOk) {
             callback(result, TableView{tableViewImplPtr});
         } else {

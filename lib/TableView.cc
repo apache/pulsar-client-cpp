@@ -55,7 +55,12 @@ std::unordered_map<std::string, std::string> TableView::snapshot() {
     return {};
 }
 
-std::size_t TableView::size() const { return impl_->size(); }
+std::size_t TableView::size() const {
+    if (impl_) {
+        return impl_->size();
+    }
+    return 0;
+}
 
 void TableView::forEach(TableViewAction action) {
     if (impl_) {

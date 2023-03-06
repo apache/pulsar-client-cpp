@@ -19,6 +19,7 @@
 
 #include "TableViewImpl.h"
 
+#include "ClientImpl.h"
 #include "LogUtils.h"
 #include "ReaderImpl.h"
 #include "TimeUtils.h"
@@ -27,7 +28,7 @@ namespace pulsar {
 
 DECLARE_LOG_OBJECT()
 
-TableViewImpl::TableViewImpl(const ClientImplPtr client, const std::string& topic,
+TableViewImpl::TableViewImpl(ClientImplPtr client, const std::string& topic,
                              const TableViewConfiguration& conf)
     : client_(client), topic_(topic), conf_(conf) {}
 
@@ -78,8 +79,8 @@ std::size_t TableViewImpl::size() const { return data_.size(); }
 void TableViewImpl::forEach(TableViewAction action) { data_.forEach(action); }
 
 void TableViewImpl::forEachAndListen(TableViewAction action) {
-    Lock lock(listenersMutex_);
     data_.forEach(action);
+    Lock lock(listenersMutex_);
     listeners_.emplace_back(action);
 }
 
@@ -96,19 +97,20 @@ void TableViewImpl::closeAsync(ResultCallback callback) {
 
 void TableViewImpl::handleMessage(const Message& msg) {
     if (msg.hasPartitionKey()) {
+        auto value = msg.getDataAsString();
         LOG_DEBUG("Applying message from " << topic_ << " key=" << msg.getPartitionKey()
-                                           << " value=" << msg.getDataAsString())
+                                           << " value=" << value)
 
-        if (msg.getDataAsString().empty()) {
+        if (msg.getLength() == 0) {
             data_.remove(msg.getPartitionKey());
         } else {
-            data_.emplace(msg.getPartitionKey(), msg.getDataAsString());
+            data_.emplace(msg.getPartitionKey(), value);
         }
 
         Lock lock(listenersMutex_);
         for (const auto& listener : listeners_) {
             try {
-                listener(msg.getPartitionKey(), msg.getDataAsString());
+                listener(msg.getPartitionKey(), value);
             } catch (const std::exception& exc) {
                 LOG_ERROR("Table view listener raised an exception: " << exc.what());
             }
@@ -133,6 +135,8 @@ void TableViewImpl::readAllExistingMessages(Promise<Result, TableViewImplPtr> pr
                         auto self = weakSelf.lock();
                         if (!self || res != ResultOk) {
                             promise.setFailed(res);
+                            LOG_ERROR("Start table view failed, reader msg for "
+                                      << self->topic_ << " error: " << strResult(res));
                         } else {
                             self->handleMessage(msg);
                             auto tmpMessagesRead = messagesRead + 1;
