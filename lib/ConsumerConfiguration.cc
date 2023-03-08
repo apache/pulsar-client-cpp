@@ -300,4 +300,14 @@ void ConsumerConfiguration::setDeadLetterPolicy(const DeadLetterPolicy& deadLett
 
 const DeadLetterPolicy& ConsumerConfiguration::getDeadLetterPolicy() const { return impl_->deadLetterPolicy; }
 
+ConsumerConfiguration& ConsumerConfiguration::intercept(
+    const std::vector<ConsumerInterceptorPtr>& interceptors) {
+    impl_->interceptors.insert(impl_->interceptors.end(), interceptors.begin(), interceptors.end());
+    return *this;
+}
+
+const std::vector<ConsumerInterceptorPtr>& ConsumerConfiguration::getInterceptors() const {
+    return impl_->interceptors;
+}
+
 }  // namespace pulsar

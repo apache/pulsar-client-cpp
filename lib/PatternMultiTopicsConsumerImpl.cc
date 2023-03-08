@@ -32,9 +32,10 @@ PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(ClientImplPtr cli
                                                                const std::vector<std::string>& topics,
                                                                const std::string& subscriptionName,
                                                                const ConsumerConfiguration& conf,
-                                                               const LookupServicePtr lookupServicePtr_)
+                                                               const LookupServicePtr lookupServicePtr_,
+                                                               const ConsumerInterceptorsPtr interceptors)
     : MultiTopicsConsumerImpl(client, topics, subscriptionName, TopicName::get(pattern), conf,
-                              lookupServicePtr_),
+                              lookupServicePtr_, interceptors),
       patternString_(pattern),
       pattern_(PULSAR_REGEX_NAMESPACE::regex(pattern)),
       autoDiscoveryTimer_(client->getIOExecutorProvider()->get()->createDeadlineTimer()),

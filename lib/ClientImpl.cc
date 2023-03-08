@@ -26,6 +26,7 @@
 #include "ClientConfigurationImpl.h"
 #include "Commands.h"
 #include "ConsumerImpl.h"
+#include "ConsumerInterceptors.h"
 #include "ExecutorService.h"
 #include "HTTPLookupService.h"
 #include "LogUtils.h"
@@ -330,8 +331,10 @@ void ClientImpl::createPatternMultiTopicsConsumer(const Result result, const Nam
         NamespaceTopicsPtr matchTopics =
             PatternMultiTopicsConsumerImpl::topicsPatternFilter(*topics, pattern);
 
+        auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
+
         consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(
-            shared_from_this(), regexPattern, *matchTopics, subscriptionName, conf, lookupServicePtr_);
+            shared_from_this(), regexPattern, *matchTopics, subscriptionName, conf, lookupServicePtr_, interceptors);
 
         consumer->getConsumerCreatedFuture().addListener(
             std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
@@ -368,8 +371,10 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& topics, const st
         topicNamePtr = TopicName::get(consumerTopicNameStream.str());
     }
 
+    auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
+
     ConsumerImplBasePtr consumer = std::make_shared<MultiTopicsConsumerImpl>(
-        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, lookupServicePtr_);
+        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, lookupServicePtr_, interceptors);
 
     consumer->getConsumerCreatedFuture().addListener(std::bind(&ClientImpl::handleConsumerCreated,
                                                                shared_from_this(), std::placeholders::_1,
@@ -413,6 +418,8 @@ void ClientImpl::handleSubscribe(const Result result, const LookupDataResultPtr 
             conf.setConsumerName(generateRandomName());
         }
         ConsumerImplBasePtr consumer;
+        auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
+
         try {
             if (partitionMetadata->getPartitions() > 0) {
                 if (conf.getReceiverQueueSize() == 0) {
@@ -422,11 +429,11 @@ void ClientImpl::handleSubscribe(const Result result, const LookupDataResultPtr 
                 }
                 consumer = std::make_shared<MultiTopicsConsumerImpl>(
                     shared_from_this(), topicName, partitionMetadata->getPartitions(), subscriptionName, conf,
-                    lookupServicePtr_);
+                    lookupServicePtr_, interceptors);
             } else {
-                auto consumerImpl =
-                    std::make_shared<ConsumerImpl>(shared_from_this(), topicName->toString(),
-                                                   subscriptionName, conf, topicName->isPersistent());
+                auto consumerImpl = std::make_shared<ConsumerImpl>(shared_from_this(), topicName->toString(),
+                                                                   subscriptionName, conf,
+                                                                   topicName->isPersistent(), interceptors);
                 consumerImpl->setPartitionIndex(topicName->getPartitionIndex());
                 consumer = consumerImpl;
             }

@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/ConsumerIntercepptor.h>
 #include <pulsar/ProducerInterceptor.h>
 
 #include <utility>
@@ -180,6 +181,59 @@ TEST(InterceptorsTest, testProducerInterceptorOnPartitionsChange) {
     ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 
     producer.close();
+    client.close();
+}
+
+class ConsumerExceptionInterceptor : public ConsumerInterceptor {
+   public:
+    explicit ConsumerExceptionInterceptor(Latch& latch) : latch_(latch) {}
+
+    void close() override { throw std::runtime_error("expected exception"); }
+
+    Message beforeConsume(const Consumer& consumer, const Message& message) override {
+        throw std::runtime_error("expected exception");
+    }
+
+    void onAcknowledge(const Consumer& consumer, Result result, const MessageId& messageID) override {
+        throw std::runtime_error("expected exception");
+    }
+
+    void onAcknowledgeCumulative(const Consumer& consumer, Result result,
+                                 const MessageId& messageID) override {
+        throw std::runtime_error("expected exception");
+    }
+
+   private:
+    Latch latch_;
+};
+
+TEST(InterceptorsTest, testConsumerInterceptorWithExceptions) {
+    const std::string topic =
+        "InterceptorsTest-testConsumerInterceptorWithExceptions-" + std::to_string(time(nullptr));
+
+//    if (GetParam()) {
+//        createPartitionedTopic(topic);
+//    }
+
+    Latch latch(3);
+
+    Client client(serviceUrl);
+
+    Consumer consumer;
+    ConsumerConfiguration conf;
+    conf.intercept({std::make_shared<ConsumerExceptionInterceptor>(latch)});
+    client.subscribe(topic,"sub", conf, consumer);
+
+    Producer producer;
+    client.createProducer(topic, producer);
+
+    Message msg = MessageBuilder().setContent("content").build();
+    Result result = producer.send(msg);
+    ASSERT_EQ(result, ResultOk);
+
+    producer.close();
+    consumer.close();
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
     client.close();
 }
 

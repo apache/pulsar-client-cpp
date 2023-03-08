@@ -41,10 +41,11 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, TopicName
                                                  int numPartitions, const std::string& subscriptionName,
                                                  const ConsumerConfiguration& conf,
                                                  LookupServicePtr lookupServicePtr,
+                                                 const ConsumerInterceptorsPtr& interceptors,
                                                  const Commands::SubscriptionMode subscriptionMode,
                                                  boost::optional<MessageId> startMessageId)
     : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
-                              lookupServicePtr, subscriptionMode, startMessageId) {
+                              lookupServicePtr, interceptors, subscriptionMode, startMessageId) {
     topicsPartitions_[topicName->toString()] = numPartitions;
 }
 
@@ -52,6 +53,7 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
                                                  const std::string& subscriptionName, TopicNamePtr topicName,
                                                  const ConsumerConfiguration& conf,
                                                  LookupServicePtr lookupServicePtr,
+                                                 const ConsumerInterceptorsPtr& interceptors,
                                                  const Commands::SubscriptionMode subscriptionMode,
                                                  boost::optional<MessageId> startMessageId)
     : ConsumerImplBase(client, topicName ? topicName->toString() : "EmptyTopics",
@@ -66,7 +68,8 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
       numberTopicPartitions_(std::make_shared<std::atomic<int>>(0)),
       topics_(topics),
       subscriptionMode_(subscriptionMode),
-      startMessageId_(startMessageId) {
+      startMessageId_(startMessageId),
+      interceptors_(interceptors) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[Muti Topics Consumer: "
                       << "TopicName - " << topic_ << " - Subscription - " << subscriptionName << "]";
@@ -233,7 +236,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
         try {
             consumer = std::make_shared<ConsumerImpl>(
                 client, topicName->toString(), subscriptionName_, config, topicName->isPersistent(),
-                internalListenerExecutor, true, NonPartitioned, subscriptionMode_, startMessageId_);
+                interceptors_, internalListenerExecutor, true, NonPartitioned, subscriptionMode_, startMessageId_);
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create ConsumerImpl for " << topicName->toString() << ": " << e.what());
             topicSubResultPromise->setFailed(ResultConnectError);
@@ -252,7 +255,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
             std::string topicPartitionName = topicName->getTopicPartitionName(i);
             try {
                 consumer = std::make_shared<ConsumerImpl>(
-                    client, topicPartitionName, subscriptionName_, config, topicName->isPersistent(),
+                    client, topicPartitionName, subscriptionName_, config, topicName->isPersistent(), interceptors_,
                     internalListenerExecutor, true, Partitioned, subscriptionMode_, startMessageId_);
             } catch (const std::runtime_error& e) {
                 LOG_ERROR("Failed to create ConsumerImpl for " << topicPartitionName << ": " << e.what());
@@ -1012,7 +1015,7 @@ void MultiTopicsConsumerImpl::subscribeSingleNewConsumer(
     std::string topicPartitionName = topicName->getTopicPartitionName(partitionIndex);
 
     auto consumer = std::make_shared<ConsumerImpl>(client, topicPartitionName, subscriptionName_, config,
-                                                   topicName->isPersistent(), internalListenerExecutor, true,
+                                                   topicName->isPersistent(), interceptors_, internalListenerExecutor, true,
                                                    Partitioned);
     consumer->getConsumerCreatedFuture().addListener(
         [this, weakSelf, partitionsNeedCreate, topicSubResultPromise](

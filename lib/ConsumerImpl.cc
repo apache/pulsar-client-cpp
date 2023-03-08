@@ -56,7 +56,7 @@ DECLARE_LOG_OBJECT()
 
 ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                           bool isPersistent,
+                           bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
                            const ExecutorServicePtr listenerExecutor /* = NULL by default */,
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
@@ -90,7 +90,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       startMessageId_(startMessageId),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
-      expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()) {
+      expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
+      interceptors_(interceptors) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[" << topic_ << ", " << subscription_ << ", " << consumerId_ << "] ";
     consumerStr_ = consumerStrStream.str();
@@ -646,7 +647,9 @@ void ConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback
     Message peekMsg;
     while (incomingMessages_.pop(peekMsg, std::chrono::milliseconds(0)) && messages->canAdd(peekMsg)) {
         messageProcessed(peekMsg);
-        messages->add(peekMsg);
+        Consumer consumer = Consumer(shared_from_this());
+        Message interceptMsg = interceptors_->beforeConsume(consumer, peekMsg);
+        messages->add(interceptMsg);
     }
     auto self = get_shared_this_ptr();
     listenerExecutor_->postWork(
