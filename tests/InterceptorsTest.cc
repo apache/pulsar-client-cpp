@@ -188,18 +188,23 @@ class ConsumerExceptionInterceptor : public ConsumerInterceptor {
    public:
     explicit ConsumerExceptionInterceptor(Latch& latch) : latch_(latch) {}
 
-    void close() override { throw std::runtime_error("expected exception"); }
+    void close() override {
+        latch_.countdown();
+        throw std::runtime_error("expected exception"); }
 
     Message beforeConsume(const Consumer& consumer, const Message& message) override {
+        latch_.countdown();
         throw std::runtime_error("expected exception");
     }
 
     void onAcknowledge(const Consumer& consumer, Result result, const MessageId& messageID) override {
+        latch_.countdown();
         throw std::runtime_error("expected exception");
     }
 
     void onAcknowledgeCumulative(const Consumer& consumer, Result result,
                                  const MessageId& messageID) override {
+        latch_.countdown();
         throw std::runtime_error("expected exception");
     }
 
@@ -207,15 +212,15 @@ class ConsumerExceptionInterceptor : public ConsumerInterceptor {
     Latch latch_;
 };
 
-TEST(InterceptorsTest, testConsumerInterceptorWithExceptions) {
+TEST_P(InterceptorsTest, testConsumerInterceptorWithExceptions) {
     const std::string topic =
         "InterceptorsTest-testConsumerInterceptorWithExceptions-" + std::to_string(time(nullptr));
 
-//    if (GetParam()) {
-//        createPartitionedTopic(topic);
-//    }
+    if (GetParam()) {
+        createPartitionedTopic(topic);
+    }
 
-    Latch latch(3);
+    Latch latch(5); // 2 beforeConsume + 1 onAcknowledge + 1 onAcknowledgeCumulative + 1 close
 
     Client client(serviceUrl);
 
@@ -230,6 +235,17 @@ TEST(InterceptorsTest, testConsumerInterceptorWithExceptions) {
     Message msg = MessageBuilder().setContent("content").build();
     Result result = producer.send(msg);
     ASSERT_EQ(result, ResultOk);
+
+    Message recvMsg;
+    consumer.receive(recvMsg);
+    consumer.acknowledge(recvMsg);
+
+    msg = MessageBuilder().setContent("content").build();
+    result = producer.send(msg);
+    ASSERT_EQ(result, ResultOk);
+
+    consumer.receive(recvMsg);
+    consumer.acknowledgeCumulative(recvMsg);
 
     producer.close();
     consumer.close();

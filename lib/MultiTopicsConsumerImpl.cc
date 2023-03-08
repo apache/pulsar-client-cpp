@@ -659,6 +659,7 @@ void MultiTopicsConsumerImpl::notifyPendingReceivedCallback(Result result, const
 
 void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callback) {
     if (state_ != Ready) {
+        interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultAlreadyClosed, msgId);
         callback(ResultAlreadyClosed);
         return;
     }
@@ -746,6 +747,7 @@ void MultiTopicsConsumerImpl::shutdown() {
     incomingMessages_.clear();
     topicsPartitions_.clear();
     unAckedMessageTrackerPtr_->clear();
+    interceptors_->close();
     auto client = client_.lock();
     if (client) {
         client->cleanupConsumer(this);
