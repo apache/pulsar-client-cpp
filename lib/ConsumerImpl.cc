@@ -883,6 +883,9 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
             if (msg.impl_->cnx_ == currentCnx.get()) {
                 waitingForZeroQueueSizeMessage = false;
                 // Can't use break here else it may trigger a race with connection opened.
+
+                localLock.unlock();
+                msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
                 return ResultOk;
             }
         }
@@ -1111,6 +1114,8 @@ void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCa
 
 void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
     if (!isCumulativeAcknowledgementAllowed(config_.getConsumerType())) {
+        interceptors_->onAcknowledgeCumulative(Consumer(shared_from_this()),
+                                               ResultCumulativeAcknowledgementNotAllowedError, msgId);
         if (callback) {
             callback(ResultCumulativeAcknowledgementNotAllowedError);
         }
