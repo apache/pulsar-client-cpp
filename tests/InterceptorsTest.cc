@@ -18,7 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
-#include <pulsar/ConsumerIntercepptor.h>
+#include <pulsar/ConsumerInterceptor.h>
 #include <pulsar/ProducerInterceptor.h>
 
 #include <utility>

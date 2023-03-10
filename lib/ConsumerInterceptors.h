@@ -19,7 +19,7 @@
 
 #pragma once
 
-#include <pulsar/ConsumerIntercepptor.h>
+#include <pulsar/ConsumerInterceptor.h>
 
 namespace pulsar {
 class ConsumerInterceptors {

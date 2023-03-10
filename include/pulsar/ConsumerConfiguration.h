@@ -21,7 +21,7 @@
 
 #include <pulsar/ConsumerCryptoFailureAction.h>
 #include <pulsar/ConsumerEventListener.h>
-#include <pulsar/ConsumerIntercepptor.h>
+#include <pulsar/ConsumerInterceptor.h>
 #include <pulsar/ConsumerType.h>
 #include <pulsar/CryptoKeyReader.h>
 #include <pulsar/InitialPosition.h>

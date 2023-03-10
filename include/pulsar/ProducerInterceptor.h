@@ -24,6 +24,10 @@
 #include <pulsar/Result.h>
 #include <pulsar/defines.h>
 
+namespace pulsar {
+
+class Producer;
+
 /**
  * An interface that allows you to intercept (and possibly mutate) the
  * messages received by the producer before they are published to the Pulsar
@@ -35,10 +39,6 @@
  * <p>ProducerInterceptor callbacks may be called from multiple threads. Interceptor
  * implementation must ensure thread-safety, if needed.
  */
-namespace pulsar {
-
-class Producer;
-
 class PULSAR_PUBLIC ProducerInterceptor {
    public:
     virtual ~ProducerInterceptor() {}
