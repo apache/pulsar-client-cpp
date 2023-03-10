@@ -619,6 +619,12 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      */
     bool isBatchIndexAckEnabled() const;
 
+    /**
+     * Intercept the consumer
+     *
+     * @param interceptors the list of interceptors to intercept the consumer
+     * @return Consumer Configuration
+     */
     ConsumerConfiguration& intercept(const std::vector<ConsumerInterceptorPtr>& interceptors);
 
     const std::vector<ConsumerInterceptorPtr>& getInterceptors() const;
