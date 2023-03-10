@@ -27,13 +27,10 @@ DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
-PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(ClientImplPtr client,
-                                                               const std::string pattern,
-                                                               const std::vector<std::string>& topics,
-                                                               const std::string& subscriptionName,
-                                                               const ConsumerConfiguration& conf,
-                                                               const LookupServicePtr lookupServicePtr_,
-                                                               const ConsumerInterceptorsPtr interceptors)
+PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(
+    ClientImplPtr client, const std::string pattern, const std::vector<std::string>& topics,
+    const std::string& subscriptionName, const ConsumerConfiguration& conf,
+    const LookupServicePtr lookupServicePtr_, const ConsumerInterceptorsPtr interceptors)
     : MultiTopicsConsumerImpl(client, topics, subscriptionName, TopicName::get(pattern), conf,
                               lookupServicePtr_, interceptors),
       patternString_(pattern),

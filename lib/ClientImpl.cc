@@ -333,8 +333,9 @@ void ClientImpl::createPatternMultiTopicsConsumer(const Result result, const Nam
 
         auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
 
-        consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(
-            shared_from_this(), regexPattern, *matchTopics, subscriptionName, conf, lookupServicePtr_, interceptors);
+        consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(shared_from_this(), regexPattern,
+                                                                    *matchTopics, subscriptionName, conf,
+                                                                    lookupServicePtr_, interceptors);
 
         consumer->getConsumerCreatedFuture().addListener(
             std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,

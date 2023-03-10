@@ -29,10 +29,10 @@ namespace pulsar {
 
 Message ConsumerInterceptors::beforeConsume(const Consumer &consumer, const Message &message) const {
     Message interceptorMessage = message;
-    for (const ConsumerInterceptorPtr & interceptor : interceptors_) {
+    for (const ConsumerInterceptorPtr &interceptor : interceptors_) {
         try {
             interceptorMessage = interceptor->beforeConsume(consumer, message);
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             LOG_WARN("Error executing interceptor beforeConsume callback for topic: "
                      << consumer.getTopic() << ", exception: " << e.what());
         }
@@ -42,10 +42,10 @@ Message ConsumerInterceptors::beforeConsume(const Consumer &consumer, const Mess
 
 void ConsumerInterceptors::onAcknowledge(const Consumer &consumer, Result result,
                                          const MessageId &messageID) const {
-    for (const ConsumerInterceptorPtr & interceptor : interceptors_) {
+    for (const ConsumerInterceptorPtr &interceptor : interceptors_) {
         try {
             interceptor->onAcknowledge(consumer, result, messageID);
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             LOG_WARN("Error executing interceptor onAcknowledge callback for topic: "
                      << consumer.getTopic() << ", exception: " << e.what());
         }
@@ -54,10 +54,10 @@ void ConsumerInterceptors::onAcknowledge(const Consumer &consumer, Result result
 
 void ConsumerInterceptors::onAcknowledgeCumulative(const Consumer &consumer, Result result,
                                                    const MessageId &messageID) const {
-    for (const ConsumerInterceptorPtr & interceptor : interceptors_) {
+    for (const ConsumerInterceptorPtr &interceptor : interceptors_) {
         try {
             interceptor->onAcknowledgeCumulative(consumer, result, messageID);
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             LOG_WARN("Error executing interceptor onAcknowledge callback for topic: "
                      << consumer.getTopic() << ", exception: " << e.what());
         }
@@ -69,10 +69,10 @@ void ConsumerInterceptors::close() {
     if (!state_.compare_exchange_strong(state, Closing)) {
         return;
     }
-    for (const ConsumerInterceptorPtr & interceptor : interceptors_) {
+    for (const ConsumerInterceptorPtr &interceptor : interceptors_) {
         try {
             interceptor->close();
-        } catch (const std::exception& e) {
+        } catch (const std::exception &e) {
             LOG_WARN("Failed to close consumer interceptor: " << e.what());
         }
     }

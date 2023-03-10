@@ -34,9 +34,9 @@ static const std::string adminUrl = "http://localhost:8080/";
 
 using namespace pulsar;
 
-class TestInterceptor : public ProducerInterceptor {
+class ProducerTestInterceptor : public ProducerInterceptor {
    public:
-    TestInterceptor(Latch& latch, Latch& closeLatch) : latch_(latch), closeLatch_(closeLatch) {}
+    ProducerTestInterceptor(Latch& latch, Latch& closeLatch) : latch_(latch), closeLatch_(closeLatch) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override {
         return MessageBuilder().setProperty("key", "set").setContent(message.getDataAsString()).build();
@@ -57,9 +57,9 @@ class TestInterceptor : public ProducerInterceptor {
     Latch closeLatch_;
 };
 
-class ExceptionInterceptor : public ProducerInterceptor {
+class ProducerExceptionInterceptor : public ProducerInterceptor {
    public:
-    explicit ExceptionInterceptor(Latch& latch) : latch_(latch) {}
+    explicit ProducerExceptionInterceptor(Latch& latch) : latch_(latch) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override {
         latch_.countdown();
@@ -81,9 +81,9 @@ class ExceptionInterceptor : public ProducerInterceptor {
     Latch latch_;
 };
 
-class PartitionsChangeInterceptor : public ProducerInterceptor {
+class ProducerPartitionsChangeInterceptor : public ProducerInterceptor {
    public:
-    explicit PartitionsChangeInterceptor(Latch& latch) : latch_(latch) {}
+    explicit ProducerPartitionsChangeInterceptor(Latch& latch) : latch_(latch) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override { return message; }
 
@@ -106,9 +106,9 @@ void createPartitionedTopic(std::string topic) {
     ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
 }
 
-class InterceptorsTest : public ::testing::TestWithParam<bool> {};
+class ProducerInterceptorsTest : public ::testing::TestWithParam<bool> {};
 
-TEST_P(InterceptorsTest, testProducerInterceptor) {
+TEST_P(ProducerInterceptorsTest, testProducerInterceptor) {
     const std::string topic = "InterceptorsTest-testProducerInterceptor-" + std::to_string(time(nullptr));
 
     if (GetParam()) {
@@ -120,7 +120,7 @@ TEST_P(InterceptorsTest, testProducerInterceptor) {
 
     Client client(serviceUrl);
     ProducerConfiguration conf;
-    conf.intercept({std::make_shared<TestInterceptor>(latch, closeLatch)});
+    conf.intercept({std::make_shared<ProducerTestInterceptor>(latch, closeLatch)});
     Producer producer;
     client.createProducer(topic, conf, producer);
 
@@ -135,7 +135,7 @@ TEST_P(InterceptorsTest, testProducerInterceptor) {
     client.close();
 }
 
-TEST_P(InterceptorsTest, testProducerInterceptorWithException) {
+TEST_P(ProducerInterceptorsTest, testProducerInterceptorWithException) {
     const std::string topic =
         "InterceptorsTest-testProducerInterceptorWithException-" + std::to_string(time(nullptr));
 
@@ -147,7 +147,7 @@ TEST_P(InterceptorsTest, testProducerInterceptorWithException) {
 
     Client client(serviceUrl);
     ProducerConfiguration conf;
-    conf.intercept({std::make_shared<ExceptionInterceptor>(latch)});
+    conf.intercept({std::make_shared<ProducerExceptionInterceptor>(latch)});
     Producer producer;
     client.createProducer(topic, conf, producer);
 
@@ -160,7 +160,7 @@ TEST_P(InterceptorsTest, testProducerInterceptorWithException) {
     client.close();
 }
 
-TEST(InterceptorsTest, testProducerInterceptorOnPartitionsChange) {
+TEST(ProducerInterceptorsTest, testProducerInterceptorOnPartitionsChange) {
     const std::string topic = "public/default/InterceptorsTest-testProducerInterceptorOnPartitionsChange-" +
                               std::to_string(time(nullptr));
     std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" + topic + "/partitions";
@@ -174,7 +174,7 @@ TEST(InterceptorsTest, testProducerInterceptorOnPartitionsChange) {
     clientConf.setPartititionsUpdateInterval(1);
     Client client(serviceUrl, clientConf);
     ProducerConfiguration conf;
-    conf.intercept({std::make_shared<PartitionsChangeInterceptor>(latch)});
+    conf.intercept({std::make_shared<ProducerPartitionsChangeInterceptor>(latch)});
     Producer producer;
     client.createProducer(topic, conf, producer);
 
@@ -364,7 +364,7 @@ TEST_P(ConsumerInterceptorsTest, testConsumerInterceptorWithExceptions) {
     ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 }
 
-INSTANTIATE_TEST_CASE_P(Pulsar, InterceptorsTest, ::testing::Values(true, false));
+INSTANTIATE_TEST_CASE_P(Pulsar, ProducerInterceptorsTest, ::testing::Values(true, false));
 INSTANTIATE_TEST_CASE_P(Pulsar, ConsumerInterceptorsTest,
                         testing::Values(
                             // Can't use zero queue on multi topics consumer
