@@ -21,6 +21,10 @@
 
 #include <pulsar/ConsumerInterceptor.h>
 
+#include <atomic>
+#include <utility>
+#include <vector>
+
 namespace pulsar {
 class ConsumerInterceptors {
    public:
