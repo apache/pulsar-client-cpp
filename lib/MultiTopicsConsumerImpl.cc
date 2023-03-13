@@ -1018,9 +1018,9 @@ void MultiTopicsConsumerImpl::subscribeSingleNewConsumer(
 
     std::string topicPartitionName = topicName->getTopicPartitionName(partitionIndex);
 
-    auto consumer = std::make_shared<ConsumerImpl>(client, topicPartitionName, subscriptionName_, config,
-                                                   topicName->isPersistent(), interceptors_, internalListenerExecutor, true,
-                                                   Partitioned, subscriptionMode_, startMessageId_);
+    auto consumer = std::make_shared<ConsumerImpl>(
+        client, topicPartitionName, subscriptionName_, config, topicName->isPersistent(), interceptors_,
+        internalListenerExecutor, true, Partitioned, subscriptionMode_, startMessageId_);
     consumer->getConsumerCreatedFuture().addListener(
         [this, weakSelf, partitionsNeedCreate, topicSubResultPromise](
             Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr) {
