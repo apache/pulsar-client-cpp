@@ -130,13 +130,14 @@ void TableViewImpl::readAllExistingMessages(Promise<Result, TableViewImplPtr> pr
             }
             if (hasMessage) {
                 Message msg;
+                auto topic = self->topic_;
                 self->reader_->readNextAsync(
-                    [weakSelf, promise, startTime, messagesRead](Result res, const Message& msg) {
+                    [weakSelf, promise, startTime, messagesRead, topic](Result res, const Message& msg) {
                         auto self = weakSelf.lock();
                         if (!self || res != ResultOk) {
                             promise.setFailed(res);
                             LOG_ERROR("Start table view failed, reader msg for "
-                                      << self->topic_ << " error: " << strResult(res));
+                                      << topic << " error: " << strResult(res));
                         } else {
                             self->handleMessage(msg);
                             auto tmpMessagesRead = messagesRead + 1;
