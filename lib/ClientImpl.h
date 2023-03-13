@@ -42,6 +42,9 @@ class ReaderImpl;
 typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
 typedef std::weak_ptr<ReaderImpl> ReaderImplWeakPtr;
 
+class TableViewImpl;
+typedef std::shared_ptr<TableViewImpl> TableViewImplPtr;
+
 class ConsumerImplBase;
 typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
 
@@ -86,6 +89,9 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, ReaderCallback callback);
+
+    void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                              TableViewCallback callback);
 
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
 

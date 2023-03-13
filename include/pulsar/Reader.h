@@ -164,6 +164,7 @@ class PULSAR_PUBLIC Reader {
     friend class PulsarFriend;
     friend class PulsarWrapper;
     friend class ReaderImpl;
+    friend class TableViewImpl;
     friend class ReaderTest;
 };
 }  // namespace pulsar

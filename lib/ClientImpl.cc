@@ -37,6 +37,7 @@
 #include "ProducerInterceptors.h"
 #include "ReaderImpl.h"
 #include "RetryableLookupService.h"
+#include "TableViewImpl.h"
 #include "TimeUtils.h"
 #include "TopicName.h"
 
@@ -253,6 +254,33 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
     lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleReaderMetadataLookup, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, msgId, conf, callback));
+}
+
+void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                                      TableViewCallback callback) {
+    TopicNamePtr topicName;
+    {
+        Lock lock(mutex_);
+        if (state_ != Open) {
+            lock.unlock();
+            callback(ResultAlreadyClosed, TableView());
+            return;
+        } else if (!(topicName = TopicName::get(topic))) {
+            lock.unlock();
+            callback(ResultInvalidTopicName, TableView());
+            return;
+        }
+    }
+
+    TableViewImplPtr tableViewPtr =
+        std::make_shared<TableViewImpl>(shared_from_this(), topicName->toString(), conf);
+    tableViewPtr->start().addListener([callback](Result result, TableViewImplPtr tableViewImplPtr) {
+        if (result == ResultOk) {
+            callback(result, TableView{tableViewImplPtr});
+        } else {
+            callback(result, {});
+        }
+    });
 }
 
 void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDataResultPtr partitionMetadata,
