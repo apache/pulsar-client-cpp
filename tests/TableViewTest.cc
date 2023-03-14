@@ -67,7 +67,7 @@ TEST(TableViewTest, testCreateTableView) {
 }
 
 TEST(TableViewTest, testSimpleTableView) {
-    const std::string topic = "testTableView" + std::to_string(time(nullptr));
+    const std::string topic = "testSimpleTableView" + std::to_string(time(nullptr));
     Client client(lookupUrl);
 
     ProducerConfiguration producerConfiguration;
@@ -114,7 +114,7 @@ TEST(TableViewTest, testSimpleTableView) {
 }
 
 TEST(TableViewTest, testPublishEmptyValue) {
-    const std::string topic = "testTableView" + std::to_string(time(nullptr));
+    const std::string topic = "testPublishEmptyValue" + std::to_string(time(nullptr));
     Client client(lookupUrl);
 
     ProducerConfiguration producerConfiguration;
