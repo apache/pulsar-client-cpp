@@ -25,6 +25,7 @@
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "WaitUtils.h"
 #include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
 #include "lib/checksum/ChecksumProvider.h"
@@ -228,6 +229,9 @@ TEST(ClientTest, testReferenceCount) {
         LOG_INFO("Reference count of the reader: " << readerWeakPtr.use_count());
     }
 
+    waitUntil(std::chrono::seconds(3), [&] {
+        return producers.size() == 0 && consumers.size() == 0 && readerWeakPtr.use_count() == 0;
+    });
     EXPECT_EQ(producers.size(), 0);
     EXPECT_EQ(consumers.size(), 0);
     EXPECT_EQ(readerWeakPtr.use_count(), 0);
