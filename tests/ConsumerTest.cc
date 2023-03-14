@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <array>
 #include <chrono>
 #include <ctime>
 #include <map>
@@ -291,14 +292,16 @@ TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition) {
     }
 
     Message msg;
+    std::array<MessageId, 2> latestMsgIds;
     for (int i = 0; i < numMessages; i++) {
         ASSERT_EQ(ResultOk, consumer.receive(msg));
         // The last message of each partition topic be ACK
-        if (i >= numMessages - 2) {
-            consumer.acknowledgeCumulative(msg.getMessageId());
-        }
+        latestMsgIds[msg.getMessageId().partition()] = msg.getMessageId();
     }
     ASSERT_EQ(ResultTimeout, consumer.receive(msg, 2000));
+    for (auto&& msgId : latestMsgIds) {
+        consumer.acknowledgeCumulative(msgId);
+    }
 
     // Assert that there is no message in the tracker.
     auto multiConsumerImpl = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer);
