@@ -150,6 +150,20 @@ void Client::createReaderAsync(const std::string& topic, const MessageId& startM
     impl_->createReaderAsync(topic, startMessageId, conf, callback);
 }
 
+Result Client::createTableView(const std::string& topic, const TableViewConfiguration& conf,
+                               TableView& tableView) {
+    Promise<Result, TableView> promise;
+    createTableViewAsync(topic, conf, WaitForCallbackValue<TableView>(promise));
+    Future<Result, TableView> future = promise.getFuture();
+
+    return future.get(tableView);
+}
+
+void Client::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                                  TableViewCallback callBack) {
+    impl_->createTableViewAsync(topic, conf, callBack);
+}
+
 Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::string>& partitions) {
     Promise<Result, std::vector<std::string> > promise;
     getPartitionsForTopicAsync(topic, WaitForCallbackValue<std::vector<std::string> >(promise));

@@ -80,6 +80,12 @@ class PulsarFriend {
         return *producerImpl;
     }
 
+    static int getPartitionProducerSize(Producer producer) {
+        PartitionedProducerImpl* partitionedProducerImpl =
+            static_cast<PartitionedProducerImpl*>(producer.impl_.get());
+        return partitionedProducerImpl->producers_.size();
+    }
+
     static ProducerImpl& getInternalProducerImpl(Producer producer, int index) {
         PartitionedProducerImpl* producerImpl = static_cast<PartitionedProducerImpl*>(producer.impl_.get());
         return *(producerImpl->producers_[index]);
