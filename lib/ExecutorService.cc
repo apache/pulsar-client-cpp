@@ -30,22 +30,24 @@ ExecutorService::~ExecutorService() { close(0); }
 
 void ExecutorService::start() {
     auto self = shared_from_this();
-    std::thread t{[self] {
+    std::thread t{[this, self] {
         LOG_DEBUG("Run io_service in a single thread");
         boost::system::error_code ec;
-        IOService::work work_{self->getIOService()};
-        self->getIOService().run(ec);
+        while (!closed_) {
+            io_service_.restart();
+            IOService::work work{getIOService()};
+            io_service_.run(ec);
+        }
         if (ec) {
             LOG_ERROR("Failed to run io_service: " << ec.message());
         } else {
             LOG_DEBUG("Event loop of ExecutorService exits successfully");
         }
-
         {
-            std::lock_guard<std::mutex> lock{self->mutex_};
-            self->ioServiceDone_ = true;
+            std::lock_guard<std::mutex> lock{mutex_};
+            ioServiceDone_ = true;
         }
-        self->cond_.notify_all();
+        cond_.notify_all();
     }};
     t.detach();
 }
@@ -75,7 +77,7 @@ SocketPtr ExecutorService::createSocket() {
 }
 
 TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, boost::asio::ssl::context &ctx) {
-    return std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket &> >(
+    return std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket &>>(
         new boost::asio::ssl::stream<boost::asio::ip::tcp::socket &>(*socket, ctx));
 }
 
@@ -103,16 +105,7 @@ DeadlineTimerPtr ExecutorService::createDeadlineTimer() {
     }
 }
 
-void ExecutorService::restart() {
-    close(-1);  // make sure it's closed
-    closed_ = false;
-    {
-        std::lock_guard<std::mutex> lock{mutex_};
-        ioServiceDone_ = false;
-    }
-    io_service_.restart();
-    start();
-}
+void ExecutorService::restart() { io_service_.stop(); }
 
 void ExecutorService::close(long timeoutMs) {
     bool expectedState = false;
