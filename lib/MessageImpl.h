@@ -44,7 +44,7 @@ class MessageImpl {
     std::shared_ptr<KeyValueImpl> keyValuePtr;
     MessageId messageId;
     ClientConnection* cnx_;
-    const std::string* topicName_;
+    std::shared_ptr<std::string> topicName_;
     int redeliveryCount_;
     bool hasSchemaVersion_;
     const std::string* schemaVersion_;
@@ -66,7 +66,7 @@ class MessageImpl {
     /**
      * Set a valid topicName
      */
-    void setTopicName(const std::string& topicName);
+    void setTopicName(const std::shared_ptr<std::string>& topicName);
 
     int getRedeliveryCount();
     void setRedeliveryCount(int count);

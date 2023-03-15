@@ -77,13 +77,13 @@ Message::Message(const MessageId& messageId, proto::MessageMetadata& metadata, S
 }
 
 Message::Message(const MessageId& messageID, proto::MessageMetadata& metadata, SharedBuffer& payload,
-                 proto::SingleMessageMetadata& singleMetadata, const std::string& topicName)
+                 proto::SingleMessageMetadata& singleMetadata, const std::shared_ptr<std::string>& topicName)
     : impl_(std::make_shared<MessageImpl>()) {
     impl_->messageId = messageID;
     impl_->metadata = metadata;
     impl_->payload = payload;
     impl_->metadata.mutable_properties()->CopyFrom(singleMetadata.properties());
-    impl_->topicName_ = &topicName;
+    impl_->topicName_ = topicName;
 
     impl_->metadata.clear_properties();
     if (singleMetadata.properties_size() > 0) {

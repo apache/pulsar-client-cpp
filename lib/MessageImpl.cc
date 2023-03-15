@@ -85,8 +85,8 @@ void MessageImpl::setOrderingKey(const std::string& orderingKey) { metadata.set_
 
 void MessageImpl::setEventTimestamp(uint64_t eventTimestamp) { metadata.set_event_time(eventTimestamp); }
 
-void MessageImpl::setTopicName(const std::string& topicName) {
-    topicName_ = &topicName;
+void MessageImpl::setTopicName(const std::shared_ptr<std::string>& topicName) {
+    topicName_ = topicName;
     messageId.setTopicName(topicName);
 }
 

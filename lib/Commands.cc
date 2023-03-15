@@ -868,7 +868,7 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
     auto messageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
     auto batchedMessageId = std::make_shared<BatchedMessageIdImpl>(*(messageId.impl_), acker);
     Message singleMessage(MessageId{batchedMessageId}, batchedMessage.impl_->metadata, payload, metadata,
-                          batchedMessage.impl_->getTopicName());
+                          batchedMessage.impl_->topicName_);
     singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;
 
     return singleMessage;

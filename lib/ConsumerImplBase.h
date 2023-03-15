@@ -101,6 +101,7 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
    private:
     virtual void setNegativeAcknowledgeEnabledForTesting(bool enabled) = 0;
 
+    friend class MultiTopicsConsumerImpl;
     friend class PulsarFriend;
 };
 }  // namespace pulsar
