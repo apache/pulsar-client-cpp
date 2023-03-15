@@ -96,6 +96,9 @@ jobs:
       - name: Start Pulsar service
         run: ./pulsar-test-service-start.sh
 
+      - name: Run ConnectionFailTest
+        run: ./tests/ConnectionFailTest --gtest_repeat=20
+
       - name: Run unit tests
         run: RETRY_FAILED=3 ./run-unit-tests.sh
 
