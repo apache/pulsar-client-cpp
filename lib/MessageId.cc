@@ -171,8 +171,6 @@ PULSAR_PUBLIC void MessageId::setTopicName(const std::string& topicName) {
     return setTopicName(std::make_shared<std::string>(topicName));
 }
 
-void MessageId::setTopicName(const std::shared_ptr<std::string>& topic) {
-    return impl_->setTopicName(topic);
-}
+void MessageId::setTopicName(const std::shared_ptr<std::string>& topic) { return impl_->setTopicName(topic); }
 
 }  // namespace pulsar
