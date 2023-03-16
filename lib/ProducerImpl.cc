@@ -67,7 +67,7 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       partition_(partition),
       producerName_(conf_.getProducerName()),
       userProvidedProducerName_(false),
-      producerStr_("[" + topic_ + ", " + producerName_ + "] "),
+      producerStr_("[" + *topic_ + ", " + producerName_ + "] "),
       producerId_(client->newProducerId()),
       msgSequenceGenerator_(0),
       batchTimer_(executor_->createDeadlineTimer()),
@@ -131,7 +131,7 @@ ProducerImpl::~ProducerImpl() {
     }
 }
 
-const std::string& ProducerImpl::getTopic() const { return topic_; }
+const std::string& ProducerImpl::getTopic() const { return *topic_; }
 
 const std::string& ProducerImpl::getProducerName() const { return producerName_; }
 
@@ -152,7 +152,7 @@ void ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     ClientImplPtr client = client_.lock();
     int requestId = client->newRequestId();
 
-    SharedBuffer cmd = Commands::newProducer(topic_, producerId_, producerName_, requestId,
+    SharedBuffer cmd = Commands::newProducer(*topic_, producerId_, producerName_, requestId,
                                              conf_.getProperties(), conf_.getSchema(), epoch_,
                                              userProvidedProducerName_, conf_.isEncryptionEnabled(),
                                              static_cast<proto::ProducerAccessMode>(conf_.getAccessMode()),
@@ -209,7 +209,7 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
         cnx->registerProducer(producerId_, shared_from_this());
         producerName_ = responseData.producerName;
         schemaVersion_ = responseData.schemaVersion;
-        producerStr_ = "[" + topic_ + ", " + producerName_ + "] ";
+        producerStr_ = "[" + *topic_ + ", " + producerName_ + "] ";
         topicEpoch = responseData.topicEpoch;
 
         if (lastSequenceIdPublished_ == -1 && conf_.getInitialSequenceId() == -1) {

@@ -115,7 +115,7 @@ class BatchMessageContainerBase : public boost::noncopyable {
 
    protected:
     // references to ProducerImpl's fields
-    const std::string& topicName_;
+    const std::shared_ptr<std::string> topicName_;
     const ProducerConfiguration& producerConfig_;
     const std::string& producerName_;
     const uint64_t& producerId_;

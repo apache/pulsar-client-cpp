@@ -101,7 +101,7 @@ class HandlerBase {
 
    protected:
     ClientImplWeakPtr client_;
-    const std::string topic_;
+    const std::shared_ptr<std::string> topic_;
     ExecutorServicePtr executor_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;

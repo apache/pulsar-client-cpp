@@ -513,8 +513,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
 void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& msg) {
     LOG_DEBUG("Received Message from one of the topic - " << consumer.getTopic()
                                                           << " message:" << msg.getDataAsString());
-    const std::string& topicPartitionName = consumer.getTopic();
-    msg.impl_->setTopicName(topicPartitionName);
+    msg.impl_->setTopicName(consumer.impl_->topic_);
 
     Lock lock(pendingReceiveMutex_);
     if (!pendingReceives_.empty()) {
@@ -729,7 +728,7 @@ Future<Result, ConsumerImplBaseWeakPtr> MultiTopicsConsumerImpl::getConsumerCrea
 }
 const std::string& MultiTopicsConsumerImpl::getSubscriptionName() const { return subscriptionName_; }
 
-const std::string& MultiTopicsConsumerImpl::getTopic() const { return topic_; }
+const std::string& MultiTopicsConsumerImpl::getTopic() const { return *topic_; }
 
 const std::string& MultiTopicsConsumerImpl::getName() const { return consumerStr_; }
 
