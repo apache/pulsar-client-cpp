@@ -46,24 +46,24 @@ using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
  */
 class AckGroupingTrackerEnabled : public AckGroupingTracker {
    public:
-    virtual ~AckGroupingTrackerEnabled() { this->close(); }
+    AckGroupingTrackerEnabled(std::function<ClientConnectionPtr()> connectionSupplier,
+                              std::function<uint64_t()> requestIdSupplier, uint64_t consumerId,
+                              bool waitResponse, long ackGroupingTimeMs, long ackGroupingMaxSize,
+                              const ExecutorServicePtr& executor)
+        : AckGroupingTracker(connectionSupplier, requestIdSupplier, consumerId, waitResponse),
+          ackGroupingTimeMs_(ackGroupingTimeMs),
+          ackGroupingMaxSize_(ackGroupingMaxSize),
+          executor_(executor) {
+        pendingIndividualCallbacks_.reserve(ackGroupingMaxSize);
+    }
 
-    /**
-     * Constructing ACK grouping tracker for peresistent topics.
-     * @param[in] clientPtr pointer to client object.
-     * @param[in] handlerPtr the shared pointer to connection handler.
-     * @param[in] consumerId consumer ID that this tracker belongs to.
-     * @param[in] ackGroupingTimeMs ACK grouping time window in milliseconds.
-     * @param[in] ackGroupingMaxSize max. number of ACK requests can be grouped.
-     */
-    AckGroupingTrackerEnabled(ClientImplPtr clientPtr, const HandlerBasePtr& handlerPtr, uint64_t consumerId,
-                              long ackGroupingTimeMs, long ackGroupingMaxSize);
+    virtual ~AckGroupingTrackerEnabled() { this->close(); }
 
     void start() override;
     bool isDuplicate(const MessageId& msgId) override;
-    void addAcknowledge(const MessageId& msgId) override;
-    void addAcknowledgeList(const MessageIdList& msgIds) override;
-    void addAcknowledgeCumulative(const MessageId& msgId) override;
+    void addAcknowledge(const MessageId& msgId, ResultCallback callback) override;
+    void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) override;
+    void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) override;
     void close() override;
     void flush() override;
     void flushAndClean() override;
@@ -73,21 +73,17 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
     void scheduleTimer();
 
     //! State
-    std::atomic_bool isClosed_;
-
-    //! The connection handler.
-    HandlerBaseWeakPtr handlerWeakPtr_;
-
-    //! ID of the consumer that this tracker belongs to.
-    uint64_t consumerId_;
+    std::atomic_bool isClosed_{false};
 
     //! Next message ID to be cumulatively cumulatively.
-    MessageId nextCumulativeAckMsgId_;
-    bool requireCumulativeAck_;
+    MessageId nextCumulativeAckMsgId_{MessageId::earliest()};
+    bool requireCumulativeAck_{false};
+    ResultCallback latestCumulativeCallback_;
     std::mutex mutexCumulativeAckMsgId_;
 
     //! Individual ACK requests that have not been sent to broker.
     std::set<MessageId> pendingIndividualAcks_;
+    std::vector<ResultCallback> pendingIndividualCallbacks_;
     std::recursive_mutex rmutexPendingIndAcks_;
 
     //! Time window in milliseconds for grouping ACK requests.
@@ -97,7 +93,7 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
     const long ackGroupingMaxSize_;
 
     //! ACK request sender's scheduled executor.
-    ExecutorServicePtr executor_;
+    const ExecutorServicePtr executor_;
 
     //! Pointer to a deadline timer.
     DeadlineTimerPtr timer_;

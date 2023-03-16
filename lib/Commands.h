@@ -117,8 +117,9 @@ class Commands {
                                     const std::string& initialSubscriptionName);
 
     static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
-                               CommandAck_AckType ackType, CommandAck_ValidationError validationError);
-    static SharedBuffer newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds);
+                               CommandAck_AckType ackType, uint64_t requestId);
+    static SharedBuffer newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds,
+                                           uint64_t requestId);
 
     static SharedBuffer newFlow(uint64_t consumerId, uint32_t messagePermits);
 

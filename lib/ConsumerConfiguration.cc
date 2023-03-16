@@ -310,4 +310,11 @@ const std::vector<ConsumerInterceptorPtr>& ConsumerConfiguration::getInterceptor
     return impl_->interceptors;
 }
 
+ConsumerConfiguration& ConsumerConfiguration::setAckReceiptEnabled(bool ackReceiptEnabled) {
+    impl_->ackReceiptEnabled = ackReceiptEnabled;
+    return *this;
+}
+
+bool ConsumerConfiguration::isAckReceiptEnabled() const { return impl_->ackReceiptEnabled; }
+
 }  // namespace pulsar

@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <atomic>
 #include <chrono>
 #include <set>
 #include <thread>
@@ -39,7 +40,8 @@ static std::string adminUrl = "http://localhost:8080/";
 
 extern std::string unique_str();
 
-class AcknowledgeTest : public testing::TestWithParam<int> {};
+class AcknowledgeTest
+    : public testing::TestWithParam<std::tuple<int /* ack grouping time */, bool /* ack with receipt */>> {};
 
 TEST_P(AcknowledgeTest, testAckMsgList) {
     Client client(lookupUrl);
@@ -55,7 +57,8 @@ TEST_P(AcknowledgeTest, testAckMsgList) {
 
     ConsumerConfiguration consumerConfig;
     consumerConfig.setAckGroupingMaxSize(numMsg);
-    consumerConfig.setAckGroupingTimeMs(GetParam());
+    consumerConfig.setAckGroupingTimeMs(std::get<0>(GetParam()));
+    consumerConfig.setAckReceiptEnabled(std::get<1>(GetParam()));
     consumerConfig.setUnAckedMessagesTimeoutMs(10000);
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumerConfig, consumer));
@@ -118,7 +121,8 @@ TEST_P(AcknowledgeTest, testAckMsgListWithMultiConsumer) {
     ConsumerConfiguration consumerConfig;
     // set ack grouping max size is 10
     consumerConfig.setAckGroupingMaxSize(10);
-    consumerConfig.setAckGroupingTimeMs(GetParam());
+    consumerConfig.setAckGroupingTimeMs(std::get<0>(GetParam()));
+    consumerConfig.setAckReceiptEnabled(std::get<1>(GetParam()));
     consumerConfig.setUnAckedMessagesTimeoutMs(10000);
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumerConfig, consumer));
@@ -315,4 +319,65 @@ TEST_F(AcknowledgeTest, testInvalidMessageId) {
     ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msg));
 }
 
-INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest, testing::Values(100, 0));
+TEST_F(AcknowledgeTest, testAckReceiptEnabled) {
+    Client client(lookupUrl);
+    const std::string topic = "test-ack-receipt-enabled" + unique_str();
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    std::vector<MessageId> msgIds;
+    for (int i = 0; i < 5; i++) {
+        MessageId msgId;
+        ASSERT_EQ(ResultOk,
+                  producer.send(MessageBuilder().setContent("msg-" + std::to_string(i)).build(), msgId));
+        msgIds.emplace_back(msgId);
+    }
+
+    constexpr long ackGroupingTimeMs = 200;
+    Consumer consumer;
+    ConsumerConfiguration conf;
+    conf.setAckGroupingTimeMs(ackGroupingTimeMs);
+    conf.setAckReceiptEnabled(true);
+    conf.setBatchIndexAckEnabled(true);
+    conf.setSubscriptionInitialPosition(InitialPositionEarliest);
+
+    using namespace std::chrono;
+    // The ACK grouping timer starts after it's subscribed successfully. To ensure the acknowledgments
+    // complete after `ackGroupingTimeMs`, record the start timestamp before subscribing
+    auto now = high_resolution_clock::now();
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", conf, consumer));
+
+    std::atomic<decltype(std::this_thread::get_id())> threadId[3];
+    std::atomic_long durationMs[3];
+    std::atomic<Result> result[3];
+    Latch latch{3};
+
+    auto createCallback = [&](int i) -> ResultCallback {
+        return [i, now, &threadId, &durationMs, &result, &latch](Result result0) {
+            threadId[i] = std::this_thread::get_id();
+            durationMs[i] =
+                duration_cast<std::chrono::milliseconds>(high_resolution_clock::now() - now).count();
+            result[i] = result0;
+            latch.countdown();
+        };
+    };
+    consumer.acknowledgeAsync(msgIds[1], createCallback(0));
+    consumer.acknowledgeCumulativeAsync(msgIds[2], createCallback(1));
+    consumer.acknowledgeAsync(msgIds, createCallback(2));
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(3)));
+    for (int i = 0; i < 3; i++) {
+        LOG_INFO("Ack time: " << durationMs[i] << "ms");
+        EXPECT_TRUE(durationMs[i] > ackGroupingTimeMs && durationMs[i] < ackGroupingTimeMs + 100);
+        EXPECT_NE(threadId[i], std::this_thread::get_id());
+        EXPECT_EQ(result[i], ResultOk);
+    }
+
+    client.close();
+}
+
+INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest,
+                         testing::Combine(testing::Values(100, 0), testing::Values(true, false)),
+                         [](const testing::TestParamInfo<std::tuple<int, bool>>& info) {
+                             return std::to_string(std::get<0>(info.param)) + "_" +
+                                    std::to_string(std::get<1>(info.param));
+                         });

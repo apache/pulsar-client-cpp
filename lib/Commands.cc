@@ -24,6 +24,7 @@
 #include <pulsar/Version.h>
 
 #include <algorithm>
+#include <limits>
 #include <mutex>
 
 #include "BatchMessageAcker.h"
@@ -441,15 +442,16 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
 }
 
 SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
-                              CommandAck_AckType ackType, CommandAck_ValidationError validationError) {
+                              CommandAck_AckType ackType, uint64_t requestId) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
     ack->set_consumer_id(consumerId);
     ack->set_ack_type(static_cast<proto::CommandAck_AckType>(ackType));
-    if (proto::CommandAck_AckType_IsValid(validationError)) {
-        ack->set_validation_error((proto::CommandAck_ValidationError)validationError);
+    if (requestId != std::numeric_limits<uint64_t>::max()) {
+        ack->set_request_id(requestId);
     }
+
     auto* msgId = ack->add_message_id();
     msgId->set_ledgerid(ledgerId);
     msgId->set_entryid(entryId);
@@ -459,12 +461,16 @@ SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t ent
     return writeMessageWithSize(cmd);
 }
 
-SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds) {
+SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds,
+                                          uint64_t requestId) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
     ack->set_consumer_id(consumerId);
     ack->set_ack_type(proto::CommandAck_AckType_Individual);
+    if (requestId != std::numeric_limits<uint64_t>::max()) {
+        ack->set_request_id(requestId);
+    }
     for (const auto& msgId : msgIds) {
         auto newMsgId = ack->add_message_id();
         newMsgId->set_ledgerid(msgId.ledgerId());

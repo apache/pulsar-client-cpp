@@ -20,8 +20,10 @@
 #define LIB_ACKGROUPINGTRACKER_H_
 
 #include <pulsar/MessageId.h>
+#include <pulsar/Result.h>
 
 #include <cstdint>
+#include <functional>
 #include <set>
 
 #include "ProtoApiEnums.h"
@@ -29,7 +31,9 @@
 namespace pulsar {
 
 class ClientConnection;
+using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+using ResultCallback = std::function<void(Result)>;
 
 /**
  * @class AckGroupingTracker
@@ -38,7 +42,13 @@ using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
  */
 class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracker> {
    public:
-    AckGroupingTracker() = default;
+    AckGroupingTracker(std::function<ClientConnectionPtr()> connectionSupplier,
+                       std::function<uint64_t()> requestIdSupplier, uint64_t consumerId, bool waitResponse)
+        : connectionSupplier_(connectionSupplier),
+          requestIdSupplier_(requestIdSupplier),
+          consumerId_(consumerId),
+          waitResponse_(waitResponse) {}
+
     virtual ~AckGroupingTracker() = default;
 
     /**
@@ -59,20 +69,23 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
     /**
      * Adding message ID into ACK group for individual ACK.
      * @param[in] msgId ID of the message to be ACKed.
+     * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledge(const MessageId& msgId) {}
+    virtual void addAcknowledge(const MessageId& msgId, ResultCallback callback) {}
 
     /**
      * Adding message ID list into ACK group for individual ACK.
      * @param[in] msgIds of the message to be ACKed.
+     * @param[in] callback the callback that is triggered when the messages are acknowledged
      */
-    virtual void addAcknowledgeList(const MessageIdList& msgIds) {}
+    virtual void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {}
 
     /**
      * Adding message ID into ACK group for cumulative ACK.
      * @param[in] msgId ID of the message to be ACKed.
+     * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledgeCumulative(const MessageId& msgId) {}
+    virtual void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {}
 
     /**
      * Flush all the pending grouped ACKs (as flush() does), and stop period ACKs sending.
@@ -91,27 +104,17 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
     virtual void flushAndClean() {}
 
    protected:
-    /**
-     * Immediately send ACK request to broker.
-     * @param[in] connWeakPtr weak pointer of the client connection.
-     * @param[in] consumerId ID of the consumer that performs this ACK.
-     * @param[in] msgId message ID to be ACKed.
-     * @param[in] ackType ACK type, e.g. cumulative.
-     * @return true if the ACK is sent successfully, otherwise false.
-     */
-    bool doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uint64_t consumerId, const MessageId& msgId,
-                        CommandAck_AckType ackType);
+    void doImmediateAck(const MessageId& msgId, ResultCallback callback, CommandAck_AckType ackType) const;
+    void doImmediateAck(const std::set<MessageId>& msgIds, ResultCallback callback) const;
 
-    /**
-     * Immediately send a set of ACK requests one by one to the broker, it only supports individual
-     * ACK.
-     * @param[in] connWeakPtr weak pointer of the client connection.
-     * @param[in] consumerId ID of the consumer that performs this ACK.
-     * @param[in] msgIds message IDs to be ACKed.
-     * @return true if the ACK is sent successfully, otherwise false.
-     */
-    bool doImmediateAck(ClientConnectionWeakPtr connWeakPtr, uint64_t consumerId,
-                        const std::set<MessageId>& msgIds);
+   private:
+    const std::function<ClientConnectionPtr()> connectionSupplier_;
+    const std::function<uint64_t()> requestIdSupplier_;
+    const uint64_t consumerId_;
+
+   protected:
+    const bool waitResponse_;
+
 };  // class AckGroupingTracker
 
 using AckGroupingTrackerPtr = std::shared_ptr<AckGroupingTracker>;

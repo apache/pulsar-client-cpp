@@ -907,6 +907,10 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     handleGetSchemaResponse(incomingCmd.getschemaresponse());
                     break;
 
+                case BaseCommand::ACK_RESPONSE:
+                    handleAckResponse(incomingCmd.ackresponse());
+                    break;
+
                 default:
                     LOG_WARN(cnxString_ << "Received invalid message from server");
                     close();
@@ -1785,6 +1789,28 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
             "GetSchemaResponse command - Received unknown request id from "
             "server: "
             << response.request_id());
+    }
+}
+
+void ClientConnection::handleAckResponse(const proto::CommandAckResponse& response) {
+    LOG_DEBUG(cnxString_ << "Received AckResponse from server. req_id: " << response.request_id());
+
+    Lock lock(mutex_);
+    auto it = pendingRequests_.find(response.request_id());
+    if (it == pendingRequests_.cend()) {
+        lock.unlock();
+        LOG_WARN("Cannot find the cached AckResponse whose req_id is " << response.request_id());
+        return;
+    }
+
+    auto promise = it->second.promise;
+    pendingRequests_.erase(it);
+    lock.unlock();
+
+    if (response.has_error()) {
+        promise.setFailed(getResult(response.error(), ""));
+    } else {
+        promise.setValue({});
     }
 }
 

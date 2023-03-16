@@ -20,32 +20,24 @@
 #include "AckGroupingTrackerDisabled.h"
 
 #include "HandlerBase.h"
-#include "LogUtils.h"
 #include "ProtoApiEnums.h"
 
 namespace pulsar {
 
-DECLARE_LOG_OBJECT();
-
-AckGroupingTrackerDisabled::AckGroupingTrackerDisabled(HandlerBase& handler, uint64_t consumerId)
-    : AckGroupingTracker(), handler_(handler), consumerId_(consumerId) {
-    LOG_INFO("ACK grouping is disabled.");
+void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId, ResultCallback callback) {
+    doImmediateAck(msgId, callback, CommandAck_AckType_Individual);
 }
 
-void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId) {
-    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, CommandAck_AckType_Individual);
-}
-
-void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds) {
+void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {
     std::set<MessageId> msgIdSet;
     for (auto&& msgId : msgIds) {
         msgIdSet.emplace(msgId);
     }
-    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgIdSet);
+    doImmediateAck(msgIdSet, callback);
 }
 
-void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId) {
-    this->doImmediateAck(this->handler_.getCnx(), this->consumerId_, msgId, CommandAck_AckType_Cumulative);
+void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {
+    doImmediateAck(msgId, callback, CommandAck_AckType_Cumulative);
 }
 
 }  // namespace pulsar

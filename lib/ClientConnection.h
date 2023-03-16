@@ -75,6 +75,7 @@ struct OpSendMsg;
 namespace proto {
 class BaseCommand;
 class CommandActiveConsumerChange;
+class CommandAckResponse;
 class CommandMessage;
 class CommandCloseConsumer;
 class CommandCloseProducer;
@@ -390,6 +391,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleGetLastMessageIdResponse(const proto::CommandGetLastMessageIdResponse&);
     void handleGetTopicOfNamespaceResponse(const proto::CommandGetTopicsOfNamespaceResponse&);
     void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
+    void handleAckResponse(const proto::CommandAckResponse&);
 };
 }  // namespace pulsar
 
