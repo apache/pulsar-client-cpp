@@ -27,6 +27,7 @@
 #include "BlockingQueue.h"
 #include "Commands.h"
 #include "ConsumerImplBase.h"
+#include "ConsumerInterceptors.h"
 #include "Future.h"
 #include "Latch.h"
 #include "LookupDataResult.h"
@@ -54,13 +55,14 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
    public:
     MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName, int numPartitions,
                             const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                            LookupServicePtr lookupServicePtr,
+                            LookupServicePtr lookupServicePtr, const ConsumerInterceptorsPtr& interceptors,
                             Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                             boost::optional<MessageId> startMessageId = boost::none);
 
     MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, TopicNamePtr topicName,
                             const ConsumerConfiguration& conf, LookupServicePtr lookupServicePtr_,
+                            const ConsumerInterceptorsPtr& interceptors,
                             Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                             boost::optional<MessageId> startMessageId = boost::none);
 
@@ -127,6 +129,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     std::queue<ReceiveCallback> pendingReceives_;
     const Commands::SubscriptionMode subscriptionMode_;
     boost::optional<MessageId> startMessageId_;
+    ConsumerInterceptorsPtr interceptors_;
 
     /* methods */
     void handleSinglePartitionConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,

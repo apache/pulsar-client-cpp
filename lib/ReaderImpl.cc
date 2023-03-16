@@ -89,11 +89,14 @@ void ReaderImpl::start(const MessageId& startMessageId,
     if (partitions_ > 0) {
         auto consumerImpl = std::make_shared<MultiTopicsConsumerImpl>(
             client_.lock(), TopicName::get(topic_), partitions_, subscription, consumerConf,
-            client_.lock()->getLookup(), Commands::SubscriptionModeNonDurable, startMessageId);
+            client_.lock()->getLookup(),
+            std::make_shared<ConsumerInterceptors>(std::vector<ConsumerInterceptorPtr>()),
+            Commands::SubscriptionModeNonDurable, startMessageId);
         consumer_ = consumerImpl;
     } else {
         auto consumerImpl = std::make_shared<ConsumerImpl>(
             client_.lock(), topic_, subscription, consumerConf, TopicName::get(topic_)->isPersistent(),
+            std::make_shared<ConsumerInterceptors>(std::vector<ConsumerInterceptorPtr>()),
             ExecutorServicePtr(), false, NonPartitioned, Commands::SubscriptionModeNonDurable,
             startMessageId);
         consumerImpl->setPartitionIndex(TopicName::getPartitionIndex(topic_));

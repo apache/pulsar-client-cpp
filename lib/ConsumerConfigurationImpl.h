@@ -58,6 +58,7 @@ struct ConsumerConfigurationImpl {
     bool startMessageIdInclusive{false};
     long expireTimeOfIncompleteChunkedMessageMs{60000};
     bool batchIndexAckEnabled{false};
+    std::vector<ConsumerInterceptorPtr> interceptors;
 };
 }  // namespace pulsar
 #endif /* LIB_CONSUMERCONFIGURATIONIMPL_H_ */

@@ -30,6 +30,7 @@
 #include "Commands.h"
 #include "CompressionCodec.h"
 #include "ConsumerImplBase.h"
+#include "ConsumerInterceptors.h"
 #include "MapCache.h"
 #include "MessageIdImpl.h"
 #include "NegativeAcksTracker.h"
@@ -75,7 +76,7 @@ const static std::string DLQ_GROUP_TOPIC_SUFFIX = "-DLQ";
 class ConsumerImpl : public ConsumerImplBase {
    public:
     ConsumerImpl(const ClientImplPtr client, const std::string& topic, const std::string& subscriptionName,
-                 const ConsumerConfiguration&, bool isPersistent,
+                 const ConsumerConfiguration&, bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
                  const ExecutorServicePtr listenerExecutor = ExecutorServicePtr(), bool hasParent = false,
                  const ConsumerTopicType consumerTopicType = NonPartitioned,
                  Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
@@ -302,6 +303,8 @@ class ConsumerImpl : public ConsumerImplBase {
     const long expireTimeOfIncompleteChunkedMessageMs_;
     DeadlineTimerPtr checkExpiredChunkedTimer_;
     std::atomic_bool expireChunkMessageTaskScheduled_{false};
+
+    ConsumerInterceptorsPtr interceptors_;
 
     void triggerCheckExpiredChunkedTimer();
     void discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck);

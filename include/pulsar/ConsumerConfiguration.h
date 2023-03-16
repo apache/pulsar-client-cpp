@@ -21,6 +21,7 @@
 
 #include <pulsar/ConsumerCryptoFailureAction.h>
 #include <pulsar/ConsumerEventListener.h>
+#include <pulsar/ConsumerInterceptor.h>
 #include <pulsar/ConsumerType.h>
 #include <pulsar/CryptoKeyReader.h>
 #include <pulsar/InitialPosition.h>
@@ -617,6 +618,16 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * The associated getter of setBatchingEnabled
      */
     bool isBatchIndexAckEnabled() const;
+
+    /**
+     * Intercept the consumer
+     *
+     * @param interceptors the list of interceptors to intercept the consumer
+     * @return Consumer Configuration
+     */
+    ConsumerConfiguration& intercept(const std::vector<ConsumerInterceptorPtr>& interceptors);
+
+    const std::vector<ConsumerInterceptorPtr>& getInterceptors() const;
 
     friend class PulsarWrapper;
     friend class PulsarFriend;

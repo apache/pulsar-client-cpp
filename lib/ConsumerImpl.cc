@@ -56,7 +56,7 @@ DECLARE_LOG_OBJECT()
 
 ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                           bool isPersistent,
+                           bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
                            const ExecutorServicePtr listenerExecutor /* = NULL by default */,
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
@@ -90,7 +90,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       startMessageId_(startMessageId),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
-      expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()) {
+      expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
+      interceptors_(interceptors) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[" << topic_ << ", " << subscription_ << ", " << consumerId_ << "] ";
     consumerStr_ = consumerStrStream.str();
@@ -646,7 +647,8 @@ void ConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback
     Message peekMsg;
     while (incomingMessages_.pop(peekMsg, std::chrono::milliseconds(0)) && messages->canAdd(peekMsg)) {
         messageProcessed(peekMsg);
-        messages->add(peekMsg);
+        Message interceptMsg = interceptors_->beforeConsume(Consumer(shared_from_this()), peekMsg);
+        messages->add(interceptMsg);
     }
     auto self = get_shared_this_ptr();
     listenerExecutor_->postWork(
@@ -657,6 +659,7 @@ void ConsumerImpl::notifyPendingReceivedCallback(Result result, Message& msg,
                                                  const ReceiveCallback& callback) {
     if (result == ResultOk && config_.getReceiverQueueSize() != 0) {
         messageProcessed(msg);
+        msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         unAckedMessageTrackerPtr_->add(msg.getMessageId());
     }
     callback(result, msg);
@@ -838,7 +841,8 @@ void ConsumerImpl::internalListener() {
         consumerStatsBasePtr_->receivedMessage(msg, ResultOk);
         lastDequedMessageId_ = msg.getMessageId();
         Consumer consumer{get_shared_this_ptr()};
-        messageListener_(consumer, msg);
+        Message interceptMsg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
+        messageListener_(consumer, interceptMsg);
     } catch (const std::exception& e) {
         LOG_ERROR(getName() << "Exception thrown from listener" << e.what());
     }
@@ -879,6 +883,9 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
             if (msg.impl_->cnx_ == currentCnx.get()) {
                 waitingForZeroQueueSizeMessage = false;
                 // Can't use break here else it may trigger a race with connection opened.
+
+                localLock.unlock();
+                msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
                 return ResultOk;
             }
         }
@@ -904,6 +911,7 @@ void ConsumerImpl::receiveAsync(ReceiveCallback callback) {
     if (incomingMessages_.pop(msg, std::chrono::milliseconds(0))) {
         lock.unlock();
         messageProcessed(msg);
+        msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         callback(ResultOk, msg);
     } else {
         pendingReceives_.push(callback);
@@ -934,6 +942,7 @@ Result ConsumerImpl::receiveHelper(Message& msg) {
     }
 
     messageProcessed(msg);
+    msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
     return ResultOk;
 }
 
@@ -960,6 +969,7 @@ Result ConsumerImpl::receiveHelper(Message& msg, int timeout) {
 
     if (incomingMessages_.pop(msg, std::chrono::milliseconds(timeout))) {
         messageProcessed(msg);
+        msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         return ResultOk;
     } else {
         if (state_ != Ready) {
@@ -1076,6 +1086,7 @@ void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callb
     if (readyToAck) {
         ackGroupingTrackerPtr_->addAcknowledge(msgIdToAck);
     }
+    interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultOk, msgId);
     if (callback) {
         callback(ResultOk);
     }
@@ -1083,6 +1094,7 @@ void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callb
 
 void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
     MessageIdList messageIdListToAck;
+    // TODO: Need to check if the consumer is ready. Same to all other public methods
     for (auto&& msgId : messageIdList) {
         auto pair = prepareIndividualAck(msgId);
         const auto& msgIdToAck = pair.first;
@@ -1090,6 +1102,9 @@ void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCa
         if (readyToAck) {
             messageIdListToAck.emplace_back(msgIdToAck);
         }
+        // Invoking `onAcknowledge` for all message ids no matter if it's ready to ack. This is consistent
+        // with the Java client.
+        interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultOk, msgId);
     }
     this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdListToAck);
     if (callback) {
@@ -1099,6 +1114,8 @@ void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCa
 
 void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
     if (!isCumulativeAcknowledgementAllowed(config_.getConsumerType())) {
+        interceptors_->onAcknowledgeCumulative(Consumer(shared_from_this()),
+                                               ResultCumulativeAcknowledgementNotAllowedError, msgId);
         if (callback) {
             callback(ResultCumulativeAcknowledgementNotAllowedError);
         }
@@ -1112,6 +1129,7 @@ void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCall
         unAckedMessageTrackerPtr_->removeMessagesTill(msgIdToAck);
         ackGroupingTrackerPtr_->addAcknowledgeCumulative(msgIdToAck);
     }
+    interceptors_->onAcknowledgeCumulative(Consumer(shared_from_this()), ResultOk, msgId);
     if (callback) {
         callback(ResultOk);
     }
@@ -1226,6 +1244,7 @@ void ConsumerImpl::shutdown() {
     incomingMessages_.clear();
     possibleSendToDeadLetterTopicMessages_.clear();
     resetCnx();
+    interceptors_->close();
     auto client = client_.lock();
     if (client) {
         client->cleanupConsumer(this);

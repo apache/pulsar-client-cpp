@@ -50,7 +50,8 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     PatternMultiTopicsConsumerImpl(ClientImplPtr client, const std::string patternString,
                                    const std::vector<std::string>& topics,
                                    const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                                   const LookupServicePtr lookupServicePtr_);
+                                   const LookupServicePtr lookupServicePtr_,
+                                   const ConsumerInterceptorsPtr interceptors);
 
     const PULSAR_REGEX_NAMESPACE::regex getPattern();
 
