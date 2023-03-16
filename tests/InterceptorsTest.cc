@@ -350,8 +350,6 @@ TEST_P(ConsumerInterceptorsTest, testConsumerInterceptor) {
     ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 }
 
-TEST(ConsumerInterceptorsTest, testMultiInterceptors) {}
-
 TEST_P(ConsumerInterceptorsTest, testConsumerInterceptorWithExceptions) {
     Latch latch(5);  // 2 beforeConsume + 1 onAcknowledge + 1 onAcknowledgeCumulative + 1 close
 
