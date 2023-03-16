@@ -72,6 +72,7 @@ class PULSAR_PUBLIC MessageId {
 
     /**
      * Set the topicName
+     * @deprecated This method will be eventually removed
      */
     void setTopicName(const std::string& topicName);
 
@@ -109,6 +110,8 @@ class PULSAR_PUBLIC MessageId {
     friend class NegativeAcksTracker;
     friend class MessageIdBuilder;
     friend class ChunkMessageIdImpl;
+
+    void setTopicName(const std::shared_ptr<std::string>& topic);
 
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const MessageId& messageId);
 

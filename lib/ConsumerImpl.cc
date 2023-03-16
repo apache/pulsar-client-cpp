@@ -176,14 +176,14 @@ Future<Result, ConsumerImplBaseWeakPtr> ConsumerImpl::getConsumerCreatedFuture()
 
 const std::string& ConsumerImpl::getSubscriptionName() const { return originalSubscriptionName_; }
 
-const std::string& ConsumerImpl::getTopic() const { return topic_; }
+const std::string& ConsumerImpl::getTopic() const { return *topic_; }
 
 void ConsumerImpl::start() {
     HandlerBase::start();
 
     // Initialize ackGroupingTrackerPtr_ here because the get_shared_this_ptr() was not initialized until the
     // constructor completed.
-    if (TopicName::get(topic_)->isPersistent()) {
+    if (TopicName::get(*topic_)->isPersistent()) {
         if (config_.getAckGroupingTimeMs() > 0) {
             ackGroupingTrackerPtr_.reset(new AckGroupingTrackerEnabled(
                 client_.lock(), get_shared_this_ptr(), consumerId_, config_.getAckGroupingTimeMs(),
@@ -226,7 +226,7 @@ void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     ClientImplPtr client = client_.lock();
     uint64_t requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
-        topic_, subscription_, consumerId_, requestId, getSubType(), consumerName_, subscriptionMode_,
+        *topic_, subscription_, consumerId_, requestId, getSubType(), consumerName_, subscriptionMode_,
         subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
         config_.getSchema(), getInitialPosition(), config_.isReplicateSubscriptionStateEnabled(),
         config_.getKeySharedPolicy(), config_.getPriorityLevel());
@@ -682,7 +682,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
         // This is a cheap copy since message contains only one shared pointer (impl_)
         Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize, acker);
         msg.impl_->setRedeliveryCount(redeliveryCount);
-        msg.impl_->setTopicName(batchedMessage.getTopicName());
+        msg.impl_->setTopicName(batchedMessage.impl_->topicName_);
         msg.impl_->convertPayloadToKeyValue(config_.getSchema());
 
         if (redeliveryCount >= deadLetterPolicy_.getMaxRedeliverCount()) {

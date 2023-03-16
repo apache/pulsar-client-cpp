@@ -25,7 +25,7 @@
 
 namespace pulsar {
 
-const static std::string emptyString;
+const static std::shared_ptr<std::string> emptyString;
 
 MessageBatch::MessageBatch() : impl_(std::make_shared<MessageImpl>()), batchMessage_(impl_) {
     impl_->setTopicName(emptyString);

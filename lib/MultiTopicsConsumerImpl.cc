@@ -453,10 +453,17 @@ void MultiTopicsConsumerImpl::handleOneTopicUnsubscribedAsync(
 }
 
 void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
-    auto callback = [this, originalCallback](Result result) {
-        shutdown();
-        if (result != ResultOk) {
-            LOG_WARN(getName() << "Failed to close consumer: " << result);
+    std::weak_ptr<MultiTopicsConsumerImpl> weakSelf{get_shared_this_ptr()};
+    auto callback = [weakSelf, originalCallback](Result result) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->shutdown();
+            if (result != ResultOk) {
+                LOG_WARN(self->getName() << "Failed to close consumer: " << result);
+                if (result != ResultAlreadyClosed) {
+                    self->state_ = Failed;
+                }
+            }
         }
         if (originalCallback) {
             originalCallback(result);
@@ -472,44 +479,32 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
 
     cancelTimers();
 
-    auto weakSelf = weak_from_this();
-    int numConsumers = 0;
-    consumers_.clear(
-        [this, weakSelf, &numConsumers, callback](const std::string& name, const ConsumerImplPtr& consumer) {
-            auto self = weakSelf.lock();
-            if (!self) {
-                return;
-            }
-            numConsumers++;
-            consumer->closeAsync([this, weakSelf, name, callback](Result result) {
-                auto self = weakSelf.lock();
-                if (!self) {
-                    return;
-                }
-                LOG_DEBUG("Closing the consumer for partition - " << name << " numberTopicPartitions_ - "
-                                                                  << numberTopicPartitions_->load());
-                const int numConsumersLeft = --*numberTopicPartitions_;
-                if (numConsumersLeft < 0) {
-                    LOG_ERROR("[" << name << "] Unexpected number of left consumers: " << numConsumersLeft
-                                  << " during close");
-                    return;
-                }
-                if (result != ResultOk) {
-                    state_ = Failed;
-                    LOG_ERROR("Closing the consumer failed for partition - " << name << " with error - "
-                                                                             << result);
-                }
-                // closed all consumers
-                if (numConsumersLeft == 0) {
-                    callback(result);
-                }
-            });
-        });
-    if (numConsumers == 0) {
+    auto consumers = consumers_.move();
+    *numberTopicPartitions_ = 0;
+    if (consumers.empty()) {
         LOG_DEBUG("TopicsConsumer have no consumers to close "
                   << " topic" << topic_ << " subscription - " << subscriptionName_);
         callback(ResultAlreadyClosed);
         return;
+    }
+
+    auto numConsumers = std::make_shared<std::atomic<size_t>>(consumers.size());
+    for (auto&& kv : consumers) {
+        auto& name = kv.first;
+        auto& consumer = kv.second;
+        consumer->closeAsync([name, numConsumers, callback](Result result) {
+            const auto numConsumersLeft = --*numConsumers;
+            LOG_DEBUG("Closing the consumer for partition - " << name << " numConsumersLeft - "
+                                                              << numConsumersLeft);
+
+            if (result != ResultOk) {
+                LOG_ERROR("Closing the consumer failed for partition - " << name << " with error - "
+                                                                         << result);
+            }
+            if (numConsumersLeft == 0) {
+                callback(result);
+            }
+        });
     }
 
     // fail pending receive
@@ -523,8 +518,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
 void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& msg) {
     LOG_DEBUG("Received Message from one of the topic - " << consumer.getTopic()
                                                           << " message:" << msg.getDataAsString());
-    const std::string& topicPartitionName = consumer.getTopic();
-    msg.impl_->setTopicName(topicPartitionName);
+    msg.impl_->setTopicName(consumer.impl_->topic_);
 
     Lock lock(pendingReceiveMutex_);
     if (!pendingReceives_.empty()) {
@@ -740,7 +734,7 @@ Future<Result, ConsumerImplBaseWeakPtr> MultiTopicsConsumerImpl::getConsumerCrea
 }
 const std::string& MultiTopicsConsumerImpl::getSubscriptionName() const { return subscriptionName_; }
 
-const std::string& MultiTopicsConsumerImpl::getTopic() const { return topic_; }
+const std::string& MultiTopicsConsumerImpl::getTopic() const { return *topic_; }
 
 const std::string& MultiTopicsConsumerImpl::getName() const { return consumerStr_; }
 

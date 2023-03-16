@@ -30,7 +30,7 @@ namespace pulsar {
 
 HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, const Backoff& backoff)
     : client_(client),
-      topic_(topic),
+      topic_(std::make_shared<std::string>(topic)),
       executor_(client->getIOExecutorProvider()->get()),
       mutex_(),
       creationTimestamp_(TimeUtils::now()),
@@ -71,7 +71,7 @@ void HandlerBase::grabCnx() {
     }
     LOG_INFO(getName() << "Getting connection from pool");
     ClientImplPtr client = client_.lock();
-    Future<Result, ClientConnectionWeakPtr> future = client->getConnection(topic_);
+    Future<Result, ClientConnectionWeakPtr> future = client->getConnection(*topic_);
     future.addListener(std::bind(&HandlerBase::handleNewConnection, std::placeholders::_1,
                                  std::placeholders::_2, get_weak_from_this()));
 }
