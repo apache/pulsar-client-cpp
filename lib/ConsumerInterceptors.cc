@@ -31,7 +31,7 @@ Message ConsumerInterceptors::beforeConsume(const Consumer &consumer, const Mess
     Message interceptorMessage = message;
     for (const ConsumerInterceptorPtr &interceptor : interceptors_) {
         try {
-            interceptorMessage = interceptor->beforeConsume(consumer, message);
+            interceptorMessage = interceptor->beforeConsume(consumer, interceptorMessage);
         } catch (const std::exception &e) {
             LOG_WARN("Error executing interceptor beforeConsume callback for topic: "
                      << consumer.getTopic() << ", exception: " << e.what());

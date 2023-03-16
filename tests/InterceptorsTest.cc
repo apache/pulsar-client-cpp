@@ -36,17 +36,23 @@ using namespace pulsar;
 
 class ProducerTestInterceptor : public ProducerInterceptor {
    public:
-    ProducerTestInterceptor(Latch& latch, Latch& closeLatch) : latch_(latch), closeLatch_(closeLatch) {}
+    ProducerTestInterceptor(Latch& latch, Latch& closeLatch, std::string key)
+        : latch_(latch), closeLatch_(closeLatch), key_(std::move(key)) {}
 
     Message beforeSend(const Producer& producer, const Message& message) override {
-        return MessageBuilder().setProperty("key", "set").setContent(message.getDataAsString()).build();
+        return MessageBuilder()
+            .setProperties(message.getProperties())
+            .setProperty(key_, "set")
+            .setContent(message.getDataAsString())
+            .build();
     }
 
     void onSendAcknowledgement(const Producer& producer, Result result, const Message& message,
                                const MessageId& messageID) override {
         ASSERT_EQ(result, ResultOk);
         auto properties = message.getProperties();
-        ASSERT_TRUE(properties.find("key") != properties.end() && properties["key"] == "set");
+        ASSERT_TRUE(properties.find("key1") != properties.end() && properties["key1"] == "set");
+        ASSERT_TRUE(properties.find("key2") != properties.end() && properties["key2"] == "set");
         latch_.countdown();
     }
 
@@ -55,6 +61,7 @@ class ProducerTestInterceptor : public ProducerInterceptor {
    private:
     Latch latch_;
     Latch closeLatch_;
+    std::string key_;
 };
 
 class ProducerExceptionInterceptor : public ProducerInterceptor {
@@ -115,12 +122,13 @@ TEST_P(ProducerInterceptorsTest, testProducerInterceptor) {
         createPartitionedTopic(topic);
     }
 
-    Latch latch(1);
-    Latch closeLatch(1);
+    Latch latch(2);
+    Latch closeLatch(2);
 
     Client client(serviceUrl);
     ProducerConfiguration conf;
-    conf.intercept({std::make_shared<ProducerTestInterceptor>(latch, closeLatch)});
+    conf.intercept({std::make_shared<ProducerTestInterceptor>(latch, closeLatch, "key1"),
+                    std::make_shared<ProducerTestInterceptor>(latch, closeLatch, "key2")});
     Producer producer;
     client.createProducer(topic, conf, producer);
 
@@ -225,14 +233,18 @@ enum TopicType
 
 class ConsumerTestInterceptor : public ConsumerInterceptor {
    public:
-    explicit ConsumerTestInterceptor(Latch& latch) : latch_(latch) {}
+    ConsumerTestInterceptor(Latch& latch, std::string key) : latch_(latch), key_(std::move(key)) {}
 
     void close() override { latch_.countdown(); }
 
     Message beforeConsume(const Consumer& consumer, const Message& message) override {
         latch_.countdown();
         LOG_INFO("Received msg from: " << consumer.getTopic());
-        return MessageBuilder().setProperty("key", "set").setContent(message.getDataAsString()).build();
+        return MessageBuilder()
+            .setProperties(message.getProperties())
+            .setProperty(key_, "set")
+            .setContent(message.getDataAsString())
+            .build();
     }
 
     void onAcknowledge(const Consumer& consumer, Result result, const MessageId& messageID) override {
@@ -250,6 +262,7 @@ class ConsumerTestInterceptor : public ConsumerInterceptor {
 
    private:
     Latch latch_;
+    std::string key_;
 };
 
 class ConsumerInterceptorsTest : public ::testing::TestWithParam<std::tuple<TopicType, int>> {
@@ -298,10 +311,12 @@ class ConsumerInterceptorsTest : public ::testing::TestWithParam<std::tuple<Topi
 };
 
 TEST_P(ConsumerInterceptorsTest, testConsumerInterceptor) {
-    Latch latch(5);  // 2 beforeConsume + 1 onAcknowledge + 1 onAcknowledgeCumulative + 1 close
+    Latch latch(
+        10);  // (2 beforeConsume + 1 onAcknowledge + 1 onAcknowledgeCumulative + 1 close) * 2 interceptors
 
     Consumer consumer;
-    consumerConf_.intercept({std::make_shared<ConsumerTestInterceptor>(latch)});
+    consumerConf_.intercept({std::make_shared<ConsumerTestInterceptor>(latch, "key1"),
+                             std::make_shared<ConsumerTestInterceptor>(latch, "key2")});
     Result result;
 
     if (std::get<0>(GetParam()) == Pattern) {
@@ -320,7 +335,8 @@ TEST_P(ConsumerInterceptorsTest, testConsumerInterceptor) {
     result = consumer.receive(recvMsg);
     ASSERT_EQ(result, ResultOk);
     auto properties = recvMsg.getProperties();
-    ASSERT_TRUE(properties.find("key") != properties.end() && properties["key"] == "set");
+    ASSERT_TRUE(properties.find("key1") != properties.end() && properties["key1"] == "set");
+    ASSERT_TRUE(properties.find("key2") != properties.end() && properties["key2"] == "set");
     consumer.acknowledge(recvMsg);
 
     msg = MessageBuilder().setContent("content").build();
@@ -333,6 +349,8 @@ TEST_P(ConsumerInterceptorsTest, testConsumerInterceptor) {
     consumer.close();
     ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
 }
+
+TEST(ConsumerInterceptorsTest, testMultiInterceptors) {}
 
 TEST_P(ConsumerInterceptorsTest, testConsumerInterceptorWithExceptions) {
     Latch latch(5);  // 2 beforeConsume + 1 onAcknowledge + 1 onAcknowledgeCumulative + 1 close
