@@ -136,6 +136,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
     virtual bool isReadCompacted();
     void beforeConnectionChange(ClientConnection& cnx) override;
+    void onNegativeAcksSend(const std::set<MessageId>& messageIds);
 
    protected:
     // overrided methods from HandlerBase

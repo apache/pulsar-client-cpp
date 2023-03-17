@@ -24,6 +24,8 @@
 #include <pulsar/Result.h>
 #include <pulsar/defines.h>
 
+#include <set>
+
 namespace pulsar {
 
 class Consumer;
@@ -101,6 +103,16 @@ class PULSAR_PUBLIC ConsumerInterceptor {
      */
     virtual void onAcknowledgeCumulative(const Consumer& consumer, Result result,
                                          const MessageId& messageID) = 0;
+
+    /**
+     * This method will be called when a redelivery from a negative acknowledge occurs.
+     *
+     * <p>Any exception thrown by this method will be ignored by the caller.
+     *
+     * @param consumer the consumer which contains the interceptor
+     * @param messageIds the set of message ids to negative ack
+     */
+    virtual void onNegativeAcksSend(const Consumer& consumer, const std::set<MessageId>& messageIds) = 0;
 };
 
 typedef std::shared_ptr<ConsumerInterceptor> ConsumerInterceptorPtr;

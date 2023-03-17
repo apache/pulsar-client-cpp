@@ -64,6 +64,18 @@ void ConsumerInterceptors::onAcknowledgeCumulative(const Consumer &consumer, Res
     }
 }
 
+void ConsumerInterceptors::onNegativeAcksSend(const Consumer &consumer,
+                                              const std::set<MessageId> &messageIds) const {
+    for (const ConsumerInterceptorPtr &interceptor : interceptors_) {
+        try {
+            interceptor->onNegativeAcksSend(consumer, messageIds);
+        } catch (const std::exception &e) {
+            LOG_WARN("Error executing interceptor onNegativeAcksSend callback for topic: "
+                     << consumer.getTopic() << ", exception: " << e.what());
+        }
+    }
+}
+
 void ConsumerInterceptors::close() {
     State state = Ready;
     if (!state_.compare_exchange_strong(state, Closing)) {

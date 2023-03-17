@@ -22,6 +22,7 @@
 #include <pulsar/ConsumerInterceptor.h>
 
 #include <atomic>
+#include <set>
 #include <utility>
 #include <vector>
 
@@ -38,6 +39,8 @@ class ConsumerInterceptors {
     void onAcknowledge(const Consumer& consumer, Result result, const MessageId& messageID) const;
 
     void onAcknowledgeCumulative(const Consumer& consumer, Result result, const MessageId& messageID) const;
+
+    void onNegativeAcksSend(const Consumer& consumer, const std::set<MessageId>& messageIds) const;
 
    private:
     enum State
