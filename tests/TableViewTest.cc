@@ -58,7 +58,7 @@ TEST(TableViewTest, testCreateTableView) {
     // Test async create and close the client during the process.
     Latch latch(1);
     client.createTableViewAsync(
-        topic, tableViewConfiguration, [&latch](Result result, const TableView& tableView) {
+        topic, {.schemaInfo = schemaInfo}, [&latch](Result result, const TableView& tableView) {
             latch.countdown();
             ASSERT_TRUE(result == ResultDisconnected || result == ResultAlreadyClosed);
         });
