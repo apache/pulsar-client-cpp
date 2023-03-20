@@ -53,14 +53,15 @@ void ConsumerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
     }
 
     Lock lock(mutex_);
-    ConsumerStatsImpl tmp = *this;
+    std::ostringstream oss;
+    oss << *this;
     numBytesRecieved_ = 0;
     receivedMsgMap_.clear();
     ackedMsgMap_.clear();
     lock.unlock();
 
     scheduleTimer();
-    LOG_INFO(tmp);
+    LOG_INFO(oss.str());
 }
 
 ConsumerStatsImpl::~ConsumerStatsImpl() { timer_->cancel(); }

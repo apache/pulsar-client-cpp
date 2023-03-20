@@ -72,7 +72,8 @@ void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
     }
 
     Lock lock(mutex_);
-    ProducerStatsImpl tmp = *this;
+    std::ostringstream oss;
+    oss << *this;
     numMsgsSent_ = 0;
     numBytesSent_ = 0;
     sendMap_.clear();
@@ -81,7 +82,7 @@ void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
     lock.unlock();
 
     scheduleTimer();
-    LOG_INFO(tmp);
+    LOG_INFO(oss.str());
 }
 
 void ProducerStatsImpl::messageSent(const Message& msg) {
