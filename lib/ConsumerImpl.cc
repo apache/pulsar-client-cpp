@@ -117,6 +117,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
     } else {
         consumerStatsBasePtr_ = std::make_shared<ConsumerStatsDisabled>();
     }
+    consumerStatsBasePtr_->start();
 
     // Create msgCrypto
     if (conf.isEncryptionEnabled()) {
