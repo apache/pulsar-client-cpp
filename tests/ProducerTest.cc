@@ -374,6 +374,25 @@ TEST(ProducerTest, testExclusiveWithFencingProducer) {
     // producer1 will be fenced
     ASSERT_EQ(ResultProducerFenced, producer1.send(MessageBuilder().setContent("content").build()));
 
+    // Again create producer4 with WaitForExclusive
+    Producer producer4;
+    ProducerConfiguration producerConfiguration4;
+    producerConfiguration2.setProducerName("p-name-4");
+    producerConfiguration2.setAccessMode(ProducerConfiguration::WaitForExclusive);
+    Latch latch2(1);
+    client.createProducerAsync(topicName, producerConfiguration2,
+                               [&latch2, &producer4](Result res, Producer producer) {
+                                   // producer4 will be success
+                                   ASSERT_EQ(ResultOk, res);
+                                   producer4 = producer;
+                                   latch2.countdown();
+                               });
+
+    // When producer3 is close, producer4 will be create success
+    producer3.close();
+    latch2.wait();
+    ASSERT_EQ(ResultOk, producer4.send(MessageBuilder().setContent("content").build()));
+
     client.close();
 }
 
