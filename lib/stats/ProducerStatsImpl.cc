@@ -48,12 +48,8 @@ ProducerStatsImpl::ProducerStatsImpl(std::string producerStr, ExecutorServicePtr
     : producerStr_(producerStr),
       latencyAccumulator_(boost::accumulators::tag::extended_p_square::probabilities = probs),
       totalLatencyAccumulator_(boost::accumulators::tag::extended_p_square::probabilities = probs),
-      executor_(executor),
       timer_(executor->createDeadlineTimer()),
-      statsIntervalInSeconds_(statsIntervalInSeconds) {
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
-    timer_->async_wait(std::bind(&pulsar::ProducerStatsImpl::flushAndReset, this, std::placeholders::_1));
-}
+      statsIntervalInSeconds_(statsIntervalInSeconds) {}
 
 ProducerStatsImpl::ProducerStatsImpl(const ProducerStatsImpl& stats)
     : producerStr_(stats.producerStr_),
@@ -66,6 +62,8 @@ ProducerStatsImpl::ProducerStatsImpl(const ProducerStatsImpl& stats)
       totalSendMap_(stats.totalSendMap_),
       totalLatencyAccumulator_(stats.totalLatencyAccumulator_),
       statsIntervalInSeconds_(stats.statsIntervalInSeconds_) {}
+
+void ProducerStatsImpl::start() { scheduleTimer(); }
 
 void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
     if (ec) {
@@ -82,8 +80,7 @@ void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
         LatencyAccumulator(boost::accumulators::tag::extended_p_square::probabilities = probs);
     lock.unlock();
 
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
-    timer_->async_wait(std::bind(&pulsar::ProducerStatsImpl::flushAndReset, this, std::placeholders::_1));
+    scheduleTimer();
     LOG_INFO(tmp);
 }
 
@@ -105,11 +102,18 @@ void ProducerStatsImpl::messageReceived(Result res, const boost::posix_time::pti
     totalSendMap_[res] += 1;  // Value will automatically be initialized to 0 in the constructor
 }
 
-ProducerStatsImpl::~ProducerStatsImpl() {
-    Lock lock(mutex_);
-    if (timer_) {
-        timer_->cancel();
-    }
+ProducerStatsImpl::~ProducerStatsImpl() { timer_->cancel(); }
+
+void ProducerStatsImpl::scheduleTimer() {
+    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
+    std::weak_ptr<ProducerStatsImpl> weakSelf{shared_from_this()};
+    timer_->async_wait([this, weakSelf](const boost::system::error_code& ec) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
+        flushAndReset(ec);
+    });
 }
 
 std::ostream& operator<<(std::ostream& os, const ProducerStatsImpl& obj) {

@@ -98,6 +98,7 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
     } else {
         producerStatsBasePtr_ = std::make_shared<ProducerStatsDisabled>();
     }
+    producerStatsBasePtr_->start();
 
     if (conf_.isEncryptionEnabled()) {
         std::ostringstream logCtxStream;

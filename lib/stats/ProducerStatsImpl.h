@@ -64,8 +64,7 @@ class ProducerStatsImpl : public std::enable_shared_from_this<ProducerStatsImpl>
     std::map<Result, unsigned long> totalSendMap_;
     LatencyAccumulator totalLatencyAccumulator_;
 
-    ExecutorServicePtr executor_;
-    DeadlineTimerPtr timer_;
+    const DeadlineTimerPtr timer_;
     std::mutex mutex_;
     unsigned int statsIntervalInSeconds_;
 
@@ -75,16 +74,20 @@ class ProducerStatsImpl : public std::enable_shared_from_this<ProducerStatsImpl>
 
     static std::string latencyToString(const LatencyAccumulator&);
 
+    void scheduleTimer();
+
    public:
     ProducerStatsImpl(std::string, ExecutorServicePtr, unsigned int);
 
     ProducerStatsImpl(const ProducerStatsImpl& stats);
 
+    void start() override;
+
     void flushAndReset(const boost::system::error_code&);
 
-    void messageSent(const Message&);
+    void messageSent(const Message&) override;
 
-    void messageReceived(Result, const boost::posix_time::ptime&);
+    void messageReceived(Result, const boost::posix_time::ptime&) override;
 
     ~ProducerStatsImpl();
 

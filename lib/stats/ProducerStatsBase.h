@@ -27,6 +27,7 @@
 namespace pulsar {
 class ProducerStatsBase {
    public:
+    virtual void start() {}
     virtual void messageSent(const Message& msg) = 0;
     virtual void messageReceived(Result, const boost::posix_time::ptime&) = 0;
     virtual ~ProducerStatsBase(){};
