@@ -361,6 +361,8 @@ TEST(ProducerTest, testExclusiveWithFencingProducer) {
                                    latch.countdown();
                                    producer2 = producer;
                                });
+    // wait for all the Producers to be enqueued in order to prevent races
+    sleep(1);
 
     // producer3 will create success.
     Producer producer3;
@@ -387,6 +389,7 @@ TEST(ProducerTest, testExclusiveWithFencingProducer) {
                                    producer4 = producer;
                                    latch2.countdown();
                                });
+    ASSERT_EQ(ResultProducerNotInitialized, producer4.send(MessageBuilder().setContent("content").build()));
 
     // When producer3 is close, producer4 will be create success
     producer3.close();
