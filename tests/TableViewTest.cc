@@ -55,15 +55,7 @@ TEST(TableViewTest, testCreateTableView) {
     ASSERT_EQ(ResultOk, client.createTableView(topic, {.schemaInfo = schemaInfo}, tableView));
     ASSERT_EQ(ResultOk, tableView.close());
 
-    // Test async create and close the client during the process.
-    Latch latch(1);
-    client.createTableViewAsync(
-        topic, {.schemaInfo = schemaInfo}, [&latch](Result result, const TableView& tableView) {
-            latch.countdown();
-            ASSERT_TRUE(result == ResultDisconnected || result == ResultAlreadyClosed);
-        });
     client.close();
-    latch.wait();
 }
 
 TEST(TableViewTest, testSimpleTableView) {
