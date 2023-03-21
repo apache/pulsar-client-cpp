@@ -220,6 +220,8 @@ class ConsumerExceptionInterceptor : public ConsumerInterceptor {
         throw std::runtime_error("expected exception");
     }
 
+    void onNegativeAcksSend(const Consumer& consumer, const std::set<MessageId>& messageIds) override {}
+
    private:
     Latch latch_;
 };
@@ -259,6 +261,8 @@ class ConsumerTestInterceptor : public ConsumerInterceptor {
         ASSERT_EQ(result, ResultOk);
         latch_.countdown();
     }
+
+    void onNegativeAcksSend(const Consumer& consumer, const std::set<MessageId>& messageIds) override {}
 
    private:
     Latch latch_;
@@ -378,6 +382,70 @@ TEST_P(ConsumerInterceptorsTest, testConsumerInterceptorWithExceptions) {
     producer.close();
     consumer.close();
     ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
+}
+
+class NegativeAcksSendInterceptors : public ConsumerInterceptor {
+   public:
+    explicit NegativeAcksSendInterceptors(Latch& latch) : latch_(latch) {}
+
+    void close() override {}
+
+    Message beforeConsume(const Consumer& consumer, const Message& message) override { return message; }
+
+    void onAcknowledge(const Consumer& consumer, Result result, const MessageId& messageID) override {}
+
+    void onAcknowledgeCumulative(const Consumer& consumer, Result result,
+                                 const MessageId& messageID) override {}
+
+    void onNegativeAcksSend(const Consumer& consumer, const std::set<MessageId>& messageIds) override {
+        for (auto _ : messageIds) {
+            latch_.countdown();
+        }
+    }
+
+   private:
+    Latch latch_;
+};
+
+TEST_P(ConsumerInterceptorsTest, TestNegativeAcksSend) {
+    int numMsgs = 100;
+    Latch latch(numMsgs / 2);
+
+    Consumer consumer;
+    consumerConf_.intercept({std::make_shared<NegativeAcksSendInterceptors>(latch)});
+    consumerConf_.setNegativeAckRedeliveryDelayMs(100);
+
+    Result result;
+    if (std::get<0>(GetParam()) == Pattern) {
+        result = client_.subscribeWithRegex(topic_, "sub", consumerConf_, consumer);
+    } else {
+        result = client_.subscribe(topic_, "sub", consumerConf_, consumer);
+    }
+    ASSERT_EQ(result, ResultOk);
+
+    for (int i = 0; i < numMsgs; i++) {
+        Message msg = MessageBuilder().setContent("content").build();
+        if (i % 2) {
+            result = producer1_.send(msg);
+        } else {
+            result = producer2_.send(msg);
+        }
+        ASSERT_EQ(result, ResultOk);
+    }
+
+    Message recvMsg;
+    for (int i = 0; i < numMsgs; i++) {
+        consumer.receive(recvMsg);
+        LOG_INFO("RECEIVE: " << i);
+        if (i % 2) {
+            consumer.acknowledge(recvMsg);
+        } else {
+            consumer.negativeAcknowledge(recvMsg);
+        }
+    }
+
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
+    consumer.close();
 }
 
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerInterceptorsTest, ::testing::Values(true, false));

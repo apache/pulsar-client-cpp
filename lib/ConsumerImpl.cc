@@ -200,6 +200,10 @@ void ConsumerImpl::start() {
 
 void ConsumerImpl::beforeConnectionChange(ClientConnection& cnx) { cnx.removeConsumer(consumerId_); }
 
+void ConsumerImpl::onNegativeAcksSend(const std::set<MessageId>& messageIds) {
+    interceptors_->onNegativeAcksSend(Consumer(shared_from_this()), messageIds);
+}
+
 void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
     if (state_ == Closed) {
         LOG_DEBUG(getName() << "connectionOpened : Consumer is already closed");
