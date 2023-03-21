@@ -302,4 +302,17 @@ TEST_F(AcknowledgeTest, testMixedCumulativeAck) {
     ASSERT_EQ(ResultTimeout, consumer.getConsumer().receive(msg, 1000));
 }
 
+TEST_F(AcknowledgeTest, testInvalidMessageId) {
+    Client client(lookupUrl);
+    std::vector<std::string> topics{"test-invalid-message-id0" + unique_str(),
+                                    "test-invalid-message-id1" + unique_str()};
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topics, "sub", consumer));
+
+    Message msg;
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msg));
+    msg = MessageBuilder().setContent("msg").build();
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msg));
+}
+
 INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest, testing::Values(100, 0));
