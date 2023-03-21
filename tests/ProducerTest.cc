@@ -334,6 +334,71 @@ TEST(ProducerTest, testWaitForExclusiveProducer) {
     producer2.close();
 }
 
+TEST(ProducerTest, testExclusiveWithFencingProducer) {
+    Client client(serviceUrl);
+
+    std::string topicName =
+        "persistent://public/default/testExclusiveWithFencingProducer" + std::to_string(time(nullptr));
+
+    Producer producer1;
+    ProducerConfiguration producerConfiguration1;
+    producerConfiguration1.setProducerName("p-name-1");
+    producerConfiguration1.setAccessMode(ProducerConfiguration::Exclusive);
+
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfiguration1, producer1));
+    producer1.send(MessageBuilder().setContent("content").build());
+
+    Producer producer2;
+    ProducerConfiguration producerConfiguration2;
+    producerConfiguration2.setProducerName("p-name-2");
+    producerConfiguration2.setAccessMode(ProducerConfiguration::WaitForExclusive);
+
+    Latch latch(1);
+    client.createProducerAsync(topicName, producerConfiguration2,
+                               [&latch, &producer2](Result res, Producer producer) {
+                                   // producer2 will be fenced
+                                   ASSERT_EQ(ResultProducerFenced, res);
+                                   latch.countdown();
+                                   producer2 = producer;
+                               });
+    // wait for all the Producers to be enqueued in order to prevent races
+    sleep(1);
+
+    // producer3 will create success.
+    Producer producer3;
+    ProducerConfiguration producerConfiguration3;
+    producerConfiguration3.setProducerName("p-name-3");
+    producerConfiguration3.setAccessMode(ProducerConfiguration::ExclusiveWithFencing);
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfiguration3, producer3));
+    ASSERT_EQ(ResultOk, producer3.send(MessageBuilder().setContent("content").build()));
+
+    latch.wait();
+    // producer1 will be fenced
+    ASSERT_EQ(ResultProducerFenced, producer1.send(MessageBuilder().setContent("content").build()));
+
+    // Again create producer4 with WaitForExclusive
+    Producer producer4;
+    ProducerConfiguration producerConfiguration4;
+    producerConfiguration2.setProducerName("p-name-4");
+    producerConfiguration2.setAccessMode(ProducerConfiguration::WaitForExclusive);
+    Latch latch2(1);
+    client.createProducerAsync(topicName, producerConfiguration2,
+                               [&latch2, &producer4](Result res, Producer producer) {
+                                   // producer4 will be success
+                                   ASSERT_EQ(ResultOk, res);
+                                   producer4 = producer;
+                                   latch2.countdown();
+                               });
+    ASSERT_EQ(ResultProducerNotInitialized, producer4.send(MessageBuilder().setContent("content").build()));
+
+    // When producer3 is close, producer4 will be create success
+    producer3.close();
+    latch2.wait();
+    ASSERT_EQ(ResultOk, producer4.send(MessageBuilder().setContent("content").build()));
+
+    client.close();
+}
+
 TEST_P(ProducerTest, testFlushNoBatch) {
     Client client(serviceUrl);
 
