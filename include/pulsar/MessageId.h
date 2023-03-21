@@ -67,6 +67,8 @@ class PULSAR_PUBLIC MessageId {
 
     /**
      * Get the topic Name from which this message originated from
+     *
+     * @return the topic name or an empty string if there is no topic name
      */
     const std::string& getTopicName() const;
 

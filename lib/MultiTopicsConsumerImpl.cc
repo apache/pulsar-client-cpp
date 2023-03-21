@@ -661,6 +661,11 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCal
     }
 
     const std::string& topicPartitionName = msgId.getTopicName();
+    if (topicPartitionName.empty()) {
+        LOG_ERROR("MessageId without a topic name cannot be acknowledged for a multi-topics consumer");
+        callback(ResultOperationNotSupported);
+        return;
+    }
     auto optConsumer = consumers_.find(topicPartitionName);
 
     if (optConsumer) {
@@ -681,6 +686,11 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
     std::unordered_map<std::string, MessageIdList> topicToMessageId;
     for (const MessageId& messageId : messageIdList) {
         auto topicName = messageId.getTopicName();
+        if (topicName.empty()) {
+            LOG_ERROR("MessageId without a topic name cannot be acknowledged for a multi-topics consumer");
+            callback(ResultOperationNotSupported);
+            return;
+        }
         topicToMessageId[topicName].emplace_back(messageId);
     }
 

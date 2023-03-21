@@ -537,7 +537,7 @@ void testPartitionedProducerConsumer(bool lazyStartPartitionedProducers, std::st
     ASSERT_EQ(consumer.getSubscriptionName(), "subscription-A");
     for (int i = 0; i < 10; i++) {
         Message m;
-        consumer.receive(m, 10000);
+        ASSERT_EQ(ResultOk, consumer.receive(m, 10000));
         consumer.acknowledge(m);
     }
     client.shutdown();
