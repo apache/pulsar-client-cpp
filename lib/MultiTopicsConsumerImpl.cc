@@ -1054,10 +1054,11 @@ bool MultiTopicsConsumerImpl::hasEnoughMessagesForBatchReceive() const {
 void MultiTopicsConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) {
     auto messages = std::make_shared<MessagesImpl>(batchReceivePolicy_.getMaxNumMessages(),
                                                    batchReceivePolicy_.getMaxNumBytes());
-    Message peekMsg;
-    while (incomingMessages_.pop(peekMsg, std::chrono::milliseconds(0)) && messages->canAdd(peekMsg)) {
-        messageProcessed(peekMsg);
-        messages->add(peekMsg);
+    Message msg;
+    while (incomingMessages_.peek(msg) && messages->canAdd(msg)) {
+        incomingMessages_.pop(msg);
+        messageProcessed(msg);
+        messages->add(msg);
     }
     auto weakSelf = weak_from_this();
     listenerExecutor_->postWork([weakSelf, callback, messages]() {
