@@ -21,6 +21,7 @@
 #include <pulsar/ConsumerInterceptor.h>
 #include <pulsar/ProducerInterceptor.h>
 
+#include <random>
 #include <utility>
 
 #include "HttpHelper.h"
@@ -31,6 +32,8 @@ DECLARE_LOG_OBJECT()
 
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string adminUrl = "http://localhost:8080/";
+
+extern std::string unique_str();
 
 using namespace pulsar;
 
@@ -272,8 +275,7 @@ class ConsumerTestInterceptor : public ConsumerInterceptor {
 class ConsumerInterceptorsTest : public ::testing::TestWithParam<std::tuple<TopicType, int>> {
    public:
     void SetUp() override {
-        topic_ = "persistent://public/default/InterceptorsTest-ConsumerInterceptors-" +
-                 std::to_string(time(nullptr));
+        topic_ = "persistent://public/default/InterceptorsTest-ConsumerInterceptors-" + unique_str();
 
         switch (std::get<0>(GetParam())) {
             case Partitioned:
