@@ -33,6 +33,8 @@ DECLARE_LOG_OBJECT()
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string adminUrl = "http://localhost:8080/";
 
+extern std::string unique_str();
+
 using namespace pulsar;
 
 class ProducerTestInterceptor : public ProducerInterceptor {
@@ -273,11 +275,7 @@ class ConsumerTestInterceptor : public ConsumerInterceptor {
 class ConsumerInterceptorsTest : public ::testing::TestWithParam<std::tuple<TopicType, int>> {
    public:
     void SetUp() override {
-        std::random_device rd;
-        std::mt19937 mt(rd());
-        std::uniform_int_distribution<int> dist;
-        topic_ =
-            "persistent://public/default/InterceptorsTest-ConsumerInterceptors-" + std::to_string(dist(mt));
+        topic_ = "persistent://public/default/InterceptorsTest-ConsumerInterceptors-" + unique_str();
 
         switch (std::get<0>(GetParam())) {
             case Partitioned:
