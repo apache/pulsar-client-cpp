@@ -21,6 +21,7 @@
 #include <pulsar/ConsumerInterceptor.h>
 #include <pulsar/ProducerInterceptor.h>
 
+#include <random>
 #include <utility>
 
 #include "HttpHelper.h"
@@ -272,8 +273,11 @@ class ConsumerTestInterceptor : public ConsumerInterceptor {
 class ConsumerInterceptorsTest : public ::testing::TestWithParam<std::tuple<TopicType, int>> {
    public:
     void SetUp() override {
-        topic_ = "persistent://public/default/InterceptorsTest-ConsumerInterceptors-" +
-                 std::to_string(time(nullptr));
+        std::random_device rd;
+        std::mt19937 mt(rd());
+        std::uniform_int_distribution<int> dist;
+        topic_ =
+            "persistent://public/default/InterceptorsTest-ConsumerInterceptors-" + std::to_string(dist(mt));
 
         switch (std::get<0>(GetParam())) {
             case Partitioned:
