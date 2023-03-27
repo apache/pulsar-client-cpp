@@ -322,8 +322,8 @@ TEST(ProducerTest, testWaitForExclusiveProducer) {
     client.createProducerAsync(topicName, producerConfiguration2,
                                [&latch, &producer2](Result res, Producer producer) {
                                    ASSERT_EQ(ResultOk, res);
-                                   latch.countdown();
                                    producer2 = producer;
+                                   latch.countdown();
                                });
 
     // when p1 close, p2 success created.
