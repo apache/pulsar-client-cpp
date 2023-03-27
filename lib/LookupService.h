@@ -29,6 +29,7 @@
 
 #include "Future.h"
 #include "LookupDataResult.h"
+#include "ProtoApiEnums.h"
 
 namespace pulsar {
 using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
@@ -72,7 +73,9 @@ class LookupService {
      *
      * Returns all the topics name for a given namespace.
      */
-    virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) = 0;
+    virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+        const NamespaceNamePtr& nsName,
+        CommandGetTopicsOfNamespace_Mode mode = CommandGetTopicsOfNamespace_Mode_PERSISTENT) = 0;
 
     /**
      * returns current SchemaInfo {@link SchemaInfo} for a given topic.

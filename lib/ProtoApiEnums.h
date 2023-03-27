@@ -49,6 +49,11 @@ constexpr int CommandSubscribe_SubType_Shared = 1;
 constexpr int CommandSubscribe_SubType_Failover = 2;
 constexpr int CommandSubscribe_SubType_Key_Shared = 3;
 
+using CommandGetTopicsOfNamespace_Mode = int;
+constexpr int CommandGetTopicsOfNamespace_Mode_PERSISTENT = 0;
+constexpr int CommandGetTopicsOfNamespace_Mode_NON_PERSISTENT = 1;
+constexpr int CommandGetTopicsOfNamespace_Mode_ALL = 2;
+
 using CommandAck_ValidationError = int;
 constexpr CommandAck_ValidationError CommandAck_ValidationError_UncompressedSizeCorruption = 0;
 constexpr CommandAck_ValidationError CommandAck_ValidationError_DecompressionError = 1;

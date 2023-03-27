@@ -48,6 +48,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     // when subscribe, client will first get all topics that match given pattern.
     // `topics` contains the topics that match `patternString`.
     PatternMultiTopicsConsumerImpl(ClientImplPtr client, const std::string patternString,
+                                   CommandGetTopicsOfNamespace_Mode getTopicsMode,
                                    const std::vector<std::string>& topics,
                                    const std::string& subscriptionName, const ConsumerConfiguration& conf,
                                    const LookupServicePtr lookupServicePtr_,
@@ -57,7 +58,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
 
     void autoDiscoveryTimerTask(const boost::system::error_code& err);
 
-    // filter input `topics` with given `pattern`, return matched topics
+    // filter input `topics` with given `pattern`, return matched topics. Do not match topic domain.
     static NamespaceTopicsPtr topicsPatternFilter(const std::vector<std::string>& topics,
                                                   const PULSAR_REGEX_NAMESPACE::regex& pattern);
 
@@ -72,6 +73,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
    private:
     const std::string patternString_;
     const PULSAR_REGEX_NAMESPACE::regex pattern_;
+    const CommandGetTopicsOfNamespace_Mode getTopicsMode_;
     typedef std::shared_ptr<boost::asio::deadline_timer> TimerPtr;
     TimerPtr autoDiscoveryTimer_;
     bool autoDiscoveryRunning_;

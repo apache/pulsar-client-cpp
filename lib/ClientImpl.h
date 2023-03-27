@@ -28,6 +28,7 @@
 #include "Future.h"
 #include "LookupDataResult.h"
 #include "MemoryLimitController.h"
+#include "ProtoApiEnums.h"
 #include "ServiceNameResolver.h"
 #include "SynchronizedHashMap.h"
 
@@ -151,8 +152,10 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void handleClose(Result result, SharedInt remaining, ResultCallback callback);
 
     void createPatternMultiTopicsConsumer(const Result result, const NamespaceTopicsPtr topics,
-                                          const std::string& regexPattern, const std::string& consumerName,
-                                          const ConsumerConfiguration& conf, SubscribeCallback callback);
+                                          const std::string& regexPattern,
+                                          CommandGetTopicsOfNamespace_Mode mode,
+                                          const std::string& consumerName, const ConsumerConfiguration& conf,
+                                          SubscribeCallback callback);
 
     enum State
     {

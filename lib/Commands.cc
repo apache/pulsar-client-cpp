@@ -609,12 +609,14 @@ SharedBuffer Commands::newGetLastMessageId(uint64_t consumerId, uint64_t request
     return buffer;
 }
 
-SharedBuffer Commands::newGetTopicsOfNamespace(const std::string& nsName, uint64_t requestId) {
+SharedBuffer Commands::newGetTopicsOfNamespace(const std::string& nsName,
+                                               CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::GET_TOPICS_OF_NAMESPACE);
     CommandGetTopicsOfNamespace* getTopics = cmd.mutable_gettopicsofnamespace();
     getTopics->set_request_id(requestId);
     getTopics->set_namespace_(nsName);
+    getTopics->set_mode(static_cast<proto::CommandGetTopicsOfNamespace_Mode>(mode));
 
     const SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_gettopicsofnamespace();

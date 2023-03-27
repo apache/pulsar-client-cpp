@@ -126,17 +126,30 @@ Future<Result, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync
 }
 
 Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
-    const NamespaceNamePtr &nsName) {
+    const NamespaceNamePtr &nsName, CommandGetTopicsOfNamespace_Mode mode) {
     NamespaceTopicsPromise promise;
     std::stringstream completeUrlStream;
+
+    auto convertRegexSubMode = [](CommandGetTopicsOfNamespace_Mode mode) {
+        switch (mode) {
+            case CommandGetTopicsOfNamespace_Mode_PERSISTENT:
+                return "PERSISTENT";
+            case CommandGetTopicsOfNamespace_Mode_NON_PERSISTENT:
+                return "NON_PERSISTENT";
+            case CommandGetTopicsOfNamespace_Mode_ALL:
+                return "ALL";
+            default:
+                return "PERSISTENT";
+        }
+    };
 
     const auto &url = serviceNameResolver_.resolveHost();
     if (nsName->isV2()) {
         completeUrlStream << url << ADMIN_PATH_V2 << "namespaces" << '/' << nsName->toString() << '/'
-                          << "topics";
+                          << "topics?mode=" << convertRegexSubMode(mode);
     } else {
         completeUrlStream << url << ADMIN_PATH_V1 << "namespaces" << '/' << nsName->toString() << '/'
-                          << "destinations";
+                          << "destinations?mode=" << convertRegexSubMode(mode);
     }
 
     executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleNamespaceTopicsHTTPRequest,

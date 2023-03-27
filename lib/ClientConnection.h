@@ -181,7 +181,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     Future<Result, GetLastMessageIdResponse> newGetLastMessageId(uint64_t consumerId, uint64_t requestId);
 
-    Future<Result, NamespaceTopicsPtr> newGetTopicsOfNamespace(const std::string& nsName, uint64_t requestId);
+    Future<Result, NamespaceTopicsPtr> newGetTopicsOfNamespace(const std::string& nsName,
+                                                               CommandGetTopicsOfNamespace_Mode mode,
+                                                               uint64_t requestId);
 
     Future<Result, boost::optional<SchemaInfo>> newGetSchema(const std::string& topicName,
                                                              uint64_t requestId);

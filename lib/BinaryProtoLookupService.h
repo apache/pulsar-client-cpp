@@ -49,7 +49,9 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
 
     Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override;
 
-    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) override;
+    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+        const NamespaceNamePtr& nsName,
+        CommandGetTopicsOfNamespace_Mode mode = CommandGetTopicsOfNamespace_Mode_PERSISTENT) override;
 
     Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override;
 
@@ -75,8 +77,8 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
                                        const ClientConnectionWeakPtr& clientCnx,
                                        LookupDataResultPromisePtr promise);
 
-    void sendGetTopicsOfNamespaceRequest(const std::string& nsName, Result result,
-                                         const ClientConnectionWeakPtr& clientCnx,
+    void sendGetTopicsOfNamespaceRequest(const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode,
+                                         Result result, const ClientConnectionWeakPtr& clientCnx,
                                          NamespaceTopicsPromisePtr promise);
 
     void sendGetSchemaRequest(const std::string& topiName, Result result,

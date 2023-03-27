@@ -70,71 +70,6 @@ TEST(LookupServiceTest, basicLookup) {
     ASSERT_EQ(url, lookupResult.physicalAddress);
 }
 
-TEST(LookupServiceTest, basicGetNamespaceTopics) {
-    std::string url = "pulsar://localhost:6650";
-    std::string adminUrl = "http://localhost:8080/";
-    Result result;
-    // 1. create some topics under same namespace
-    Client client(url);
-
-    std::string topicName1 = "persistent://public/default/basicGetNamespaceTopics1";
-    std::string topicName2 = "persistent://public/default/basicGetNamespaceTopics2";
-    std::string topicName3 = "persistent://public/default/basicGetNamespaceTopics3";
-    // This is not in same namespace.
-    std::string topicName4 = "persistent://public/default-2/basicGetNamespaceTopics4";
-
-    // call admin api to make topics partitioned
-    std::string url1 = adminUrl + "admin/v2/persistent/public/default/basicGetNamespaceTopics1/partitions";
-    std::string url2 = adminUrl + "admin/v2/persistent/public/default/basicGetNamespaceTopics2/partitions";
-    std::string url3 = adminUrl + "admin/v2/persistent/public/default/basicGetNamespaceTopics3/partitions";
-
-    int res = makePutRequest(url1, "2");
-    ASSERT_FALSE(res != 204 && res != 409);
-    res = makePutRequest(url2, "3");
-    ASSERT_FALSE(res != 204 && res != 409);
-    res = makePutRequest(url3, "4");
-    ASSERT_FALSE(res != 204 && res != 409);
-
-    Producer producer1;
-    result = client.createProducer(topicName1, producer1);
-    ASSERT_EQ(ResultOk, result);
-    Producer producer2;
-    result = client.createProducer(topicName2, producer2);
-    ASSERT_EQ(ResultOk, result);
-    Producer producer3;
-    result = client.createProducer(topicName3, producer3);
-    ASSERT_EQ(ResultOk, result);
-    Producer producer4;
-    result = client.createProducer(topicName4, producer4);
-    ASSERT_EQ(ResultOk, result);
-
-    // 2.  call getTopicsOfNamespaceAsync
-    ExecutorServiceProviderPtr service = std::make_shared<ExecutorServiceProvider>(1);
-    AuthenticationPtr authData = AuthFactory::Disabled();
-    ClientConfiguration conf;
-    ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    ConnectionPool pool_(conf, ioExecutorProvider_, authData, true);
-    ServiceNameResolver serviceNameResolver(url);
-    BinaryProtoLookupService lookupService(serviceNameResolver, pool_, conf);
-
-    TopicNamePtr topicName = TopicName::get(topicName1);
-    NamespaceNamePtr nsName = topicName->getNamespaceName();
-
-    Future<Result, NamespaceTopicsPtr> getTopicsFuture = lookupService.getTopicsOfNamespaceAsync(nsName);
-    NamespaceTopicsPtr topicsData;
-    result = getTopicsFuture.get(topicsData);
-    ASSERT_EQ(ResultOk, result);
-    ASSERT_TRUE(topicsData != NULL);
-
-    // 3. verify result contains first 3 topic
-    ASSERT_TRUE(std::find(topicsData->begin(), topicsData->end(), topicName1) != topicsData->end());
-    ASSERT_TRUE(std::find(topicsData->begin(), topicsData->end(), topicName2) != topicsData->end());
-    ASSERT_TRUE(std::find(topicsData->begin(), topicsData->end(), topicName3) != topicsData->end());
-    ASSERT_FALSE(std::find(topicsData->begin(), topicsData->end(), topicName4) != topicsData->end());
-
-    client.shutdown();
-}
-
 static void testMultiAddresses(LookupService& lookupService) {
     std::vector<Result> results;
     constexpr int numRequests = 6;
@@ -288,6 +223,50 @@ class LookupServiceTest : public ::testing::TestWithParam<std::string> {
    protected:
     Client client_{GetParam()};
 };
+
+TEST_P(LookupServiceTest, basicGetNamespaceTopics) {
+    Result result;
+
+    auto nsName = NamespaceName::get("public", GetParam().substr(0, 4) + std::to_string(time(nullptr)));
+    std::string topicName1 = "persistent://" + nsName->toString() + "/basicGetNamespaceTopics1";
+    std::string topicName2 = "persistent://" + nsName->toString() + "/basicGetNamespaceTopics2";
+    std::string topicName3 = "non-persistent://" + nsName->toString() + "/basicGetNamespaceTopics3";
+
+    // 0. create a namespace
+    auto createNsUrl = httpLookupUrl + "/admin/v2/namespaces/" + nsName->toString();
+    auto res = makePutRequest(createNsUrl, "");
+    ASSERT_FALSE(res != 204 && res != 409);
+
+    // 1. trigger auto create topic
+    Producer producer1;
+    result = client_.createProducer(topicName1, producer1);
+    ASSERT_EQ(ResultOk, result);
+    Producer producer2;
+    result = client_.createProducer(topicName2, producer2);
+    ASSERT_EQ(ResultOk, result);
+    Producer producer3;
+    result = client_.createProducer(topicName3, producer3);
+    ASSERT_EQ(ResultOk, result);
+
+    // 2. verify getTopicsOfNamespace by regex mode.
+    auto lookupServicePtr = PulsarFriend::getClientImplPtr(client_)->getLookup();
+    auto verifyGetTopics = [&](CommandGetTopicsOfNamespace_Mode mode,
+                               const std::set<std::string>& expectedTopics) {
+        Future<Result, NamespaceTopicsPtr> getTopicsFuture =
+            lookupServicePtr->getTopicsOfNamespaceAsync(nsName, mode);
+        NamespaceTopicsPtr topicsData;
+        result = getTopicsFuture.get(topicsData);
+        ASSERT_EQ(ResultOk, result);
+        ASSERT_TRUE(topicsData != NULL);
+        std::set<std::string> actualTopics(topicsData->begin(), topicsData->end());
+        ASSERT_EQ(expectedTopics, actualTopics);
+    };
+    verifyGetTopics(CommandGetTopicsOfNamespace_Mode_PERSISTENT, {topicName1, topicName2});
+    verifyGetTopics(CommandGetTopicsOfNamespace_Mode_NON_PERSISTENT, {topicName3});
+    verifyGetTopics(CommandGetTopicsOfNamespace_Mode_ALL, {topicName1, topicName2, topicName3});
+
+    client_.close();
+}
 
 TEST_P(LookupServiceTest, testGetSchema) {
     const std::string topic = "testGetSchema" + std::to_string(time(nullptr)) + GetParam().substr(0, 4);
