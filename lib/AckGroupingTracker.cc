@@ -42,17 +42,19 @@ void AckGroupingTracker::doImmediateAck(const MessageId& msgId, ResultCallback c
         }
         return;
     }
-    const auto requestId = (waitResponse_ ? requestIdSupplier_() : std::numeric_limits<uint64_t>::max());
-    const auto cmd = Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(),
-                                      Commands::getMessageIdImpl(msgId)->getBitSet(), ackType, requestId);
+    const auto& ackSet = Commands::getMessageIdImpl(msgId)->getBitSet();
     if (waitResponse_) {
-        cnx->sendRequestWithId(cmd, requestId).addListener([callback](Result result, const ResponseData&) {
-            if (callback) {
-                callback(result);
-            }
-        });
+        const auto requestId = requestIdSupplier_();
+        cnx->sendRequestWithId(
+               Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType, requestId),
+               requestId)
+            .addListener([callback](Result result, const ResponseData&) {
+                if (callback) {
+                    callback(result);
+                }
+            });
     } else {
-        cnx->sendCommand(cmd);
+        cnx->sendCommand(Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType));
         if (callback) {
             callback(ResultOk);
         }
@@ -82,14 +84,18 @@ void AckGroupingTracker::doImmediateAck(const std::set<MessageId>& msgIds, Resul
         return;
     }
 
-    if (waitResponse_ && Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
-        const auto requestId = requestIdSupplier_();
-        const auto cmd = Commands::newMultiMessageAck(consumerId_, msgIds, requestId);
-        cnx->sendRequestWithId(cmd, requestId).addListener([callback](Result result, const ResponseData&) {
-            if (callback) {
-                callback(result);
-            }
-        });
+    if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
+        if (waitResponse_) {
+            const auto requestId = requestIdSupplier_();
+            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, msgIds, requestId), requestId)
+                .addListener([callback](Result result, const ResponseData&) {
+                    if (callback) {
+                        callback(result);
+                    }
+                });
+        } else {
+            cnx->sendCommand(Commands::newMultiMessageAck(consumerId_, msgIds));
+        }
     } else {
         auto count = std::make_shared<std::atomic<size_t>>(msgIds.size());
         auto wrappedCallback = [callback, count](Result result) {

@@ -24,7 +24,6 @@
 #include <pulsar/Version.h>
 
 #include <algorithm>
-#include <limits>
 #include <mutex>
 
 #include "BatchMessageAcker.h"
@@ -441,23 +440,63 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     return writeMessageWithSize(cmd);
 }
 
-SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
-                              CommandAck_AckType ackType, uint64_t requestId) {
-    BaseCommand cmd;
-    cmd.set_type(BaseCommand::ACK);
-    CommandAck* ack = cmd.mutable_ack();
+static void configureCommandAck(CommandAck* ack, uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+                                const BitSet& ackSet, CommandAck_AckType ackType) {
     ack->set_consumer_id(consumerId);
     ack->set_ack_type(static_cast<proto::CommandAck_AckType>(ackType));
-    if (requestId != std::numeric_limits<uint64_t>::max()) {
-        ack->set_request_id(requestId);
-    }
-
     auto* msgId = ack->add_message_id();
     msgId->set_ledgerid(ledgerId);
     msgId->set_entryid(entryId);
     for (auto x : ackSet) {
         msgId->add_ack_set(x);
     }
+}
+
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
+                              CommandAck_AckType ackType) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
+    configureCommandAck(cmd.mutable_ack(), consumerId, ledgerId, entryId, ackSet, ackType);
+    return writeMessageWithSize(cmd);
+}
+
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
+                              CommandAck_AckType ackType, CommandAck_ValidationError validationError) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
+    CommandAck* ack = cmd.mutable_ack();
+    ack->set_validation_error((proto::CommandAck_ValidationError)validationError);
+    configureCommandAck(ack, consumerId, ledgerId, entryId, ackSet, ackType);
+    return writeMessageWithSize(cmd);
+}
+
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
+                              CommandAck_AckType ackType, uint64_t requestId) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
+    CommandAck* ack = cmd.mutable_ack();
+    ack->set_request_id(requestId);
+    configureCommandAck(ack, consumerId, ledgerId, entryId, ackSet, ackType);
+    return writeMessageWithSize(cmd);
+}
+
+static void configureCommandAck(CommandAck* ack, uint64_t consumerId, const std::set<MessageId>& msgIds) {
+    ack->set_consumer_id(consumerId);
+    ack->set_ack_type(proto::CommandAck_AckType_Individual);
+    for (const auto& msgId : msgIds) {
+        auto newMsgId = ack->add_message_id();
+        newMsgId->set_ledgerid(msgId.ledgerId());
+        newMsgId->set_entryid(msgId.entryId());
+        for (auto x : Commands::getMessageIdImpl(msgId)->getBitSet()) {
+            newMsgId->add_ack_set(x);
+        }
+    }
+}
+
+SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
+    configureCommandAck(cmd.mutable_ack(), consumerId, msgIds);
     return writeMessageWithSize(cmd);
 }
 
@@ -466,19 +505,8 @@ SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<Me
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
-    ack->set_consumer_id(consumerId);
-    ack->set_ack_type(proto::CommandAck_AckType_Individual);
-    if (requestId != std::numeric_limits<uint64_t>::max()) {
-        ack->set_request_id(requestId);
-    }
-    for (const auto& msgId : msgIds) {
-        auto newMsgId = ack->add_message_id();
-        newMsgId->set_ledgerid(msgId.ledgerId());
-        newMsgId->set_entryid(msgId.entryId());
-        for (auto x : getMessageIdImpl(msgId)->getBitSet()) {
-            newMsgId->add_ack_set(x);
-        }
-    }
+    ack->set_request_id(requestId);
+    configureCommandAck(ack, consumerId, msgIds);
     return writeMessageWithSize(cmd);
 }
 
