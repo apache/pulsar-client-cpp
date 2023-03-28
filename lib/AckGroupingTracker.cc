@@ -95,6 +95,9 @@ void AckGroupingTracker::doImmediateAck(const std::set<MessageId>& msgIds, Resul
                 });
         } else {
             cnx->sendCommand(Commands::newMultiMessageAck(consumerId_, msgIds));
+            if (callback) {
+                callback(ResultOk);
+            }
         }
     } else {
         auto count = std::make_shared<std::atomic<size_t>>(msgIds.size());
