@@ -85,7 +85,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       consumerName_(config_.getConsumerName()),
       messageListenerRunning_(true),
       negativeAcksTracker_(client, *this, conf),
-      ackGroupingTrackerPtr_(std::make_shared<AckGroupingTracker>()),
       readCompacted_(conf.isReadCompacted()),
       startMessageId_(startMessageId),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
@@ -182,18 +181,35 @@ const std::string& ConsumerImpl::getTopic() const { return *topic_; }
 void ConsumerImpl::start() {
     HandlerBase::start();
 
+    std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
+    auto connectionSupplier = [weakSelf]() -> ClientConnectionPtr {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return nullptr;
+        }
+        return self->getCnx().lock();
+    };
+
+    // NOTE: start() is always called in `ClientImpl`'s method, so lock() returns not null
+    const auto requestIdGenerator = client_.lock()->getRequestIdGenerator();
+    const auto requestIdSupplier = [requestIdGenerator] { return (*requestIdGenerator)++; };
+
     // Initialize ackGroupingTrackerPtr_ here because the get_shared_this_ptr() was not initialized until the
     // constructor completed.
     if (TopicName::get(*topic_)->isPersistent()) {
         if (config_.getAckGroupingTimeMs() > 0) {
             ackGroupingTrackerPtr_.reset(new AckGroupingTrackerEnabled(
-                client_.lock(), get_shared_this_ptr(), consumerId_, config_.getAckGroupingTimeMs(),
-                config_.getAckGroupingMaxSize()));
+                connectionSupplier, requestIdSupplier, consumerId_, config_.isAckReceiptEnabled(),
+                config_.getAckGroupingTimeMs(), config_.getAckGroupingMaxSize(),
+                client_.lock()->getIOExecutorProvider()->get()));
         } else {
-            ackGroupingTrackerPtr_.reset(new AckGroupingTrackerDisabled(*this, consumerId_));
+            ackGroupingTrackerPtr_.reset(new AckGroupingTrackerDisabled(
+                connectionSupplier, requestIdSupplier, consumerId_, config_.isAckReceiptEnabled()));
         }
     } else {
         LOG_INFO(getName() << "ACK will NOT be sent to broker for this non-persistent topic.");
+        ackGroupingTrackerPtr_.reset(new AckGroupingTracker(connectionSupplier, requestIdSupplier,
+                                                            consumerId_, config_.isAckReceiptEnabled()));
     }
     ackGroupingTrackerPtr_->start();
 }
@@ -1089,12 +1105,13 @@ void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callb
     const auto& msgIdToAck = pair.first;
     const bool readyToAck = pair.second;
     if (readyToAck) {
-        ackGroupingTrackerPtr_->addAcknowledge(msgIdToAck);
+        ackGroupingTrackerPtr_->addAcknowledge(msgIdToAck, callback);
+    } else {
+        if (callback) {
+            callback(ResultOk);
+        }
     }
     interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultOk, msgId);
-    if (callback) {
-        callback(ResultOk);
-    }
 }
 
 void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
@@ -1111,10 +1128,7 @@ void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCa
         // with the Java client.
         interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultOk, msgId);
     }
-    this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdListToAck);
-    if (callback) {
-        callback(ResultOk);
-    }
+    this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdListToAck, callback);
 }
 
 void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
@@ -1132,12 +1146,11 @@ void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCall
     if (readyToAck) {
         consumerStatsBasePtr_->messageAcknowledged(ResultOk, CommandAck_AckType_Cumulative, 1);
         unAckedMessageTrackerPtr_->removeMessagesTill(msgIdToAck);
-        ackGroupingTrackerPtr_->addAcknowledgeCumulative(msgIdToAck);
-    }
-    interceptors_->onAcknowledgeCumulative(Consumer(shared_from_this()), ResultOk, msgId);
-    if (callback) {
+        ackGroupingTrackerPtr_->addAcknowledgeCumulative(msgIdToAck, callback);
+    } else if (callback) {
         callback(ResultOk);
     }
+    interceptors_->onAcknowledgeCumulative(Consumer(shared_from_this()), ResultOk, msgId);
 }
 
 bool ConsumerImpl::isCumulativeAcknowledgementAllowed(ConsumerType consumerType) {

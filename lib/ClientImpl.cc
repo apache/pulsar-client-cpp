@@ -92,7 +92,6 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       pool_(clientConfiguration_, ioExecutorProvider_, clientConfiguration_.getAuthPtr(), poolConnections),
       producerIdGenerator_(0),
       consumerIdGenerator_(0),
-      requestIdGenerator_(0),
       closingError(ResultOk) {
     std::unique_ptr<LoggerFactory> loggerFactory = clientConfiguration_.impl_->takeLogger();
     if (!loggerFactory) {
@@ -713,10 +712,7 @@ uint64_t ClientImpl::newConsumerId() {
     return consumerIdGenerator_++;
 }
 
-uint64_t ClientImpl::newRequestId() {
-    Lock lock(mutex_);
-    return requestIdGenerator_++;
-}
+uint64_t ClientImpl::newRequestId() { return (*requestIdGenerator_)++; }
 
 uint64_t ClientImpl::getNumberOfProducers() {
     uint64_t numberOfAliveProducers = 0;

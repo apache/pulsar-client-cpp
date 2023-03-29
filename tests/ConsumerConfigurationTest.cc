@@ -70,6 +70,7 @@ TEST(ConsumerConfigurationTest, testDefaultConfig) {
     ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumBytes(), 10 * 1024 * 1024);
     ASSERT_EQ(conf.getBatchReceivePolicy().getTimeoutMs(), 100);
     ASSERT_EQ(conf.isBatchIndexAckEnabled(), false);
+    ASSERT_EQ(conf.isAckReceiptEnabled(), false);
 }
 
 TEST(ConsumerConfigurationTest, testCustomConfig) {
@@ -168,6 +169,9 @@ TEST(ConsumerConfigurationTest, testCustomConfig) {
 
     conf.setBatchIndexAckEnabled(true);
     ASSERT_EQ(conf.isBatchIndexAckEnabled(), true);
+
+    conf.setAckReceiptEnabled(true);
+    ASSERT_TRUE(conf.isAckReceiptEnabled());
 }
 
 TEST(ConsumerConfigurationTest, testReadCompactPersistentExclusive) {

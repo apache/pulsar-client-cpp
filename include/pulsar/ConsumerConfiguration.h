@@ -629,6 +629,22 @@ class PULSAR_PUBLIC ConsumerConfiguration {
 
     const std::vector<ConsumerInterceptorPtr>& getInterceptors() const;
 
+    /**
+     * Whether to receive the ACK receipt from broker.
+     *
+     * By default, when Consumer::acknowledge is called, it won't wait until the corresponding response from
+     * broker. After it's enabled, the `acknowledge` method will return a Result that indicates if the
+     * acknowledgment succeeded.
+     *
+     * Default: false
+     */
+    ConsumerConfiguration& setAckReceiptEnabled(bool ackReceiptEnabled);
+
+    /**
+     * The associated getter of setAckReceiptEnabled.
+     */
+    bool isAckReceiptEnabled() const;
+
     friend class PulsarWrapper;
     friend class PulsarFriend;
 

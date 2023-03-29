@@ -121,6 +121,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     void cleanupConsumer(ConsumerImplBase* address) { consumers_.remove(address); }
 
+    std::shared_ptr<std::atomic<uint64_t>> getRequestIdGenerator() const { return requestIdGenerator_; }
+
     friend class PulsarFriend;
 
    private:
@@ -175,7 +177,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     uint64_t producerIdGenerator_;
     uint64_t consumerIdGenerator_;
-    uint64_t requestIdGenerator_;
+    std::shared_ptr<std::atomic<uint64_t>> requestIdGenerator_{std::make_shared<std::atomic<uint64_t>>(0)};
 
     SynchronizedHashMap<ProducerImplBase*, ProducerImplBaseWeakPtr> producers_;
     SynchronizedHashMap<ConsumerImplBase*, ConsumerImplBaseWeakPtr> consumers_;
