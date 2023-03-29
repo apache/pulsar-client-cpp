@@ -74,8 +74,7 @@ class LookupService {
      * Returns all the topics name for a given namespace.
      */
     virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
-        const NamespaceNamePtr& nsName,
-        CommandGetTopicsOfNamespace_Mode mode = CommandGetTopicsOfNamespace_Mode_PERSISTENT) = 0;
+        const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) = 0;
 
     /**
      * returns current SchemaInfo {@link SchemaInfo} for a given topic.

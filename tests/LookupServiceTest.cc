@@ -101,8 +101,10 @@ static void testMultiAddresses(LookupService& lookupService) {
     results.clear();
     for (int i = 0; i < numRequests; i++) {
         NamespaceTopicsPtr data;
-        const auto result =
-            lookupService.getTopicsOfNamespaceAsync(TopicName::get("topic")->getNamespaceName()).get(data);
+        const auto result = lookupService
+                                .getTopicsOfNamespaceAsync(TopicName::get("topic")->getNamespaceName(),
+                                                           CommandGetTopicsOfNamespace_Mode_PERSISTENT)
+                                .get(data);
         LOG_INFO("getTopicsOfNamespaceAsync [" << i << "] " << result);
         results.emplace_back(result);
     }
@@ -147,7 +149,8 @@ TEST(LookupServiceTest, testRetry) {
     LOG_INFO("getPartitionMetadataAsync returns " << lookupDataResultPtr->getPartitions() << " partitions");
 
     PulsarFriend::setServiceUrlIndex(serviceNameResolver, 0);
-    auto future3 = lookupService->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName());
+    auto future3 = lookupService->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(),
+                                                            CommandGetTopicsOfNamespace_Mode_PERSISTENT);
     NamespaceTopicsPtr namespaceTopicsPtr;
     ASSERT_EQ(ResultOk, future3.get(namespaceTopicsPtr));
     LOG_INFO("getTopicPartitionName Async returns " << namespaceTopicsPtr->size() << " topics");
@@ -208,7 +211,8 @@ TEST(LookupServiceTest, testTimeout) {
     afterMethod("getPartitionMetadataAsync");
 
     beforeMethod();
-    auto future3 = lookupService->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName());
+    auto future3 = lookupService->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(),
+                                                            CommandGetTopicsOfNamespace_Mode_PERSISTENT);
     NamespaceTopicsPtr namespaceTopicsPtr;
     ASSERT_EQ(ResultTimeout, future3.get(namespaceTopicsPtr));
     afterMethod("getTopicsOfNamespaceAsync");

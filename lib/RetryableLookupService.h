@@ -61,8 +61,7 @@ class RetryableLookupService : public LookupService,
     }
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
-        const NamespaceNamePtr& nsName,
-        CommandGetTopicsOfNamespace_Mode mode = CommandGetTopicsOfNamespace_Mode_PERSISTENT) override {
+        const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override {
         return executeAsync<NamespaceTopicsPtr>(
             "get-topics-of-namespace-" + nsName->toString(),
             [this, nsName, mode] { return lookupService_->getTopicsOfNamespaceAsync(nsName, mode); });

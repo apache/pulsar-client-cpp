@@ -80,8 +80,7 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override;
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
-        const NamespaceNamePtr& nsName,
-        CommandGetTopicsOfNamespace_Mode mode = CommandGetTopicsOfNamespace_Mode_PERSISTENT) override;
+        const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override;
 };
 }  // namespace pulsar
 

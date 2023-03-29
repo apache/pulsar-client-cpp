@@ -195,10 +195,10 @@ void PatternMultiTopicsConsumerImpl::onTopicsRemoved(NamespaceTopicsPtr removedT
 NamespaceTopicsPtr PatternMultiTopicsConsumerImpl::topicsPatternFilter(
     const std::vector<std::string>& topics, const PULSAR_REGEX_NAMESPACE::regex& pattern) {
     NamespaceTopicsPtr topicsResultPtr = std::make_shared<std::vector<std::string>>();
-    for (const auto& it : topics) {
-        auto topic = TopicName::removeDomain(it);
+    for (const auto& topicStr : topics) {
+        auto topic = TopicName::removeDomain(topicStr);
         if (PULSAR_REGEX_NAMESPACE::regex_match(topic, pattern)) {
-            topicsResultPtr->push_back(std::move(it));
+            topicsResultPtr->push_back(std::move(topicStr));
         }
     }
     return topicsResultPtr;
