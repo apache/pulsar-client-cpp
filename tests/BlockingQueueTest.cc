@@ -126,6 +126,27 @@ TEST(BlockingQueueTest, testBlockingProducer) {
     ASSERT_EQ(three, queue.size());
 }
 
+TEST(BlockingQueueTest, testPopIf) {
+    size_t size = 5;
+    BlockingQueue<int> queue(size);
+
+    for (int i = 1; i <= size; ++i) {
+        queue.push(i);
+    }
+
+    // Use producer worker to assert popIf will notify queueFull thread.
+    ProducerWorker producerWorker(queue);
+    producerWorker.produce(3);
+
+    int value;
+    for (int i = 1; i <= size; ++i) {
+        ASSERT_TRUE(queue.popIf(value, [&i](const int& peekValue) { return peekValue == i; }));
+    }
+
+    producerWorker.join();
+    ASSERT_EQ(3, queue.size());
+}
+
 TEST(BlockingQueueTest, testBlockingConsumer) {
     size_t size = 5;
     BlockingQueue<int> queue(size);

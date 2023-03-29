@@ -650,8 +650,8 @@ void ConsumerImpl::notifyBatchPendingReceivedCallback(const BatchReceiveCallback
     auto messages = std::make_shared<MessagesImpl>(batchReceivePolicy_.getMaxNumMessages(),
                                                    batchReceivePolicy_.getMaxNumBytes());
     Message msg;
-    while (incomingMessages_.peek(msg) && messages->canAdd(msg)) {
-        incomingMessages_.pop(msg);
+    while (incomingMessages_.popIf(
+        msg, [&messages](const Message& peekMsg) { return messages->canAdd(peekMsg); })) {
         messageProcessed(msg);
         Message interceptMsg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         messages->add(interceptMsg);

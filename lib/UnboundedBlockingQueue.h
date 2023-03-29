@@ -87,6 +87,29 @@ class UnboundedBlockingQueue {
         return true;
     }
 
+    /**
+     * First peek data to the condition judgment, if true then pop it.
+     *
+     * @param value A reference to the value assigned after pop
+     * @param condition A function that returns true if the value should be popped
+     * @return true if the value was popped, false otherwise.
+     */
+    bool popIf(T& value, std::function<bool(const T& peekValue)> condition) {
+        Lock lock(mutex_);
+        if (queue_.empty()) {
+            return false;
+        }
+
+        auto peekValue = queue_.front();
+        if (condition(peekValue)) {
+            value = peekValue;
+            queue_.pop_front();
+            return true;
+        } else {
+            return false;
+        }
+    }
+
     // Check the 1st element of the queue
     bool peek(T& value) {
         Lock lock(mutex_);
