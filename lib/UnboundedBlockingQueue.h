@@ -96,7 +96,8 @@ class UnboundedBlockingQueue {
      */
     bool popIf(T& value, std::function<bool(const T& peekValue)> condition) {
         Lock lock(mutex_);
-        if (queue_.empty()) {
+
+        if (isEmptyNoMutex() || isClosedNoMutex()) {
             return false;
         }
 
