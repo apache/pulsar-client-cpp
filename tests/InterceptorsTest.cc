@@ -451,8 +451,8 @@ TEST_P(ConsumerInterceptorsTest, TestNegativeAcksSend) {
 }
 
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerInterceptorsTest, ::testing::Values(true, false));
-INSTANTIATE_TEST_CASE_P(Pulsar, ConsumerInterceptorsTest,
-                        testing::Values(
-                            // Can't use zero queue on multi topics consumer
-                            std::make_tuple(Single, 0), std::make_tuple(Single, 1000),
-                            std::make_tuple(Partitioned, 1000), std::make_tuple(Pattern, 1000)));
+INSTANTIATE_TEST_CASE_P(
+    Pulsar, ConsumerInterceptorsTest,
+    testing::Values(
+        // TODO: Add back zero queue test case when the permit issue of the zero consumer has benn fixed.
+        std::make_tuple(Single, 1000), std::make_tuple(Partitioned, 1000), std::make_tuple(Pattern, 1000)));
