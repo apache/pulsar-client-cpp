@@ -1118,6 +1118,29 @@ TEST(ConsumerTest, testNegativeAcksTrackerClose) {
     client.close();
 }
 
+TEST(ConsumerTest, testAckNotPersistentTopic) {
+    Client client(lookupUrl);
+    auto topicName = "non-persistent://public/default/testAckNotPersistentTopic";
+
+    Consumer consumer;
+    client.subscribe(topicName, "test-sub", consumer);
+
+    Producer producer;
+    client.createProducer(topicName, producer);
+
+    for (int i = 0; i < 10; ++i) {
+        producer.send(MessageBuilder().setContent(std::to_string(i)).build());
+    }
+
+    Message msg;
+    for (int i = 0; i < 10; ++i) {
+        ASSERT_EQ(ResultOk, consumer.receive(msg));
+        ASSERT_EQ(ResultOk, consumer.acknowledge(msg));
+    }
+
+    client.close();
+}
+
 INSTANTIATE_TEST_CASE_P(Pulsar, ConsumerSeekTest, ::testing::Values(true, false));
 
 }  // namespace pulsar
