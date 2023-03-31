@@ -317,4 +317,14 @@ ConsumerConfiguration& ConsumerConfiguration::setAckReceiptEnabled(bool ackRecei
 
 bool ConsumerConfiguration::isAckReceiptEnabled() const { return impl_->ackReceiptEnabled; }
 
+ConsumerConfiguration& ConsumerConfiguration::setRegexSubscriptionMode(
+    RegexSubscriptionMode regexSubscriptionMode) {
+    impl_->regexSubscriptionMode = regexSubscriptionMode;
+    return *this;
+}
+
+RegexSubscriptionMode ConsumerConfiguration::getRegexSubscriptionMode() const {
+    return impl_->regexSubscriptionMode;
+}
+
 }  // namespace pulsar

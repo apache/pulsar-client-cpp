@@ -151,7 +151,7 @@ uint64_t BinaryProtoLookupService::newRequestId() {
 }
 
 Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespaceAsync(
-    const NamespaceNamePtr& nsName) {
+    const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) {
     NamespaceTopicsPromisePtr promise = std::make_shared<Promise<Result, NamespaceTopicsPtr>>();
     if (!nsName) {
         promise->setFailed(ResultInvalidTopicName);
@@ -160,7 +160,7 @@ Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespac
     std::string namespaceName = nsName->toString();
     cnxPool_.getConnectionAsync(serviceNameResolver_.resolveHost())
         .addListener(std::bind(&BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest, this,
-                               namespaceName, std::placeholders::_1, std::placeholders::_2, promise));
+                               namespaceName, mode, std::placeholders::_1, std::placeholders::_2, promise));
     return promise->getFuture();
 }
 
@@ -201,7 +201,9 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName
         });
 }
 
-void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string& nsName, Result result,
+void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string& nsName,
+                                                               CommandGetTopicsOfNamespace_Mode mode,
+                                                               Result result,
                                                                const ClientConnectionWeakPtr& clientCnx,
                                                                NamespaceTopicsPromisePtr promise) {
     if (result != ResultOk) {
@@ -212,8 +214,7 @@ void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string
     ClientConnectionPtr conn = clientCnx.lock();
     uint64_t requestId = newRequestId();
     LOG_DEBUG("sendGetTopicsOfNamespaceRequest. requestId: " << requestId << " nsName: " << nsName);
-
-    conn->newGetTopicsOfNamespace(nsName, requestId)
+    conn->newGetTopicsOfNamespace(nsName, mode, requestId)
         .addListener(std::bind(&BinaryProtoLookupService::getTopicsOfNamespaceListener, this,
                                std::placeholders::_1, std::placeholders::_2, promise));
 }

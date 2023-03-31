@@ -1025,6 +1025,103 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     ASSERT_EQ(ResultOk, client.close());
 }
 
+TEST(ConsumerTest, testPatternSubscribeTopic) {
+    Client client(lookupUrl);
+    auto topicName = "testPatternSubscribeTopic" + std::to_string(time(nullptr));
+    std::string topicName1 = "persistent://public/default/" + topicName + "1";
+    std::string topicName2 = "persistent://public/default/" + topicName + "2";
+    std::string topicName3 = "non-persistent://public/default/" + topicName + "3np";
+    // This will not match pattern
+    std::string topicName4 = "persistent://public/default/noMatch" + topicName;
+
+    // 0. trigger create topic
+    Producer producer1;
+    Result result = client.createProducer(topicName1, producer1);
+    ASSERT_EQ(ResultOk, result);
+    Producer producer2;
+    result = client.createProducer(topicName2, producer2);
+    ASSERT_EQ(ResultOk, result);
+    Producer producer3;
+    result = client.createProducer(topicName3, producer3);
+    ASSERT_EQ(ResultOk, result);
+    Producer producer4;
+    result = client.createProducer(topicName4, producer4);
+    ASSERT_EQ(ResultOk, result);
+
+    // verify sub persistent and non-persistent topic
+    {
+        // 1. Use pattern to sub topic1, topic2, topic3
+        ConsumerConfiguration consConfig;
+        consConfig.setConsumerType(ConsumerShared);
+        consConfig.setRegexSubscriptionMode(RegexSubscriptionMode::AllTopics);
+        Consumer consumer;
+        std::string pattern = "public/default/" + topicName + ".*";
+        ASSERT_EQ(ResultOk, client.subscribeWithRegex(pattern, "sub-all", consConfig, consumer));
+        auto multiConsumerImplPtr = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer);
+        ASSERT_EQ(multiConsumerImplPtr->consumers_.size(), 3);
+        ASSERT_TRUE(multiConsumerImplPtr->consumers_.find(topicName1));
+        ASSERT_TRUE(multiConsumerImplPtr->consumers_.find(topicName2));
+        ASSERT_TRUE(multiConsumerImplPtr->consumers_.find(topicName3));
+        ASSERT_FALSE(multiConsumerImplPtr->consumers_.find(topicName4));
+
+        // 2. send msg to topic1, topic2, topic3, topic4
+        int messageNumber = 10;
+        for (int msgNum = 0; msgNum < messageNumber; msgNum++) {
+            auto content = "msg-content" + std::to_string(msgNum);
+            ASSERT_EQ(ResultOk, producer1.send(MessageBuilder().setContent(content).build()));
+            ASSERT_EQ(ResultOk, producer2.send(MessageBuilder().setContent(content).build()));
+            ASSERT_EQ(ResultOk, producer3.send(MessageBuilder().setContent(content).build()));
+            ASSERT_EQ(ResultOk, producer4.send(MessageBuilder().setContent(content).build()));
+        }
+
+        // 3. receive msg from topic1, topic2, topic3
+        Message m;
+        for (int i = 0; i < 3 * messageNumber; i++) {
+            ASSERT_EQ(ResultOk, consumer.receive(m, 1000));
+            ASSERT_EQ(ResultOk, consumer.acknowledge(m));
+        }
+        // verify no more to receive, because producer4 not match pattern
+        ASSERT_EQ(ResultTimeout, consumer.receive(m, 1000));
+        ASSERT_EQ(ResultOk, consumer.unsubscribe());
+    }
+
+    // verify only sub persistent topic
+    {
+        ConsumerConfiguration consConfig;
+        consConfig.setConsumerType(ConsumerShared);
+        consConfig.setRegexSubscriptionMode(RegexSubscriptionMode::PersistentOnly);
+        Consumer consumer;
+        std::string pattern = "public/default/" + topicName + ".*";
+        ASSERT_EQ(ResultOk, client.subscribeWithRegex(pattern, "sub-persistent", consConfig, consumer));
+        auto multiConsumerImplPtr = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer);
+        ASSERT_EQ(multiConsumerImplPtr->consumers_.size(), 2);
+        ASSERT_TRUE(multiConsumerImplPtr->consumers_.find(topicName1));
+        ASSERT_TRUE(multiConsumerImplPtr->consumers_.find(topicName2));
+        ASSERT_FALSE(multiConsumerImplPtr->consumers_.find(topicName3));
+        ASSERT_FALSE(multiConsumerImplPtr->consumers_.find(topicName4));
+        ASSERT_EQ(ResultOk, consumer.unsubscribe());
+    }
+
+    // verify only sub non-persistent topic
+    {
+        ConsumerConfiguration consConfig;
+        consConfig.setConsumerType(ConsumerShared);
+        consConfig.setRegexSubscriptionMode(RegexSubscriptionMode::NonPersistentOnly);
+        Consumer consumer;
+        std::string pattern = "public/default/" + topicName + ".*";
+        ASSERT_EQ(ResultOk, client.subscribeWithRegex(pattern, "sub-non-persistent", consConfig, consumer));
+        auto multiConsumerImplPtr = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer);
+        ASSERT_EQ(multiConsumerImplPtr->consumers_.size(), 1);
+        ASSERT_FALSE(multiConsumerImplPtr->consumers_.find(topicName1));
+        ASSERT_FALSE(multiConsumerImplPtr->consumers_.find(topicName2));
+        ASSERT_TRUE(multiConsumerImplPtr->consumers_.find(topicName3));
+        ASSERT_FALSE(multiConsumerImplPtr->consumers_.find(topicName4));
+        ASSERT_EQ(ResultOk, consumer.unsubscribe());
+    }
+
+    client.close();
+}
+
 class ConsumerSeekTest : public ::testing::TestWithParam<bool> {
    public:
     void SetUp() override { producerConf_ = ProducerConfiguration().setBatchingEnabled(GetParam()); }

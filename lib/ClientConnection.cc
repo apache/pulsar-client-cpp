@@ -1293,8 +1293,8 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     return promise.getFuture();
 }
 
-Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(const std::string& nsName,
-                                                                             uint64_t requestId) {
+Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
+    const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId) {
     Lock lock(mutex_);
     Promise<Result, NamespaceTopicsPtr> promise;
     if (isClosed()) {
@@ -1306,7 +1306,7 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(con
 
     pendingGetNamespaceTopicsRequests_.insert(std::make_pair(requestId, promise));
     lock.unlock();
-    sendCommand(Commands::newGetTopicsOfNamespace(nsName, requestId));
+    sendCommand(Commands::newGetTopicsOfNamespace(nsName, mode, requestId));
     return promise.getFuture();
 }
 

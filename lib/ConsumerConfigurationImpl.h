@@ -48,6 +48,8 @@ struct ConsumerConfigurationImpl {
     BatchReceivePolicy batchReceivePolicy{};
     DeadLetterPolicy deadLetterPolicy;
     int patternAutoDiscoveryPeriod{60};
+    RegexSubscriptionMode regexSubscriptionMode{RegexSubscriptionMode::PersistentOnly};
+
     bool replicateSubscriptionStateEnabled{false};
     std::map<std::string, std::string> properties;
     std::map<std::string, std::string> subscriptionProperties;

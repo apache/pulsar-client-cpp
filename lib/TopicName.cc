@@ -256,4 +256,16 @@ int TopicName::getPartitionIndex(const std::string& topic) {
 
 NamespaceNamePtr TopicName::getNamespaceName() { return namespaceName_; }
 
+std::string TopicName::removeDomain(const std::string& topicName) {
+    auto index = topicName.find("://");
+    if (index != std::string::npos) {
+        return topicName.substr(index + 3, topicName.length());
+    }
+    return topicName;
+}
+
+bool TopicName::containsDomain(const std::string& topicName) {
+    return topicName.find("://") != std::string::npos;
+}
+
 }  // namespace pulsar

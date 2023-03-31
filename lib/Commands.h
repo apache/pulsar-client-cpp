@@ -156,7 +156,8 @@ class Commands {
     static SharedBuffer newSeek(uint64_t consumerId, uint64_t requestId, const MessageId& messageId);
     static SharedBuffer newSeek(uint64_t consumerId, uint64_t requestId, uint64_t timestamp);
     static SharedBuffer newGetLastMessageId(uint64_t consumerId, uint64_t requestId);
-    static SharedBuffer newGetTopicsOfNamespace(const std::string& nsName, uint64_t requestId);
+    static SharedBuffer newGetTopicsOfNamespace(const std::string& nsName,
+                                                CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId);
 
     static bool peerSupportsGetLastMessageId(int32_t peerVersion);
     static bool peerSupportsActiveConsumerListener(int32_t peerVersion);

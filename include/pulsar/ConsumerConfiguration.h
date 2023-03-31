@@ -27,6 +27,7 @@
 #include <pulsar/InitialPosition.h>
 #include <pulsar/KeySharedPolicy.h>
 #include <pulsar/Message.h>
+#include <pulsar/RegexSubscriptionMode.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
 #include <pulsar/TypedMessage.h>
@@ -382,6 +383,19 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * @return the time duration for the PatternMultiTopicsConsumer performs a pattern auto discovery
      */
     int getPatternAutoDiscoveryPeriod() const;
+
+    /**
+     * Determines which topics this consumer should be subscribed to - Persistent, Non-Persistent, or
+     * AllTopics. Only used with pattern subscriptions.
+     *
+     * @param regexSubscriptionMode The default value is `PersistentOnly`.
+     */
+    ConsumerConfiguration& setRegexSubscriptionMode(RegexSubscriptionMode regexSubscriptionMode);
+
+    /**
+     * @return the regex subscription mode for the pattern consumer.
+     */
+    RegexSubscriptionMode getRegexSubscriptionMode() const;
 
     /**
      * The default value is `InitialPositionLatest`.

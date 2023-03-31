@@ -191,3 +191,20 @@ TEST(TopicNameTest, testPartitionIndex) {
         ASSERT_EQ(topicName->getPartitionIndex(), partition);
     }
 }
+
+TEST(TopicNameTest, testRemoveDomain) {
+    auto topicName1 = "persistent://public/default/test-topic";
+    ASSERT_EQ("public/default/test-topic", TopicName::removeDomain(topicName1));
+
+    auto topicName2 = "non-persistent://public/default/test-topic";
+    ASSERT_EQ("public/default/test-topic", TopicName::removeDomain(topicName2));
+
+    auto topicName3 = "public/default/test-topic";
+    ASSERT_EQ(topicName3, TopicName::removeDomain(topicName2));
+}
+
+TEST(TopicNameTest, testContainsDomain) {
+    ASSERT_TRUE(TopicName::containsDomain("persistent://public/default/test-topic"));
+    ASSERT_TRUE(TopicName::containsDomain("non-persistent://public/default/test-topic"));
+    ASSERT_FALSE(TopicName::containsDomain("public/default/test-topic"));
+}
