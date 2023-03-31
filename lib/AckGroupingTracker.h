@@ -71,21 +71,25 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] msgId ID of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledge(const MessageId& msgId, ResultCallback callback) {}
+    virtual void addAcknowledge(const MessageId& msgId, ResultCallback callback) { callback(ResultOk); }
 
     /**
      * Adding message ID list into ACK group for individual ACK.
      * @param[in] msgIds of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the messages are acknowledged
      */
-    virtual void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {}
+    virtual void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {
+        callback(ResultOk);
+    }
 
     /**
      * Adding message ID into ACK group for cumulative ACK.
      * @param[in] msgId ID of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {}
+    virtual void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {
+        callback(ResultOk);
+    }
 
     /**
      * Flush all the pending grouped ACKs (as flush() does), and stop period ACKs sending.
