@@ -99,6 +99,12 @@ class PULSAR_PUBLIC KeySharedPolicy {
     KeySharedPolicy& setStickyRanges(std::initializer_list<StickyRange> ranges);
 
     /**
+     * @param ranges used with sticky mode
+     */
+    KeySharedPolicy& setStickyRanges(StickyRanges ranges);
+
+
+    /**
      * @return ranges used with sticky mode
      */
     StickyRanges getStickyRanges() const;
