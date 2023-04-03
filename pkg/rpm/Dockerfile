@@ -57,7 +57,7 @@ RUN CMAKE_VERSION=$(dep-version.py cmake) && \
     cp -r cmake-${CMAKE_VERSION}-linux-${PLATFORM}/share/cmake-* /usr/share/ && \
     rm -rf cmake-${CMAKE_VERSION}-linux-${PLATFORM} cmake-${CMAKE_VERSION}-linux-${PLATFORM}.tar.gz
 
-# Download and copile protoubf
+# Download and compile protobuf
 RUN PROTOBUF_VERSION=$(dep-version.py protobuf) && \
     curl -O -L  https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
     tar xfz protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
