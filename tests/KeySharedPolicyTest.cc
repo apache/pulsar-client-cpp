@@ -207,8 +207,8 @@ TEST_F(KeySharedPolicyTest, testStickyConsumerExpected) {
     KeySharedPolicy ksp;
     ksp.setStickyRanges({StickyRange(0, 300), StickyRange(400, 500)});
 
-    std::vector<std::pair<int, int>> expectedStickyRange {{0, 300}, {400, 500}};
-    ASSERT_EQ(ksp.getStickyRanges(),expectedStickyRange);
+    std::vector<std::pair<int, int>> expectedStickyRange{{0, 300}, {400, 500}};
+    ASSERT_EQ(ksp.getStickyRanges(), expectedStickyRange);
 }
 
 TEST_F(KeySharedPolicyTest, testStickyConsumerVectors) {
@@ -217,9 +217,8 @@ TEST_F(KeySharedPolicyTest, testStickyConsumerVectors) {
     ksp.setStickyRanges({StickyRange(0, 300), StickyRange(400, 500)});
 
     KeySharedPolicy ksp2;
-    std::vector<std::pair<int, int>> stickyRangeVec {{0, 300}, {400, 500}};
+    std::vector<std::pair<int, int>> stickyRangeVec{{0, 300}, {400, 500}};
     ksp2.setStickyRanges(stickyRangeVec);
 
     ASSERT_EQ(ksp.getStickyRanges(), ksp2.getStickyRanges());
-
 }

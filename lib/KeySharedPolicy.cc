@@ -51,15 +51,10 @@ KeySharedPolicy &KeySharedPolicy::setAllowOutOfOrderDelivery(bool allowOutOfOrde
 bool KeySharedPolicy::isAllowOutOfOrderDelivery() const { return impl_->allowOutOfOrderDelivery; }
 
 KeySharedPolicy &KeySharedPolicy::setStickyRanges(std::initializer_list<StickyRange> ranges) {
-    StickyRanges v;
-    for(StickyRange i:ranges)
-    {
-        v.push_back(i);
-    }
-    return this->setStickyRanges(v);
+    return this->setStickyRanges(StickyRanges v(ranges));
 }
 
-KeySharedPolicy &KeySharedPolicy::setStickyRanges(StickyRanges ranges) {
+KeySharedPolicy &KeySharedPolicy::setStickyRanges(const StickyRanges &ranges) {
     if (ranges.empty()) {
         throw std::invalid_argument("Ranges for KeyShared policy must not be empty.");
     }
