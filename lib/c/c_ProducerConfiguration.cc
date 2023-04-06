@@ -232,3 +232,13 @@ void pulsar_producer_configuration_set_chunking_enabled(pulsar_producer_configur
 int pulsar_producer_configuration_is_chunking_enabled(pulsar_producer_configuration_t *conf) {
     return conf->conf.isChunkingEnabled();
 }
+
+pulsar_producer_access_mode pulsar_producer_configuration_get_access_mode(
+    pulsar_producer_configuration_t *conf) {
+    return (pulsar_producer_access_mode)conf->conf.getAccessMode();
+}
+
+void pulsar_producer_configuration_set_access_mode(pulsar_producer_configuration_t *conf,
+                                                   pulsar_producer_access_mode accessMode) {
+    conf->conf.setAccessMode((pulsar::ProducerConfiguration::ProducerAccessMode)accessMode);
+}
