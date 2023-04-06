@@ -59,6 +59,8 @@ class Log4CxxLogger : public Logger {
                 return log4cxx::Level::getWarn();
             case LEVEL_ERROR:
                 return log4cxx::Level::getError();
+            default:
+                return log4cxx::Level::getInfo();
         }
     }
 };
