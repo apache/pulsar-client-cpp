@@ -34,4 +34,7 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
 
     pulsar_consumer_configuration_set_start_message_id_inclusive(consumer_conf, 1);
     ASSERT_EQ(pulsar_consumer_configuration_is_start_message_id_inclusive(consumer_conf), 1);
+
+    pulsar_consumer_configuration_set_batch_index_ack_enabled(consumer_conf, 1);
+    ASSERT_EQ(pulsar_consumer_configuration_is_batch_index_ack_enabled(consumer_conf), 1);
 }
