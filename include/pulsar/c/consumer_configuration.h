@@ -304,6 +304,12 @@ PULSAR_PUBLIC void pulsar_consumer_configuration_set_start_message_id_inclusive(
 PULSAR_PUBLIC int pulsar_consumer_configuration_is_start_message_id_inclusive(
     pulsar_consumer_configuration_t *consumer_configuration);
 
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration, int enabled);
+
+PULSAR_PUBLIC int pulsar_consumer_configuration_is_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
 // const CryptoKeyReaderPtr getCryptoKeyReader()
 //
 // const;

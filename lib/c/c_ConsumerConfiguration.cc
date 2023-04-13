@@ -227,3 +227,13 @@ int pulsar_consumer_configuration_is_start_message_id_inclusive(
     pulsar_consumer_configuration_t *consumer_configuration) {
     return consumer_configuration->consumerConfiguration.isStartMessageIdInclusive();
 }
+
+void pulsar_consumer_configuration_set_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration, int enabled) {
+    consumer_configuration->consumerConfiguration.setBatchIndexAckEnabled(enabled);
+}
+
+int pulsar_consumer_configuration_is_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    return consumer_configuration->consumerConfiguration.isBatchIndexAckEnabled();
+}
