@@ -61,6 +61,10 @@ struct _pulsar_message {
     pulsar::Message message;
 };
 
+struct _pulsar_messages {
+    std::vector<pulsar::Message> messages;
+};
+
 struct _pulsar_message_id {
     pulsar::MessageId messageId;
 };

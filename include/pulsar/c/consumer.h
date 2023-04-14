@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 #include <pulsar/c/message.h>
+#include <pulsar/c/messages.h>
 #include <pulsar/c/result.h>
 #include <stdint.h>
 
@@ -33,6 +34,8 @@ typedef struct _pulsar_consumer pulsar_consumer_t;
 typedef void (*pulsar_result_callback)(pulsar_result, void *);
 
 typedef void (*pulsar_receive_callback)(pulsar_result result, pulsar_message_t *msg, void *ctx);
+
+typedef void (*pulsar_batch_receive_callback)(pulsar_result result, pulsar_messages_t *msg, void *ctx);
 
 /**
  * @return the topic this consumer is subscribed to
@@ -106,6 +109,26 @@ PULSAR_PUBLIC pulsar_result pulsar_consumer_receive_with_timeout(pulsar_consumer
  */
 PULSAR_PUBLIC void pulsar_consumer_receive_async(pulsar_consumer_t *consumer,
                                                  pulsar_receive_callback callback, void *ctx);
+
+/**
+ * Batch receiving messages.
+ *
+ * This calls blocks until has enough messages or wait timeout.
+ *
+ * @param msgs a non-const reference where the received messages will be copied
+ * @return ResultOk when a message is received
+ */
+PULSAR_PUBLIC pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer,
+                                                          pulsar_messages_t **msgs);
+
+/**
+ * Async batch receiving messages.
+ *
+ * @param msgs a non-const reference where the received messages will be copied
+ * @return ResultOk when a message is received
+ */
+PULSAR_PUBLIC void pulsar_consumer_batch_receive_async(pulsar_consumer_t *consumer,
+                                                       pulsar_batch_receive_callback callback, void *ctx);
 
 /**
  * Acknowledge the reception of a single message.

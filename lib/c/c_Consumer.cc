@@ -74,6 +74,32 @@ void pulsar_consumer_receive_async(pulsar_consumer_t *consumer, pulsar_receive_c
         std::bind(handle_receive_callback, std::placeholders::_1, std::placeholders::_2, callback, ctx));
 }
 
+pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer, pulsar_messages_t **msg) {
+    pulsar::Messages messages;
+
+    pulsar::Result res = consumer->consumer.batchReceive(messages);
+    if (res == pulsar::ResultOk) {
+        (*msg) = new pulsar_messages_t;
+        (*msg)->messages = messages;
+    }
+    return (pulsar_result)res;
+}
+
+static void handle_batch_receive_callback(pulsar::Result result, pulsar::Messages messages,
+                                          pulsar_batch_receive_callback callback, void *ctx) {
+    if (callback) {
+        pulsar_messages_t *msgs = new pulsar_messages_t;
+        msgs->messages = messages;
+        callback((pulsar_result)result, msgs, ctx);
+    }
+}
+
+void pulsar_consumer_batch_receive_async(pulsar_consumer_t *consumer, pulsar_batch_receive_callback callback,
+                                         void *ctx) {
+    consumer->consumer.batchReceiveAsync(std::bind(handle_batch_receive_callback, std::placeholders::_1,
+                                                   std::placeholders::_2, callback, ctx));
+}
+
 pulsar_result pulsar_consumer_acknowledge(pulsar_consumer_t *consumer, pulsar_message_t *message) {
     return (pulsar_result)consumer->consumer.acknowledge(message->message);
 }
