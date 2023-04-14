@@ -56,7 +56,7 @@ TEST(c_ConsumerTest, testBatchReceive) {
     ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_batch_receive(consumer, &msgs));
     ASSERT_EQ(pulsar_messages_size(msgs), num_messages);
     for (int i = 0; i < num_messages; i++) {
-        pulsar_message_t *msg = pulsar_message_get(msgs, i);
+        pulsar_message_t *msg = pulsar_messages_get(msgs, i);
         size_t length = pulsar_message_get_length(msg);
         char *str = (char *)malloc(pulsar_message_get_length(msg));
         strncpy(str, (const char *)pulsar_message_get_data(msg), length);

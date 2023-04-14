@@ -22,6 +22,8 @@
 
 size_t pulsar_messages_size(pulsar_messages_t* msgs) { return msgs->messages.size(); }
 
-pulsar_message_t* pulsar_message_get(pulsar_messages_t* msgs, size_t index) { return &msgs->messages[index]; }
+pulsar_message_t* pulsar_messages_get(pulsar_messages_t* msgs, size_t index) {
+    return &msgs->messages[index];
+}
 
 void pulsar_messages_free(pulsar_messages_t* msgs) { delete msgs; }

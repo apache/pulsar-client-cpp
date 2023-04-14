@@ -42,7 +42,7 @@ PULSAR_PUBLIC size_t pulsar_messages_size(pulsar_messages_t* msgs);
  * 1. You should not free the returned pointer, which always points to a valid memory unless `msgs` is freed.
  * 2. Undefined behavior will happen if `msgs` is NULL or `index` is not smaller than the number of messages.
  */
-PULSAR_PUBLIC pulsar_message_t* pulsar_message_get(pulsar_messages_t* msgs, size_t index);
+PULSAR_PUBLIC pulsar_message_t* pulsar_messages_get(pulsar_messages_t* msgs, size_t index);
 
 PULSAR_PUBLIC void pulsar_messages_free(pulsar_messages_t* msgs);
 
