@@ -237,3 +237,16 @@ int pulsar_consumer_configuration_is_batch_index_ack_enabled(
     pulsar_consumer_configuration_t *consumer_configuration) {
     return consumer_configuration->consumerConfiguration.isBatchIndexAckEnabled();
 }
+
+void pulsar_consumer_configuration_set_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_regex_subscription_mode regex_sub_mode) {
+    consumer_configuration->consumerConfiguration.setRegexSubscriptionMode(
+        (pulsar::RegexSubscriptionMode)regex_sub_mode);
+}
+
+pulsar_consumer_regex_subscription_mode pulsar_consumer_configuration_get_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    return (pulsar_consumer_regex_subscription_mode)
+        consumer_configuration->consumerConfiguration.getRegexSubscriptionMode();
+}

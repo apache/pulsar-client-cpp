@@ -79,6 +79,16 @@ typedef enum
     pulsar_ConsumerConsume
 } pulsar_consumer_crypto_failure_action;
 
+typedef enum
+{
+    // Only subscribe to persistent topics.
+    pulsar_consumer_regex_sub_mode_PersistentOnly = 0,
+    // Only subscribe to non-persistent topics.
+    pulsar_consumer_regex_sub_mode_NonPersistentOnly = 1,
+    // Subscribe to both persistent and non-persistent topics.
+    pulsar_consumer_regex_sub_mode_AllTopics = 2
+} pulsar_consumer_regex_subscription_mode;
+
 /// Callback definition for MessageListener
 typedef void (*pulsar_message_listener)(pulsar_consumer_t *consumer, pulsar_message_t *msg, void *ctx);
 
@@ -308,6 +318,14 @@ PULSAR_PUBLIC void pulsar_consumer_configuration_set_batch_index_ack_enabled(
     pulsar_consumer_configuration_t *consumer_configuration, int enabled);
 
 PULSAR_PUBLIC int pulsar_consumer_configuration_is_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_regex_subscription_mode regex_sub_mode);
+
+PULSAR_PUBLIC pulsar_consumer_regex_subscription_mode
+pulsar_consumer_configuration_get_regex_subscription_mode(
     pulsar_consumer_configuration_t *consumer_configuration);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader()
