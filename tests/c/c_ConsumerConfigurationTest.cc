@@ -42,4 +42,6 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
         consumer_conf, pulsar_consumer_regex_sub_mode_NonPersistentOnly);
     ASSERT_EQ(pulsar_consumer_configuration_get_regex_subscription_mode(consumer_conf),
               pulsar_consumer_regex_sub_mode_NonPersistentOnly);
+
+    pulsar_consumer_configuration_free(consumer_conf);
 }
