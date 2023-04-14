@@ -114,8 +114,7 @@ PULSAR_PUBLIC void pulsar_consumer_receive_async(pulsar_consumer_t *consumer,
  * NOTE:
  * 1. When it's received successfully, `*msg` will point to the memory that is allocated internally. You
  * have to call `pulsar_messages_free` to free it.
- * 2. Otherwise, `*msgs` will be set to NULL.
- * 3. Undefined behavior will happen if `msgs` is NULL.
+ * 2. Undefined behavior will happen if `msgs` is NULL.
  */
 PULSAR_PUBLIC pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer,
                                                           pulsar_messages_t **msgs);
