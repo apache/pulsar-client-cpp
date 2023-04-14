@@ -65,6 +65,10 @@ struct _pulsar_message_id {
     pulsar::MessageId messageId;
 };
 
+struct _pulsar_messages {
+    std::vector<_pulsar_message> messages;
+};
+
 struct _pulsar_authentication {
     pulsar::AuthenticationPtr auth;
 };

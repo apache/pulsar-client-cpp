@@ -60,6 +60,19 @@ pulsar_result pulsar_consumer_receive_with_timeout(pulsar_consumer_t *consumer, 
     return (pulsar_result)res;
 }
 
+pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer, pulsar_messages_t **msgs) {
+    pulsar::Messages messages;
+    pulsar::Result res = consumer->consumer.batchReceive(messages);
+    if (res == pulsar::ResultOk) {
+        (*msgs) = new pulsar_messages_t;
+        (*msgs)->messages.resize(messages.size());
+        for (size_t i = 0; i < messages.size(); i++) {
+            (*msgs)->messages[i].message = messages[i];
+        }
+    }
+    return (pulsar_result)res;
+}
+
 static void handle_receive_callback(pulsar::Result result, pulsar::Message message,
                                     pulsar_receive_callback callback, void *ctx) {
     if (callback) {
