@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <stdexcept>
+
 #include "ClientConfigurationImpl.h"
 
 namespace pulsar {
@@ -188,5 +190,15 @@ ClientConfiguration& ClientConfiguration::setConnectionTimeout(int timeoutMs) {
 }
 
 int ClientConfiguration::getConnectionTimeout() const { return impl_->connectionTimeoutMs; }
+
+ClientConfiguration& ClientConfiguration::setDescription(const std::string& description) {
+    if (description.length() > 64) {
+        throw std::invalid_argument("The description length exceeds 64");
+    }
+    impl_->description = description;
+    return *this;
+}
+
+const std::string& ClientConfiguration::getDescription() const noexcept { return impl_->description; }
 
 }  // namespace pulsar

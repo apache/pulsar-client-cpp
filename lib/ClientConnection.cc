@@ -157,7 +157,7 @@ std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessa
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                                    ExecutorServicePtr executor,
                                    const ClientConfiguration& clientConfiguration,
-                                   const AuthenticationPtr& authentication)
+                                   const AuthenticationPtr& authentication, const std::string& clientVersion)
     : operationsTimeout_(seconds(clientConfiguration.getOperationTimeoutSeconds())),
       authentication_(authentication),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
@@ -179,7 +179,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
           std::make_shared<PeriodicTask>(*executor_, clientConfiguration.getConnectionTimeout())),
       outgoingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
       consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
-      maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()) {
+      maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()),
+      clientVersion_(clientVersion) {
     LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
     if (clientConfiguration.isUseTls()) {
 #if BOOST_VERSION >= 105400
@@ -485,8 +486,8 @@ void ClientConnection::handleHandshake(const boost::system::error_code& err) {
 
     bool connectingThroughProxy = logicalAddress_ != physicalAddress_;
     Result result = ResultOk;
-    SharedBuffer buffer =
-        Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy, result);
+    SharedBuffer buffer = Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy,
+                                               clientVersion_, result);
     if (result != ResultOk) {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << result);
         close(result);

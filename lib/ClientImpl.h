@@ -157,6 +157,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                           const std::string& consumerName, const ConsumerConfiguration& conf,
                                           SubscribeCallback callback);
 
+    static std::string getClientVersion(const ClientConfiguration& clientConfiguration);
+
     enum State
     {
         Open,

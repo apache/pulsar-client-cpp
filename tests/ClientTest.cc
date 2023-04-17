@@ -20,8 +20,12 @@
 #include <pulsar/Client.h>
 #include <pulsar/Version.h>
 
+#include <algorithm>
+#include <boost/property_tree/json_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
 #include <chrono>
 #include <future>
+#include <sstream>
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
@@ -315,32 +319,83 @@ TEST(ClientTest, testCloseClient) {
     }
 }
 
+namespace pulsar {
+
+class PulsarWrapper {
+   public:
+    static ClientConfiguration createConfig(const std::string &description) {
+        ClientConfiguration conf;
+        conf.setDescription(description);
+        return conf;
+    }
+};
+
+}  // namespace pulsar
+
+// When `subscription` is empty, get client versions of the producers.
+// Otherwise, get client versions of the consumers under the subscribe.
+static std::vector<std::string> getClientVersions(const std::string &topic, std::string subscription = "") {
+    const auto url = adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats";
+    std::string responseData;
+    int res = makeGetRequest(url, responseData);
+    if (res != 200) {
+        LOG_ERROR(url << " failed: " << res);
+        return {};
+    }
+
+    std::stringstream stream;
+    stream << responseData;
+    boost::property_tree::ptree root;
+    boost::property_tree::read_json(stream, root);
+    std::vector<std::string> versions;
+    if (subscription.empty()) {
+        for (auto &child : root.get_child("publishers")) {
+            versions.emplace_back(child.second.get<std::string>("clientVersion"));
+        }
+    } else {
+        auto consumers = root.get_child("subscriptions").get_child_optional(subscription);
+        if (consumers) {
+            for (auto &child : consumers.value().get_child("consumers")) {
+                versions.emplace_back(child.second.get<std::string>("clientVersion"));
+            }
+        }
+    }
+    std::sort(versions.begin(), versions.end());
+    return versions;
+}
+
 TEST(ClientTest, testClientVersion) {
     const std::string topic = "testClientVersion" + std::to_string(time(nullptr));
     const std::string expectedVersion = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
 
     Client client(lookupUrl);
+    Client client2(lookupUrl, PulsarWrapper::createConfig("forked"));
 
     std::string responseData;
 
+    ASSERT_TRUE(getClientVersions(topic).empty());
     Producer producer;
-    Result result = client.createProducer(topic, producer);
-    ASSERT_EQ(ResultOk, result);
-    int res =
-        makeGetRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats", responseData);
-    ASSERT_TRUE(res == 200) << "res: " << res;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ASSERT_EQ(getClientVersions(topic), (std::vector<std::string>{expectedVersion}));
 
-    ASSERT_TRUE(responseData.find(expectedVersion) != std::string::npos);
+    Producer producer2;
+    ASSERT_EQ(ResultOk, client2.createProducer(topic, producer2));
+    ASSERT_EQ(getClientVersions(topic),
+              (std::vector<std::string>{expectedVersion, expectedVersion + "-forked"}));
+
     producer.close();
 
-    responseData.clear();
+    ASSERT_TRUE(getClientVersions(topic, "consumer-1").empty());
+    auto consumerConf = ConsumerConfiguration{}.setConsumerType(ConsumerType::ConsumerFailover);
     Consumer consumer;
-    result = client.subscribe(topic, "consumer-1", consumer);
-    ASSERT_EQ(ResultOk, result);
-    res = makeGetRequest(adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats", responseData);
-    ASSERT_TRUE(res == 200) << "res: " << res;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "consumer-1", consumerConf, consumer));
+    ASSERT_EQ(getClientVersions(topic, "consumer-1"), (std::vector<std::string>{expectedVersion}));
 
-    ASSERT_TRUE(responseData.find(expectedVersion) != std::string::npos);
+    Consumer consumer2;
+    ASSERT_EQ(ResultOk, client2.subscribe(topic, "consumer-1", consumerConf, consumer2));
+    ASSERT_EQ(getClientVersions(topic, "consumer-1"),
+              (std::vector<std::string>{expectedVersion, expectedVersion + "-forked"}));
+
     consumer.close();
 
     client.close();

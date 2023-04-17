@@ -127,7 +127,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                      ExecutorServicePtr executor, const ClientConfiguration& clientConfiguration,
-                     const AuthenticationPtr& authentication);
+                     const AuthenticationPtr& authentication, const std::string& clientVersion);
     ~ClientConnection();
 
     /*
@@ -372,9 +372,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
     uint32_t maxPendingLookupRequest_;
     uint32_t numOfPendingLookupRequest_ = 0;
-    friend class PulsarFriend;
 
     bool isTlsAllowInsecureConnection_ = false;
+
+    const std::string clientVersion_;
+    friend class PulsarFriend;
 
     void closeSocket();
     void checkServerError(ServerError error);

@@ -82,7 +82,8 @@ class Commands {
     const static int checksumSize = 4;
 
     static SharedBuffer newConnect(const AuthenticationPtr& authentication, const std::string& logicalAddress,
-                                   bool connectingThroughProxy, Result& result);
+                                   bool connectingThroughProxy, const std::string& clientVersion,
+                                   Result& result);
 
     static SharedBuffer newAuthResponse(const AuthenticationPtr& authentication, Result& result);
 

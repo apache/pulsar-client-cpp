@@ -48,7 +48,7 @@ TEST(LookupServiceTest, basicLookup) {
     std::string url = "pulsar://localhost:6650";
     ClientConfiguration conf;
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    ConnectionPool pool_(conf, ioExecutorProvider_, authData, true);
+    ConnectionPool pool_(conf, ioExecutorProvider_, authData, true, "");
     ServiceNameResolver serviceNameResolver(url);
     BinaryProtoLookupService lookupService(serviceNameResolver, pool_, conf);
 
@@ -112,7 +112,7 @@ static void testMultiAddresses(LookupService& lookupService) {
 }
 
 TEST(LookupServiceTest, testMultiAddresses) {
-    ConnectionPool pool({}, std::make_shared<ExecutorServiceProvider>(1), AuthFactory::Disabled(), true);
+    ConnectionPool pool({}, std::make_shared<ExecutorServiceProvider>(1), AuthFactory::Disabled(), true, "");
     ServiceNameResolver serviceNameResolver("pulsar://localhost,localhost:9999");
     ClientConfiguration conf;
     BinaryProtoLookupService binaryLookupService(serviceNameResolver, pool, conf);
@@ -126,7 +126,7 @@ TEST(LookupServiceTest, testMultiAddresses) {
 }
 TEST(LookupServiceTest, testRetry) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), true);
+    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), true, "");
     ServiceNameResolver serviceNameResolver("pulsar://localhost:9999,localhost");
     ClientConfiguration conf;
 
@@ -178,7 +178,7 @@ TEST(LookupServiceTest, testRetry) {
 
 TEST(LookupServiceTest, testTimeout) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), true);
+    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), true, "");
     ServiceNameResolver serviceNameResolver("pulsar://localhost:9990,localhost:9902,localhost:9904");
     ClientConfiguration conf;
 
@@ -361,7 +361,7 @@ TEST(LookupServiceTest, testRedirectionLimit) {
     ClientConfiguration conf;
     conf.setMaxLookupRedirects(redirect_limit);
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    ConnectionPool pool_(conf, ioExecutorProvider_, authData, true);
+    ConnectionPool pool_(conf, ioExecutorProvider_, authData, true, "");
     std::string url = "pulsar://localhost:6650";
     ServiceNameResolver serviceNameResolver(url);
     BinaryProtoLookupServiceRedirectTestHelper lookupService(serviceNameResolver, pool_, conf);
