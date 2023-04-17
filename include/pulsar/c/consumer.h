@@ -25,6 +25,7 @@ extern "C" {
 #endif
 
 #include <pulsar/c/message.h>
+#include <pulsar/c/messages.h>
 #include <pulsar/c/result.h>
 #include <stdint.h>
 
@@ -106,6 +107,17 @@ PULSAR_PUBLIC pulsar_result pulsar_consumer_receive_with_timeout(pulsar_consumer
  */
 PULSAR_PUBLIC void pulsar_consumer_receive_async(pulsar_consumer_t *consumer,
                                                  pulsar_receive_callback callback, void *ctx);
+
+/**
+ * Batch receiving messages.
+ *
+ * NOTE:
+ * 1. When it's received successfully, `*msg` will point to the memory that is allocated internally. You
+ * have to call `pulsar_messages_free` to free it.
+ * 2. Undefined behavior will happen if `msgs` is NULL.
+ */
+PULSAR_PUBLIC pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer,
+                                                          pulsar_messages_t **msgs);
 
 /**
  * Acknowledge the reception of a single message.
