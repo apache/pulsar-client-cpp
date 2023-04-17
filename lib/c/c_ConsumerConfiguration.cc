@@ -250,3 +250,20 @@ pulsar_consumer_regex_subscription_mode pulsar_consumer_configuration_get_regex_
     return (pulsar_consumer_regex_subscription_mode)
         consumer_configuration->consumerConfiguration.getRegexSubscriptionMode();
 }
+
+void pulsar_consumer_configuration_set_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_batch_receive_policy_t *batch_receive_policy_t) {
+    pulsar::BatchReceivePolicy batchReceivePolicy(batch_receive_policy_t->maxNumMessage,
+                                                  batch_receive_policy_t->maxNumBytes,
+                                                  batch_receive_policy_t->timeoutMs);
+    consumer_configuration->consumerConfiguration.setBatchReceivePolicy(batchReceivePolicy);
+}
+
+pulsar_consumer_batch_receive_policy_t pulsar_consumer_configuration_get_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    pulsar::BatchReceivePolicy batchReceivePolicy =
+        consumer_configuration->consumerConfiguration.getBatchReceivePolicy();
+    return {batchReceivePolicy.getMaxNumMessages(), batchReceivePolicy.getMaxNumBytes(),
+            batchReceivePolicy.getTimeoutMs()};
+}

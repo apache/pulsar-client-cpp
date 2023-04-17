@@ -89,6 +89,15 @@ typedef enum
     pulsar_consumer_regex_sub_mode_AllTopics = 2
 } pulsar_consumer_regex_subscription_mode;
 
+typedef struct {
+    // Max num message, if less than 0, it means no limit.
+    int maxNumMessage;
+    // Max num bytes, if less than 0, it means no limit.
+    long maxNumBytes;
+    // If less than 0, it means no limit.
+    long timeoutMs;
+} pulsar_consumer_batch_receive_policy_t;
+
 /// Callback definition for MessageListener
 typedef void (*pulsar_message_listener)(pulsar_consumer_t *consumer, pulsar_message_t *msg, void *ctx);
 
@@ -326,6 +335,22 @@ PULSAR_PUBLIC void pulsar_consumer_configuration_set_regex_subscription_mode(
 
 PULSAR_PUBLIC pulsar_consumer_regex_subscription_mode
 pulsar_consumer_configuration_get_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
+/**
+ * Set batch receive policy.
+ *
+ * The default value: {maxNumMessage: -1, maxNumBytes: 10 * 1024 * 1024, timeoutMs: 100}
+ * @param consumer_configuration  the consumer conf object.
+ * @param maxNumMessage default: Max num message, if less than 0, it means no limit.
+ * @param maxNumBytes Max num bytes, if less than 0, it means no limit.
+ * @param timeoutMs If less than 0, it means no limit.
+ */
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_batch_receive_policy_t *batch_receive_policy);
+
+PULSAR_PUBLIC pulsar_consumer_batch_receive_policy_t pulsar_consumer_configuration_get_batch_receive_policy(
     pulsar_consumer_configuration_t *consumer_configuration);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader()

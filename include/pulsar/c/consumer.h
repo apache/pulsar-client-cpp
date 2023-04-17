@@ -35,6 +35,8 @@ typedef void (*pulsar_result_callback)(pulsar_result, void *);
 
 typedef void (*pulsar_receive_callback)(pulsar_result result, pulsar_message_t *msg, void *ctx);
 
+typedef void (*pulsar_batch_receive_callback)(pulsar_result result, pulsar_messages_t *msg, void *ctx);
+
 /**
  * @return the topic this consumer is subscribed to
  */
@@ -118,6 +120,17 @@ PULSAR_PUBLIC void pulsar_consumer_receive_async(pulsar_consumer_t *consumer,
  */
 PULSAR_PUBLIC pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer,
                                                           pulsar_messages_t **msgs);
+
+/**
+ * Async batch receiving messages.
+ *
+ * @param callback
+ * 1. When it's callback call result is `ResultOk`, `*msg` will point to the memory that
+ * is allocated internally. You have to call `pulsar_messages_free` to free it.
+ * 2. If callback call result is not `ResultOk`, `*msg` will is nullptr.
+ */
+PULSAR_PUBLIC void pulsar_consumer_batch_receive_async(pulsar_consumer_t *consumer,
+                                                       pulsar_batch_receive_callback callback, void *ctx);
 
 /**
  * Acknowledge the reception of a single message.
