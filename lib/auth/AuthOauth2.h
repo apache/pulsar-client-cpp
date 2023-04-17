@@ -48,6 +48,7 @@ class KeyFile {
     KeyFile() : valid_(false) {}
 
     static KeyFile fromFile(const std::string& filename);
+    static KeyFile fromBase64(const std::string& encoded);
 };
 
 class ClientCredentialFlow : public Oauth2Flow {

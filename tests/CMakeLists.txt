@@ -64,3 +64,7 @@ if (UNIX)
     add_executable(ConnectionFailTest unix/ConnectionFailTest.cc HttpHelper.cc)
     target_link_libraries(ConnectionFailTest ${CLIENT_LIBS} pulsarStatic ${GTEST_LIBRARY_PATH})
 endif ()
+
+add_executable(Oauth2Test oauth2/Oauth2Test.cc)
+target_compile_options(Oauth2Test PRIVATE "-DTEST_ROOT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+target_link_libraries(Oauth2Test ${CLIENT_LIBS} pulsarStatic ${GTEST_LIBRARY_PATH})

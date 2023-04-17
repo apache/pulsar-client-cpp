@@ -23,7 +23,27 @@ set -e
 ROOT_DIR=$(git rev-parse --show-toplevel)
 cd $ROOT_DIR
 
-pushd tests
+if [[ ! $CMAKE_BUILD_DIRECTORY ]]; then
+    CMAKE_BUILD_DIRECTORY=.
+fi
+
+export http_proxy=
+export https_proxy=
+
+# Run OAuth2 tests
+docker compose -f tests/oauth2/docker-compose.yml up -d
+# Wait until the namespace is created, currently there is no good way to check it
+# because it's hard to configure OAuth2 authentication via CLI.
+sleep 15
+$CMAKE_BUILD_DIRECTORY/tests/Oauth2Test
+docker compose -f tests/oauth2/docker-compose.yml down
+
+./pulsar-test-service-start.sh
+
+pushd $CMAKE_BUILD_DIRECTORY/tests
+
+# Avoid this test is still flaky, see https://github.com/apache/pulsar-client-cpp/pull/217
+./ConnectionFailTest --gtest_repeat=20
 
 export RETRY_FAILED="${RETRY_FAILED:-1}"
 
@@ -53,5 +73,7 @@ else
 fi
 
 popd
+
+./pulsar-test-service-stop.sh
 
 exit $RES

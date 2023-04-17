@@ -26,6 +26,7 @@
 #include <stdexcept>
 
 #include "InitialAuthData.h"
+#include "lib/Base64Utils.h"
 #include "lib/LogUtils.h"
 DECLARE_LOG_OBJECT()
 
@@ -113,10 +114,52 @@ Oauth2Flow::~Oauth2Flow() {}
 
 KeyFile KeyFile::fromParamMap(ParamMap& params) {
     const auto it = params.find("private_key");
-    if (it != params.cend()) {
-        return fromFile(it->second);
-    } else {
+    if (it == params.cend()) {
         return {params["client_id"], params["client_secret"]};
+    }
+
+    const std::string& url = it->second;
+    size_t startPos = 0;
+    auto getPrefix = [&url, &startPos](char separator) -> std::string {
+        const size_t endPos = url.find(separator, startPos);
+        if (endPos == std::string::npos) {
+            return "";
+        }
+        const auto prefix = url.substr(startPos, endPos - startPos);
+        startPos = endPos + 1;
+        return prefix;
+    };
+
+    const auto protocol = getPrefix(':');
+    // If the private key is not a URL, treat it as the file path
+    if (protocol.empty()) {
+        return fromFile(it->second);
+    }
+
+    if (protocol == "file") {
+        // URL is "file://..." or "file:..."
+        if (url.size() > startPos + 2 && url[startPos + 1] == '/' && url[startPos + 2] == '/') {
+            return fromFile(url.substr(startPos + 2));
+        } else {
+            return fromFile(url.substr(startPos));
+        }
+    } else if (protocol == "data") {
+        // Only support base64 encoded data from a JSON string. The URL should be:
+        // "data:application/json;base64,..."
+        const auto contentType = getPrefix(';');
+        if (contentType != "application/json") {
+            LOG_ERROR("Unsupported content type: " << contentType);
+            return {};
+        }
+        const auto encodingType = getPrefix(',');
+        if (encodingType != "base64") {
+            LOG_ERROR("Unsupported encoding type: " << encodingType);
+            return {};
+        }
+        return fromBase64(url.substr(startPos));
+    } else {
+        LOG_ERROR("Unsupported protocol: " << protocol);
+        return {};
     }
 }
 
@@ -135,6 +178,24 @@ KeyFile KeyFile::fromFile(const std::string& credentialsFilePath) {
         return {loadPtreeRoot.get<std::string>("client_id"), loadPtreeRoot.get<std::string>("client_secret")};
     } catch (const boost::property_tree::ptree_error& e) {
         LOG_ERROR("Failed to get client_id or client_secret in " << credentialsFilePath << ": " << e.what());
+        return {};
+    }
+}
+
+KeyFile KeyFile::fromBase64(const std::string& encoded) {
+    boost::property_tree::ptree root;
+    std::stringstream stream;
+    stream << base64::decode(encoded);
+    try {
+        boost::property_tree::read_json(stream, root);
+    } catch (const boost::property_tree::json_parser_error& e) {
+        LOG_ERROR("Failed to parse credentials from " << stream.str());
+        return {};
+    }
+    try {
+        return {root.get<std::string>("client_id"), root.get<std::string>("client_secret")};
+    } catch (const boost::property_tree::ptree_error& e) {
+        LOG_ERROR("Failed to get client_id or client_secret in " << stream.str() << ": " << e.what());
         return {};
     }
 }
