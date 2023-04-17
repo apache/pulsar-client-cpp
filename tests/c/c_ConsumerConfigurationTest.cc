@@ -51,5 +51,21 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
     ASSERT_EQ(get_batch_receive_policy.maxNumBytes, 1000);
     ASSERT_EQ(get_batch_receive_policy.timeoutMs, 1000);
 
+    pulsar_consumer_config_dead_letter_policy_t dlq_policy{.max_redeliver_count = 10};
+    pulsar_consumer_configuration_set_dlq_policy(consumer_conf, &dlq_policy);
+    pulsar_consumer_config_dead_letter_policy_t get_dlq_policy =
+        pulsar_consumer_configuration_get_dlq_policy(consumer_conf);
+    ASSERT_EQ(get_dlq_policy.max_redeliver_count, 10);
+    ASSERT_TRUE(get_dlq_policy.dead_letter_topic[0] == '\0');
+    ASSERT_TRUE(get_dlq_policy.initial_subscription_name[0] == '\0');
+
+    pulsar_consumer_config_dead_letter_policy_t dlq_policy_2{"dlq-topic", 10, "init-sub"};
+    pulsar_consumer_configuration_set_dlq_policy(consumer_conf, &dlq_policy_2);
+    pulsar_consumer_config_dead_letter_policy_t get_dlq_policy_2 =
+        pulsar_consumer_configuration_get_dlq_policy(consumer_conf);
+    ASSERT_EQ(get_dlq_policy_2.max_redeliver_count, 10);
+    ASSERT_EQ(strcmp(get_dlq_policy_2.dead_letter_topic, "dlq-topic"), 0);
+    ASSERT_EQ(strcmp(get_dlq_policy_2.initial_subscription_name, "init-sub"), 0);
+
     pulsar_consumer_configuration_free(consumer_conf);
 }
