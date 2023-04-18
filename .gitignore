@@ -69,7 +69,6 @@ include/pulsar/Version.h
 *.ninja*
 .clangd/
 compile_commands.json
-.cmake-build-debug/
 
 # doxygen files
 apidocs/

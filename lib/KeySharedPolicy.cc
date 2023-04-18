@@ -51,7 +51,7 @@ KeySharedPolicy &KeySharedPolicy::setAllowOutOfOrderDelivery(bool allowOutOfOrde
 bool KeySharedPolicy::isAllowOutOfOrderDelivery() const { return impl_->allowOutOfOrderDelivery; }
 
 KeySharedPolicy &KeySharedPolicy::setStickyRanges(std::initializer_list<StickyRange> ranges) {
-    return this->setStickyRanges(StickyRanges v(ranges));
+    return this->setStickyRanges(StickyRanges(ranges));
 }
 
 KeySharedPolicy &KeySharedPolicy::setStickyRanges(const StickyRanges &ranges) {
