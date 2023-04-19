@@ -125,9 +125,9 @@ PULSAR_PUBLIC pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *con
  * Async batch receiving messages.
  *
  * @param callback
- * 1. When it's callback call result is `ResultOk`, `*msg` will point to the memory that
+ * 1. When the result in the callback is `ResultOk`, `*msg` in the callback will point to the memory that
  * is allocated internally. You have to call `pulsar_messages_free` to free it.
- * 2. If callback call result is not `ResultOk`, `*msg` will is nullptr.
+ * 2. If the result in the callback is not `ResultOk`, `*msg` in the callback will is nullptr.
  */
 PULSAR_PUBLIC void pulsar_consumer_batch_receive_async(pulsar_consumer_t *consumer,
                                                        pulsar_batch_receive_callback callback, void *ctx);

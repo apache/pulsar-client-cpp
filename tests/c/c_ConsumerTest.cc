@@ -28,16 +28,14 @@
 static const char *lookup_url = "pulsar://localhost:6650";
 
 struct batch_receive_ctx {
-    pulsar_result result;
     pulsar_consumer_t *consumer;
-    std::promise<void> *promise;
+    std::promise<pulsar_result> *promise;
     int expect_receive_num;
 };
 
 static void batch_receive_callback(pulsar_result async_result, pulsar_messages_t *msgs, void *ctx) {
-    printf("todo callback.... \n");
     struct batch_receive_ctx *receive_ctx = (struct batch_receive_ctx *)ctx;
-    receive_ctx->result = async_result;
+    receive_ctx->promise->set_value(async_result);
     if (async_result == pulsar_result_Ok) {
         ASSERT_EQ(pulsar_messages_size(msgs), receive_ctx->expect_receive_num);
         for (int i = 0; i < pulsar_messages_size(msgs); i++) {
@@ -54,7 +52,6 @@ static void batch_receive_callback(pulsar_result async_result, pulsar_messages_t
             free(str);
         }
         pulsar_messages_free(msgs);
-        receive_ctx->promise->set_value();
     }
 }
 
@@ -109,13 +106,12 @@ TEST(c_ConsumerTest, testBatchReceive) {
     }
     pulsar_messages_free(msgs);
 
-    std::promise<void> receive_promise;
-    std::future<void> receive_future = receive_promise.get_future();
-    struct batch_receive_ctx batch_receive_ctx = {pulsar_result_UnknownError, consumer, &receive_promise,
-                                                  batch_receive_max_size};
+    std::promise<pulsar_result> receive_promise;
+    std::future<pulsar_result> receive_future = receive_promise.get_future();
+    struct batch_receive_ctx batch_receive_ctx = {consumer, &receive_promise, batch_receive_max_size};
     pulsar_consumer_batch_receive_async(consumer, batch_receive_callback, &batch_receive_ctx);
-    receive_future.get();
-    ASSERT_EQ(pulsar_result_Ok, batch_receive_ctx.result);
+    pulsar_client_close(client);
+    ASSERT_EQ(pulsar_result_Ok, receive_future.get());
 
     pulsar_client_close(client);
     pulsar_consumer_free(consumer);
