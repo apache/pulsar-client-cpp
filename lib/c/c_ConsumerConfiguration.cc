@@ -270,19 +270,6 @@ pulsar_consumer_batch_receive_policy_t pulsar_consumer_configuration_get_batch_r
 }
 
 void pulsar_consumer_configuration_set_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration,
-                                                  const char *dead_letter_topic, int max_redeliver_count,
-                                                  const char *initial_subscription_name) {
-    auto policyBuilder = pulsar::DeadLetterPolicyBuilder().maxRedeliverCount(max_redeliver_count);
-    if (dead_letter_topic != nullptr) {
-        policyBuilder.deadLetterTopic(dead_letter_topic);
-    }
-    if (initial_subscription_name != nullptr) {
-        policyBuilder.initialSubscriptionName(initial_subscription_name);
-    }
-    consumer_configuration->consumerConfiguration.setDeadLetterPolicy(policyBuilder.build());
-}
-
-void pulsar_consumer_configuration_set_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration,
                                                   pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
     auto dlqPolicyBuilder =
         pulsar::DeadLetterPolicyBuilder().maxRedeliverCount(dlq_policy->max_redeliver_count);
