@@ -41,7 +41,8 @@ using ExecutorServiceProviderPtr = std::shared_ptr<ExecutorServiceProvider>;
 class PULSAR_PUBLIC ConnectionPool {
    public:
     ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
-                   const AuthenticationPtr& authentication, bool poolConnections = true);
+                   const AuthenticationPtr& authentication, bool poolConnections,
+                   const std::string& clientVersion);
 
     /**
      * Close the connection pool.
@@ -80,6 +81,7 @@ class PULSAR_PUBLIC ConnectionPool {
     typedef std::map<std::string, ClientConnectionWeakPtr> PoolMap;
     PoolMap pool_;
     bool poolConnections_;
+    const std::string clientVersion_;
     mutable std::mutex mutex_;
     std::atomic_bool closed_{false};
 

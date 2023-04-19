@@ -19,8 +19,10 @@
 #include "ClientImpl.h"
 
 #include <pulsar/ClientConfiguration.h>
+#include <pulsar/Version.h>
 
 #include <random>
+#include <sstream>
 
 #include "BinaryProtoLookupService.h"
 #include "ClientConfigurationImpl.h"
@@ -89,7 +91,8 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
           std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getMessageListenerThreads())),
       partitionListenerExecutorProvider_(
           std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getMessageListenerThreads())),
-      pool_(clientConfiguration_, ioExecutorProvider_, clientConfiguration_.getAuthPtr(), poolConnections),
+      pool_(clientConfiguration_, ioExecutorProvider_, clientConfiguration_.getAuthPtr(), poolConnections,
+            ClientImpl::getClientVersion(clientConfiguration)),
       producerIdGenerator_(0),
       consumerIdGenerator_(0),
       closingError(ResultOk) {
@@ -761,5 +764,14 @@ uint64_t ClientImpl::getNumberOfConsumers() {
 }
 
 const ClientConfiguration& ClientImpl::getClientConfig() const { return clientConfiguration_; }
+
+std::string ClientImpl::getClientVersion(const ClientConfiguration& clientConfiguration) {
+    std::ostringstream oss;
+    oss << "Pulsar-CPP-v" << PULSAR_VERSION_STR;
+    if (!clientConfiguration.getDescription().empty()) {
+        oss << "-" << clientConfiguration.getDescription();
+    }
+    return oss.str();
+}
 
 } /* namespace pulsar */

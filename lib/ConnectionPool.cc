@@ -34,13 +34,13 @@ DECLARE_LOG_OBJECT()
 namespace pulsar {
 
 ConnectionPool::ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
-                               const AuthenticationPtr& authentication, bool poolConnections)
+                               const AuthenticationPtr& authentication, bool poolConnections,
+                               const std::string& clientVersion)
     : clientConfiguration_(conf),
       executorProvider_(executorProvider),
       authentication_(authentication),
-      pool_(),
       poolConnections_(poolConnections),
-      mutex_() {}
+      clientVersion_(clientVersion) {}
 
 bool ConnectionPool::close() {
     bool expectedState = false;
@@ -94,7 +94,7 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(
     ClientConnectionPtr cnx;
     try {
         cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(),
-                                       clientConfiguration_, authentication_));
+                                       clientConfiguration_, authentication_, clientVersion_));
     } catch (const std::runtime_error& e) {
         lock.unlock();
         LOG_ERROR("Failed to create connection: " << e.what())

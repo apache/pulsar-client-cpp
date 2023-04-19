@@ -329,6 +329,42 @@ class PULSAR_PUBLIC ClientConfiguration {
    private:
     const AuthenticationPtr& getAuthPtr() const;
     std::shared_ptr<ClientConfigurationImpl> impl_;
+
+    // By default, when the client connects to the broker, a version string like "Pulsar-CPP-v<x.y.z>" will be
+    // carried and saved by the broker. The client version string could be queried from the topic stats.
+    //
+    // This method provides a way to add more description to a specific `Client` instance. If it's configured,
+    // the description will be appended to the original client version string, with '-' as the separator.
+    //
+    // For example, if the client version is 3.2.0, and the description is "forked", the final client version
+    // string will be "Pulsar-CPP-v3.2.0-forked".
+    //
+    // NOTE: This method should only be called by the PulsarWrapper and the length should not exceed 64.
+    //
+    // For example, you can add a PulsarWrapper class like:
+    //
+    // ```c++
+    // namespace pulsar {
+    // class PulsarWrapper {
+    //     static ClientConfiguration clientConfig() {
+    //         ClientConfiguration conf;
+    //         conf.setDescription("forked");
+    //         return conf;
+    //     }
+    // };
+    // }
+    // ```
+    //
+    // Then, call the method before passing the `conf` to the constructor of `Client`:
+    //
+    // ```c++
+    // auto conf = PulsarWrapper::clientConfig();
+    // // Set other attributes of `conf` here...
+    // Client client{"pulsar://localhost:6650", conf);
+    // ```
+    ClientConfiguration& setDescription(const std::string& description);
+
+    const std::string& getDescription() const noexcept;
 };
 }  // namespace pulsar
 
