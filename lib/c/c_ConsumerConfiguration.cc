@@ -279,12 +279,19 @@ void pulsar_consumer_configuration_set_dlq_policy(pulsar_consumer_configuration_
     if (dlq_policy->initial_subscription_name != nullptr) {
         dlqPolicyBuilder.initialSubscriptionName(dlq_policy->initial_subscription_name);
     }
+    if (dlq_policy->max_redeliver_count <= 0) {
+        dlqPolicyBuilder.maxRedeliverCount(INT_MAX);
+    }
     consumer_configuration->consumerConfiguration.setDeadLetterPolicy(dlqPolicyBuilder.build());
 }
 
-pulsar_consumer_config_dead_letter_policy_t pulsar_consumer_configuration_get_dlq_policy(
-    pulsar_consumer_configuration_t *consumer_configuration) {
+void pulsar_consumer_configuration_get_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration,
+                                                  pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
+    if (!dlq_policy) {
+        return;
+    }
     auto deadLetterPolicy = consumer_configuration->consumerConfiguration.getDeadLetterPolicy();
-    return {deadLetterPolicy.getDeadLetterTopic().c_str(), deadLetterPolicy.getMaxRedeliverCount(),
-            deadLetterPolicy.getInitialSubscriptionName().c_str()};
+    dlq_policy->dead_letter_topic = deadLetterPolicy.getDeadLetterTopic().c_str();
+    dlq_policy->max_redeliver_count = deadLetterPolicy.getMaxRedeliverCount();
+    dlq_policy->initial_subscription_name = deadLetterPolicy.getInitialSubscriptionName().c_str();
 }

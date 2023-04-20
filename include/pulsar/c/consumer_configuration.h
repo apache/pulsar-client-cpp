@@ -100,14 +100,13 @@ typedef struct {
 
 typedef struct {
     // Name of the dead topic where the failing messages are sent.
-    // The default value is: sourceTopicName + "-" + subscriptionName + "-DLQ"
+    // If it's null, use sourceTopicName + "-" + subscriptionName + "-DLQ" as the value
     const char *dead_letter_topic;
     // Maximum number of times that a message is redelivered before being sent to the dead letter queue.
-    // - The maxRedeliverCount must be greater than 0.
-    // - The default value is {INT_MAX} (DLQ is not enabled)
-    const int max_redeliver_count;
+    // If it's not greater than 0, treat it as INT_MAX, it means DLQ disable.
+    int max_redeliver_count;
     // Name of the initial subscription name of the dead letter topic.
-    // If this field is not set, the initial subscription for the dead letter topic is not created.
+    // If it's null, the initial subscription for the dead letter topic is not created.
     // If this field is set but the broker's `allowAutoSubscriptionCreation` is disabled, the DLQ producer
     // fails to be created.
     const char *initial_subscription_name;
@@ -372,8 +371,17 @@ PULSAR_PUBLIC void pulsar_consumer_configuration_set_dlq_policy(
     pulsar_consumer_configuration_t *consumer_configuration,
     pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
 
-PULSAR_PUBLIC pulsar_consumer_config_dead_letter_policy_t
-pulsar_consumer_configuration_get_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration);
+/**
+ * Get the dlq policy
+ *
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [out] dlq_policy If dlq_policy is not null,
+ * the instance that it points to will be updated to the dead letter policy of the consumer configuration.
+ *
+ */
+PULSAR_PUBLIC void pulsar_consumer_configuration_get_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader()
 //
