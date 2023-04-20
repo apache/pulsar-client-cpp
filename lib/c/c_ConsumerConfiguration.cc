@@ -251,19 +251,31 @@ pulsar_consumer_regex_subscription_mode pulsar_consumer_configuration_get_regex_
         consumer_configuration->consumerConfiguration.getRegexSubscriptionMode();
 }
 
-void pulsar_consumer_configuration_set_batch_receive_policy(
+int pulsar_consumer_configuration_set_batch_receive_policy(
     pulsar_consumer_configuration_t *consumer_configuration,
     const pulsar_consumer_batch_receive_policy_t *batch_receive_policy_t) {
-    pulsar::BatchReceivePolicy batchReceivePolicy(batch_receive_policy_t->maxNumMessage,
+    if (!batch_receive_policy_t) {
+        return -1;
+    }
+    if (batch_receive_policy_t->maxNumMessages <= 0 && batch_receive_policy_t->maxNumBytes <= 0 &&
+        batch_receive_policy_t->timeoutMs <= 0) {
+        return -1;
+    }
+    pulsar::BatchReceivePolicy batchReceivePolicy(batch_receive_policy_t->maxNumMessages,
                                                   batch_receive_policy_t->maxNumBytes,
                                                   batch_receive_policy_t->timeoutMs);
     consumer_configuration->consumerConfiguration.setBatchReceivePolicy(batchReceivePolicy);
+    return 0;
 }
 
-pulsar_consumer_batch_receive_policy_t pulsar_consumer_configuration_get_batch_receive_policy(
-    pulsar_consumer_configuration_t *consumer_configuration) {
+void pulsar_consumer_configuration_get_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration, pulsar_consumer_batch_receive_policy_t *policy) {
+    if (!policy) {
+        return;
+    }
     pulsar::BatchReceivePolicy batchReceivePolicy =
         consumer_configuration->consumerConfiguration.getBatchReceivePolicy();
-    return {batchReceivePolicy.getMaxNumMessages(), batchReceivePolicy.getMaxNumBytes(),
-            batchReceivePolicy.getTimeoutMs()};
+    policy->maxNumMessages = batchReceivePolicy.getMaxNumMessages();
+    policy->maxNumBytes = batchReceivePolicy.getMaxNumBytes();
+    policy->timeoutMs = batchReceivePolicy.getTimeoutMs();
 }

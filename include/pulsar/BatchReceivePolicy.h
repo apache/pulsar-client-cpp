@@ -58,9 +58,10 @@ class PULSAR_PUBLIC BatchReceivePolicy {
 
     /**
      *
-     * @param maxNumMessage  Max num message, if less than 0, it means no limit.
-     * @param maxNumBytes Max num bytes, if less than 0, it means no limit.
-     * @param timeoutMs If less than 0, it means no limit.
+     * @param maxNumMessage  Max num message, a non-positive value means no limit.
+     * @param maxNumBytes Max num bytes, a non-positive value means no limit.
+     * @param timeoutMs The receive timeout, a non-positive value means no limit.
+     * @throws std::invalid_argument if all arguments are non-positive
      */
     BatchReceivePolicy(int maxNumMessage, long maxNumBytes, long timeoutMs);
 

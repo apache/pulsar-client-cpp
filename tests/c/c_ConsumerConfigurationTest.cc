@@ -43,13 +43,34 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
     ASSERT_EQ(pulsar_consumer_configuration_get_regex_subscription_mode(consumer_conf),
               pulsar_consumer_regex_sub_mode_NonPersistentOnly);
 
-    pulsar_consumer_batch_receive_policy_t batch_receive_policy{10, 1000, 1000};
-    pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &batch_receive_policy);
-    pulsar_consumer_batch_receive_policy_t get_batch_receive_policy =
-        pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf);
-    ASSERT_EQ(get_batch_receive_policy.maxNumMessage, 10);
-    ASSERT_EQ(get_batch_receive_policy.maxNumBytes, 1000);
-    ASSERT_EQ(get_batch_receive_policy.timeoutMs, 1000);
+    pulsar_consumer_batch_receive_policy_t batch_receive_policy;
+    pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf, &batch_receive_policy);
+    ASSERT_EQ(batch_receive_policy.maxNumMessages, -1);
+    ASSERT_EQ(batch_receive_policy.maxNumBytes, 10 * 1024 * 1024L);
+    ASSERT_EQ(batch_receive_policy.timeoutMs, 100L);
+
+    pulsar_consumer_batch_receive_policy_t new_batch_receive_policy{-1, -1, -1};
+    ASSERT_EQ(-1, pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, NULL));
+    ASSERT_EQ(
+        -1, pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &new_batch_receive_policy));
+
+    new_batch_receive_policy.maxNumMessages = 100;
+    ASSERT_EQ(
+        0, pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &new_batch_receive_policy));
+    pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf, &batch_receive_policy);
+    ASSERT_EQ(batch_receive_policy.maxNumMessages, 100);
+
+    new_batch_receive_policy.maxNumBytes = 100L * 1024 * 1024 * 1024;
+    ASSERT_EQ(
+        0, pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &new_batch_receive_policy));
+    pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf, &batch_receive_policy);
+    ASSERT_EQ(batch_receive_policy.maxNumBytes, 100L * 1024 * 1024 * 1024);
+
+    new_batch_receive_policy.timeoutMs = 365L * 24 * 3600 * 1000;
+    ASSERT_EQ(
+        0, pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &new_batch_receive_policy));
+    pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf, &batch_receive_policy);
+    ASSERT_EQ(batch_receive_policy.timeoutMs, 365L * 24 * 3600 * 1000);
 
     pulsar_consumer_configuration_free(consumer_conf);
 }
