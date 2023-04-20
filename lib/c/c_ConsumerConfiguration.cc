@@ -22,6 +22,7 @@
 #include <pulsar/c/consumer_configuration.h>
 
 #include "c_structs.h"
+#include "climits"
 
 pulsar_consumer_configuration_t *pulsar_consumer_configuration_create() {
     return new pulsar_consumer_configuration_t;
