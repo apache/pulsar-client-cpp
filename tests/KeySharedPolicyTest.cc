@@ -201,3 +201,24 @@ TEST_F(KeySharedPolicyTest, InvalidStickyRanges) {
     ASSERT_THROW(ksp.setStickyRanges({StickyRange(0, 65536)}), std::invalid_argument);
     ASSERT_THROW(ksp.setStickyRanges({StickyRange(0, 10), StickyRange(9, 20)}), std::invalid_argument);
 }
+
+TEST_F(KeySharedPolicyTest, testStickyConsumerExpected) {
+    // Test whether the saved range vector is as expected
+    KeySharedPolicy ksp;
+    ksp.setStickyRanges({StickyRange(0, 300), StickyRange(400, 500)});
+
+    std::vector<std::pair<int, int>> expectedStickyRange{{0, 300}, {400, 500}};
+    ASSERT_EQ(ksp.getStickyRanges(), expectedStickyRange);
+}
+
+TEST_F(KeySharedPolicyTest, testStickyConsumerVectors) {
+    // test whether the saved range vector is the same when using initializer_list or vector
+    KeySharedPolicy ksp;
+    ksp.setStickyRanges({StickyRange(0, 300), StickyRange(400, 500)});
+
+    KeySharedPolicy ksp2;
+    std::vector<std::pair<int, int>> stickyRangeVec{{0, 300}, {400, 500}};
+    ksp2.setStickyRanges(stickyRangeVec);
+
+    ASSERT_EQ(ksp.getStickyRanges(), ksp2.getStickyRanges());
+}
