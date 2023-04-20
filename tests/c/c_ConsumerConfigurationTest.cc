@@ -42,4 +42,14 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
         consumer_conf, pulsar_consumer_regex_sub_mode_NonPersistentOnly);
     ASSERT_EQ(pulsar_consumer_configuration_get_regex_subscription_mode(consumer_conf),
               pulsar_consumer_regex_sub_mode_NonPersistentOnly);
+
+    pulsar_consumer_batch_receive_policy_t batch_receive_policy{10, 1000, 1000};
+    pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &batch_receive_policy);
+    pulsar_consumer_batch_receive_policy_t get_batch_receive_policy =
+        pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf);
+    ASSERT_EQ(get_batch_receive_policy.maxNumMessage, 10);
+    ASSERT_EQ(get_batch_receive_policy.maxNumBytes, 1000);
+    ASSERT_EQ(get_batch_receive_policy.timeoutMs, 1000);
+
+    pulsar_consumer_configuration_free(consumer_conf);
 }

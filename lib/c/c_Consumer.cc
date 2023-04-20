@@ -73,6 +73,23 @@ pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer, pulsar_
     return (pulsar_result)res;
 }
 
+void pulsar_consumer_batch_receive_async(pulsar_consumer_t *consumer, pulsar_batch_receive_callback callback,
+                                         void *ctx) {
+    consumer->consumer.batchReceiveAsync([callback, ctx](pulsar::Result result, pulsar::Messages messages) {
+        if (callback) {
+            pulsar_messages_t *msgs = nullptr;
+            if (result == pulsar::ResultOk) {
+                msgs = new pulsar_messages_t;
+                msgs->messages.resize(messages.size());
+                for (size_t i = 0; i < messages.size(); i++) {
+                    msgs->messages[i].message = messages[i];
+                }
+            }
+            callback((pulsar_result)result, msgs, ctx);
+        }
+    });
+}
+
 static void handle_receive_callback(pulsar::Result result, pulsar::Message message,
                                     pulsar_receive_callback callback, void *ctx) {
     if (callback) {

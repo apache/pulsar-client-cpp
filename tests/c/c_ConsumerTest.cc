@@ -23,7 +23,37 @@
 #include <string.h>
 #include <time.h>
 
+#include <future>
+
 static const char *lookup_url = "pulsar://localhost:6650";
+
+struct batch_receive_ctx {
+    pulsar_consumer_t *consumer;
+    std::promise<pulsar_result> *promise;
+    int expect_receive_num;
+};
+
+static void batch_receive_callback(pulsar_result async_result, pulsar_messages_t *msgs, void *ctx) {
+    struct batch_receive_ctx *receive_ctx = (struct batch_receive_ctx *)ctx;
+    receive_ctx->promise->set_value(async_result);
+    if (async_result == pulsar_result_Ok) {
+        ASSERT_EQ(pulsar_messages_size(msgs), receive_ctx->expect_receive_num);
+        for (int i = 0; i < pulsar_messages_size(msgs); i++) {
+            pulsar_message_t *msg = pulsar_messages_get(msgs, i);
+            size_t length = pulsar_message_get_length(msg);
+            char *str = (char *)malloc(pulsar_message_get_length(msg));
+            strncpy(str, (const char *)pulsar_message_get_data(msg), length);
+
+            char expected_str[128];
+            snprintf(expected_str, sizeof(expected_str), "msg-%d", 10 + i);
+            printf("%d received: %s (%zd), expected: %s (%zd)\n", i, str, strlen(str), expected_str,
+                   strlen(expected_str));
+            ASSERT_EQ(strcmp(str, expected_str), 0);
+            free(str);
+        }
+        pulsar_messages_free(msgs);
+    }
+}
 
 TEST(c_ConsumerTest, testBatchReceive) {
     pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
@@ -39,11 +69,16 @@ TEST(c_ConsumerTest, testBatchReceive) {
 
     pulsar_consumer_configuration_t *consumer_conf = pulsar_consumer_configuration_create();
     pulsar_consumer_t *consumer;
+
+    const int batch_receive_max_size = 10;
+    pulsar_consumer_batch_receive_policy_t batch_receive_policy{batch_receive_max_size, -1, -1};
+    pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &batch_receive_policy);
+
     result = pulsar_client_subscribe(client, topic, "sub", consumer_conf, &consumer);
     ASSERT_EQ(pulsar_result_Ok, result);
 
-    const int num_messages = 10;
-    for (int i = 0; i < num_messages; i++) {
+    // Sending two more messages proves that the batch_receive_policy works.
+    for (int i = 0; i < batch_receive_max_size * 2; i++) {
         pulsar_message_t *msg = pulsar_message_create();
         char buf[128];
         snprintf(buf, sizeof(buf), "msg-%d", i);
@@ -54,8 +89,8 @@ TEST(c_ConsumerTest, testBatchReceive) {
 
     pulsar_messages_t *msgs = NULL;
     ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_batch_receive(consumer, &msgs));
-    ASSERT_EQ(pulsar_messages_size(msgs), num_messages);
-    for (int i = 0; i < num_messages; i++) {
+    ASSERT_EQ(pulsar_messages_size(msgs), batch_receive_max_size);
+    for (int i = 0; i < batch_receive_max_size; i++) {
         pulsar_message_t *msg = pulsar_messages_get(msgs, i);
         size_t length = pulsar_message_get_length(msg);
         char *str = (char *)malloc(pulsar_message_get_length(msg));
@@ -69,9 +104,16 @@ TEST(c_ConsumerTest, testBatchReceive) {
 
         free(str);
     }
+    pulsar_messages_free(msgs);
+
+    std::promise<pulsar_result> receive_promise;
+    std::future<pulsar_result> receive_future = receive_promise.get_future();
+    struct batch_receive_ctx batch_receive_ctx = {consumer, &receive_promise, batch_receive_max_size};
+    pulsar_consumer_batch_receive_async(consumer, batch_receive_callback, &batch_receive_ctx);
+    pulsar_client_close(client);
+    ASSERT_EQ(pulsar_result_Ok, receive_future.get());
 
     pulsar_client_close(client);
-    pulsar_messages_free(msgs);
     pulsar_consumer_free(consumer);
     pulsar_consumer_configuration_free(consumer_conf);
     pulsar_producer_free(producer);
