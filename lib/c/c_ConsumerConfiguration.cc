@@ -17,8 +17,11 @@
  * under the License.
  */
 
+#include <pulsar/DeadLetterPolicyBuilder.h>
 #include <pulsar/c/consumer.h>
 #include <pulsar/c/consumer_configuration.h>
+
+#include <climits>
 
 #include "c_structs.h"
 
@@ -278,4 +281,32 @@ void pulsar_consumer_configuration_get_batch_receive_policy(
     policy->maxNumMessages = batchReceivePolicy.getMaxNumMessages();
     policy->maxNumBytes = batchReceivePolicy.getMaxNumBytes();
     policy->timeoutMs = batchReceivePolicy.getTimeoutMs();
+}
+
+void pulsar_consumer_configuration_set_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
+    auto dlqPolicyBuilder =
+        pulsar::DeadLetterPolicyBuilder().maxRedeliverCount(dlq_policy->max_redeliver_count);
+    if (dlq_policy->dead_letter_topic != nullptr) {
+        dlqPolicyBuilder.deadLetterTopic(dlq_policy->dead_letter_topic);
+    }
+    if (dlq_policy->initial_subscription_name != nullptr) {
+        dlqPolicyBuilder.initialSubscriptionName(dlq_policy->initial_subscription_name);
+    }
+    if (dlq_policy->max_redeliver_count <= 0) {
+        dlqPolicyBuilder.maxRedeliverCount(INT_MAX);
+    }
+    consumer_configuration->consumerConfiguration.setDeadLetterPolicy(dlqPolicyBuilder.build());
+}
+
+void pulsar_consumer_configuration_get_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration,
+                                                  pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
+    if (!dlq_policy) {
+        return;
+    }
+    auto deadLetterPolicy = consumer_configuration->consumerConfiguration.getDeadLetterPolicy();
+    dlq_policy->dead_letter_topic = deadLetterPolicy.getDeadLetterTopic().c_str();
+    dlq_policy->max_redeliver_count = deadLetterPolicy.getMaxRedeliverCount();
+    dlq_policy->initial_subscription_name = deadLetterPolicy.getInitialSubscriptionName().c_str();
 }

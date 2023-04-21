@@ -100,6 +100,20 @@ typedef struct {
     long timeoutMs;
 } pulsar_consumer_batch_receive_policy_t;
 
+typedef struct {
+    // Name of the dead topic where the failing messages are sent.
+    // If it's null, use sourceTopicName + "-" + subscriptionName + "-DLQ" as the value
+    const char *dead_letter_topic;
+    // Maximum number of times that a message is redelivered before being sent to the dead letter queue.
+    // If it's not greater than 0, treat it as INT_MAX, it means DLQ disable.
+    int max_redeliver_count;
+    // Name of the initial subscription name of the dead letter topic.
+    // If it's null, the initial subscription for the dead letter topic is not created.
+    // If this field is set but the broker's `allowAutoSubscriptionCreation` is disabled, the DLQ producer
+    // fails to be created.
+    const char *initial_subscription_name;
+} pulsar_consumer_config_dead_letter_policy_t;
+
 /// Callback definition for MessageListener
 typedef void (*pulsar_message_listener)(pulsar_consumer_t *consumer, pulsar_message_t *msg, void *ctx);
 
@@ -369,6 +383,22 @@ PULSAR_PUBLIC int pulsar_consumer_configuration_set_batch_receive_policy(
 PULSAR_PUBLIC void pulsar_consumer_configuration_get_batch_receive_policy(
     pulsar_consumer_configuration_t *consumer_configuration,
     pulsar_consumer_batch_receive_policy_t *batch_receive_policy);
+
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
+
+/**
+ * Get the dlq policy
+ *
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [out] dlq_policy If dlq_policy is not null,
+ * the instance that it points to will be updated to the dead letter policy of the consumer configuration.
+ *
+ */
+PULSAR_PUBLIC void pulsar_consumer_configuration_get_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader()
 //

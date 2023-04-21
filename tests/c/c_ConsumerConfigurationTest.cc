@@ -19,6 +19,8 @@
 #include <gtest/gtest.h>
 #include <pulsar/c/consumer_configuration.h>
 
+#include <climits>
+
 TEST(C_ConsumerConfigurationTest, testCApiConfig) {
     pulsar_consumer_configuration_t *consumer_conf = pulsar_consumer_configuration_create();
 
@@ -71,6 +73,23 @@ TEST(C_ConsumerConfigurationTest, testCApiConfig) {
         0, pulsar_consumer_configuration_set_batch_receive_policy(consumer_conf, &new_batch_receive_policy));
     pulsar_consumer_configuration_get_batch_receive_policy(consumer_conf, &batch_receive_policy);
     ASSERT_EQ(batch_receive_policy.timeoutMs, 365L * 24 * 3600 * 1000);
+
+    pulsar_consumer_config_dead_letter_policy_t dlq_policy{NULL, 10, NULL};
+    pulsar_consumer_configuration_set_dlq_policy(consumer_conf, &dlq_policy);
+
+    pulsar_consumer_config_dead_letter_policy_t get_dlq_policy;
+    pulsar_consumer_configuration_get_dlq_policy(consumer_conf, &get_dlq_policy);
+    ASSERT_EQ(get_dlq_policy.max_redeliver_count, 10);
+    ASSERT_TRUE(get_dlq_policy.dead_letter_topic[0] == '\0');
+    ASSERT_TRUE(get_dlq_policy.initial_subscription_name[0] == '\0');
+
+    pulsar_consumer_config_dead_letter_policy_t dlq_policy_2{"dlq-topic", 0, "init-sub"};
+    pulsar_consumer_configuration_set_dlq_policy(consumer_conf, &dlq_policy_2);
+    pulsar_consumer_config_dead_letter_policy_t get_dlq_policy_2;
+    pulsar_consumer_configuration_get_dlq_policy(consumer_conf, &get_dlq_policy_2);
+    ASSERT_EQ(get_dlq_policy_2.max_redeliver_count, INT_MAX);
+    ASSERT_EQ(strcmp(get_dlq_policy_2.dead_letter_topic, "dlq-topic"), 0);
+    ASSERT_EQ(strcmp(get_dlq_policy_2.initial_subscription_name, "init-sub"), 0);
 
     pulsar_consumer_configuration_free(consumer_conf);
 }
