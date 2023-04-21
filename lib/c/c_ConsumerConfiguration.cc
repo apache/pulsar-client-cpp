@@ -21,8 +21,9 @@
 #include <pulsar/c/consumer.h>
 #include <pulsar/c/consumer_configuration.h>
 
+#include <climits>
+
 #include "c_structs.h"
-#include "climits"
 
 pulsar_consumer_configuration_t *pulsar_consumer_configuration_create() {
     return new pulsar_consumer_configuration_t;
@@ -270,8 +271,9 @@ pulsar_consumer_batch_receive_policy_t pulsar_consumer_configuration_get_batch_r
             batchReceivePolicy.getTimeoutMs()};
 }
 
-void pulsar_consumer_configuration_set_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration,
-                                                  pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
+void pulsar_consumer_configuration_set_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
     auto dlqPolicyBuilder =
         pulsar::DeadLetterPolicyBuilder().maxRedeliverCount(dlq_policy->max_redeliver_count);
     if (dlq_policy->dead_letter_topic != nullptr) {

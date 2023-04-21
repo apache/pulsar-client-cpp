@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/c/consumer_configuration.h>
 
-#include "climits"
+#include <climits>
 
 TEST(C_ConsumerConfigurationTest, testCApiConfig) {
     pulsar_consumer_configuration_t *consumer_conf = pulsar_consumer_configuration_create();

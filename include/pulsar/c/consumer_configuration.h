@@ -369,7 +369,7 @@ PULSAR_PUBLIC pulsar_consumer_batch_receive_policy_t pulsar_consumer_configurati
 
 PULSAR_PUBLIC void pulsar_consumer_configuration_set_dlq_policy(
     pulsar_consumer_configuration_t *consumer_configuration,
-    pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
+    const pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
 
 /**
  * Get the dlq policy

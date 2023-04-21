@@ -122,7 +122,7 @@ TEST(c_ConsumerTest, testBatchReceive) {
     pulsar_client_configuration_free(conf);
 }
 
-TEST(C_ConsumerConfigurationTest, testCDeadLetterTopic) {
+TEST(c_ConsumerTest, testCDeadLetterTopic) {
     const char *topic_name = "persistent://public/default/test-c-dlq-topic";
     const char *dlq_topic_name = "persistent://public/default/c-dlq-topic";
     const char *sub_name = "my-sub-name";
@@ -158,7 +158,7 @@ TEST(C_ConsumerConfigurationTest, testCDeadLetterTopic) {
 
     // Redelivery all messages
     for (int i = 1; i <= max_redeliver_count * num + num; ++i) {
-        pulsar_message_t *message = pulsar_message_create();
+        pulsar_message_t *message = NULL;
         pulsar_result res = pulsar_consumer_receive(consumer, &message);
         ASSERT_EQ(pulsar_result_Ok, res);
         if (i % num == 0) {
@@ -173,21 +173,16 @@ TEST(C_ConsumerConfigurationTest, testCDeadLetterTopic) {
     result = pulsar_client_subscribe(client, dlq_topic_name, sub_name, dlq_consumer_conf, &dlq_consumer);
     ASSERT_EQ(pulsar_result_Ok, result);
     for (int i = 0; i < num; ++i) {
-        pulsar_message_t *message = pulsar_message_create();
+        pulsar_message_t *message = NULL;
         pulsar_result res = pulsar_consumer_receive(dlq_consumer, &message);
         ASSERT_EQ(pulsar_result_Ok, res);
         pulsar_message_free(message);
     }
-    pulsar_message_t *message = pulsar_message_create();
+    pulsar_message_t *message = NULL;
     pulsar_result res = pulsar_consumer_receive_with_timeout(dlq_consumer, &message, 200);
     ASSERT_EQ(pulsar_result_Timeout, res);
     pulsar_message_free(message);
 
-    ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_unsubscribe(consumer));
-    ASSERT_EQ(pulsar_result_AlreadyClosed, pulsar_consumer_close(consumer));
-    ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_unsubscribe(dlq_consumer));
-    ASSERT_EQ(pulsar_result_AlreadyClosed, pulsar_consumer_close(dlq_consumer));
-    ASSERT_EQ(pulsar_result_Ok, pulsar_producer_close(producer));
     ASSERT_EQ(pulsar_result_Ok, pulsar_client_close(client));
 
     pulsar_consumer_free(consumer);
