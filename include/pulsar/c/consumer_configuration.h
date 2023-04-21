@@ -89,12 +89,14 @@ typedef enum
     pulsar_consumer_regex_sub_mode_AllTopics = 2
 } pulsar_consumer_regex_subscription_mode;
 
+// Though any field could be non-positive, if all of them are non-positive, this policy will be treated as
+// invalid
 typedef struct {
-    // Max num message, if less than 0, it means no limit.
-    int maxNumMessage;
-    // Max num bytes, if less than 0, it means no limit.
+    // Max num messages, a non-positive value means no limit.
+    int maxNumMessages;
+    // Max num bytes, a non-positive value means no limit.
     long maxNumBytes;
-    // If less than 0, it means no limit.
+    // The receive timeout, a non-positive value means no limit.
     long timeoutMs;
 } pulsar_consumer_batch_receive_policy_t;
 
@@ -340,18 +342,33 @@ pulsar_consumer_configuration_get_regex_subscription_mode(
 /**
  * Set batch receive policy.
  *
- * The default value: {maxNumMessage: -1, maxNumBytes: 10 * 1024 * 1024, timeoutMs: 100}
- * @param consumer_configuration  the consumer conf object.
- * @param maxNumMessage default: Max num message, if less than 0, it means no limit.
- * @param maxNumBytes Max num bytes, if less than 0, it means no limit.
- * @param timeoutMs If less than 0, it means no limit.
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [in] batch_receive_policy
+ * @return 0 on success and -1 on failure
+ *
+ * The possible failed reasons are:
+ * - batch_receive_policy is null
+ * - batch_receive_policy points to an invalid policy
  */
-PULSAR_PUBLIC void pulsar_consumer_configuration_set_batch_receive_policy(
+PULSAR_PUBLIC int pulsar_consumer_configuration_set_batch_receive_policy(
     pulsar_consumer_configuration_t *consumer_configuration,
     const pulsar_consumer_batch_receive_policy_t *batch_receive_policy);
 
-PULSAR_PUBLIC pulsar_consumer_batch_receive_policy_t pulsar_consumer_configuration_get_batch_receive_policy(
-    pulsar_consumer_configuration_t *consumer_configuration);
+/**
+ * Get the batch receive policy.
+ *
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [out] batch_receive_policy
+ *
+ * If batch_receive_policy is not null, the instance that it points to will be updated to the batch receive
+ * policy of the consumer configuration.
+ *
+ * If the policy was never set before, the batch_receive_policy will be set with the following value:
+ * {maxNumMessage: -1, maxNumBytes: 10 * 1024 * 1024, timeoutMs: 100}
+ */
+PULSAR_PUBLIC void pulsar_consumer_configuration_get_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_batch_receive_policy_t *batch_receive_policy);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader()
 //
