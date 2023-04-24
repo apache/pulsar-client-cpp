@@ -34,7 +34,7 @@ class ConnectionPool;
 class LookupDataResult;
 class ServiceNameResolver;
 using NamespaceTopicsPromisePtr = std::shared_ptr<Promise<Result, NamespaceTopicsPtr>>;
-using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, boost::optional<SchemaInfo>>>;
+using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, SchemaInfo>>;
 
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
@@ -52,7 +52,7 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override;
 
-    Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override;
+    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override;
 
    protected:
     // Mark findBroker as protected to make it accessible from test.
@@ -80,7 +80,7 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
                                          Result result, const ClientConnectionWeakPtr& clientCnx,
                                          NamespaceTopicsPromisePtr promise);
 
-    void sendGetSchemaRequest(const std::string& topiName, Result result,
+    void sendGetSchemaRequest(const std::string& topicName, const std::string& version, Result result,
                               const ClientConnectionWeakPtr& clientCnx, GetSchemaPromisePtr promise);
 
     void getTopicsOfNamespaceListener(Result result, NamespaceTopicsPtr topicsPtr,

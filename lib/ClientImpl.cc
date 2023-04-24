@@ -166,19 +166,16 @@ void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfigura
 
     if (autoDownloadSchema) {
         auto self = shared_from_this();
-        auto confPtr = std::make_shared<ProducerConfiguration>(conf);
         lookupServicePtr_->getSchema(topicName).addListener(
-            [self, topicName, confPtr, callback](Result res, boost::optional<SchemaInfo> topicSchema) {
+            [self, topicName, callback](Result res, SchemaInfo topicSchema) {
                 if (res != ResultOk) {
                     callback(res, Producer());
                 }
-                if (topicSchema) {
-                    confPtr->setSchema(topicSchema.get());
-                }
-
+                ProducerConfiguration conf;
+                conf.setSchema(topicSchema);
                 self->lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
                     std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
-                              std::placeholders::_2, topicName, *confPtr, callback));
+                              std::placeholders::_2, topicName, conf, callback));
             });
     } else {
         lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(

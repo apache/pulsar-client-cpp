@@ -67,10 +67,10 @@ class RetryableLookupService : public LookupService,
             [this, nsName, mode] { return lookupService_->getTopicsOfNamespaceAsync(nsName, mode); });
     }
 
-    Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override {
-        return executeAsync<boost::optional<SchemaInfo>>(
-            "get-schema" + topicName->toString(),
-            [this, topicName] { return lookupService_->getSchema(topicName); });
+    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override {
+        return executeAsync<SchemaInfo>("get-schema" + topicName->toString(), [this, topicName, version] {
+            return lookupService_->getSchema(topicName, version);
+        });
     }
 
     template <typename T>

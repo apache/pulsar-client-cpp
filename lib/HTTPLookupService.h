@@ -28,7 +28,7 @@ namespace pulsar {
 class ServiceNameResolver;
 using NamespaceTopicsPromise = Promise<Result, NamespaceTopicsPtr>;
 using NamespaceTopicsPromisePtr = std::shared_ptr<NamespaceTopicsPromise>;
-using GetSchemaPromise = Promise<Result, boost::optional<SchemaInfo>>;
+using GetSchemaPromise = Promise<Result, SchemaInfo>;
 
 class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
     class CurlInitializer {
@@ -77,7 +77,7 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
 
     Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr&) override;
 
-    Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) override;
+    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override;
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override;

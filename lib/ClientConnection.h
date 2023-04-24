@@ -185,8 +185,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
                                                                CommandGetTopicsOfNamespace_Mode mode,
                                                                uint64_t requestId);
 
-    Future<Result, boost::optional<SchemaInfo>> newGetSchema(const std::string& topicName,
-                                                             uint64_t requestId);
+    Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
+                                            uint64_t requestId);
 
    private:
     struct PendingRequestData {
@@ -346,7 +346,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::map<long, Promise<Result, NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
     PendingGetNamespaceTopicsMap pendingGetNamespaceTopicsRequests_;
 
-    typedef std::map<long, Promise<Result, boost::optional<SchemaInfo>>> PendingGetSchemaMap;
+    typedef std::map<long, Promise<Result, SchemaInfo>> PendingGetSchemaMap;
     PendingGetSchemaMap pendingGetSchemaRequests_;
 
     mutable std::mutex mutex_;

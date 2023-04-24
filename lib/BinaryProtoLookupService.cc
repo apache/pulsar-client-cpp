@@ -164,9 +164,9 @@ Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespac
     return promise->getFuture();
 }
 
-Future<Result, boost::optional<SchemaInfo>> BinaryProtoLookupService::getSchema(
-    const TopicNamePtr& topicName) {
-    GetSchemaPromisePtr promise = std::make_shared<Promise<Result, boost::optional<SchemaInfo>>>();
+Future<Result, SchemaInfo> BinaryProtoLookupService::getSchema(const TopicNamePtr& topicName,
+                                                               const std::string& version) {
+    GetSchemaPromisePtr promise = std::make_shared<Promise<Result, SchemaInfo>>();
 
     if (!topicName) {
         promise->setFailed(ResultInvalidTopicName);
@@ -174,13 +174,13 @@ Future<Result, boost::optional<SchemaInfo>> BinaryProtoLookupService::getSchema(
     }
     cnxPool_.getConnectionAsync(serviceNameResolver_.resolveHost())
         .addListener(std::bind(&BinaryProtoLookupService::sendGetSchemaRequest, this, topicName->toString(),
-                               std::placeholders::_1, std::placeholders::_2, promise));
+                               version, std::placeholders::_1, std::placeholders::_2, promise));
 
     return promise->getFuture();
 }
 
-void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName, Result result,
-                                                    const ClientConnectionWeakPtr& clientCnx,
+void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName, const std::string& version,
+                                                    Result result, const ClientConnectionWeakPtr& clientCnx,
                                                     GetSchemaPromisePtr promise) {
     if (result != ResultOk) {
         promise->setFailed(result);
@@ -189,10 +189,11 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName
 
     ClientConnectionPtr conn = clientCnx.lock();
     uint64_t requestId = newRequestId();
-    LOG_DEBUG("sendGetSchemaRequest. requestId: " << requestId << " topicName: " << topicName);
+    LOG_DEBUG("sendGetSchemaRequest. requestId: " << requestId << " topicName: " << topicName
+                                                  << " version: " << version);
 
-    conn->newGetSchema(topicName, requestId)
-        .addListener([promise](Result result, boost::optional<SchemaInfo> schemaInfo) {
+    conn->newGetSchema(topicName, version, requestId)
+        .addListener([promise](Result result, SchemaInfo schemaInfo) {
             if (result != ResultOk) {
                 promise->setFailed(result);
                 return;

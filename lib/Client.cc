@@ -23,7 +23,10 @@
 #include <utility>
 
 #include "ClientImpl.h"
+#include "Int64SerDes.h"
 #include "LogUtils.h"
+#include "LookupService.h"
+#include "TopicName.h"
 #include "Utils.h"
 
 DECLARE_LOG_OBJECT()
@@ -191,4 +194,11 @@ void Client::shutdown() { impl_->shutdown(); }
 
 uint64_t Client::getNumberOfProducers() { return impl_->getNumberOfProducers(); }
 uint64_t Client::getNumberOfConsumers() { return impl_->getNumberOfConsumers(); }
+
+void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
+                                std::function<void(Result, const SchemaInfo&)> callback) {
+    impl_->getLookup()
+        ->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
+        .addListener(callback);
+}
 }  // namespace pulsar
