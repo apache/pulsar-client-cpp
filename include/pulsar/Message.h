@@ -184,8 +184,7 @@ class PULSAR_PUBLIC Message {
     int64_t getLongSchemaVersion() const;
 
     /**
-     * Get the schema version
-     * @deprecated Use getLongSchemaVersion instead
+     * Get the schema version of the raw bytes.
      */
     const std::string& getSchemaVersion() const;
 
