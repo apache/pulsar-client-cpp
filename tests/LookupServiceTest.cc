@@ -302,7 +302,7 @@ TEST_P(LookupServiceTest, testGetSchema) {
     ASSERT_EQ(properties, schemaInfo.getProperties());
 }
 
-TEST_P(LookupServiceTest, testGetSchemaNotFund) {
+TEST_P(LookupServiceTest, testGetSchemaNotFound) {
     const std::string topic =
         "testGetSchemaNotFund" + std::to_string(time(nullptr)) + GetParam().substr(0, 4);
 
@@ -314,8 +314,7 @@ TEST_P(LookupServiceTest, testGetSchemaNotFund) {
 
     SchemaInfo schemaInfo;
     auto future = lookup->getSchema(TopicName::get(topic));
-    ASSERT_EQ(ResultOk, future.get(schemaInfo));
-    ASSERT_EQ(schemaInfo.getSchemaType(), SchemaType::NONE);
+    ASSERT_EQ(ResultTopicNotFound, future.get(schemaInfo));
 }
 
 TEST_P(LookupServiceTest, testGetKeyValueSchema) {
@@ -417,8 +416,18 @@ TEST_P(LookupServiceTest, testGetSchemaByVersion) {
         ASSERT_EQ(info.getSchemaType(), SchemaType::AVRO);
         ASSERT_EQ(info.getSchema(), schema2);
     }
-    ASSERT_EQ(SchemaType::NONE, getSchemaInfo(topic, 2).getSchemaType());
-    ASSERT_EQ(SchemaType::NONE, getSchemaInfo(topic + "-not-exist", 0).getSchemaType());
+    try {
+        getSchemaInfo(topic, 2);
+        FAIL();
+    } catch (const std::runtime_error& e) {
+        ASSERT_EQ(std::string{e.what()}, strResult(ResultTopicNotFound));
+    }
+    try {
+        getSchemaInfo(topic + "-not-exist", 0);
+        FAIL();
+    } catch (const std::runtime_error& e) {
+        ASSERT_EQ(std::string{e.what()}, strResult(ResultTopicNotFound));
+    }
 
     consumer.close();
     producer1.close();

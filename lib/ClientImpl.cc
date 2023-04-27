@@ -170,6 +170,7 @@ void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfigura
             [self, topicName, callback](Result res, SchemaInfo topicSchema) {
                 if (res != ResultOk) {
                     callback(res, Producer());
+                    return;
                 }
                 ProducerConfiguration conf;
                 conf.setSchema(topicSchema);

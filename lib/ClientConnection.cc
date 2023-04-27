@@ -1763,16 +1763,14 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
         lock.unlock();
 
         if (response.has_error_code()) {
-            if (response.error_code() == proto::TopicNotFound) {
-                getSchemaPromise.setValue(SchemaInfo(SchemaType::NONE, "", ""));
-            } else {
-                Result result = getResult(response.error_code(), response.error_message());
+            Result result = getResult(response.error_code(), response.error_message());
+            if (response.error_code() != proto::TopicNotFound) {
                 LOG_WARN(cnxString_ << "Received error GetSchemaResponse from server " << result
                                     << (response.has_error_message() ? (" (" + response.error_message() + ")")
                                                                      : "")
                                     << " -- req_id: " << response.request_id());
-                getSchemaPromise.setFailed(result);
             }
+            getSchemaPromise.setFailed(result);
             return;
         }
 

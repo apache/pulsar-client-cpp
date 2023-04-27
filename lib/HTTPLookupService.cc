@@ -456,7 +456,7 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, con
     Result result = sendHTTPRequest(completeUrl, responseData, responseCode);
 
     if (responseCode == 404) {
-        promise.setValue(SchemaInfo(SchemaType::NONE, "", ""));
+        promise.setFailed(ResultTopicNotFound);
     } else if (result != ResultOk) {
         promise.setFailed(result);
     } else {
