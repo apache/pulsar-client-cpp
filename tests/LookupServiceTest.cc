@@ -26,6 +26,8 @@
 
 #include <algorithm>
 #include <boost/exception/all.hpp>
+#include <future>
+#include <stdexcept>
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
@@ -41,6 +43,8 @@ DECLARE_LOG_OBJECT()
 
 static std::string binaryLookupUrl = "pulsar://localhost:6650";
 static std::string httpLookupUrl = "http://localhost:8080";
+
+extern std::string unique_str();
 
 TEST(LookupServiceTest, basicLookup) {
     ExecutorServiceProviderPtr service = std::make_shared<ExecutorServiceProvider>(1);
@@ -222,10 +226,11 @@ TEST(LookupServiceTest, testTimeout) {
 
 class LookupServiceTest : public ::testing::TestWithParam<std::string> {
    public:
+    void SetUp() override { client_ = Client{GetParam()}; }
     void TearDown() override { client_.close(); }
 
    protected:
-    Client client_{GetParam()};
+    Client client_{httpLookupUrl};
 };
 
 TEST_P(LookupServiceTest, basicGetNamespaceTopics) {
@@ -289,15 +294,15 @@ TEST_P(LookupServiceTest, testGetSchema) {
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
     auto lookup = clientImplPtr->getLookup();
 
-    boost::optional<SchemaInfo> schemaInfo;
+    SchemaInfo schemaInfo;
     auto future = lookup->getSchema(TopicName::get(topic));
     ASSERT_EQ(ResultOk, future.get(schemaInfo));
-    ASSERT_EQ(jsonSchema, schemaInfo->getSchema());
-    ASSERT_EQ(SchemaType::JSON, schemaInfo->getSchemaType());
-    ASSERT_EQ(properties, schemaInfo->getProperties());
+    ASSERT_EQ(jsonSchema, schemaInfo.getSchema());
+    ASSERT_EQ(SchemaType::JSON, schemaInfo.getSchemaType());
+    ASSERT_EQ(properties, schemaInfo.getProperties());
 }
 
-TEST_P(LookupServiceTest, testGetSchemaNotFund) {
+TEST_P(LookupServiceTest, testGetSchemaNotFound) {
     const std::string topic =
         "testGetSchemaNotFund" + std::to_string(time(nullptr)) + GetParam().substr(0, 4);
 
@@ -307,10 +312,9 @@ TEST_P(LookupServiceTest, testGetSchemaNotFund) {
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
     auto lookup = clientImplPtr->getLookup();
 
-    boost::optional<SchemaInfo> schemaInfo;
+    SchemaInfo schemaInfo;
     auto future = lookup->getSchema(TopicName::get(topic));
-    ASSERT_EQ(ResultOk, future.get(schemaInfo));
-    ASSERT_FALSE(schemaInfo);
+    ASSERT_EQ(ResultTopicNotFound, future.get(schemaInfo));
 }
 
 TEST_P(LookupServiceTest, testGetKeyValueSchema) {
@@ -333,15 +337,104 @@ TEST_P(LookupServiceTest, testGetKeyValueSchema) {
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
     auto lookup = clientImplPtr->getLookup();
 
-    boost::optional<SchemaInfo> schemaInfo;
+    SchemaInfo schemaInfo;
     auto future = lookup->getSchema(TopicName::get(topic));
     ASSERT_EQ(ResultOk, future.get(schemaInfo));
-    ASSERT_EQ(keyValueSchema.getSchema(), schemaInfo->getSchema());
-    ASSERT_EQ(SchemaType::KEY_VALUE, schemaInfo->getSchemaType());
-    ASSERT_FALSE(schemaInfo->getProperties().empty());
+    ASSERT_EQ(keyValueSchema.getSchema(), schemaInfo.getSchema());
+    ASSERT_EQ(SchemaType::KEY_VALUE, schemaInfo.getSchemaType());
+    ASSERT_FALSE(schemaInfo.getProperties().empty());
 }
 
-INSTANTIATE_TEST_CASE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLookupUrl, httpLookupUrl));
+TEST_P(LookupServiceTest, testGetSchemaByVersion) {
+    const auto topic = "testGetSchemaByVersion" + unique_str() + GetParam().substr(0, 4);
+    const std::string schema1 = R"({
+  "type": "record",
+  "name": "User",
+  "namespace": "test",
+  "fields": [
+    {"name": "name", "type": ["null", "string"]},
+    {"name": "age", "type": "int"}
+  ]
+})";
+    const std::string schema2 = R"({
+  "type": "record",
+  "name": "User",
+  "namespace": "test",
+  "fields": [
+    {"name": "age", "type": "int"},
+    {"name": "name", "type": ["null", "string"]}
+  ]
+})";
+    ProducerConfiguration producerConf1;
+    producerConf1.setSchema(SchemaInfo{AVRO, "Avro", schema1});
+    Producer producer1;
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConf1, producer1));
+    ProducerConfiguration producerConf2;
+    producerConf2.setSchema(SchemaInfo{AVRO, "Avro", schema2});
+    Producer producer2;
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConf2, producer2));
+
+    // Though these messages are invalid, the C++ client can send them successfully
+    producer1.send(MessageBuilder().setContent("msg0").build());
+    producer2.send(MessageBuilder().setContent("msg1").build());
+
+    ConsumerConfiguration consumerConf;
+    consumerConf.setSubscriptionInitialPosition(InitialPositionEarliest);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client_.subscribe(topic, "sub", consumerConf, consumer));
+
+    Message msg1;
+    ASSERT_EQ(ResultOk, consumer.receive(msg1, 3000));
+    Message msg2;
+    ASSERT_EQ(ResultOk, consumer.receive(msg2, 3000));
+
+    auto getSchemaInfo = [this](const std::string& topic, int64_t version) {
+        std::promise<SchemaInfo> p;
+        client_.getSchemaInfoAsync(topic, version, [&p](Result result, const SchemaInfo& info) {
+            if (result == ResultOk) {
+                p.set_value(info);
+            } else {
+                p.set_exception(std::make_exception_ptr(std::runtime_error(strResult(result))));
+            }
+        });
+        return p.get_future().get();
+    };
+    {
+        ASSERT_EQ(msg1.getLongSchemaVersion(), 0);
+        const auto info = getSchemaInfo(topic, 0);
+        ASSERT_EQ(info.getSchemaType(), SchemaType::AVRO);
+        ASSERT_EQ(info.getSchema(), schema1);
+    }
+    {
+        ASSERT_EQ(msg2.getLongSchemaVersion(), 1);
+        const auto info = getSchemaInfo(topic, 1);
+        ASSERT_EQ(info.getSchemaType(), SchemaType::AVRO);
+        ASSERT_EQ(info.getSchema(), schema2);
+    }
+    {
+        const auto info = getSchemaInfo(topic, -1);
+        ASSERT_EQ(info.getSchemaType(), SchemaType::AVRO);
+        ASSERT_EQ(info.getSchema(), schema2);
+    }
+    try {
+        getSchemaInfo(topic, 2);
+        FAIL();
+    } catch (const std::runtime_error& e) {
+        ASSERT_EQ(std::string{e.what()}, strResult(ResultTopicNotFound));
+    }
+    try {
+        getSchemaInfo(topic + "-not-exist", 0);
+        FAIL();
+    } catch (const std::runtime_error& e) {
+        ASSERT_EQ(std::string{e.what()}, strResult(ResultTopicNotFound));
+    }
+
+    consumer.close();
+    producer1.close();
+    producer2.close();
+}
+
+INSTANTIATE_TEST_SUITE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLookupUrl, httpLookupUrl));
 
 class BinaryProtoLookupServiceRedirectTestHelper : public BinaryProtoLookupService {
    public:

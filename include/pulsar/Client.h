@@ -404,6 +404,16 @@ class PULSAR_PUBLIC Client {
      */
     uint64_t getNumberOfConsumers();
 
+    /**
+     * Asynchronously get the SchemaInfo of a topic and a specific version.
+     *
+     * @topic the topic name
+     * @version the schema version, see Message::getLongSchemaVersion
+     * @callback the callback that is triggered when the SchemaInfo is retrieved successfully or not
+     */
+    void getSchemaInfoAsync(const std::string& topic, int64_t version,
+                            std::function<void(Result, const SchemaInfo&)> callback);
+
    private:
     Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
            bool poolConnections);

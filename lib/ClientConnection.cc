@@ -1311,10 +1311,10 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
     return promise.getFuture();
 }
 
-Future<Result, boost::optional<SchemaInfo>> ClientConnection::newGetSchema(const std::string& topicName,
-                                                                           uint64_t requestId) {
+Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
+                                                          const std::string& version, uint64_t requestId) {
     Lock lock(mutex_);
-    Promise<Result, boost::optional<SchemaInfo>> promise;
+    Promise<Result, SchemaInfo> promise;
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString_ << "Client is not connected to the broker");
@@ -1324,7 +1324,7 @@ Future<Result, boost::optional<SchemaInfo>> ClientConnection::newGetSchema(const
 
     pendingGetSchemaRequests_.insert(std::make_pair(requestId, promise));
     lock.unlock();
-    sendCommand(Commands::newGetSchema(topicName, requestId));
+    sendCommand(Commands::newGetSchema(topicName, version, requestId));
     return promise.getFuture();
 }
 
@@ -1758,21 +1758,19 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
     Lock lock(mutex_);
     auto it = pendingGetSchemaRequests_.find(response.request_id());
     if (it != pendingGetSchemaRequests_.end()) {
-        Promise<Result, boost::optional<SchemaInfo>> getSchemaPromise = it->second;
+        Promise<Result, SchemaInfo> getSchemaPromise = it->second;
         pendingGetSchemaRequests_.erase(it);
         lock.unlock();
 
         if (response.has_error_code()) {
-            if (response.error_code() == proto::TopicNotFound) {
-                getSchemaPromise.setValue(boost::none);
-            } else {
-                Result result = getResult(response.error_code(), response.error_message());
+            Result result = getResult(response.error_code(), response.error_message());
+            if (response.error_code() != proto::TopicNotFound) {
                 LOG_WARN(cnxString_ << "Received error GetSchemaResponse from server " << result
                                     << (response.has_error_message() ? (" (" + response.error_message() + ")")
                                                                      : "")
                                     << " -- req_id: " << response.request_id());
-                getSchemaPromise.setFailed(result);
             }
+            getSchemaPromise.setFailed(result);
             return;
         }
 

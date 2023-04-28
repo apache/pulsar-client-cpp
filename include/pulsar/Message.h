@@ -177,7 +177,14 @@ class PULSAR_PUBLIC Message {
     bool hasSchemaVersion() const;
 
     /**
-     * Get the schema version
+     * Get the schema version.
+     *
+     * @return the the schema version on success or -1 if the message does not have the schema version
+     */
+    int64_t getLongSchemaVersion() const;
+
+    /**
+     * Get the schema version of the raw bytes.
      */
     const std::string& getSchemaVersion() const;
 

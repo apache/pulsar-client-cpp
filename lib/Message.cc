@@ -23,6 +23,7 @@
 
 #include <iostream>
 
+#include "Int64SerDes.h"
 #include "KeyValueImpl.h"
 #include "MessageImpl.h"
 #include "PulsarApi.pb.h"
@@ -182,6 +183,10 @@ bool Message::hasSchemaVersion() const {
         return impl_->hasSchemaVersion();
     }
     return false;
+}
+
+int64_t Message::getLongSchemaVersion() const {
+    return (impl_ && impl_->hasSchemaVersion()) ? fromBigEndianBytes(impl_->getSchemaVersion()) : -1L;
 }
 
 const std::string& Message::getSchemaVersion() const {

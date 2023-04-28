@@ -25,6 +25,7 @@
 #include <boost/property_tree/ptree.hpp>
 
 #include "ExecutorService.h"
+#include "Int64SerDes.h"
 #include "LogUtils.h"
 #include "NamespaceName.h"
 #include "SchemaUtils.h"
@@ -157,8 +158,9 @@ Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     return promise.getFuture();
 }
 
-Future<Result, boost::optional<SchemaInfo>> HTTPLookupService::getSchema(const TopicNamePtr &topicName) {
-    Promise<Result, boost::optional<SchemaInfo>> promise;
+Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topicName,
+                                                        const std::string &version) {
+    Promise<Result, SchemaInfo> promise;
     std::stringstream completeUrlStream;
 
     const auto &url = serviceNameResolver_.resolveHost();
@@ -171,6 +173,10 @@ Future<Result, boost::optional<SchemaInfo>> HTTPLookupService::getSchema(const T
                           << topicName->getCluster() << '/' << topicName->getNamespacePortion() << '/'
                           << topicName->getEncodedLocalName() << "/schema";
     }
+    if (!version.empty()) {
+        completeUrlStream << "/" << fromBigEndianBytes(version);
+    }
+
     executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleGetSchemaHTTPRequest,
                                                  shared_from_this(), promise, completeUrlStream.str()));
     return promise.getFuture();
@@ -450,7 +456,7 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, con
     Result result = sendHTTPRequest(completeUrl, responseData, responseCode);
 
     if (responseCode == 404) {
-        promise.setValue(boost::none);
+        promise.setFailed(ResultTopicNotFound);
     } else if (result != ResultOk) {
         promise.setFailed(result);
     } else {

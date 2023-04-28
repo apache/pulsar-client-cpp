@@ -161,7 +161,8 @@ SharedBuffer Commands::newLookup(const std::string& topic, const bool authoritat
     return buffer;
 }
 
-SharedBuffer Commands::newGetSchema(const std::string& topic, uint64_t requestId) {
+SharedBuffer Commands::newGetSchema(const std::string& topic, const std::string& version,
+                                    uint64_t requestId) {
     static BaseCommand cmd;
     static std::mutex mutex;
     std::lock_guard<std::mutex> lock(mutex);
@@ -170,6 +171,9 @@ SharedBuffer Commands::newGetSchema(const std::string& topic, uint64_t requestId
     auto getSchema = cmd.mutable_getschema();
     getSchema->set_topic(topic);
     getSchema->set_request_id(requestId);
+    if (!version.empty()) {
+        getSchema->set_schema_version(version);
+    }
 
     const SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_getschema();

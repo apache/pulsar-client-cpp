@@ -22,7 +22,6 @@
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
 
-#include <boost/optional.hpp>
 #include <memory>
 #include <ostream>
 #include <vector>
@@ -77,12 +76,14 @@ class LookupService {
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) = 0;
 
     /**
-     * returns current SchemaInfo {@link SchemaInfo} for a given topic.
+     * Get the SchemaInfo for a given topic and a specific schema version.
      *
      * @param topicName topic-name
+     * @param version the schema version byte array, if it's empty, use the latest version
      * @return SchemaInfo
      */
-    virtual Future<Result, boost::optional<SchemaInfo>> getSchema(const TopicNamePtr& topicName) = 0;
+    virtual Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName,
+                                                 const std::string& version = "") = 0;
 
     virtual ~LookupService() {}
 };
