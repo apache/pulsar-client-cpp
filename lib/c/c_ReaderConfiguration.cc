@@ -86,3 +86,10 @@ void pulsar_reader_configuration_set_read_compacted(pulsar_reader_configuration_
 int pulsar_reader_configuration_is_read_compacted(pulsar_reader_configuration_t *configuration) {
     return configuration->conf.isReadCompacted();
 }
+
+void pulsar_reader_configuration_set_default_crypto_key_reader(
+    pulsar_reader_configuration_t *configuration,
+    const char *public_key_path, const char *private_key_path) {
+    std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader = std::make_shared<pulsar::DefaultCryptoKeyReader>(public_key_path, private_key_path);
+    configuration->conf.setCryptoKeyReader(keyReader);
+}
