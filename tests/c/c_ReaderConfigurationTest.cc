@@ -21,22 +21,6 @@
 
 #include <climits>
 
-/*
-  ASSERT_EQ(consumerConf.getConsumerType(), ConsumerExclusive);
-    ASSERT_EQ(consumerConf.getReceiverQueueSize(), 1000);
-    ASSERT_EQ(consumerConf.isReadCompacted(), false);
-    ASSERT_EQ(consumerConf.getSchema().getName(), "BYTES");
-    ASSERT_EQ(consumerConf.getUnAckedMessagesTimeoutMs(), 0);
-    ASSERT_EQ(consumerConf.getTickDurationInMs(), 1000);
-    ASSERT_EQ(consumerConf.getAckGroupingTimeMs(), 100);
-    ASSERT_EQ(consumerConf.getAckGroupingMaxSize(), 1000);
-    ASSERT_EQ(consumerConf.getCryptoKeyReader().get(), nullptr);
-    ASSERT_EQ(consumerConf.getCryptoFailureAction(), ConsumerCryptoFailureAction::FAIL);
-    ASSERT_TRUE(consumerConf.getProperties().empty());
-    ASSERT_TRUE(consumerConf.getConsumerName().empty());
-    ASSERT_FALSE(consumerConf.hasMessageListener());
- */
-
 TEST(C_ReaderConfigurationTest, testCApiConfig) {
     pulsar_reader_configuration_t *reader_conf = pulsar_reader_configuration_create();
 
