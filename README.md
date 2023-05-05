@@ -87,7 +87,7 @@ cmake .
 make
 ```
 
-If you want to run performance, you need to run:
+If you want to build performance tools, you need to run:
 
 ```shell
 cmake . -DBUILD_PERF_TOOLS=ON
@@ -102,7 +102,8 @@ Client library will be placed in:
 lib/libpulsar.so
 lib/libpulsar.a
 ```
-Examples can be run on:
+
+Examples will be placed in:
 
 ```
 examples/
@@ -130,7 +131,7 @@ cmake .
 make
 ```
 
-If you want to run performance, you need to run:
+If you want to build performance tools, you need to run:
 
 ```shell
 cmake . -DBUILD_PERF_TOOLS=ON
@@ -146,7 +147,7 @@ lib/libpulsar.dylib
 lib/libpulsar.a
 ```
 
-Examples can be run on:
+Examples will be placed in:
 
 ```
 examples/
