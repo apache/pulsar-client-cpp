@@ -21,7 +21,11 @@
 
 # Pulsar C++ client library
 
-Examples for using the API to publish and consume messages can be found under the [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples) folder.
+Pulsar C++ clients support a variety of Pulsar features to enable building applications connecting to your Pulsar cluster.
+
+For the supported Pulsar features, see [Client Feature Matrix](https://pulsar.apache.org/client-feature-matrix/).
+
+For how to use APIs to publish and consume messages, see [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples).
 
 ## Generate the API documents
 
