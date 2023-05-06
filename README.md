@@ -87,6 +87,13 @@ cmake .
 make
 ```
 
+If you want to build performance tools, you need to run:
+
+```shell
+cmake . -DBUILD_PERF_TOOLS=ON
+make
+```
+
 #### Checks
 
 Client library will be placed in:
@@ -94,6 +101,12 @@ Client library will be placed in:
 ```
 lib/libpulsar.so
 lib/libpulsar.a
+```
+
+Examples will be placed in:
+
+```
+examples/
 ```
 
 Tools will be placed in:
@@ -118,6 +131,13 @@ cmake .
 make
 ```
 
+If you want to build performance tools, you need to run:
+
+```shell
+cmake . -DBUILD_PERF_TOOLS=ON
+make
+```
+
 #### Checks
 
 Client library will be placed in:
@@ -125,6 +145,12 @@ Client library will be placed in:
 ```
 lib/libpulsar.dylib
 lib/libpulsar.a
+```
+
+Examples will be placed in:
+
+```
+examples/
 ```
 
 Tools will be placed in:
