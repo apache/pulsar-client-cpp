@@ -35,8 +35,7 @@ NegativeAcksTracker::NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &con
                                          const ConsumerConfiguration &conf)
     : consumer_(consumer),
       timerInterval_(0),
-      executor_(client->getIOExecutorProvider()->get()),
-      enabledForTesting_(true) {
+      timer_(client->getIOExecutorProvider()->get()->createDeadlineTimer()) {
     static const long MIN_NACK_DELAY_MILLIS = 100;
 
     nackDelay_ =
@@ -47,7 +46,9 @@ NegativeAcksTracker::NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &con
 }
 
 void NegativeAcksTracker::scheduleTimer() {
-    timer_ = executor_->createDeadlineTimer();
+    if (closed_) {
+        return;
+    }
     timer_->expires_from_now(timerInterval_);
     timer_->async_wait(std::bind(&NegativeAcksTracker::handleTimer, this, std::placeholders::_1));
 }
@@ -58,8 +59,7 @@ void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    timer_ = nullptr;
+    std::unique_lock<std::mutex> lock(mutex_);
 
     if (nackedMessages_.empty() || !enabledForTesting_) {
         return;
@@ -78,6 +78,7 @@ void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
             ++it;
         }
     }
+    lock.unlock();
 
     if (!messagesToRedeliver.empty()) {
         consumer_.onNegativeAcksSend(messagesToRedeliver);
@@ -87,34 +88,30 @@ void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
 }
 
 void NegativeAcksTracker::add(const MessageId &m) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
+    auto msgId = discardBatch(m);
     auto now = Clock::now();
 
-    // Erase batch id to group all nacks from same batch
-    nackedMessages_[discardBatch(m)] = now + nackDelay_;
-
-    if (!timer_) {
-        scheduleTimer();
+    {
+        std::lock_guard<std::mutex> lock{mutex_};
+        // Erase batch id to group all nacks from same batch
+        nackedMessages_[msgId] = now + nackDelay_;
     }
+
+    scheduleTimer();
 }
 
 void NegativeAcksTracker::close() {
+    closed_ = true;
+    boost::system::error_code ec;
+    timer_->cancel(ec);
     std::lock_guard<std::mutex> lock(mutex_);
-
-    if (timer_) {
-        boost::system::error_code ec;
-        timer_->cancel(ec);
-    }
-    timer_ = nullptr;
     nackedMessages_.clear();
 }
 
 void NegativeAcksTracker::setEnabledForTesting(bool enabled) {
-    std::lock_guard<std::mutex> lock(mutex_);
     enabledForTesting_ = enabled;
 
-    if (enabledForTesting_ && !timer_) {
+    if (enabledForTesting_) {
         scheduleTimer();
     }
 }
