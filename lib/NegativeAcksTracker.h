@@ -22,6 +22,7 @@
 #include <pulsar/ConsumerConfiguration.h>
 #include <pulsar/MessageId.h>
 
+#include <atomic>
 #include <boost/asio/deadline_timer.hpp>
 #include <chrono>
 #include <map>
@@ -65,9 +66,9 @@ class NegativeAcksTracker {
     typedef typename std::chrono::steady_clock Clock;
     std::map<MessageId, Clock::time_point> nackedMessages_;
 
-    ExecutorServicePtr executor_;
-    DeadlineTimerPtr timer_;
-    bool enabledForTesting_;  // to be able to test deterministically
+    const DeadlineTimerPtr timer_;
+    std::atomic_bool closed_{false};
+    std::atomic_bool enabledForTesting_{true};  // to be able to test deterministically
 
     FRIEND_TEST(ConsumerTest, testNegativeAcksTrackerClose);
 };

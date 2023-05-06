@@ -20,9 +20,11 @@
 #include <pulsar/Client.h>
 
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <ctime>
 #include <map>
+#include <mutex>
 #include <set>
 #include <thread>
 #include <vector>
@@ -1239,5 +1241,68 @@ TEST(ConsumerTest, testAckNotPersistentTopic) {
 }
 
 INSTANTIATE_TEST_CASE_P(Pulsar, ConsumerSeekTest, ::testing::Values(true, false));
+
+class InterceptorForNegAckDeadlock : public ConsumerInterceptor {
+   public:
+    Message beforeConsume(const Consumer& consumer, const Message& message) override { return message; }
+
+    void onAcknowledge(const Consumer& consumer, Result result, const MessageId& messageID) override {}
+
+    void onAcknowledgeCumulative(const Consumer& consumer, Result result,
+                                 const MessageId& messageID) override {}
+
+    void onNegativeAcksSend(const Consumer& consumer, const std::set<MessageId>& messageIds) override {
+        duringNegativeAck_ = true;
+        // Wait for the next time Consumer::negativeAcknowledge is called
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::lock_guard<std::mutex> lock{mutex_};
+        LOG_INFO("onNegativeAcksSend is called for " << consumer.getTopic());
+        duringNegativeAck_ = false;
+    }
+
+    static std::mutex mutex_;
+    static std::atomic_bool duringNegativeAck_;
+};
+
+std::mutex InterceptorForNegAckDeadlock::mutex_;
+std::atomic_bool InterceptorForNegAckDeadlock::duringNegativeAck_{false};
+
+// For https://github.com/apache/pulsar-client-cpp/issues/265
+TEST(ConsumerTest, testNegativeAckDeadlock) {
+    const std::string topic = "test-negative-ack-deadlock";
+    Client client{lookupUrl};
+    ConsumerConfiguration conf;
+    conf.setNegativeAckRedeliveryDelayMs(500);
+    conf.intercept({std::make_shared<InterceptorForNegAckDeadlock>()});
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", conf, consumer));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    producer.send(MessageBuilder().setContent("msg").build());
+
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer.receive(msg));
+
+    auto& duringNegativeAck = InterceptorForNegAckDeadlock::duringNegativeAck_;
+    duringNegativeAck = false;
+    consumer.negativeAcknowledge(msg);  // schedule the negative ack timer
+    // Wait until the negative ack timer is triggered and onNegativeAcksSend will be called
+    for (int i = 0; !duringNegativeAck && i < 100; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_TRUE(duringNegativeAck);
+
+    {
+        std::lock_guard<std::mutex> lock{InterceptorForNegAckDeadlock::mutex_};
+        consumer.negativeAcknowledge(msg);
+    }
+    for (int i = 0; duringNegativeAck && i < 100; i++) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    ASSERT_FALSE(duringNegativeAck);
+
+    client.close();
+}
 
 }  // namespace pulsar
