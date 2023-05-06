@@ -21,7 +21,11 @@
 
 # Pulsar C++ client library
 
-Examples for using the API to publish and consume messages can be found under the [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples) folder.
+Pulsar C++ clients support a variety of Pulsar features to enable building applications connecting to your Pulsar cluster.
+
+For the supported Pulsar features, see [Client Feature Matrix](https://pulsar.apache.org/client-feature-matrix/).
+
+For how to use APIs to publish and consume messages, see [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples).
 
 ## Generate the API documents
 
@@ -29,23 +33,23 @@ Pulsar C++ client uses [doxygen](https://www.doxygen.nl) to build API documents.
 
 ## Requirements
 
-* A C++ compiler that supports C++11, like GCC >= 4.8
-* CMake >= 3.13
-* [Boost](http://www.boost.org/)
-* [Protocol Buffer](https://developers.google.com/protocol-buffers/) >= 3
-* [libcurl](https://curl.se/libcurl/)
-* [openssl](https://github.com/openssl/openssl)
+- A C++ compiler that supports C++11, like GCC >= 4.8
+- CMake >= 3.13
+- [Boost](http://www.boost.org/)
+- [Protocol Buffer](https://developers.google.com/protocol-buffers/) >= 3
+- [libcurl](https://curl.se/libcurl/)
+- [openssl](https://github.com/openssl/openssl)
 
 The default supported [compression types](include/pulsar/CompressionType.h) are:
 
-* `CompressionNone`
-* `CompressionLZ4`
+- `CompressionNone`
+- `CompressionLZ4`
 
 If you want to enable other compression types, you need to install:
 
-* `CompressionZLib`: [zlib](https://zlib.net/)
-* `CompressionZSTD`: [zstd](https://github.com/facebook/zstd)
-* `CompressionSNAPPY`: [snappy](https://github.com/google/snappy)
+- `CompressionZLib`: [zlib](https://zlib.net/)
+- `CompressionZSTD`: [zstd](https://github.com/facebook/zstd)
+- `CompressionSNAPPY`: [snappy](https://github.com/google/snappy)
 
 If you want to build and run the tests, you need to install [GTest](https://github.com/google/googletest). Otherwise, you need to add CMake option `-DBUILD_TESTS=OFF`.
 
@@ -55,9 +59,9 @@ If you want to use `ClientConfiguration::setLogConfFilePath`, you need to instal
 
 Pulsar C++ Client Library has been tested on:
 
-* Linux
-* Mac OS X
-* Windows x64
+- Linux
+- Mac OS X
+- Windows x64
 
 ## Compilation
 
@@ -172,7 +176,9 @@ Take Windows 64-bit library as an example, you only need to run
 vcpkg install --feature-flags=manifests --triplet x64-windows
 ```
 
-> NOTE: For Windows 32-bit library, change `x64-windows` to `x86-windows`, see [here](https://github.com/microsoft/vcpkg/blob/master/docs/users/triplets.md) for more details about the triplet concept in Vcpkg.
+> **NOTE**:
+>
+> For Windows 32-bit library, change `x64-windows` to `x86-windows`, see [here](https://github.com/microsoft/vcpkg/blob/master/docs/users/triplets.md) for more details about the triplet concept in Vcpkg.
 
 The all dependencies, which are specified by [vcpkg.json](vcpkg.json), will be installed in `vcpkg_installed/` subdirectory,
 
@@ -223,7 +229,7 @@ build/lib/Release/pulsar.dll
 
 #### Examples
 
-Add windows environment paths:
+Add Windows environment paths:
 
 ```
 build/lib/Release
@@ -257,8 +263,10 @@ See the [wireshark](wireshark/) directory for details.
 
 ## Requirements for Contributors
 
-It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` **11** to format files.  `make format` automatically formats the files.
+It's required to install [LLVM](https://llvm.org/builds/) for `clang-tidy` and `clang-format`. Pulsar C++ client use `clang-format` **11** to format files. `make format` automatically formats the files.
 
 For Ubuntu users, you can install `clang-format-11` via `apt install clang-format-11`. For other users, run `./build-support/docker-format.sh` if you have Docker installed.
 
 We welcome contributions from the open source community, kindly make sure your changes are backward compatible with GCC 4.8 and Boost 1.53.
+
+If your contribution adds Pulsar features for C++ clients, you need to update both the [Pulsar docs](https://pulsar.apache.org/docs/client-libraries/) and the [Client Feature Matrix](https://pulsar.apache.org/client-feature-matrix/). See [Contribution Guide](https://pulsar.apache.org/contribute/site-intro/#pages) for more details.
