@@ -88,8 +88,9 @@ find_package(Threads REQUIRED)
 MESSAGE(STATUS "Threads library: " ${CMAKE_THREAD_LIBS_INIT})
 
 set(Boost_NO_BOOST_CMAKE ON)
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_C_STANDARD 11)
+if (NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 11)
+endif ()
 
 # Compiler specific configuration:
 # https://stackoverflow.com/questions/10046114/in-cmake-how-can-i-test-if-the-compiler-is-clang

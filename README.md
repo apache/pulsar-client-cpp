@@ -55,6 +55,12 @@ If you want to build and run the tests, you need to install [GTest](https://gith
 
 If you want to use `ClientConfiguration::setLogConfFilePath`, you need to install the [Log4CXX](https://logging.apache.org/log4cxx) and add CMake option `-DUSE_LOG4CXX=ON`.
 
+The [dependencies.yaml](./dependencies.yaml) file provides the recommended dependency versions, while you can still build from source with other dependency versions. If a dependency requires a higher C++ standard, e.g. C++14, you can specify the standard like:
+
+```bash
+cmake . -DCMAKE_CXX_STANDARD=14
+```
+
 ## Platforms
 
 Pulsar C++ Client Library has been tested on:
