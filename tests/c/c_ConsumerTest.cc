@@ -46,8 +46,8 @@ static void batch_receive_callback(pulsar_result async_result, pulsar_messages_t
 
             char expected_str[128];
             snprintf(expected_str, sizeof(expected_str), "msg-%d", 10 + i);
-            printf("%d received: %s (%zd), expected: %s (%zd)\n", i, str, strlen(str), expected_str,
-                   strlen(expected_str));
+            printf("async batch %d received: %s (%zd), expected: %s (%zd)\n", i, str, strlen(str),
+                   expected_str, strlen(expected_str));
             ASSERT_EQ(strcmp(str, expected_str), 0);
             free(str);
         }
@@ -110,7 +110,6 @@ TEST(c_ConsumerTest, testBatchReceive) {
     std::future<pulsar_result> receive_future = receive_promise.get_future();
     struct batch_receive_ctx batch_receive_ctx = {consumer, &receive_promise, batch_receive_max_size};
     pulsar_consumer_batch_receive_async(consumer, batch_receive_callback, &batch_receive_ctx);
-    pulsar_client_close(client);
     ASSERT_EQ(pulsar_result_Ok, receive_future.get());
 
     pulsar_client_close(client);
