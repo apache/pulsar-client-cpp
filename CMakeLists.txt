@@ -91,6 +91,7 @@ set(Boost_NO_BOOST_CMAKE ON)
 if (NOT CMAKE_CXX_STANDARD)
     set(CMAKE_CXX_STANDARD 11)
 endif ()
+set(CMAKE_C_STANDARD 11)
 
 # Compiler specific configuration:
 # https://stackoverflow.com/questions/10046114/in-cmake-how-can-i-test-if-the-compiler-is-clang
