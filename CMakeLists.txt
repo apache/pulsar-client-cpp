@@ -88,7 +88,9 @@ find_package(Threads REQUIRED)
 MESSAGE(STATUS "Threads library: " ${CMAKE_THREAD_LIBS_INIT})
 
 set(Boost_NO_BOOST_CMAKE ON)
-set(CMAKE_CXX_STANDARD 11)
+if (NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 11)
+endif ()
 set(CMAKE_C_STANDARD 11)
 
 # Compiler specific configuration:
