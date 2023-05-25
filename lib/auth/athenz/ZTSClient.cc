@@ -125,8 +125,8 @@ ZTSClient::ZTSClient(std::map<std::string, std::string> &params) {
 
         // set optional value
         keyId_ = params.find(KEY_ID) == params.end() ? "0" : params[KEY_ID];
-        principalHeader_ =
-            params.find(PRINCIPAL_HEADER) == params.end() ? DEFAULT_PRINCIPAL_HEADER : params[PRINCIPAL_HEADER];
+        principalHeader_ = params.find(PRINCIPAL_HEADER) == params.end() ? DEFAULT_PRINCIPAL_HEADER
+                                                                         : params[PRINCIPAL_HEADER];
     }
 
     if (*(--ztsUrl_.end()) == '/') {
