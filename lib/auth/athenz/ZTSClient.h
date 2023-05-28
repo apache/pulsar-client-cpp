@@ -20,6 +20,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 namespace pulsar {
 
@@ -28,7 +29,7 @@ struct RoleToken {
     long long expiryTime;
 };
 
-struct PrivateKeyUri {
+struct UriSt {
     std::string scheme;
     std::string mediaTypeAndEncodingType;
     std::string data;
@@ -38,7 +39,7 @@ struct PrivateKeyUri {
 class PULSAR_PUBLIC ZTSClient {
    public:
     ZTSClient(std::map<std::string, std::string>& params);
-    const std::string getRoleToken() const;
+    const std::string getRoleToken();
     const std::string getHeader() const;
     ~ZTSClient();
 
@@ -46,18 +47,22 @@ class PULSAR_PUBLIC ZTSClient {
     std::string tenantDomain_;
     std::string tenantService_;
     std::string providerDomain_;
-    PrivateKeyUri privateKeyUri_;
+    UriSt privateKeyUri_;
     std::string ztsUrl_;
     std::string keyId_;
+    UriSt x509CertChain_;
+    UriSt caCert_;
     std::string principalHeader_;
     std::string roleHeader_;
-    int tokenExpirationTime_;
-    static std::map<std::string, RoleToken> roleTokenCache_;
+    RoleToken roleTokenCache_;
+    bool enableX509CertChain_ = false;
     static std::string getSalt();
     static std::string ybase64Encode(const unsigned char* input, int length);
     static char* base64Decode(const char* input);
     const std::string getPrincipalToken() const;
-    static PrivateKeyUri parseUri(const char* uri);
+    static UriSt parseUri(const char* uri);
+    static bool checkRequiredParams(std::map<std::string, std::string>& params,
+                                    const std::vector<std::string>& requiredParams);
 
     friend class ZTSClientWrapper;
 };
