@@ -79,6 +79,9 @@ class Commands {
     };
 
     const static uint16_t magicCrc32c = 0x0e01;
+
+    const static uint16_t magicBrokerEntryMetadata = 0x0e02;
+
     const static int checksumSize = 4;
 
     static SharedBuffer newConnect(const AuthenticationPtr& authentication, const std::string& logicalAddress,

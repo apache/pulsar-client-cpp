@@ -679,10 +679,31 @@ void ClientConnection::processIncomingBuffer() {
         if (incomingCmd.type() == BaseCommand::MESSAGE) {
             // Parse message metadata and extract payload
             proto::MessageMetadata msgMetadata;
+            proto::BrokerEntryMetadata brokerEntryMetadata;
 
             // read checksum
             uint32_t remainingBytes = frameSize - (cmdSize + 4);
             bool isChecksumValid = verifyChecksum(incomingBuffer_, remainingBytes, incomingCmd);
+
+            auto readerIndex = incomingBuffer_.readerIndex();
+            if (incomingBuffer_.readUnsignedShort() == Commands::magicBrokerEntryMetadata) {
+                // broker entry metadata is present
+                uint32_t brokerEntryMetadataSize = incomingBuffer_.readUnsignedInt();
+                if (!brokerEntryMetadata.ParseFromArray(incomingBuffer_.data(), brokerEntryMetadataSize)) {
+                    LOG_ERROR(cnxString_ << "[consumer id " << incomingCmd.message().consumer_id()
+                                         << ", message ledger id "
+                                         << incomingCmd.message().message_id().ledgerid() << ", entry id "
+                                         << incomingCmd.message().message_id().entryid()
+                                         << "] Error parsing broker entry metadata");
+                    close();
+                    return;
+                }
+
+                incomingBuffer_.consume(brokerEntryMetadataSize);
+                remainingBytes -= (2 + 4 + brokerEntryMetadataSize);
+            } else {
+                incomingBuffer_.setReaderIndex(readerIndex);
+            }
 
             uint32_t metadataSize = incomingBuffer_.readUnsignedInt();
             if (!msgMetadata.ParseFromArray(incomingBuffer_.data(), metadataSize)) {
@@ -701,7 +722,8 @@ void ClientConnection::processIncomingBuffer() {
             uint32_t payloadSize = remainingBytes;
             SharedBuffer payload = SharedBuffer::copy(incomingBuffer_.data(), payloadSize);
             incomingBuffer_.consume(payloadSize);
-            handleIncomingMessage(incomingCmd.message(), isChecksumValid, msgMetadata, payload);
+            handleIncomingMessage(incomingCmd.message(), isChecksumValid, brokerEntryMetadata, msgMetadata,
+                                  payload);
         } else {
             handleIncomingCommand(incomingCmd);
         }
@@ -710,7 +732,7 @@ void ClientConnection::processIncomingBuffer() {
         // We still have 1 to 3 bytes from the next frame
         assert(incomingBuffer_.readableBytes() < sizeof(uint32_t));
 
-        // Restart with a new buffer and copy the the few bytes at the beginning
+        // Restart with a new buffer and copy the few bytes at the beginning
         incomingBuffer_ = SharedBuffer::copyFrom(incomingBuffer_, DefaultBufferSize);
 
         // At least we need to read 4 bytes to have the complete frame size
@@ -782,6 +804,7 @@ void ClientConnection::handleActiveConsumerChange(const proto::CommandActiveCons
 }
 
 void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, bool isChecksumValid,
+                                             proto::BrokerEntryMetadata& brokerEntryMetadata,
                                              proto::MessageMetadata& msgMetadata, SharedBuffer& payload) {
     LOG_DEBUG(cnxString_ << "Received a message from the server for consumer: " << msg.consumer_id());
 

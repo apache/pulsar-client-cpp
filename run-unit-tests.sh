@@ -38,6 +38,12 @@ sleep 15
 $CMAKE_BUILD_DIRECTORY/tests/Oauth2Test
 docker compose -f tests/oauth2/docker-compose.yml down
 
+# Run BrokerMetadata tests
+docker compose -f tests/brokermetadata/docker-compose.yml up -d
+sleep 15
+$CMAKE_BUILD_DIRECTORY/tests/BrokerMetadataTest
+docker compose -f tests/brokermetadata/docker-compose.yml down
+
 ./pulsar-test-service-start.sh
 
 pushd $CMAKE_BUILD_DIRECTORY/tests
