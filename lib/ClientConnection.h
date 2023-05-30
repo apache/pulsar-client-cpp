@@ -74,6 +74,7 @@ struct OpSendMsg;
 
 namespace proto {
 class BaseCommand;
+class BrokerEntryMetadata;
 class CommandActiveConsumerChange;
 class CommandAckResponse;
 class CommandMessage;
@@ -225,6 +226,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleActiveConsumerChange(const proto::CommandActiveConsumerChange& change);
     void handleIncomingCommand(proto::BaseCommand& incomingCmd);
     void handleIncomingMessage(const proto::CommandMessage& msg, bool isChecksumValid,
+                               proto::BrokerEntryMetadata& brokerEntryMetadata,
                                proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
 
     void handlePulsarConnected(const proto::CommandConnected& cmdConnected);
