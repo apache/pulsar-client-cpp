@@ -35,10 +35,9 @@ class BatchMessageContainer;
 
 class MessageImpl {
    public:
-    MessageImpl();
-
     const Message::StringMap& properties();
 
+    proto::BrokerEntryMetadata brokerEntryMetadata;
     proto::MessageMetadata metadata;
     SharedBuffer payload;
     std::shared_ptr<KeyValueImpl> keyValuePtr;

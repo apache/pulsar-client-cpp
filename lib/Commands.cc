@@ -277,6 +277,7 @@ SharedBuffer Commands::newConnect(const AuthenticationPtr& authentication, const
 
     FeatureFlags* flags = connect->mutable_feature_flags();
     flags->set_supports_auth_refresh(true);
+    flags->set_supports_broker_entry_metadata(true);
     if (connectingThroughProxy) {
         Url logicalAddressUrl;
         Url::parse(logicalAddress, logicalAddressUrl);
@@ -908,7 +909,8 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
     const MessageId& m = batchedMessage.impl_->messageId;
     auto messageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
     auto batchedMessageId = std::make_shared<BatchedMessageIdImpl>(*(messageId.impl_), acker);
-    Message singleMessage(MessageId{batchedMessageId}, batchedMessage.impl_->metadata, payload, metadata,
+    Message singleMessage(MessageId{batchedMessageId}, batchedMessage.impl_->brokerEntryMetadata,
+                          batchedMessage.impl_->metadata, payload, metadata,
                           batchedMessage.impl_->topicName_);
     singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;
 

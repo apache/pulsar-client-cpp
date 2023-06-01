@@ -112,6 +112,27 @@ class ActiveInactiveListenerEvent : public ConsumerEventListener {
     std::mutex mutex_;
 };
 
+TEST(ConsumerTest, testConsumerIndex) {
+    Client client(lookupUrl);
+    const std::string topicName = "testConsumerIndex-topic-" + std::to_string(time(nullptr));
+    const std::string subName = "sub";
+    Producer producer;
+    Result producerResult = client.createProducer(topicName, producer);
+    ASSERT_EQ(producerResult, ResultOk);
+    Consumer consumer;
+    Result consumerResult = client.subscribe(topicName, subName, consumer);
+    ASSERT_EQ(consumerResult, ResultOk);
+    const auto msg = MessageBuilder().setContent("testConsumeSuccess").build();
+    Result sendResult = producer.send(msg);
+    ASSERT_EQ(sendResult, ResultOk);
+    Message receivedMsg;
+    Result receiveResult = consumer.receive(receivedMsg);
+    ASSERT_EQ(receiveResult, ResultOk);
+    ASSERT_EQ(receivedMsg.getDataAsString(), "testConsumeSuccess");
+    ASSERT_EQ(receivedMsg.getIndex(), -1);
+    client.close();
+}
+
 typedef std::shared_ptr<ActiveInactiveListenerEvent> ActiveInactiveListenerEventPtr;
 
 TEST(ConsumerTest, testConsumerEventWithoutPartition) {

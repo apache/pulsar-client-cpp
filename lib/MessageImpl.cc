@@ -20,8 +20,6 @@
 
 namespace pulsar {
 
-MessageImpl::MessageImpl() : metadata(), payload(), messageId(), cnx_(0), topicName_(), redeliveryCount_() {}
-
 const Message::StringMap& MessageImpl::properties() {
     if (properties_.size() == 0) {
         for (int i = 0; i < metadata.properties_size(); i++) {

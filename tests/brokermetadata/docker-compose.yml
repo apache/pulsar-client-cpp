@@ -35,8 +35,8 @@ services:
       - advertisedAddress=localhost
       - advertisedListeners=external:pulsar://localhost:6650
       - PULSAR_MEM=-Xms512m -Xmx512m -XX:MaxDirectMemorySize=256m
-      - PULSAR_PREFIX_BROKER_ENTRY_METADATA_INTERCEPTORS=org.apache.pulsar.common.intercept.AppendIndexMetadataInterceptor
-      - PULSAR_PREFIX_EXPOSING_BROKER_ENTRY_METADATA_TO_CLIENT_ENABLED=true
+      - PULSAR_PREFIX_brokerEntryMetadataInterceptors=org.apache.pulsar.common.intercept.AppendIndexMetadataInterceptor
+      - PULSAR_PREFIX_exposingBrokerEntryMetadataToClientEnabled=true
     ports:
       - "6650:6650"
       - "8080:8080"
