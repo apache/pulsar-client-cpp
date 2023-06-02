@@ -41,7 +41,7 @@ struct ClientConfigurationImpl {
     bool tlsAllowInsecureConnection{false};
     unsigned int statsIntervalInSeconds{600};  // 10 minutes
     std::unique_ptr<LoggerFactory> loggerFactory;
-    bool validateHostName{false};
+    bool validateHostName{true};
     unsigned int partitionsUpdateInterval{60};  // 1 minute
     std::string listenerName;
     int connectionTimeoutMs{10000};  // 10 seconds
