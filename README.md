@@ -131,20 +131,27 @@ perf/perfConsumer
 #### Install all dependencies:
 
 ```shell
-brew install cmake openssl protobuf boost boost-python3 googletest zstd snappy
+brew install cmake openssl protobuf boost googletest zstd snappy
 ```
 
 #### Compile Pulsar client library:
 
 ```shell
-cmake .
+cmake . -DCMAKE_CXX_STANDARD=14
+make
+```
+
+You need to configure `CMAKE_CXX_STANDARD` with 14 because the latest `googletest` dependency from HomeBrew requires the C++14 support. If you don't want to build tests, you can run:
+
+```bash
+cmake . -DBUILD_TESTS=OFF
 make
 ```
 
 If you want to build performance tools, you need to run:
 
 ```shell
-cmake . -DBUILD_PERF_TOOLS=ON
+cmake . -DBUILD_PERF_TOOLS=ON -DCMAKE_CXX_STANDARD=14
 make
 ```
 
