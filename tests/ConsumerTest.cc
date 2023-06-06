@@ -32,6 +32,8 @@
 #include "HttpHelper.h"
 #include "NoOpsCryptoKeyReader.h"
 #include "PulsarFriend.h"
+#include "SynchronizedQueue.h"
+#include "WaitUtils.h"
 #include "lib/ClientConnection.h"
 #include "lib/Future.h"
 #include "lib/LogUtils.h"
@@ -64,33 +66,12 @@ class ConsumerStateEventListener : public ConsumerEventListener {
         inActiveQueue_.push(partitionId);
     }
 
-    std::queue<int> activeQueue_;
-    std::queue<int> inActiveQueue_;
+    SynchronizedQueue<int> activeQueue_;
+    SynchronizedQueue<int> inActiveQueue_;
     std::string name_;
 };
 
 typedef std::shared_ptr<ConsumerStateEventListener> ConsumerStateEventListenerPtr;
-
-void verifyConsumerNotReceiveAnyStateChanges(ConsumerStateEventListenerPtr listener) {
-    ASSERT_EQ(0, listener->activeQueue_.size());
-    ASSERT_EQ(0, listener->inActiveQueue_.size());
-}
-
-void verifyConsumerActive(ConsumerStateEventListenerPtr listener, int partitionId) {
-    ASSERT_NE(0, listener->activeQueue_.size());
-    int pid = listener->activeQueue_.front();
-    listener->activeQueue_.pop();
-    ASSERT_EQ(partitionId, pid);
-    ASSERT_EQ(0, listener->inActiveQueue_.size());
-}
-
-void verifyConsumerInactive(ConsumerStateEventListenerPtr listener, int partitionId) {
-    ASSERT_NE(0, listener->inActiveQueue_.size());
-    int pid = listener->inActiveQueue_.front();
-    listener->inActiveQueue_.pop();
-    ASSERT_EQ(partitionId, pid);
-    ASSERT_EQ(0, listener->activeQueue_.size());
-}
 
 class ActiveInactiveListenerEvent : public ConsumerEventListener {
    public:
@@ -119,9 +100,7 @@ TEST(ConsumerTest, testConsumerEventWithoutPartition) {
 
     const std::string topicName = "testConsumerEventWithoutPartition-topic-" + std::to_string(time(nullptr));
     const std::string subName = "sub";
-    const int waitTimeInMs = 1000;
-    // constexpr int unAckedMessagesTimeoutMs = 10000;
-    // constexpr int tickDurationInMs = 1000;
+    const auto waitTime = std::chrono::seconds(3);
 
     // 1. two consumers on the same subscription
     Consumer consumer1;
@@ -132,7 +111,9 @@ TEST(ConsumerTest, testConsumerEventWithoutPartition) {
     config1.setConsumerType(ConsumerType::ConsumerFailover);
 
     ASSERT_EQ(pulsar::ResultOk, client.subscribe(topicName, subName, config1, consumer1));
-    std::this_thread::sleep_for(std::chrono::milliseconds(waitTimeInMs * 2));
+    waitUntil(waitTime, [&listener1]() -> bool { return listener1->activeQueue_.size() == 1; });
+    ASSERT_EQ(listener1->activeQueue_.size(), 1);
+    ASSERT_EQ(listener1->activeQueue_.pop(), -1);
 
     Consumer consumer2;
     ConsumerConfiguration config2;
@@ -142,18 +123,22 @@ TEST(ConsumerTest, testConsumerEventWithoutPartition) {
     config2.setConsumerType(ConsumerType::ConsumerFailover);
 
     ASSERT_EQ(pulsar::ResultOk, client.subscribe(topicName, subName, config2, consumer2));
-    std::this_thread::sleep_for(std::chrono::milliseconds(waitTimeInMs * 2));
-
-    verifyConsumerActive(listener1, -1);
-    verifyConsumerInactive(listener2, -1);
-
-    // clear inActiveQueue_
-    std::queue<int>().swap(listener2->inActiveQueue_);
+    // Since https://github.com/apache/pulsar/pull/19502, both consumer and consumer2 could receive the
+    // inactive event
+    waitUntil(waitTime, [&listener1, &listener2]() -> bool {
+        return listener1->inActiveQueue_.size() == 1 || listener2->inActiveQueue_.size() == 1;
+    });
+    if (listener1->inActiveQueue_.size() == 1) {
+        ASSERT_EQ(listener1->inActiveQueue_.pop(), -1);
+    } else {
+        ASSERT_EQ(listener2->inActiveQueue_.size(), 1);
+        ASSERT_EQ(listener2->inActiveQueue_.pop(), -1);
+    }
 
     consumer1.close();
-    std::this_thread::sleep_for(std::chrono::milliseconds(waitTimeInMs * 2));
-    verifyConsumerActive(listener2, -1);
-    verifyConsumerNotReceiveAnyStateChanges(listener1);
+    waitUntil(waitTime, [&listener2]() -> bool { return listener2->activeQueue_.size() == 1; });
+    ASSERT_EQ(listener2->activeQueue_.size(), 1);
+    ASSERT_EQ(listener2->activeQueue_.pop(), -1);
 }
 
 TEST(ConsumerTest, testConsumerEventWithPartition) {
