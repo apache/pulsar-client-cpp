@@ -60,6 +60,7 @@ using UnAckedMessageTrackerPtr = std::shared_ptr<UnAckedMessageTrackerInterface>
 
 namespace proto {
 class CommandMessage;
+class BrokerEntryMetadata;
 class MessageMetadata;
 }  // namespace proto
 
@@ -87,7 +88,8 @@ class ConsumerImpl : public ConsumerImplBase {
     void sendFlowPermitsToBroker(const ClientConnectionPtr& cnx, int numMessages);
     uint64_t getConsumerId();
     void messageReceived(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
-                         bool& isChecksumValid, proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
+                         bool& isChecksumValid, proto::BrokerEntryMetadata& brokerEntryMetadata,
+                         proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
     void messageProcessed(Message& msg, bool track = true);
     void activeConsumerChanged(bool isActive);
     inline CommandSubscribe_SubType getSubType();

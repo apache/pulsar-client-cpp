@@ -495,8 +495,8 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
 }
 
 void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
-                                   bool& isChecksumValid, proto::MessageMetadata& metadata,
-                                   SharedBuffer& payload) {
+                                   bool& isChecksumValid, proto::BrokerEntryMetadata& brokerEntryMetadata,
+                                   proto::MessageMetadata& metadata, SharedBuffer& payload) {
     LOG_DEBUG(getName() << "Received Message -- Size: " << payload.readableBytes());
 
     if (!decryptMessageIfNeeded(cnx, msg, metadata, payload)) {
@@ -536,7 +536,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         }
     }
 
-    Message m(messageId, metadata, payload);
+    Message m(messageId, brokerEntryMetadata, metadata, payload);
     m.impl_->cnx_ = cnx.get();
     m.impl_->setTopicName(topic_);
     m.impl_->setRedeliveryCount(msg.redelivery_count());
@@ -565,7 +565,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         Lock lock(mutex_);
         numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, ackSet, msg.redelivery_count());
     } else {
-        // try convery key value data.
+        // try convert key value data.
         m.impl_->convertPayloadToKeyValue(config_.getSchema());
 
         const auto startMessageId = startMessageId_.get();
@@ -706,6 +706,10 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
         msg.impl_->setRedeliveryCount(redeliveryCount);
         msg.impl_->setTopicName(batchedMessage.impl_->topicName_);
         msg.impl_->convertPayloadToKeyValue(config_.getSchema());
+        if (msg.impl_->brokerEntryMetadata.has_index()) {
+            msg.impl_->brokerEntryMetadata.set_index(msg.impl_->brokerEntryMetadata.index() - batchSize + i +
+                                                     1);
+        }
 
         if (redeliveryCount >= deadLetterPolicy_.getMaxRedeliverCount()) {
             possibleToDeadLetter.emplace_back(msg);

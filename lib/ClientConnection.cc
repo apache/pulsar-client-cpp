@@ -683,7 +683,6 @@ void ClientConnection::processIncomingBuffer() {
 
             // read checksum
             uint32_t remainingBytes = frameSize - (cmdSize + 4);
-            bool isChecksumValid = verifyChecksum(incomingBuffer_, remainingBytes, incomingCmd);
 
             auto readerIndex = incomingBuffer_.readerIndex();
             if (incomingBuffer_.readUnsignedShort() == Commands::magicBrokerEntryMetadata) {
@@ -698,12 +697,13 @@ void ClientConnection::processIncomingBuffer() {
                     close();
                     return;
                 }
-
-                incomingBuffer_.consume(brokerEntryMetadataSize);
+                incomingBuffer_.setReaderIndex(readerIndex + 2 + 4 + brokerEntryMetadataSize);
                 remainingBytes -= (2 + 4 + brokerEntryMetadataSize);
             } else {
                 incomingBuffer_.setReaderIndex(readerIndex);
             }
+
+            bool isChecksumValid = verifyChecksum(incomingBuffer_, remainingBytes, incomingCmd);
 
             uint32_t metadataSize = incomingBuffer_.readUnsignedInt();
             if (!msgMetadata.ParseFromArray(incomingBuffer_.data(), metadataSize)) {
@@ -817,7 +817,8 @@ void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, b
             // Unlock the mutex before notifying the consumer of the
             // new received message
             lock.unlock();
-            consumer->messageReceived(shared_from_this(), msg, isChecksumValid, msgMetadata, payload);
+            consumer->messageReceived(shared_from_this(), msg, isChecksumValid, brokerEntryMetadata,
+                                      msgMetadata, payload);
         } else {
             consumers_.erase(msg.consumer_id());
             LOG_DEBUG(cnxString_ << "Ignoring incoming message for already destroyed consumer "
