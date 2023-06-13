@@ -115,6 +115,8 @@ endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
+add_definitions(-DBUILDING_PULSAR -DBOOST_ALL_NO_LIB -DBOOST_ALLOW_DEPRECATED_HEADERS)
+
 # For dependencies other than OpenSSL, dynamic libraries are forbidden to link when LINK_STATIC is ON
 if (LINK_STATIC)
     if (NOT MSVC)
