@@ -43,10 +43,6 @@
 #include "TimeUtils.h"
 #include "TopicName.h"
 
-#ifdef USE_LOG4CXX
-#include "Log4CxxLogger.h"
-#endif
-
 #ifdef PULSAR_USE_BOOST_REGEX
 #include <boost/regex.hpp>
 #define PULSAR_REGEX_NAMESPACE boost
@@ -98,18 +94,8 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       closingError(ResultOk) {
     std::unique_ptr<LoggerFactory> loggerFactory = clientConfiguration_.impl_->takeLogger();
     if (!loggerFactory) {
-#ifdef USE_LOG4CXX
-        if (!clientConfiguration_.getLogConfFilePath().empty()) {
-            // A log4cxx log file was passed through deprecated parameter. Use that to configure Log4CXX
-            loggerFactory = Log4CxxLoggerFactory::create(clientConfiguration_.getLogConfFilePath());
-        } else {
-            // Use default simple console logger
-            loggerFactory.reset(new ConsoleLoggerFactory);
-        }
-#else
         // Use default simple console logger
         loggerFactory.reset(new ConsoleLoggerFactory);
-#endif
     }
     LogUtils::setLoggerFactory(std::move(loggerFactory));
 

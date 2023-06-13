@@ -23,21 +23,7 @@
 #include <atomic>
 #include <iostream>
 
-#include "Log4CxxLogger.h"
-
 namespace pulsar {
-
-void LogUtils::init(const std::string& logfilePath) {
-    // If this is called explicitely, we fallback to Log4cxx config, if enabled
-
-#ifdef USE_LOG4CXX
-    if (!logfilePath.empty()) {
-        setLoggerFactory(Log4CxxLoggerFactory::create(logfilePath));
-    } else {
-        setLoggerFactory(Log4CxxLoggerFactory::create());
-    }
-#endif  // USE_LOG4CXX
-}
 
 static std::atomic<LoggerFactory*> s_loggerFactory(nullptr);
 

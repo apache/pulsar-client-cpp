@@ -681,7 +681,6 @@ TEST(BasicEndToEndTest, testConfigurationFile) {
     config1.setOperationTimeoutSeconds(100);
     config1.setIOThreads(10);
     config1.setMessageListenerThreads(1);
-    config1.setLogConfFilePath("/tmp/");
 
     ClientConfiguration config2 = config1;
     AuthenticationDataPtr authData;
@@ -689,7 +688,6 @@ TEST(BasicEndToEndTest, testConfigurationFile) {
     ASSERT_EQ(100, config2.getOperationTimeoutSeconds());
     ASSERT_EQ(10, config2.getIOThreads());
     ASSERT_EQ(1, config2.getMessageListenerThreads());
-    ASSERT_EQ(config2.getLogConfFilePath().compare("/tmp/"), 0);
 }
 
 TEST(BasicEndToEndTest, testSinglePartitionRoutingPolicy) {

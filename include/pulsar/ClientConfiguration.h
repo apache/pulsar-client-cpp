@@ -156,19 +156,6 @@ class PULSAR_PUBLIC ClientConfiguration {
     int getMaxBackoffIntervalMs() const;
 
     /**
-     * Initialize the log configuration
-     *
-     * @param logConfFilePath  path of the configuration file
-     * @deprecated
-     */
-    ClientConfiguration& setLogConfFilePath(const std::string& logConfFilePath);
-
-    /**
-     * Get the path of log configuration file (log4cpp)
-     */
-    const std::string& getLogConfFilePath() const;
-
-    /**
      * Configure a custom logger backend to route of Pulsar client library
      * to a different logger implementation.
      *

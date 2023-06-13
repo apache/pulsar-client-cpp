@@ -146,13 +146,6 @@ ClientConfiguration& ClientConfiguration::setMaxBackoffIntervalMs(int maxBackoff
 
 int ClientConfiguration::getMaxBackoffIntervalMs() const { return impl_->maxBackoffIntervalMs; }
 
-ClientConfiguration& ClientConfiguration::setLogConfFilePath(const std::string& logConfFilePath) {
-    impl_->logConfFilePath = logConfFilePath;
-    return *this;
-}
-
-const std::string& ClientConfiguration::getLogConfFilePath() const { return impl_->logConfFilePath; }
-
 ClientConfiguration& ClientConfiguration::setLogger(LoggerFactory* loggerFactory) {
     impl_->loggerFactory.reset(loggerFactory);
     return *this;
