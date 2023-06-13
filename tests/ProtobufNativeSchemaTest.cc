@@ -29,33 +29,6 @@ using namespace pulsar;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
 
-const ::google::protobuf::Descriptor* getTestMessageDescriptor() {
-#if GOOGLE_PROTOBUF_VERSION < 3020000
-    ::proto::TestMessage msg;
-    return msg.GetDescriptor();
-#else
-    return ::proto::TestMessage::GetDescriptor();
-#endif
-}
-
-const ::google::protobuf::Descriptor* getExternalMessageDescriptor() {
-#if GOOGLE_PROTOBUF_VERSION < 3020000
-    ::proto::external::ExternalMessage msg;
-    return msg.GetDescriptor();
-#else
-    return ::proto::TestMessage::GetDescriptor();
-#endif
-}
-
-const ::google::protobuf::Descriptor* getDemoPersonDescriptor() {
-#if GOOGLE_PROTOBUF_VERSION < 3020000
-    ::padding::demo::Person p;
-    return p.GetDescriptor();
-#else
-    return ::padding::demo::Person::GetDescriptor();
-#endif
-}
-
 TEST(ProtobufNativeSchemaTest, testSchemaJson) {
     const std::string expectedSchemaJson =
         "{\"fileDescriptorSet\":"
@@ -69,7 +42,7 @@ TEST(ProtobufNativeSchemaTest, testSchemaJson) {
         "NzYWdlEhMKC3N0cmluZ0ZpZWxkGAEgASgJEhMKC2RvdWJsZUZpZWxkGAIgASgBQjUKJW9yZy5hcGFjaGUucHVsc2FyLmNsaWVudC"
         "5zY2hlbWEucHJvdG9CDEV4dGVybmFsVGVzdGIGcHJvdG8z\",\"rootMessageTypeName\":\"proto.TestMessage\","
         "\"rootFileDescriptorName\":\"Test.proto\"}";
-    const auto schemaInfo = createProtobufNativeSchema(getTestMessageDescriptor());
+    const auto schemaInfo = createProtobufNativeSchema(::proto::TestMessage::descriptor());
 
     ASSERT_EQ(schemaInfo.getSchemaType(), pulsar::PROTOBUF_NATIVE);
     ASSERT_TRUE(schemaInfo.getName().empty());
@@ -81,7 +54,7 @@ TEST(ProtobufNativeSchemaTest, testAutoCreateSchema) {
     const std::string topicPrefix = "ProtobufNativeSchemaTest-testAutoCreateSchema-";
     Client client(lookupUrl);
 
-    const auto schemaInfo = createProtobufNativeSchema(getTestMessageDescriptor());
+    const auto schemaInfo = createProtobufNativeSchema(::proto::TestMessage::descriptor());
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicPrefix + "producer",
                                               ProducerConfiguration().setSchema(schemaInfo), producer));
@@ -102,14 +75,15 @@ TEST(ProtobufNativeSchemaTest, testSchemaIncompatibility) {
     };
 
     // Create the protobuf native schema automatically
-    ASSERT_EQ(ResultOk, createProducerResult(getTestMessageDescriptor()));
+    ASSERT_EQ(ResultOk, createProducerResult(::proto::TestMessage::descriptor()));
     producer.close();
 
     // Try to create producer with another protobuf generated class
-    ASSERT_EQ(ResultIncompatibleSchema, createProducerResult(getExternalMessageDescriptor()));
+    ASSERT_EQ(ResultIncompatibleSchema,
+              createProducerResult(::proto::external::ExternalMessage::descriptor()));
 
     // Try to create producer with the original schema again
-    ASSERT_EQ(ResultOk, createProducerResult(getTestMessageDescriptor()));
+    ASSERT_EQ(ResultOk, createProducerResult(::proto::TestMessage::descriptor()));
 
     // createProtobufNativeSchema() cannot accept a null descriptor
     try {
@@ -125,7 +99,7 @@ TEST(ProtobufNativeSchemaTest, testEndToEnd) {
     const std::string topic = "ProtobufSchemaTest-testEndToEnd";
     Client client(lookupUrl);
 
-    const auto schemaInfo = createProtobufNativeSchema(getTestMessageDescriptor());
+    const auto schemaInfo = createProtobufNativeSchema(::proto::TestMessage::descriptor());
     Consumer consumer;
     ASSERT_EQ(ResultOk,
               client.subscribe(topic, "my-sub", ConsumerConfiguration().setSchema(schemaInfo), consumer));
@@ -156,7 +130,7 @@ TEST(ProtobufNativeSchemaTest, testEndToEnd) {
 }
 
 TEST(ProtobufNativeSchemaTest, testBase64WithPadding) {
-    const auto schemaInfo = createProtobufNativeSchema(getDemoPersonDescriptor());
+    const auto schemaInfo = createProtobufNativeSchema(::padding::demo::Person::descriptor());
     const auto schemaJson = schemaInfo.getSchema();
     size_t pos = schemaJson.find(R"(","rootMessageTypeName":)");
     ASSERT_NE(pos, std::string::npos);
