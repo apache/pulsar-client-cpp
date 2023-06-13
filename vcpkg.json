@@ -21,7 +21,6 @@
     "snappy",
     "zlib",
     "zstd",
-    "log4cxx",
     {
       "name": "dlfcn-win32",
       "platform": "windows"

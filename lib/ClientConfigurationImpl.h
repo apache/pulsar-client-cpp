@@ -33,7 +33,6 @@ struct ClientConfigurationImpl {
     int maxLookupRedirects{20};
     int initialBackoffIntervalMs{100};
     int maxBackoffIntervalMs{60000};
-    std::string logConfFilePath;
     bool useTls{false};
     std::string tlsPrivateKeyFilePath;
     std::string tlsCertificateFilePath;

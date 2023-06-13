@@ -74,9 +74,6 @@ MESSAGE(STATUS "BUILD_TESTS:  " ${BUILD_TESTS})
 option(BUILD_PERF_TOOLS "Build Pulsar CLI perf producer/consumer" OFF)
 MESSAGE(STATUS "BUILD_PERF_TOOLS:  " ${BUILD_PERF_TOOLS})
 
-option(USE_LOG4CXX "Build with Log4cxx support" OFF)
-MESSAGE(STATUS "USE_LOG4CXX:  " ${USE_LOG4CXX})
-
 IF (NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE RelWithDebInfo)
 ENDIF ()
@@ -117,14 +114,6 @@ else() # GCC or Clang are mostly compatible:
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
-
-set(LOG_CATEGORY_NAME $ENV{LOG_CATEGORY_NAME})
-
-if (NOT LOG_CATEGORY_NAME)
-    set(LOG_CATEGORY_NAME "\"pulsar.\"")
-endif(NOT LOG_CATEGORY_NAME)
-
-add_definitions(-DLOG_CATEGORY_NAME=${LOG_CATEGORY_NAME} -DBUILDING_PULSAR -DBOOST_ALL_NO_LIB -DBOOST_ALLOW_DEPRECATED_HEADERS)
 
 # For dependencies other than OpenSSL, dynamic libraries are forbidden to link when LINK_STATIC is ON
 if (LINK_STATIC)
@@ -178,24 +167,6 @@ if (LINK_STATIC AND NOT VCPKG_TRIPLET)
     find_library(LIB_SNAPPY NAMES libsnappy.a)
     message(STATUS "LIB_SNAPPY: ${LIB_SNAPPY}")
 
-    if (USE_LOG4CXX)
-        if (LOG4CXX_USE_DYNAMIC_LIBS)
-            find_library(LOG4CXX_LIBRARY_PATH log4cxx)
-        else ()
-            find_library(LOG4CXX_LIBRARY_PATH NAMES liblog4cxx.a)
-
-            # Libraries needed by log4cxx to link statically with
-            find_library(APR_LIBRARY_PATH NAMES libapr-1 PATHS /usr/lib /usr/local/apr/lib /usr/local/opt/apr/libexec/lib/)
-            find_library(APR_UTIL_LIBRARY_PATH NAMES libaprutil-1 PATHS /usr/lib /usr/local/apr/lib /usr/local/opt/apr-util/libexec/lib/)
-            find_library(EXPAT_LIBRARY_PATH NAMES libexpat expat)
-            if (APPLE)
-                find_library(ICONV_LIBRARY_PATH NAMES libiconv iconv)
-            else ()
-                set(ICONV_LIBRARY_PATH )
-            endif (APPLE)
-        endif (LOG4CXX_USE_DYNAMIC_LIBS)
-    endif (USE_LOG4CXX)
-
     if (MSVC)
         add_definitions(-DCURL_STATICLIB)
     endif()
@@ -241,11 +212,6 @@ else()
     else ()
         find_library(LIB_SNAPPY NAMES snappy libsnappy)
     endif ()
-
-    if (USE_LOG4CXX)
-        find_library(LOG4CXX_LIBRARY_PATH log4cxx)
-        find_path(LOG4CXX_INCLUDE_PATH log4cxx/logger.h)
-    endif (USE_LOG4CXX)
 endif ()
 
 if (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION LESS 69)
@@ -279,11 +245,6 @@ if (BUILD_TESTS)
     find_path(GTEST_INCLUDE_PATH gtest/gtest.h)
     find_path(GMOCK_INCLUDE_PATH gmock/gmock.h)
 endif ()
-
-if (USE_LOG4CXX)
-    set(CMAKE_CXX_FLAGS " -DUSE_LOG4CXX ${CMAKE_CXX_FLAGS}")
-    find_path(LOG4CXX_INCLUDE_PATH log4cxx/logger.h)
-endif (USE_LOG4CXX)
 
 if (NOT APPLE AND NOT MSVC)
     # Hide all non-exported symbols to avoid conflicts
@@ -323,7 +284,6 @@ include_directories(
   ${ZLIB_INCLUDE_DIRS}
   ${CURL_INCLUDE_DIRS}
   ${Protobuf_INCLUDE_DIRS}
-  ${LOG4CXX_INCLUDE_PATH}
   ${GTEST_INCLUDE_PATH}
   ${GMOCK_INCLUDE_PATH}
 )
