@@ -609,13 +609,13 @@ void ClientConnection::handleRead(const boost::system::error_code& err, size_t b
     incomingBuffer_.bytesWritten(bytesTransferred);
 
     if (err || bytesTransferred == 0) {
-        if (err) {
-            if (err == boost::asio::error::operation_aborted) {
-                LOG_DEBUG(cnxString_ << "Read operation was canceled: " << err.message());
-            } else {
-                LOG_ERROR(cnxString_ << "Read operation failed: " << err.message());
-            }
-        }  // else: bytesTransferred == 0, which means server has closed the connection
+        if (bytesTransferred == 0 || err == boost::asio::error::eof) {
+            LOG_DEBUG(cnxString_ << "Server closed the connection: " << err.message());
+        } else if (err == boost::asio::error::operation_aborted) {
+            LOG_DEBUG(cnxString_ << "Read operation was canceled: " << err.message());
+        } else {
+            LOG_ERROR(cnxString_ << "Read operation failed: " << err.message());
+        }
         close();
     } else if (bytesTransferred < minReadSize) {
         // Read the remaining part, use a slice of buffer to write on the next
@@ -1355,6 +1355,7 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
 void ClientConnection::closeSocket() {
     boost::system::error_code err;
     if (socket_) {
+        socket_->shutdown(boost::asio::socket_base::shutdown_both, err);
         socket_->close(err);
         if (err) {
             LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
