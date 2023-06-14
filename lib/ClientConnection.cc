@@ -609,10 +609,10 @@ void ClientConnection::handleRead(const boost::system::error_code& err, size_t b
     incomingBuffer_.bytesWritten(bytesTransferred);
 
     if (err || bytesTransferred == 0) {
-        if (bytesTransferred == 0 || err == boost::asio::error::eof) {
-            LOG_DEBUG(cnxString_ << "Server closed the connection: " << err.message());
-        } else if (err == boost::asio::error::operation_aborted) {
+        if (err == boost::asio::error::operation_aborted) {
             LOG_DEBUG(cnxString_ << "Read operation was canceled: " << err.message());
+        } else if (bytesTransferred == 0 || err == boost::asio::error::eof) {
+            LOG_DEBUG(cnxString_ << "Server closed the connection: " << err.message());
         } else {
             LOG_ERROR(cnxString_ << "Read operation failed: " << err.message());
         }
