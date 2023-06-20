@@ -34,7 +34,7 @@ struct ProducerConfigurationImpl {
     CompressionType compressionType{CompressionNone};
     int maxPendingMessages{1000};
     int maxPendingMessagesAcrossPartitions{50000};
-    ProducerConfiguration::PartitionsRoutingMode routingMode{ProducerConfiguration::UseSinglePartition};
+    ProducerConfiguration::PartitionsRoutingMode routingMode{ProducerConfiguration::RoundRobinDistribution};
     MessageRoutingPolicyPtr messageRouter;
     ProducerConfiguration::HashingScheme hashingScheme{ProducerConfiguration::BoostHash};
     bool useLazyStartPartitionedProducers{false};
