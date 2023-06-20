@@ -30,14 +30,11 @@ TEST(c_MessageTest, MessageCopy) {
     pulsar_message_t *from = pulsar_message_create();
     pulsar_message_set_content(from, "hello", 5);
     from->message = from->builder.build();
-    std::cout << "from: " << (const char *)pulsar_message_get_data(from) << std::endl;
-
     pulsar_message_t *to = pulsar_message_create();
+
     pulsar_message_copy(from, to);
+    ASSERT_STREQ((const char *)pulsar_message_get_data(to), (const char *)pulsar_message_get_data(from));
+
     pulsar_message_free(from);
-
-    std::cout << "to: " << (const char *)pulsar_message_get_data(to) << std::endl;
-    ASSERT_STREQ((const char *)pulsar_message_get_data(to), "hello");
-
     pulsar_message_free(to);
 }

@@ -41,7 +41,7 @@ PULSAR_PUBLIC pulsar_message_t *pulsar_message_create();
  * @param from  A pointer to the pulsar_message_t object that you want to copy from
  * @param to  A pointer to the pulsar_message_t object that you want to copy to
  */
-PULSAR_PUBLIC void pulsar_message_copy(pulsar_message_t *from, pulsar_message_t *to);
+PULSAR_PUBLIC void pulsar_message_copy(const pulsar_message_t *from, pulsar_message_t *to);
 PULSAR_PUBLIC void pulsar_message_free(pulsar_message_t *message);
 
 /// Builder

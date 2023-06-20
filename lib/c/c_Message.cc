@@ -23,7 +23,7 @@
 
 pulsar_message_t *pulsar_message_create() { return new pulsar_message_t; }
 
-void pulsar_message_copy(pulsar_message_t *from, pulsar_message_t *to) {
+void pulsar_message_copy(const pulsar_message_t *from, pulsar_message_t *to) {
     to->builder = from->builder;
     to->message = from->message;
 }
