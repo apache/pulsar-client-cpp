@@ -23,6 +23,11 @@
 
 pulsar_message_t *pulsar_message_create() { return new pulsar_message_t; }
 
+void pulsar_message_copy(const pulsar_message_t *from, pulsar_message_t *to) {
+    to->builder = from->builder;
+    to->message = from->message;
+}
+
 void pulsar_message_free(pulsar_message_t *message) { delete message; }
 
 void pulsar_message_set_content(pulsar_message_t *message, const void *data, size_t size) {
