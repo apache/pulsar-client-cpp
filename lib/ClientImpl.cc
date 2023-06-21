@@ -506,7 +506,14 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
         }
         callback(result, Consumer(consumer));
     } else {
-        callback(result, {});
+        // In order to be compatible with the current broker error code confusion.
+        // https://github.com/apache/pulsar/blob/cd2aa550d0fe4e72b5ff88c4f6c1c2795b3ff2cd/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/BrokerServiceException.java#L240-L241
+        if (result == ResultProducerBusy) {
+            LOG_ERROR("Failed to create consumer: SubscriptionName cannot be empty.");
+            callback(ResultInvalidConfiguration, {});
+        } else {
+            callback(result, {});
+        }
     }
 }
 
