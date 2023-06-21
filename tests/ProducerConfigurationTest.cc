@@ -33,7 +33,7 @@ TEST(ProducerConfigurationTest, testDefaultConfig) {
     ASSERT_EQ(conf.getCompressionType(), CompressionType::CompressionNone);
     ASSERT_EQ(conf.getMaxPendingMessages(), 1000);
     ASSERT_EQ(conf.getMaxPendingMessagesAcrossPartitions(), 50000);
-    ASSERT_EQ(conf.getPartitionsRoutingMode(), ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(conf.getPartitionsRoutingMode(), ProducerConfiguration::RoundRobinDistribution);
     ASSERT_EQ(conf.getMessageRouterPtr(), MessageRoutingPolicyPtr{});
     ASSERT_EQ(conf.getHashingScheme(), ProducerConfiguration::BoostHash);
     ASSERT_EQ(conf.getBlockIfQueueFull(), false);
@@ -87,6 +87,9 @@ TEST(ProducerConfigurationTest, testCustomConfig) {
 
     conf.setMaxPendingMessagesAcrossPartitions(100000);
     ASSERT_EQ(conf.getMaxPendingMessagesAcrossPartitions(), 100000);
+
+    conf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(conf.getPartitionsRoutingMode(), ProducerConfiguration::UseSinglePartition);
 
     conf.setPartitionsRoutingMode(ProducerConfiguration::RoundRobinDistribution);
     ASSERT_EQ(conf.getPartitionsRoutingMode(), ProducerConfiguration::RoundRobinDistribution);
