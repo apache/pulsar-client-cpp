@@ -17,14 +17,8 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <pulsar/Message.h>
-#include <pulsar/MessageBuilder.h>
+#include <lib/c/c_structs.h>
 #include <pulsar/c/message.h>
-
-struct _pulsar_message {
-    pulsar::MessageBuilder builder;
-    pulsar::Message message;
-};
 
 TEST(c_MessageTest, MessageCopy) {
     pulsar_message_t *from = pulsar_message_create();
