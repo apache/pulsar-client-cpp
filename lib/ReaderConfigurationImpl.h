@@ -38,6 +38,7 @@ struct ReaderConfigurationImpl {
     CryptoKeyReaderPtr cryptoKeyReader;
     ConsumerCryptoFailureAction cryptoFailureAction;
     std::map<std::string, std::string> properties;
+    bool startMessageIdInclusive{false};
 };
 }  // namespace pulsar
 #endif /* LIB_READERCONFIGURATIONIMPL_H_ */

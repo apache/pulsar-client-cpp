@@ -120,6 +120,13 @@ ReaderConfiguration& ReaderConfiguration::setCryptoFailureAction(ConsumerCryptoF
     return *this;
 }
 
+ReaderConfiguration& ReaderConfiguration::setStartMessageIdInclusive(bool startMessageIdInclusive) {
+    impl_->startMessageIdInclusive = startMessageIdInclusive;
+    return *this;
+}
+
+bool ReaderConfiguration::isStartMessageIdInclusive() const { return impl_->startMessageIdInclusive; }
+
 bool ReaderConfiguration::hasProperty(const std::string& name) const {
     const auto& properties = impl_->properties;
     return properties.find(name) != properties.cend();
