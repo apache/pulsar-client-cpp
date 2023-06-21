@@ -20,7 +20,14 @@
 cmake_minimum_required(VERSION 3.7)
 project(pulsar-cpp-wireshark)
 
-set(CMAKE_CXX_STANDARD 11)
+if (NOT CMAKE_CXX_STANDARD)
+    if (APPLE)
+        # The latest Protobuf dependency on macOS requires the C++17 support
+        set(CMAKE_CXX_STANDARD 17)
+    else ()
+        set(CMAKE_CXX_STANDARD 11)
+    endif ()
+endif ()
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
     execute_process(COMMAND sh -c "find $(brew --prefix)/Cellar/wireshark -name 'include' -type d"
@@ -45,7 +52,12 @@ pkg_check_modules(GLIB glib-2.0)
 MESSAGE(STATUS "Use WIRESHARK_INCLUDE_PATH: ${WIRESHARK_INCLUDE_PATH}")
 MESSAGE(STATUS "Use GLIB_INCLUDE_DIRS: ${GLIB_INCLUDE_DIRS}")
 
-find_package(Protobuf REQUIRED)
+set(protobuf_MODULE_COMPATIBLE ON CACHE BOOL "")
+if (APPLE)
+    find_package(Protobuf REQUIRED CONFIG)
+else ()
+    find_package(Protobuf REQUIRED)
+endif ()
 
 set(PROTO_SOURCES PulsarApi.pb.cc)
 protobuf_generate_cpp(${PROTO_SOURCES}
