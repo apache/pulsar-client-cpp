@@ -160,6 +160,18 @@ PULSAR_PUBLIC const char *pulsar_client_configuration_get_tls_trust_certs_file_p
 PULSAR_PUBLIC void pulsar_client_configuration_set_tls_allow_insecure_connection(
     pulsar_client_configuration_t *conf, int allowInsecure);
 
+PULSAR_PUBLIC void pulsar_client_configuration_set_tls_private_key_file_path(
+    pulsar_client_configuration_t *conf, const char *private_key_file_path);
+
+PULSAR_PUBLIC const char *pulsar_client_configuration_get_tls_private_key_file_path(
+    pulsar_client_configuration_t *conf);
+
+PULSAR_PUBLIC void pulsar_client_configuration_set_tls_certificate_file_path(
+    pulsar_client_configuration_t *conf, const char *certificateFilePath);
+
+PULSAR_PUBLIC const char *pulsar_client_configuration_get_tls_certificate_file_path(
+    pulsar_client_configuration_t *conf);
+
 PULSAR_PUBLIC int pulsar_client_configuration_is_tls_allow_insecure_connection(
     pulsar_client_configuration_t *conf);
 
