@@ -1311,4 +1311,14 @@ TEST(ConsumerTest, testNegativeAckDeadlock) {
     client.close();
 }
 
+TEST(ConsumerTest, testNotSetSubscriptionName) {
+    const std::string topic = "test-not-set-sub-name";
+    Client client{lookupUrl};
+    ConsumerConfiguration conf;
+    Consumer consumer;
+    ASSERT_EQ(ResultInvalidConfiguration, client.subscribe(topic, "", conf, consumer));
+
+    client.close();
+}
+
 }  // namespace pulsar
