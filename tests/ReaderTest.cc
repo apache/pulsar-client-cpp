@@ -700,4 +700,56 @@ TEST_P(ReaderTest, testReceiveAfterSeek) {
     client.close();
 }
 
+TEST(ReaderSeekTest, testSeekForMessageId) {
+    Client client(serviceUrl);
+
+    const std::string topic = "test-seek-for-message-id-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+
+    Reader readerExclusive;
+    ASSERT_EQ(ResultOk,
+              client.createReader(topic, MessageId::latest(), ReaderConfiguration(), readerExclusive));
+
+    Reader readerInclusive;
+    ASSERT_EQ(ResultOk,
+              client.createReader(topic, MessageId::latest(),
+                                  ReaderConfiguration().setStartMessageIdInclusive(true), readerInclusive));
+
+    const auto numMessages = 100;
+    MessageId seekMessageId;
+
+    int r = (rand() % (numMessages - 1));
+    for (int i = 0; i < numMessages; i++) {
+        MessageId id;
+        ASSERT_EQ(ResultOk,
+                  producer.send(MessageBuilder().setContent("msg-" + std::to_string(i)).build(), id));
+
+        if (i == r) {
+            seekMessageId = id;
+        }
+    }
+
+    LOG_INFO("The seekMessageId is: " << seekMessageId << ", r : " << r);
+
+    readerExclusive.seek(seekMessageId);
+    Message msg0;
+    ASSERT_EQ(ResultOk, readerExclusive.readNext(msg0, 3000));
+
+    readerInclusive.seek(seekMessageId);
+    Message msg1;
+    ASSERT_EQ(ResultOk, readerInclusive.readNext(msg1, 3000));
+
+    LOG_INFO("readerExclusive received " << msg0.getDataAsString() << " from " << msg0.getMessageId());
+    LOG_INFO("readerInclusive received " << msg1.getDataAsString() << " from " << msg1.getMessageId());
+
+    ASSERT_EQ(msg0.getDataAsString(), "msg-" + std::to_string(r + 1));
+    ASSERT_EQ(msg1.getDataAsString(), "msg-" + std::to_string(r));
+
+    readerExclusive.close();
+    readerInclusive.close();
+    producer.close();
+}
+
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));

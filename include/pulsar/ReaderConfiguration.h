@@ -264,6 +264,21 @@ class PULSAR_PUBLIC ReaderConfiguration {
     ReaderConfiguration& setCryptoFailureAction(ConsumerCryptoFailureAction action);
 
     /**
+     * Set the reader to include the startMessageId or given position of any reset operation like
+     * Reader::seek.
+     *
+     * Default: false
+     *
+     * @param startMessageIdInclusive whether to include the reset position
+     */
+    ReaderConfiguration& setStartMessageIdInclusive(bool startMessageIdInclusive);
+
+    /**
+     * The associated getter of setStartMessageIdInclusive
+     */
+    bool isStartMessageIdInclusive() const;
+
+    /**
      * Check whether the message has a specific property attached.
      *
      * @param name the name of the property to check

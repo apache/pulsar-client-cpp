@@ -59,6 +59,7 @@ void ReaderImpl::start(const MessageId& startMessageId,
     consumerConf.setCryptoKeyReader(readerConf_.getCryptoKeyReader());
     consumerConf.setCryptoFailureAction(readerConf_.getCryptoFailureAction());
     consumerConf.setProperties(readerConf_.getProperties());
+    consumerConf.setStartMessageIdInclusive(readerConf_.isStartMessageIdInclusive());
 
     if (readerConf_.getReaderName().length() > 0) {
         consumerConf.setConsumerName(readerConf_.getReaderName());
