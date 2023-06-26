@@ -34,6 +34,8 @@ constexpr int kWiresharkMinorVersion = VERSION_MINOR;
 #include <glib.h>
 #include <wsutil/nstime.h>
 
+#include <map>
+
 #include "PulsarApi.pb.h"
 
 #ifdef VERSION

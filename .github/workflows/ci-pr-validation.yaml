@@ -50,11 +50,7 @@ jobs:
       - name: Install deps (macOS)
         if: ${{ startsWith(matrix.os, 'macos') }}
         run: |
-          # Install protobuf v21.12
-          wget https://raw.githubusercontent.com/Homebrew/homebrew-core/2d47ed2eac09d59ffc2c92b1d804f1c232188c88/Formula/protobuf.rb
-          brew install --formula ./protobuf.rb
-          brew install pkg-config wireshark
-
+          brew install pkg-config wireshark protobuf
       - name: Build wireshark plugin
         run: |
           cmake -S wireshark -B build-wireshark
@@ -270,20 +266,11 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install dependencies
-        run: |
-         # Install protobuf v21.12
-         wget https://raw.githubusercontent.com/Homebrew/homebrew-core/2d47ed2eac09d59ffc2c92b1d804f1c232188c88/Formula/protobuf.rb
-         brew install --formula ./protobuf.rb
-         brew install openssl boost zstd snappy googletest
+        run: brew install openssl protobuf boost zstd snappy googletest
 
       - name: Configure (default)
         shell: bash
-        run: |
-          # The latest GTest requires C++14
-          cmake \
-              -B ./build-macos \
-              -DCMAKE_CXX_STANDARD=14 \
-              -S .
+        run: cmake -B ./build-macos -S .
 
       - name: Compile
         shell: bash

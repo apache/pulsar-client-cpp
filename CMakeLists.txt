@@ -86,7 +86,12 @@ MESSAGE(STATUS "Threads library: " ${CMAKE_THREAD_LIBS_INIT})
 
 set(Boost_NO_BOOST_CMAKE ON)
 if (NOT CMAKE_CXX_STANDARD)
-    set(CMAKE_CXX_STANDARD 11)
+    if (APPLE)
+        # The latest Protobuf dependency on macOS requires the C++17 support
+        set(CMAKE_CXX_STANDARD 17)
+    else ()
+        set(CMAKE_CXX_STANDARD 11)
+    endif ()
 endif ()
 set(CMAKE_C_STANDARD 11)
 
@@ -135,7 +140,14 @@ find_package(OpenSSL REQUIRED)
 message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
 message("OPENSSL_LIBRARIES: " ${OPENSSL_LIBRARIES})
 
-find_package(Protobuf REQUIRED)
+if (APPLE)
+    # See https://github.com/apache/arrow/issues/35987
+    add_definitions(-DPROTOBUF_USE_DLLS)
+    # Use Config mode to avoid FindProtobuf.cmake does not find the Abseil library
+    find_package(Protobuf REQUIRED CONFIG)
+else ()
+    find_package(Protobuf REQUIRED)
+endif ()
 message("Protobuf_INCLUDE_DIRS: " ${Protobuf_INCLUDE_DIRS})
 message("Protobuf_LIBRARIES: " ${Protobuf_LIBRARIES})
 
@@ -173,7 +185,7 @@ if (LINK_STATIC AND NOT VCPKG_TRIPLET)
         add_definitions(-DCURL_STATICLIB)
     endif()
 elseif (LINK_STATIC AND VCPKG_TRIPLET)
-    find_package(protobuf REQUIRED)
+    find_package(Protobuf REQUIRED)
     message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(ZLIB_LIBRARIES NAMES zlibd)
@@ -296,13 +308,19 @@ set(COMMON_LIBS
   ${Boost_REGEX_LIBRARY}
   ${Boost_SYSTEM_LIBRARY}
   ${Boost_DATE_TIME_LIBRARY}
-  ${Protobuf_LIBRARIES}
   ${CURL_LIBRARIES}
   ${OPENSSL_LIBRARIES}
   ${ZLIB_LIBRARIES}
   ${ADDITIONAL_LIBRARIES}
   ${CMAKE_DL_LIBS}
 )
+
+if (APPLE)
+    # Protobuf_LIBRARIES is empty when finding Protobuf in Config mode
+    set(COMMON_LIBS ${COMMON_LIBS} protobuf::libprotobuf)
+else ()
+    set(COMMON_LIBS ${COMMON_LIBS} ${Protobuf_LIBRARIES})
+endif ()
 
 if (MSVC)
     set(COMMON_LIBS
