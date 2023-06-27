@@ -1321,4 +1321,18 @@ TEST(ConsumerTest, testNotSetSubscriptionName) {
     client.close();
 }
 
+TEST(ConsumerTest, testRetrySubscribe) {
+    Client client{lookupUrl};
+    for (int i = 0; i < 10; i++) {
+        // "Subscription is fenced" error might happen here because the previous seek operation might not be
+        // done in broker, the consumer should retry until timeout
+        Consumer consumer;
+        ASSERT_EQ(client.subscribe("test-close-before-seek-done", "sub", consumer), ResultOk);
+        consumer.seekAsync(MessageId::earliest(), [](Result) {});
+        consumer.close();
+    }
+    // TODO: Currently it's hard to test the timeout error without configuring the operation timeout in
+    // milliseconds
+}
+
 }  // namespace pulsar
