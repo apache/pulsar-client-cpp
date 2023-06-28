@@ -318,13 +318,11 @@ void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result r
             scheduleReconnection(get_shared_this_ptr());
         } else {
             // Consumer was not yet created, retry to connect to broker if it's possible
-            if (isRetriableError(result) && (TimeUtils::now() - creationTimestamp_ < operationTimeut_)) {
-                LOG_WARN(getName() << "Temporary error in creating consumer : " << strResult(result));
+            result = convertToTimeoutIfNecessary(result, creationTimestamp_);
+            if (result == ResultRetryable) {
+                LOG_WARN(getName() << "Temporary error in creating consumer: " << strResult(result));
                 scheduleReconnection(get_shared_this_ptr());
             } else {
-                if (isRetriableError(result)) {
-                    result = ResultTimeout;
-                }
                 LOG_ERROR(getName() << "Failed to create consumer: " << strResult(result));
                 consumerCreatedPromise_.setFailed(result);
                 state_ = Failed;

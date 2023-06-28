@@ -69,11 +69,6 @@ class HandlerBase {
      */
     static void scheduleReconnection(HandlerBasePtr handler);
 
-    /*
-     * Should we retry in error that are transient
-     */
-    bool isRetriableError(Result result);
-
     /**
      * Do some cleanup work before changing `connection_` to `cnx`.
      *
@@ -126,6 +121,8 @@ class HandlerBase {
     std::atomic<State> state_;
     Backoff backoff_;
     uint64_t epoch_;
+
+    Result convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const;
 
    private:
     DeadlineTimerPtr timer_;
