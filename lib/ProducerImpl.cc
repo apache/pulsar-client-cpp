@@ -285,6 +285,9 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
                 LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(result));
                 scheduleReconnection(shared_from_this());
             } else {
+                if (isRetriableError(result)) {
+                    result = ResultTimeout;
+                }
                 LOG_ERROR(getName() << "Failed to create producer: " << strResult(result));
                 failPendingMessages(result, false);
                 state_ = Failed;
