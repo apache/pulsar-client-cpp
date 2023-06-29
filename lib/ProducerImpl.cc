@@ -281,7 +281,8 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             scheduleReconnection(shared_from_this());
         } else {
             // Producer was not yet created, retry to connect to broker if it's possible
-            if (isRetriableError(result) && (creationTimestamp_ + operationTimeut_ < TimeUtils::now())) {
+            result = convertToTimeoutIfNecessary(result, creationTimestamp_);
+            if (result == ResultRetryable) {
                 LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(result));
                 scheduleReconnection(shared_from_this());
             } else {

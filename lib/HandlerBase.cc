@@ -138,8 +138,6 @@ void HandlerBase::handleDisconnection(Result result, ClientConnectionWeakPtr con
     }
 }
 
-bool HandlerBase::isRetriableError(Result result) { return result == ResultRetryable; }
-
 void HandlerBase::scheduleReconnection(HandlerBasePtr handler) {
     const auto state = handler->state_.load();
     if (state == Pending || state == Ready) {
@@ -161,6 +159,14 @@ void HandlerBase::handleTimeout(const boost::system::error_code& ec, HandlerBase
     } else {
         handler->epoch_++;
         handler->grabCnx();
+    }
+}
+
+Result HandlerBase::convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const {
+    if (result == ResultRetryable && (TimeUtils::now() - startTimestamp >= operationTimeut_)) {
+        return ResultTimeout;
+    } else {
+        return result;
     }
 }
 
