@@ -159,25 +159,7 @@ TEST(LookupServiceTest, testRetry) {
     ASSERT_EQ(ResultOk, future3.get(namespaceTopicsPtr));
     LOG_INFO("getTopicPartitionName Async returns " << namespaceTopicsPtr->size() << " topics");
 
-    std::atomic_int retryCount{0};
-    constexpr int totalRetryCount = 3;
-    auto future4 = lookupService->executeAsync<int>("key", [&retryCount]() -> Future<Result, int> {
-        Promise<Result, int> promise;
-        if (++retryCount < totalRetryCount) {
-            LOG_INFO("Retry count: " << retryCount);
-            promise.setFailed(ResultRetryable);
-        } else {
-            LOG_INFO("Retry done with " << retryCount << " times");
-            promise.setValue(100);
-        }
-        return promise.getFuture();
-    });
-    int customResult = 0;
-    ASSERT_EQ(ResultOk, future4.get(customResult));
-    ASSERT_EQ(customResult, 100);
-    ASSERT_EQ(retryCount.load(), totalRetryCount);
-
-    ASSERT_EQ(PulsarFriend::getNumberOfPendingTasks(*lookupService), 0);
+    ASSERT_EQ(lookupService->getNumberOfPendingTasks(), 0);
 }
 
 TEST(LookupServiceTest, testTimeout) {
@@ -221,7 +203,7 @@ TEST(LookupServiceTest, testTimeout) {
     ASSERT_EQ(ResultTimeout, future3.get(namespaceTopicsPtr));
     afterMethod("getTopicsOfNamespaceAsync");
 
-    ASSERT_EQ(PulsarFriend::getNumberOfPendingTasks(*lookupService), 0);
+    ASSERT_EQ(lookupService->getNumberOfPendingTasks(), 0);
 }
 
 class LookupServiceTest : public ::testing::TestWithParam<std::string> {
