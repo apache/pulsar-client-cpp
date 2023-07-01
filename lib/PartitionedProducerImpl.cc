@@ -471,8 +471,8 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
         }
     } else {
         LOG_WARN("Failed to getPartitionMetadata: " << strResult(result));
-        runPartitionUpdateTask();
     }
+    runPartitionUpdateTask();
 }
 
 bool PartitionedProducerImpl::isConnected() const {
