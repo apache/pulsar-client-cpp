@@ -191,7 +191,7 @@ TEST(BasicEndToEndTest, testBatchMessages) {
 }
 
 void resendMessage(Result r, const MessageId msgId, Producer producer) {
-    Lock lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     if (r != ResultOk) {
         LOG_DEBUG("globalResendMessageCount" << globalResendMessageCount);
         if (++globalResendMessageCount >= 3) {
@@ -993,7 +993,7 @@ TEST(BasicEndToEndTest, testResendViaSendCallback) {
     // 3 seconds
     std::this_thread::sleep_for(std::chrono::microseconds(3 * 1000 * 1000));
     producer.close();
-    Lock lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     ASSERT_GE(globalResendMessageCount, 3);
 }
 
