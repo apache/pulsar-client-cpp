@@ -35,6 +35,9 @@ class InternalState {
     using Listener = std::function<void(Result, const Type &)>;
     using Pair = std::pair<Result, Type>;
 
+    // NOTE: Add the constructor explicitly just to be compatible with GCC 4.8
+    InternalState() {}
+
     void addListener(Listener listener) {
         if (completed()) {
             // Allow get_future() being called multiple times, only the 1st time will wait() be called to wait
