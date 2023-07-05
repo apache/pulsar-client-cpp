@@ -71,7 +71,7 @@ class InternalState {
         return pair.first;
     }
 
-    // Only for test
+    // Only public for test
     void triggerListeners(Result result, const Type &value) {
         while (true) {
             Lock lock{mutex_};
