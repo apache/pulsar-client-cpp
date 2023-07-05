@@ -71,7 +71,7 @@ void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
         return;
     }
 
-    Lock lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     std::ostringstream oss;
     oss << *this;
     numMsgsSent_ = 0;
@@ -86,7 +86,7 @@ void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
 }
 
 void ProducerStatsImpl::messageSent(const Message& msg) {
-    Lock lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     numMsgsSent_++;
     totalMsgsSent_++;
     numBytesSent_ += msg.getLength();
@@ -96,7 +96,7 @@ void ProducerStatsImpl::messageSent(const Message& msg) {
 void ProducerStatsImpl::messageReceived(Result res, const boost::posix_time::ptime& publishTime) {
     boost::posix_time::ptime currentTime = boost::posix_time::microsec_clock::universal_time();
     double diffInMicros = (currentTime - publishTime).total_microseconds();
-    Lock lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     totalLatencyAccumulator_(diffInMicros);
     latencyAccumulator_(diffInMicros);
     sendMap_[res] += 1;       // Value will automatically be initialized to 0 in the constructor
