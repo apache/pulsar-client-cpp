@@ -40,7 +40,12 @@ TEST(c_TableViewTest, testSimpleTableView) {
     const int num = 10;
     const char *key1 = "key1";
     const char *key2 = "key2";
-    const char *value = "content";
+    size_t data_size = 4;
+    int *data = (int *)malloc(data_size);
+    data[0] = 0x01;
+    data[1] = 0x00;
+    data[2] = 0x02;
+    data[3] = 0x00;
     for (int i = 0; i < num; i++) {
         pulsar_message_t *message = pulsar_message_create();
         if (i % 2 == 0) {
@@ -48,7 +53,7 @@ TEST(c_TableViewTest, testSimpleTableView) {
         } else {
             pulsar_message_set_partition_key(message, key2);
         }
-        pulsar_message_set_content(message, value, strlen(value));
+        pulsar_message_set_content(message, data, data_size);
         pulsar_result res = pulsar_producer_send(producer, message);
         ASSERT_EQ(pulsar_result_Ok, res);
         pulsar_message_free(message);
@@ -61,25 +66,25 @@ TEST(c_TableViewTest, testSimpleTableView) {
     result = pulsar_client_create_table_view(client, topic_name, table_view_conf, &table_view);
     ASSERT_EQ(pulsar_result_Ok, result);
 
-    char *v1;
+    void *v1;
+    size_t v1_size;
     ASSERT_EQ(pulsar_table_view_size(table_view), 2);
-    ASSERT_TRUE(pulsar_table_view_get_value(table_view, "key1", &v1));
-    ASSERT_STREQ(v1, "content");
-    delete v1;
+    ASSERT_TRUE(pulsar_table_view_get_value(table_view, "key1", &v1, &v1_size));
+    ASSERT_EQ(v1_size, data_size);
+    ASSERT_EQ(memcmp(v1, data, data_size), 0);
+    free(v1);
 
-    char *v2;
-    ASSERT_TRUE(pulsar_table_view_retrieve_value(table_view, "key2", &v2));
-    ASSERT_STREQ(v2, "content");
-    delete v2;
+    void *v2;
+    size_t v2_size;
+    ASSERT_TRUE(pulsar_table_view_retrieve_value(table_view, "key2", &v2, &v2_size));
+    ASSERT_EQ(v2_size, data_size);
+    ASSERT_EQ(memcmp(v1, data, data_size), 0);
+    free(v2);
 
     ASSERT_FALSE(pulsar_table_view_contain_key(table_view, "key2"));
     ASSERT_EQ(pulsar_table_view_size(table_view), 1);
 
-    pulsar_string_map_t *pMap = pulsar_table_view_snapshot(table_view);
-    ASSERT_EQ(pulsar_table_view_size(table_view), 0);
-    ASSERT_EQ(pulsar_string_map_size(pMap), 1);
-    pulsar_string_map_free(pMap);
-
+    free(data);
     pulsar_producer_close(producer);
     pulsar_table_view_close(table_view);
     pulsar_client_close(client);

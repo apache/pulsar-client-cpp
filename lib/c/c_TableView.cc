@@ -18,34 +18,37 @@
  */
 
 #include <pulsar/c/table_view.h>
+#include <string.h>
 
 #include "c_structs.h"
-#include "cstring"
 
-char *str_malloc_and_copy(const char *s) {
-    size_t slen = strlen(s);
-    char *result = (char *)malloc(slen + 1);
+static void *malloc_and_copy(const char *s, size_t slen) {
+    void *result = (void *)malloc(slen);
     if (result == NULL) {
         return NULL;
     }
-    memcpy(result, s, slen + 1);
+    memcpy(result, s, slen);
     return result;
 }
 
-bool pulsar_table_view_retrieve_value(pulsar_table_view_t *table_view, const char *key, char **value) {
+bool pulsar_table_view_retrieve_value(pulsar_table_view_t *table_view, const char *key, void **value,
+                                      size_t *value_size) {
     std::string v;
     bool result = table_view->tableView.retrieveValue(key, v);
     if (result) {
-        *value = str_malloc_and_copy(v.c_str());
+        *value = malloc_and_copy(v.c_str(), v.size());
+        *value_size = v.size();
     }
     return result;
 }
 
-bool pulsar_table_view_get_value(pulsar_table_view_t *table_view, const char *key, char **value) {
+bool pulsar_table_view_get_value(pulsar_table_view_t *table_view, const char *key, void **value,
+                                 size_t *value_size) {
     std::string v;
     bool result = table_view->tableView.getValue(key, v);
     if (result) {
-        *value = str_malloc_and_copy(v.c_str());
+        *value = malloc_and_copy(v.c_str(), v.size());
+        *value_size = v.size();
     }
     return result;
 }
@@ -59,7 +62,7 @@ int pulsar_table_view_size(pulsar_table_view_t *table_view) { return table_view-
 void pulsar_table_view_for_each(pulsar_table_view_t *table_view, pulsar_table_view_action action, void *ctx) {
     table_view->tableView.forEach([action, ctx](const std::string &key, const std::string &value) {
         if (action) {
-            action(key.c_str(), value.c_str(), ctx);
+            action(key.c_str(), value.c_str(), value.size(), ctx);
         }
     });
 }
@@ -68,18 +71,9 @@ void pulsar_table_view_for_each_add_listen(pulsar_table_view_t *table_view, puls
                                            void *ctx) {
     table_view->tableView.forEachAndListen([action, ctx](const std::string &key, const std::string &value) {
         if (action) {
-            action(key.c_str(), value.c_str(), ctx);
+            action(key.c_str(), value.c_str(), value.size(), ctx);
         }
     });
-}
-
-pulsar_string_map_t *pulsar_table_view_snapshot(pulsar_table_view_t *table_view) {
-    auto map = pulsar_string_map_create();
-    auto snapshot = table_view->tableView.snapshot();
-    for (const auto &item : snapshot) {
-        map->map.emplace(item);
-    }
-    return map;
 }
 
 void pulsar_table_view_free(pulsar_table_view_t *table_view) { delete table_view; }

@@ -31,7 +31,8 @@ extern "C" {
 
 typedef struct _pulsar_table_view pulsar_table_view_t;
 
-typedef void (*pulsar_table_view_action)(const char *key, const char *value, void *ctx);
+typedef void (*pulsar_table_view_action)(const char *key, const void *value, const size_t value_size,
+                                         void *ctx);
 typedef void (*pulsar_result_callback)(pulsar_result, void *);
 
 /**
@@ -41,7 +42,7 @@ typedef void (*pulsar_result_callback)(pulsar_result, void *);
  * 1. Once the value has been retrieved successfully,
  * the associated value will be removed from the table view until next time the value is updated.
  * 2. Once the value has been retrieved successfully, `*value` will point to the memory that is allocated
- * internally. You have to call `delete value` to free it.
+ * internally. You have to call `free(value)` to free it.
  *
  * Example:
  *
@@ -55,7 +56,7 @@ typedef void (*pulsar_result_callback)(pulsar_result, void *);
  *         // sleep for a while or print the message that value is not updated
  *     }
  * }
- * delete value;
+ * free(value);
  * ```
  *
  * @param table_view
@@ -64,7 +65,7 @@ typedef void (*pulsar_result_callback)(pulsar_result, void *);
  * @return true if there is an associated value of the key, otherwise false
  */
 PULSAR_PUBLIC bool pulsar_table_view_retrieve_value(pulsar_table_view_t *table_view, const char *key,
-                                                    char **value);
+                                                    void **value, size_t *value_size);
 
 /**
  * It's similar with `pulsar_table_view_retrieve_value` except the associated value not will be removed from
@@ -72,15 +73,15 @@ PULSAR_PUBLIC bool pulsar_table_view_retrieve_value(pulsar_table_view_t *table_v
  *
  * NOTE:
  * Once the value has been get successfully, `*value` will point to the memory that is allocated internally.
- * You have to call `delete value` to free it.
+ * You have to call `free(value)` to free it.
  *
  * @param table_view
  * @param key
  * @param value the value associated with the key
  * @return true if there is an associated value of the key, otherwise false
  */
-PULSAR_PUBLIC bool pulsar_table_view_get_value(pulsar_table_view_t *table_view, const char *key,
-                                               char **value);
+PULSAR_PUBLIC bool pulsar_table_view_get_value(pulsar_table_view_t *table_view, const char *key, void **value,
+                                               size_t *value_size);
 
 /**
  * Check if the key exists in the table view.
@@ -110,15 +111,6 @@ PULSAR_PUBLIC void pulsar_table_view_for_each(pulsar_table_view_t *table_view,
  */
 PULSAR_PUBLIC void pulsar_table_view_for_each_add_listen(pulsar_table_view_t *table_view,
                                                          pulsar_table_view_action action, void *ctx);
-
-/**
- * Move the table view data into the pulsar_string_map_t.
- *
- * @param table_view
- * @return *string_map `string_map` will point to the memory that is allocated internally.
- * You have to call `pulsar_string_map_free` to free it.
- */
-PULSAR_PUBLIC pulsar_string_map_t *pulsar_table_view_snapshot(pulsar_table_view_t *table_view);
 
 /**
  * Free the table view.
