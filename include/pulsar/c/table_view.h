@@ -31,8 +31,7 @@ extern "C" {
 
 typedef struct _pulsar_table_view pulsar_table_view_t;
 
-typedef void (*pulsar_table_view_action)(const char *key, const void *value, const size_t value_size,
-                                         void *ctx);
+typedef void (*pulsar_table_view_action)(const char *key, const void *value, size_t value_size, void *ctx);
 typedef void (*pulsar_result_callback)(pulsar_result, void *);
 
 /**
@@ -49,8 +48,9 @@ typedef void (*pulsar_result_callback)(pulsar_result, void *);
  * ```c
  * pulsar_table_view_t *table_view;
  * char *value;
+ * size_t value_size;
  * while (true) {
- *     if (pulsar_table_view_retrieve_value(table_view, "key", &value)) {
+ *     if (pulsar_table_view_retrieve_value(table_view, "key", &value, &value_size)) {
  *         printf("value is update to: %s", value);
  *     } else {
  *         // sleep for a while or print the message that value is not updated

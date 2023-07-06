@@ -25,7 +25,7 @@
 static void *malloc_and_copy(const char *s, size_t slen) {
     void *result = (void *)malloc(slen);
     if (result == NULL) {
-        return NULL;
+        abort();
     }
     memcpy(result, s, slen);
     return result;
