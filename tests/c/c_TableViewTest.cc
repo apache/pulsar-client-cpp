@@ -71,7 +71,9 @@ static void tv_action(const char *key, const void *value, size_t value_size, voi
 }
 
 TEST(c_TableViewTest, testSimpleTableView) {
-    const char *topic_name = "persistent://public/default/1test-table_view";
+    srand(time(NULL));
+    char topic_name[64];
+    snprintf(topic_name, 64, "persistent://public/default/test-table-view-%d", rand());
     const char *sub_name = "my-sub-name";
 
     pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
