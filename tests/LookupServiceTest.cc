@@ -37,14 +37,38 @@
 #include "lib/RetryableLookupService.h"
 #include "lib/TimeUtils.h"
 
-using namespace pulsar;
-
 DECLARE_LOG_OBJECT()
 
 static std::string binaryLookupUrl = "pulsar://localhost:6650";
 static std::string httpLookupUrl = "http://localhost:8080";
 
 extern std::string unique_str();
+
+namespace pulsar {
+
+class LookupServiceTest : public ::testing::TestWithParam<std::string> {
+   public:
+    void SetUp() override { client_ = Client{GetParam()}; }
+    void TearDown() override { client_.close(); }
+
+    template <typename T>
+    static bool isEmpty(const RetryableOperationCache<T>& cache) {
+        std::lock_guard<std::mutex> lock{cache.mutex_};
+        return cache.operations_.empty();
+    }
+
+    static size_t isEmpty(const RetryableLookupService& service) {
+        return isEmpty(*service.lookupCache_) && isEmpty(*service.partitionLookupCache_) &&
+               isEmpty(*service.namespaceLookupCache_) && isEmpty(*service.getSchemaCache_);
+    }
+
+   protected:
+    Client client_{httpLookupUrl};
+};
+
+}  // namespace pulsar
+
+using namespace pulsar;
 
 TEST(LookupServiceTest, basicLookup) {
     ExecutorServiceProviderPtr service = std::make_shared<ExecutorServiceProvider>(1);
@@ -159,7 +183,7 @@ TEST(LookupServiceTest, testRetry) {
     ASSERT_EQ(ResultOk, future3.get(namespaceTopicsPtr));
     LOG_INFO("getTopicPartitionName Async returns " << namespaceTopicsPtr->size() << " topics");
 
-    ASSERT_EQ(lookupService->getNumberOfPendingTasks(), 0);
+    ASSERT_TRUE(LookupServiceTest::isEmpty(*lookupService));
 }
 
 TEST(LookupServiceTest, testTimeout) {
@@ -203,17 +227,8 @@ TEST(LookupServiceTest, testTimeout) {
     ASSERT_EQ(ResultTimeout, future3.get(namespaceTopicsPtr));
     afterMethod("getTopicsOfNamespaceAsync");
 
-    ASSERT_EQ(lookupService->getNumberOfPendingTasks(), 0);
+    ASSERT_TRUE(LookupServiceTest::isEmpty(*lookupService));
 }
-
-class LookupServiceTest : public ::testing::TestWithParam<std::string> {
-   public:
-    void SetUp() override { client_ = Client{GetParam()}; }
-    void TearDown() override { client_.close(); }
-
-   protected:
-    Client client_{httpLookupUrl};
-};
 
 TEST_P(LookupServiceTest, basicGetNamespaceTopics) {
     Result result;

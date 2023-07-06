@@ -34,6 +34,8 @@ using RetryableOperationCachePtr = std::shared_ptr<RetryableOperationCache<T>>;
 
 template <typename T>
 class RetryableOperationCache : public std::enable_shared_from_this<RetryableOperationCache<T>> {
+    friend class LookupServiceTest;
+    friend class RetryableOperationCacheTest;
     struct PassKey {
         explicit PassKey() {}
     };
@@ -100,11 +102,6 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
         for (auto&& kv : operations) {
             kv.second->cancel();
         }
-    }
-
-    size_t size() const {
-        std::lock_guard<std::mutex> lock{mutex_};
-        return operations_.size();
     }
 
    private:

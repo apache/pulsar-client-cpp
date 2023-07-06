@@ -28,7 +28,7 @@ namespace pulsar {
 
 class RetryableLookupService : public LookupService {
    private:
-    friend class PulsarFriend;
+    friend class LookupServiceTest;
     struct PassKey {
         explicit PassKey() {}
     };
@@ -37,6 +37,13 @@ class RetryableLookupService : public LookupService {
     template <typename... Args>
     explicit RetryableLookupService(PassKey, Args&&... args)
         : RetryableLookupService(std::forward<Args>(args)...) {}
+
+    void close() override {
+        lookupCache_->clear();
+        partitionLookupCache_->clear();
+        namespaceLookupCache_->clear();
+        getSchemaCache_->clear();
+    }
 
     template <typename... Args>
     static std::shared_ptr<RetryableLookupService> create(Args&&... args) {
@@ -65,11 +72,6 @@ class RetryableLookupService : public LookupService {
         return getSchemaCache_->run("get-schema" + topicName->toString(), [this, topicName, version] {
             return lookupService_->getSchema(topicName, version);
         });
-    }
-
-    size_t getNumberOfPendingTasks() const {
-        return lookupCache_->size() + partitionLookupCache_->size() + namespaceLookupCache_->size() +
-               getSchemaCache_->size();
     }
 
    private:

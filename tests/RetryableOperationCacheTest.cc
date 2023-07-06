@@ -23,7 +23,7 @@
 
 #include "lib/RetryableOperationCache.h"
 
-using namespace pulsar;
+namespace pulsar {
 
 using IntFuture = Future<Result, int>;
 
@@ -67,20 +67,30 @@ class RetryableOperationCacheTest : public ::testing::Test {
         futures_.clear();
     }
 
+    template <typename T>
+    size_t getSize(const RetryableOperationCache<T>& cache) {
+        std::lock_guard<std::mutex> lock{cache.mutex_};
+        return cache.operations_.size();
+    }
+
     ExecutorServiceProviderPtr provider_;
     std::vector<IntFuture> futures_;
 };
+
+}  // namespace pulsar
+
+using namespace pulsar;
 
 TEST_F(RetryableOperationCacheTest, testRetry) {
     auto cache = RetryableOperationCache<int>::create(provider_, 30 /* seconds */);
     for (int i = 0; i < 10; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i), CountdownFunc{i * 100}));
     }
-    ASSERT_EQ(cache->size(), 10);
+    ASSERT_EQ(getSize(*cache), 10);
     for (int i = 0; i < 10; i++) {
         ASSERT_EQ(wait(futures_[i]), i * 100);
     }
-    ASSERT_EQ(cache->size(), 0);
+    ASSERT_EQ(getSize(*cache), 0);
 }
 
 TEST_F(RetryableOperationCacheTest, testCache) {
@@ -89,11 +99,11 @@ TEST_F(RetryableOperationCacheTest, testCache) {
     for (int i = 0; i < 100; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i % numKeys), CountdownFunc{i * 100}));
     }
-    ASSERT_EQ(cache->size(), numKeys);
+    ASSERT_EQ(getSize(*cache), numKeys);
     for (int i = 0; i < 100; i++) {
         ASSERT_EQ(wait(futures_[i]), (i % numKeys) * 100);
     }
-    ASSERT_EQ(cache->size(), 0);
+    ASSERT_EQ(getSize(*cache), 0);
 }
 
 TEST_F(RetryableOperationCacheTest, testTimeout) {
@@ -112,7 +122,7 @@ TEST_F(RetryableOperationCacheTest, testClear) {
     for (int i = 0; i < 10; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i), CountdownFunc{100}));
     }
-    ASSERT_EQ(cache->size(), 10);
+    ASSERT_EQ(getSize(*cache), 10);
     cache->clear();
     for (auto&& future : futures_) {
         int value;
@@ -120,5 +130,5 @@ TEST_F(RetryableOperationCacheTest, testClear) {
         ASSERT_EQ(ResultOk, future.get(value));
         ASSERT_EQ(value, 0);
     }
-    ASSERT_EQ(cache->size(), 0);
+    ASSERT_EQ(getSize(*cache), 0);
 }

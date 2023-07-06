@@ -598,6 +598,7 @@ void ClientImpl::closeAsync(CloseCallback callback) {
     state_ = Closing;
 
     memoryLimitController_.close();
+    lookupServicePtr_->close();
 
     auto producers = producers_.move();
     auto consumers = consumers_.move();
