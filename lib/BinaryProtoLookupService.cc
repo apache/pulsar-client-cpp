@@ -146,7 +146,7 @@ void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& 
 }
 
 uint64_t BinaryProtoLookupService::newRequestId() {
-    Lock lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     return ++requestIdGenerator_;
 }
 

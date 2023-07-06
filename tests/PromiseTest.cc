@@ -24,6 +24,9 @@
 #include <vector>
 
 #include "lib/Future.h"
+#include "lib/LogUtils.h"
+
+DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
@@ -83,4 +86,28 @@ TEST(PromiseTest, testListeners) {
     ASSERT_FALSE(resultSetValue);
     ASSERT_EQ(results, (std::vector<int>(2, 0)));
     ASSERT_EQ(values, (std::vector<std::string>(2, "hello")));
+}
+
+TEST(PromiseTest, testTriggerListeners) {
+    InternalState<int, int> state;
+    state.addListener([](int, const int&) {
+        LOG_INFO("Start task 1...");
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        LOG_INFO("Finish task 1...");
+    });
+    state.addListener([](int, const int&) {
+        LOG_INFO("Start task 2...");
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        LOG_INFO("Finish task 2...");
+    });
+
+    auto start = std::chrono::high_resolution_clock::now();
+    auto future1 = std::async(std::launch::async, [&state] { state.triggerListeners(0, 0); });
+    auto future2 = std::async(std::launch::async, [&state] { state.triggerListeners(0, 0); });
+    future1.wait();
+    future2.wait();
+    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::high_resolution_clock::now() - start)
+                       .count();
+    ASSERT_TRUE(elapsed > 2000) << "elapsed: " << elapsed << "ms";
 }
