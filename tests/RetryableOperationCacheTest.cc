@@ -126,8 +126,8 @@ TEST_F(RetryableOperationCacheTest, testClear) {
     cache->clear();
     for (auto&& future : futures_) {
         int value;
-        // All cancelled futures complete with the default int value
-        ASSERT_EQ(ResultOk, future.get(value));
+        // All cancelled futures complete with ResultDisconnected and the default int value
+        ASSERT_EQ(ResultDisconnected, future.get(value));
         ASSERT_EQ(value, 0);
     }
     ASSERT_EQ(getSize(*cache), 0);
