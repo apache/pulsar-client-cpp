@@ -47,11 +47,13 @@ typedef void (*pulsar_result_callback)(pulsar_result, void *);
  *
  * ```c
  * pulsar_table_view_t *table_view;
- * char *value;
+ * void* value;
  * size_t value_size;
  * while (true) {
  *     if (pulsar_table_view_retrieve_value(table_view, "key", &value, &value_size)) {
- *         printf("value is update to: %s", value);
+ *         for (size_t i = 0; i < value_size; i++) {
+ *             printf("0x%02x%c", ((char*) value)[i], (i + 1 == value_size) ? '\n': ' ');
+ *         }
  *     } else {
  *         // sleep for a while or print the message that value is not updated
  *     }
