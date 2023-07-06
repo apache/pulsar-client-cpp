@@ -65,7 +65,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
     }
 
     void cancel() {
-        promise_.setValue(T{});
+        promise_.setFailed(ResultDisconnected);
         boost::system::error_code ec;
         timer_->cancel(ec);
     }
