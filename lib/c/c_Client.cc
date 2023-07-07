@@ -192,6 +192,34 @@ void pulsar_client_create_reader_async(pulsar_client_t *client, const char *topi
         std::bind(&handle_reader_callback, std::placeholders::_1, std::placeholders::_2, callback, ctx));
 }
 
+pulsar_result pulsar_client_create_table_view(pulsar_client_t *client, const char *topic,
+                                              pulsar_table_view_configuration_t *conf,
+                                              pulsar_table_view_t **c_tableView) {
+    pulsar::TableView tableView;
+    pulsar::Result res = client->client->createTableView(topic, conf->tableViewConfiguration, tableView);
+    if (res == pulsar::ResultOk) {
+        (*c_tableView) = new pulsar_table_view_t;
+        (*c_tableView)->tableView = std::move(tableView);
+        return pulsar_result_Ok;
+    }
+    return (pulsar_result)res;
+}
+
+void pulsar_client_create_table_view_async(pulsar_client_t *client, const char *topic,
+                                           pulsar_table_view_configuration_t *conf,
+                                           pulsar_table_view_callback callback, void *ctx) {
+    client->client->createTableViewAsync(topic, conf->tableViewConfiguration,
+                                         [callback, ctx](pulsar::Result result, pulsar::TableView tableView) {
+                                             if (result == pulsar::ResultOk) {
+                                                 auto *c_tableView = new pulsar_table_view_t;
+                                                 c_tableView->tableView = std::move(tableView);
+                                                 callback((pulsar_result)result, c_tableView, ctx);
+                                             } else {
+                                                 callback((pulsar_result)result, NULL, ctx);
+                                             }
+                                         });
+}
+
 pulsar_result pulsar_client_get_topic_partitions(pulsar_client_t *client, const char *topic,
                                                  pulsar_string_list_t **partitions) {
     std::vector<std::string> partitionsList;

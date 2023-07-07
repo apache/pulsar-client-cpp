@@ -48,6 +48,14 @@ struct _pulsar_consumer_configuration {
     pulsar::ConsumerConfiguration consumerConfiguration;
 };
 
+struct _pulsar_table_view {
+    pulsar::TableView tableView;
+};
+
+struct _pulsar_table_view_configuration {
+    pulsar::TableViewConfiguration tableViewConfiguration;
+};
+
 struct _pulsar_reader {
     pulsar::Reader reader;
 };

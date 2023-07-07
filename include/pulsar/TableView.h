@@ -51,7 +51,7 @@ class PULSAR_PUBLIC TableView {
      * TableView view;
      * std::string value;
      * while (true) {
-     *     if (view.retrieveValue("key")) {
+     *     if (view.retrieveValue("key", value)) {
      *         std::cout << "value is updated to: " << value;
      *     } else {
      *         // sleep for a while or print the message that value is not updated
