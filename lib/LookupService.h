@@ -86,6 +86,8 @@ class LookupService {
                                                  const std::string& version = "") = 0;
 
     virtual ~LookupService() {}
+
+    virtual void close() {}
 };
 
 typedef std::shared_ptr<LookupService> LookupServicePtr;

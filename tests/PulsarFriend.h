@@ -31,7 +31,6 @@
 #include "lib/PartitionedProducerImpl.h"
 #include "lib/ProducerImpl.h"
 #include "lib/ReaderImpl.h"
-#include "lib/RetryableLookupService.h"
 #include "lib/stats/ConsumerStatsImpl.h"
 #include "lib/stats/ProducerStatsImpl.h"
 
@@ -179,10 +178,6 @@ class PulsarFriend {
 
     static void setServiceUrlIndex(const Client& client, size_t index) {
         setServiceUrlIndex(client.impl_->serviceNameResolver_, index);
-    }
-
-    static size_t getNumberOfPendingTasks(const RetryableLookupService& lookupService) {
-        return lookupService.backoffTimers_.size();
     }
 
     static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }

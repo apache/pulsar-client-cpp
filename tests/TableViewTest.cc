@@ -23,7 +23,9 @@
 #include <future>
 
 #include "HttpHelper.h"
+#include "LogUtils.h"
 #include "PulsarFriend.h"
+#include "TopicName.h"
 #include "WaitUtils.h"
 
 using namespace pulsar;
