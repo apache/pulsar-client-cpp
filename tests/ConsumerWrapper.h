@@ -65,6 +65,7 @@ class ConsumerWrapper {
             ASSERT_EQ(ResultOk, consumer_.receive(msg, 3000));
             messageIdList_.emplace_back(msg.getMessageId());
         }
+        ASSERT_EQ(ResultTimeout, consumer_.receive(msg, 1000));
     }
 
     unsigned long getNumAcked(CommandAck_AckType ackType) const;
