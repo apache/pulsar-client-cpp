@@ -1304,17 +1304,11 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
         lock.unlock();
         LOG_ERROR(cnxString_ << " Client is not connected to the broker");
         promise.setFailed(ResultNotConnected);
-        return promise.getFuture();
     }
 
     pendingGetLastMessageIdRequests_.insert(std::make_pair(requestId, promise));
     lock.unlock();
-    sendRequestWithId(Commands::newGetLastMessageId(consumerId, requestId), requestId)
-        .addListener([promise](Result result, const ResponseData& data) {
-            if (result != ResultOk) {
-                promise.setFailed(result);
-            }
-        });
+    sendCommand(Commands::newGetLastMessageId(consumerId, requestId));
     return promise.getFuture();
 }
 
