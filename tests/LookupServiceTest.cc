@@ -16,10 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <BinaryProtoLookupService.h>
-#include <Future.h>
-#include <HTTPLookupService.h>
-#include <Utils.h>
 #include <gtest/gtest.h>
 #include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
@@ -31,11 +27,15 @@
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "lib/BinaryProtoLookupService.h"
 #include "lib/ClientConnection.h"
 #include "lib/ConnectionPool.h"
+#include "lib/Future.h"
+#include "lib/HTTPLookupService.h"
 #include "lib/LogUtils.h"
 #include "lib/RetryableLookupService.h"
 #include "lib/TimeUtils.h"
+#include "lib/Utils.h"
 
 DECLARE_LOG_OBJECT()
 

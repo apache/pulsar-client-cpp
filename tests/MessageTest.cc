@@ -22,7 +22,7 @@
 
 #include <string>
 
-#include "MessageImpl.h"
+#include "lib/MessageImpl.h"
 
 using namespace pulsar;
 TEST(MessageTest, testMessageContents) {

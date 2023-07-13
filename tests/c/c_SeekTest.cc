@@ -17,11 +17,12 @@
  * under the License.
  */
 
-#include <TimeUtils.h>
 #include <gtest/gtest.h>
 #include <pulsar/c/client.h>
 
 #include <future>
+
+#include "lib/TimeUtils.h"
 
 struct seek_ctx {
     std::promise<pulsar_result> *promise;

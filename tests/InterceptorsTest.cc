@@ -25,7 +25,7 @@
 #include <utility>
 
 #include "HttpHelper.h"
-#include "Latch.h"
+#include "lib/Latch.h"
 #include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()

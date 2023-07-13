@@ -20,7 +20,7 @@
 #include <pulsar/Client.h>
 
 #include "PulsarFriend.h"
-#include "SharedBuffer.h"
+#include "lib/SharedBuffer.h"
 
 using namespace pulsar;
 
