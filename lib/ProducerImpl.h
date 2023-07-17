@@ -31,7 +31,6 @@
 #include "PendingFailures.h"
 #include "PeriodicTask.h"
 #include "ProducerImplBase.h"
-#include "Semaphore.h"
 
 namespace pulsar {
 
@@ -53,6 +52,7 @@ class PulsarFriend;
 
 class Producer;
 class MemoryLimitController;
+class Semaphore;
 class TopicName;
 struct OpSendMsg;
 

@@ -36,6 +36,7 @@
 #include "OpSendMsg.h"
 #include "ProducerConfigurationImpl.h"
 #include "PulsarApi.pb.h"
+#include "Semaphore.h"
 #include "TimeUtils.h"
 #include "TopicName.h"
 #include "stats/ProducerStatsDisabled.h"
