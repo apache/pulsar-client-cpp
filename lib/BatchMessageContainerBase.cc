@@ -92,7 +92,7 @@ void BatchMessageContainerBase::processAndClear(
     std::function<void(Result, const OpSendMsg&)> opSendMsgCallback, FlushCallback flushCallback) {
     if (isEmpty()) {
         if (flushCallback) {
-            flushCallback(ResultOk);
+            // do nothing, flushCallback complete until the lastOpSend complete
         }
     } else {
         const auto numBatches = getNumBatches();

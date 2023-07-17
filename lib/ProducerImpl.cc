@@ -372,8 +372,16 @@ void ProducerImpl::flushAsync(FlushCallback callback) {
     if (batchMessageContainer_) {
         Lock lock(mutex_);
         auto failures = batchMessageAndSend(callback);
-        lock.unlock();
-        failures.complete();
+        if (!pendingMessagesQueue_.empty()) {
+            auto& opSendMsg = pendingMessagesQueue_.back();
+            lock.unlock();
+            failures.complete();
+            opSendMsg.addTrackerCallback(callback);
+        } else {
+            lock.unlock();
+            failures.complete();
+            callback(ResultOk);
+        }
     } else {
         Lock lock(mutex_);
         if (!pendingMessagesQueue_.empty()) {
