@@ -20,10 +20,15 @@
 
 #include <pulsar/MessageId.h>
 #include <pulsar/Result.h>
+#include "Future.h"
 
 #include <iostream>
 
 namespace pulsar {
+
+class GetLastMessageIdResponse;
+typedef Promise<Result, GetLastMessageIdResponse> GetLastMessageIdResponsePromise;
+typedef std::shared_ptr<GetLastMessageIdResponsePromise> GetLastMessageIdResponsePromisePtr;
 
 class GetLastMessageIdResponse {
     friend std::ostream& operator<<(std::ostream& os, const GetLastMessageIdResponse& response) {
@@ -52,7 +57,7 @@ class GetLastMessageIdResponse {
    private:
     MessageId lastMessageId_;
     MessageId markDeletePosition_;
-    bool hasMarkDeletePosition_;
+    bool hasMarkDeletePosition_ = false;
 };
 
 typedef std::function<void(Result, const GetLastMessageIdResponse&)> BrokerGetLastMessageIdCallback;

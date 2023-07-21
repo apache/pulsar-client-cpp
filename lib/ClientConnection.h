@@ -201,6 +201,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         DeadlineTimerPtr timer;
     };
 
+    struct LastMessageIdRequestData {
+        GetLastMessageIdResponsePromisePtr promise;
+        DeadlineTimerPtr timer;
+    };
+
     /*
      * handler for connectAsync
      * creates a ConnectionPtr which has a valid ClientConnection object
@@ -242,6 +247,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleRequestTimeout(const boost::system::error_code& ec, PendingRequestData pendingRequestData);
 
     void handleLookupTimeout(const boost::system::error_code&, LookupRequestData);
+
+    void handleGetLastMessageIdTimeout(const boost::system::error_code&, LastMessageIdRequestData data);
 
     void handleKeepAliveTimeout();
 
@@ -342,7 +349,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
     PendingConsumerStatsMap pendingConsumerStatsMap_;
 
-    typedef std::map<long, Promise<Result, GetLastMessageIdResponse>> PendingGetLastMessageIdRequestsMap;
+    typedef std::map<long, LastMessageIdRequestData> PendingGetLastMessageIdRequestsMap;
     PendingGetLastMessageIdRequestsMap pendingGetLastMessageIdRequests_;
 
     typedef std::map<long, Promise<Result, NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
