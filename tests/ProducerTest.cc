@@ -480,7 +480,6 @@ TEST_P(ProducerTest, testFlushBatch) {
     ASSERT_EQ(needCallBack.load(), 0);
     producer.close();
 
-
     // test remain messages in batch not send
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfiguration, producer));
 
