@@ -459,7 +459,7 @@ TEST_P(ProducerTest, testFlushBatch) {
     producerConfiguration.setBatchingEnabled(true);
     producerConfiguration.setBatchingMaxMessages(10);
     producerConfiguration.setBatchingMaxPublishDelayMs(1000);
-    producerConfiguration.setBatchingMaxAllowedSizeInBytes(4*1024*1024);
+    producerConfiguration.setBatchingMaxAllowedSizeInBytes(4 * 1024 * 1024);
 
     // test all messages in batch has been sent
     Producer producer;
