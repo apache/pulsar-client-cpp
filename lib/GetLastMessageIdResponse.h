@@ -20,9 +20,10 @@
 
 #include <pulsar/MessageId.h>
 #include <pulsar/Result.h>
-#include "Future.h"
 
 #include <iostream>
+
+#include "Future.h"
 
 namespace pulsar {
 
