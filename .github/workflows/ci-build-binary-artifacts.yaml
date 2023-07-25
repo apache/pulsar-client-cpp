@@ -139,6 +139,11 @@ jobs:
 
       - name: Install vcpkg packages
         run: |
+          # See https://github.com/microsoft/vcpkg/issues/32600#issuecomment-1638907069
+          mkdir -p ${{ env.VCPKG_ROOT }}/downloads
+          cd ${{ env.VCPKG_ROOT }}/downloads
+          curl -O -L https://github.com/microsoft/vcpkg/files/12073957/nasm-2.16.01-win64.zip
+          cd -
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }} > dependencies.txt
 
       - name: Build and package
