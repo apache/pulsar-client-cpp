@@ -313,6 +313,8 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
 
     if (authDataContent->hasDataFromCommand()) {
         authData->set_auth_data(authDataContent->getCommandData());
+    } else {
+        authData->set_auth_data("");
     }
 
     return writeMessageWithSize(cmd);
