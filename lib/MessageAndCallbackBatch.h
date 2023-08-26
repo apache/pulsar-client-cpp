@@ -30,6 +30,7 @@ namespace pulsar {
 
 class MessageImpl;
 using MessageImplPtr = std::shared_ptr<MessageImpl>;
+using FlushCallback = std::function<void(Result)>;
 
 class MessageAndCallbackBatch : public boost::noncopyable {
    public:
@@ -58,14 +59,7 @@ class MessageAndCallbackBatch : public boost::noncopyable {
      */
     void complete(Result result, const MessageId& id) const;
 
-    /**
-     * Create a single callback to trigger all the internal callbacks in order
-     * It's used when you want to clear and add new messages and callbacks but current callbacks need to be
-     * triggered later.
-     *
-     * @return the merged send callback
-     */
-    SendCallback createSendCallback() const;
+    SendCallback createSendCallback(const FlushCallback& flushCallback) const;
 
     const MessageImplPtr& msgImpl() const { return msgImpl_; }
     uint64_t sequenceId() const noexcept { return sequenceId_; }

@@ -1025,35 +1025,28 @@ void ClientConnection::sendCommandInternal(const SharedBuffer& cmd) {
                    std::bind(&ClientConnection::handleSend, shared_from_this(), std::placeholders::_1, cmd)));
 }
 
-void ClientConnection::sendMessage(const OpSendMsg& opSend) {
+void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
     Lock lock(mutex_);
-
-    if (pendingWriteOperations_++ == 0) {
-        // Write immediately to socket
-        if (tlsSocket_) {
-#if BOOST_VERSION >= 106600
-            boost::asio::post(strand_,
-                              std::bind(&ClientConnection::sendMessageInternal, shared_from_this(), opSend));
-#else
-            strand_.post(std::bind(&ClientConnection::sendMessageInternal, shared_from_this(), opSend));
-#endif
-        } else {
-            sendMessageInternal(opSend);
-        }
-    } else {
-        // Queue to send later
-        pendingWriteBuffers_.push_back(opSend);
+    if (pendingWriteOperations_++ > 0) {
+        pendingWriteBuffers_.emplace_back(args);
+        return;
     }
-}
-
-void ClientConnection::sendMessageInternal(const OpSendMsg& opSend) {
-    BaseCommand outgoingCmd;
-    PairSharedBuffer buffer =
-        Commands::newSend(outgoingBuffer_, outgoingCmd, opSend.producerId_, opSend.sequenceId_,
-                          getChecksumType(), opSend.metadata_, opSend.payload_);
-
-    asyncWrite(buffer, customAllocWriteHandler(std::bind(&ClientConnection::handleSendPair,
-                                                         shared_from_this(), std::placeholders::_1)));
+    auto self = shared_from_this();
+    auto sendMessageInternal = [this, self, args] {
+        BaseCommand outgoingCmd;
+        auto buffer = Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
+        asyncWrite(buffer, customAllocReadHandler(std::bind(&ClientConnection::handleSendPair,
+                                                            shared_from_this(), std::placeholders::_1)));
+    };
+    if (tlsSocket_) {
+#if BOOST_VERSION >= 106600
+        boost::asio::post(strand_, sendMessageInternal);
+#else
+        strand_.post(sendMessageInternal);
+#endif
+    } else {
+        sendMessageInternal();
+    }
 }
 
 void ClientConnection::handleSend(const boost::system::error_code& err, const SharedBuffer&) {
@@ -1088,13 +1081,12 @@ void ClientConnection::sendPendingCommands() {
                        customAllocWriteHandler(std::bind(&ClientConnection::handleSend, shared_from_this(),
                                                          std::placeholders::_1, buffer)));
         } else {
-            assert(any.type() == typeid(OpSendMsg));
+            assert(any.type() == typeid(std::shared_ptr<SendArguments>));
 
-            const OpSendMsg& op = boost::any_cast<const OpSendMsg&>(any);
+            auto args = boost::any_cast<std::shared_ptr<SendArguments>>(any);
             BaseCommand outgoingCmd;
             PairSharedBuffer buffer =
-                Commands::newSend(outgoingBuffer_, outgoingCmd, op.producerId_, op.sequenceId_,
-                                  getChecksumType(), op.metadata_, op.payload_);
+                Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
 
             asyncWrite(buffer, customAllocWriteHandler(std::bind(&ClientConnection::handleSendPair,
                                                                  shared_from_this(), std::placeholders::_1)));

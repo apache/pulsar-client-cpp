@@ -69,8 +69,7 @@ typedef std::weak_ptr<ConsumerImpl> ConsumerImplWeakPtr;
 class LookupDataResult;
 class BrokerConsumerStatsImpl;
 class PeriodicTask;
-
-struct OpSendMsg;
+struct SendArguments;
 
 namespace proto {
 class BaseCommand;
@@ -153,8 +152,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void sendCommand(const SharedBuffer& cmd);
     void sendCommandInternal(const SharedBuffer& cmd);
-    void sendMessage(const OpSendMsg& opSend);
-    void sendMessageInternal(const OpSendMsg& opSend);
+    void sendMessage(const std::shared_ptr<SendArguments>& args);
 
     void registerProducer(int producerId, ProducerImplPtr producer);
     void registerConsumer(int consumerId, ConsumerImplPtr consumer);

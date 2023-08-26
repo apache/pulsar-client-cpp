@@ -64,10 +64,17 @@ void MessageAndCallbackBatch::complete(Result result, const MessageId& id) const
     completeSendCallbacks(callbacks_, result, id);
 }
 
-SendCallback MessageAndCallbackBatch::createSendCallback() const {
+SendCallback MessageAndCallbackBatch::createSendCallback(const FlushCallback& flushCallback) const {
     const auto& callbacks = callbacks_;
-    return [callbacks]  // save a copy of `callbacks_`
-        (Result result, const MessageId& id) { completeSendCallbacks(callbacks, result, id); };
+    if (flushCallback) {
+        return [callbacks, flushCallback](Result result, const MessageId& id) {
+            completeSendCallbacks(callbacks, result, id);
+            flushCallback(result);
+        };
+    } else {
+        return [callbacks]  // save a copy of `callbacks_`
+            (Result result, const MessageId& id) { completeSendCallbacks(callbacks, result, id); };
+    }
 }
 
 }  // namespace pulsar

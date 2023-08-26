@@ -104,11 +104,9 @@ class ProducerImpl : public HandlerBase,
    protected:
     ProducerStatsBasePtr producerStatsBasePtr_;
 
-    typedef std::deque<OpSendMsg> MessageQueue;
-
     void setMessageMetadata(const Message& msg, const uint64_t& sequenceId, const uint32_t& uncompressedSize);
 
-    void sendMessage(const OpSendMsg& opSendMsg);
+    void sendMessage(std::unique_ptr<OpSendMsg> opSendMsg);
 
     void startSendTimeoutTimer();
 
@@ -138,7 +136,7 @@ class ProducerImpl : public HandlerBase,
     bool encryptMessage(proto::MessageMetadata& metadata, SharedBuffer& payload,
                         SharedBuffer& encryptedPayload);
 
-    void sendAsyncWithStatsUpdate(const Message& msg, const SendCallback& callback);
+    void sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& callback);
 
     /**
      * Reserve a spot in the messages queue before acquiring the ProducerImpl mutex. When the queue is full,
@@ -163,7 +161,7 @@ class ProducerImpl : public HandlerBase,
     ProducerConfiguration conf_;
 
     std::unique_ptr<Semaphore> semaphore_;
-    MessageQueue pendingMessagesQueue_;
+    std::list<std::unique_ptr<OpSendMsg>> pendingMessagesQueue_;
 
     const int32_t partition_;  // -1 if topic is non-partitioned
     std::string producerName_;
@@ -187,8 +185,8 @@ class ProducerImpl : public HandlerBase,
     Promise<Result, ProducerImplBaseWeakPtr> producerCreatedPromise_;
 
     struct PendingCallbacks;
-    std::shared_ptr<PendingCallbacks> getPendingCallbacksWhenFailed();
-    std::shared_ptr<PendingCallbacks> getPendingCallbacksWhenFailedWithLock();
+    decltype(pendingMessagesQueue_) getPendingCallbacksWhenFailed();
+    decltype(pendingMessagesQueue_) getPendingCallbacksWhenFailedWithLock();
 
     void failPendingMessages(Result result, bool withLock);
 

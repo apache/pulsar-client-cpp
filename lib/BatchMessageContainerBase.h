@@ -26,6 +26,7 @@
 
 #include <boost/noncopyable.hpp>
 #include <memory>
+#include <stdexcept>
 #include <vector>
 
 namespace pulsar {
@@ -44,14 +45,9 @@ class BatchMessageContainerBase : public boost::noncopyable {
    public:
     BatchMessageContainerBase(const ProducerImpl& producer);
 
-    virtual ~BatchMessageContainerBase() {}
+    virtual ~BatchMessageContainerBase();
 
-    /**
-     * Get number of batches in the batch message container
-     *
-     * @return number of batches
-     */
-    virtual size_t getNumBatches() const = 0;
+    virtual bool hasMultiOpSendMsgs() const = 0;
 
     /**
      * Check the message will be the 1st message to be added to the batch
@@ -73,32 +69,14 @@ class BatchMessageContainerBase : public boost::noncopyable {
      */
     virtual bool add(const Message& msg, const SendCallback& callback) = 0;
 
-    /**
-     * Clear the batch message container
-     */
-    virtual void clear() = 0;
+    virtual std::unique_ptr<OpSendMsg> createOpSendMsg(const FlushCallback& flushCallback = nullptr) {
+        throw std::runtime_error("createOpSendMsg is not supported");
+    }
 
-    /**
-     * Create a OpSendMsg object to send
-     *
-     * @param opSendMsg the OpSendMsg object to create
-     * @param flushCallback the callback to trigger after the OpSendMsg was completed
-     * @return ResultOk if create successfully
-     * @note OpSendMsg's sendCallback_ must be set even if it failed
-     */
-    virtual Result createOpSendMsg(OpSendMsg& opSendMsg,
-                                   const FlushCallback& flushCallback = nullptr) const = 0;
-
-    /**
-     * Create a OpSendMsg list to send
-     *
-     * @param opSendMsgList the OpSendMsg list to create
-     * @param flushCallback the callback to trigger after the OpSendMsg was completed
-     * @return all create results of `opSendMsgs`, ResultOk means create successfully
-     * @note OpSendMsg's sendCallback_ must be set even if it failed
-     */
-    virtual std::vector<Result> createOpSendMsgs(std::vector<OpSendMsg>& opSendMsgs,
-                                                 const FlushCallback& flushCallback = nullptr) const = 0;
+    virtual std::vector<std::unique_ptr<OpSendMsg>> createOpSendMsgs(
+        const FlushCallback& flushCallback = nullptr) {
+        throw std::runtime_error("createOpSendMsgs is not supported");
+    }
 
     /**
      * Serialize into a std::ostream for logging
@@ -109,9 +87,6 @@ class BatchMessageContainerBase : public boost::noncopyable {
 
     bool hasEnoughSpace(const Message& msg) const noexcept;
     bool isEmpty() const noexcept;
-
-    void processAndClear(std::function<void(Result, const OpSendMsg&)> opSendMsgCallback,
-                         FlushCallback flushCallback);
 
    protected:
     // references to ProducerImpl's fields
@@ -134,8 +109,10 @@ class BatchMessageContainerBase : public boost::noncopyable {
     void updateStats(const Message& msg);
     void resetStats();
 
-    Result createOpSendMsgHelper(OpSendMsg& opSendMsg, const FlushCallback& flushCallback,
-                                 const MessageAndCallbackBatch& batch) const;
+    std::unique_ptr<OpSendMsg> createOpSendMsgHelper(const FlushCallback& flushCallback,
+                                                     const MessageAndCallbackBatch& batch) const;
+
+    virtual void clear() = 0;
 };
 
 inline bool BatchMessageContainerBase::hasEnoughSpace(const Message& msg) const noexcept {
