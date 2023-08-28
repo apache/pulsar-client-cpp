@@ -36,7 +36,7 @@ struct SendArguments {
     const uint64_t producerId;
     const uint64_t sequenceId;
     const proto::MessageMetadata metadata;
-    const SharedBuffer payload;
+    SharedBuffer payload;
 
     SendArguments(uint64_t producerId, uint64_t sequenceId, const proto::MessageMetadata& metadata,
                   const SharedBuffer& payload)
@@ -73,7 +73,9 @@ struct OpSendMsg {
     }
 
     void addTrackerCallback(std::function<void(Result)> trackerCallback) {
-        trackerCallbacks.emplace_back(trackerCallback);
+        if (trackerCallback) {
+            trackerCallbacks.emplace_back(trackerCallback);
+        }
     }
 
    private:

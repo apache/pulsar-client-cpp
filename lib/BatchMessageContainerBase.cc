@@ -18,14 +18,10 @@
  */
 #include "BatchMessageContainerBase.h"
 
-#include "ClientConnection.h"
-#include "CompressionCodec.h"
 #include "MessageAndCallbackBatch.h"
 #include "MessageCrypto.h"
-#include "MessageImpl.h"
 #include "OpSendMsg.h"
 #include "ProducerImpl.h"
-#include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
 
 namespace pulsar {
@@ -40,38 +36,9 @@ BatchMessageContainerBase::BatchMessageContainerBase(const ProducerImpl& produce
 BatchMessageContainerBase::~BatchMessageContainerBase() {}
 
 std::unique_ptr<OpSendMsg> BatchMessageContainerBase::createOpSendMsgHelper(
-    const FlushCallback& flushCallback, const MessageAndCallbackBatch& batch) const {
-    auto sendCallback = batch.createSendCallback(flushCallback);
-    if (batch.empty()) {
-        return OpSendMsg::create(ResultOperationNotSupported, std::move(sendCallback));
-    }
-
-    MessageImplPtr impl = batch.msgImpl();
-    impl->metadata.set_num_messages_in_batch(batch.size());
-    auto compressionType = producerConfig_.getCompressionType();
-    if (compressionType != CompressionNone) {
-        impl->metadata.set_compression(static_cast<proto::CompressionType>(compressionType));
-        impl->metadata.set_uncompressed_size(impl->payload.readableBytes());
-    }
-    impl->payload = CompressionCodecProvider::getCodec(compressionType).encode(impl->payload);
-
-    auto msgCrypto = msgCryptoWeakPtr_.lock();
-    if (msgCrypto && producerConfig_.isEncryptionEnabled()) {
-        SharedBuffer encryptedPayload;
-        if (!msgCrypto->encrypt(producerConfig_.getEncryptionKeys(), producerConfig_.getCryptoKeyReader(),
-                                impl->metadata, impl->payload, encryptedPayload)) {
-            return OpSendMsg::create(ResultCryptoError, std::move(sendCallback));
-        }
-        impl->payload = encryptedPayload;
-    }
-
-    if (impl->payload.readableBytes() > ClientConnection::getMaxMessageSize()) {
-        return OpSendMsg::create(ResultMessageTooBig, std::move(sendCallback));
-    }
-
-    return OpSendMsg::create(impl->metadata, batch.messagesCount(), batch.messagesSize(),
-                             producerConfig_.getSendTimeout(), batch.createSendCallback(flushCallback),
-                             nullptr, producerId_, impl->payload);
+    MessageAndCallbackBatch& batch) const {
+    auto crypto = msgCryptoWeakPtr_.lock();
+    return batch.createOpSendMsg(producerId_, producerConfig_, crypto.get());
 }
 
 }  // namespace pulsar

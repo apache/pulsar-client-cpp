@@ -839,7 +839,8 @@ void Commands::initBatchMessageMetadata(const Message& msg, pulsar::proto::Messa
 uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, SharedBuffer& batchPayLoad,
                                                             unsigned long maxMessageSizeInBytes) {
     const auto& msgMetadata = msg.impl_->metadata;
-    SingleMessageMetadata metadata;
+    thread_local SingleMessageMetadata metadata;
+    metadata.Clear();
     if (msgMetadata.has_partition_key()) {
         metadata.set_partition_key(msgMetadata.partition_key());
     }
@@ -868,7 +869,7 @@ uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, 
     int payloadSize = msg.impl_->payload.readableBytes();
     metadata.set_payload_size(payloadSize);
 
-    int msgMetadataSize = metadata.ByteSize();
+    auto msgMetadataSize = metadata.ByteSizeLong();
 
     unsigned long requiredSpace = sizeof(uint32_t) + msgMetadataSize + payloadSize;
     if (batchPayLoad.writableBytes() <= sizeof(uint32_t) + msgMetadataSize + payloadSize) {

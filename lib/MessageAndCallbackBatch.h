@@ -24,16 +24,24 @@
 
 #include <atomic>
 #include <boost/noncopyable.hpp>
+#include <memory>
 #include <vector>
 
 namespace pulsar {
 
-class MessageImpl;
-using MessageImplPtr = std::shared_ptr<MessageImpl>;
+struct OpSendMsg;
+class MessageCrypto;
 using FlushCallback = std::function<void(Result)>;
 
-class MessageAndCallbackBatch : public boost::noncopyable {
+namespace proto {
+class MessageMetadata;
+}
+
+class MessageAndCallbackBatch final : public boost::noncopyable {
    public:
+    MessageAndCallbackBatch();
+    ~MessageAndCallbackBatch();
+
     // Wrapper methods of STL container
     bool empty() const noexcept { return callbacks_.empty(); }
     size_t size() const noexcept { return callbacks_.size(); }
@@ -46,34 +54,22 @@ class MessageAndCallbackBatch : public boost::noncopyable {
      */
     void add(const Message& msg, const SendCallback& callback);
 
-    /**
-     * Clear the internal stats
-     */
-    void clear();
+    std::unique_ptr<OpSendMsg> createOpSendMsg(uint64_t producerId,
+                                               const ProducerConfiguration& producerConfig,
+                                               MessageCrypto* crypto);
 
-    /**
-     * Complete all the callbacks with given parameters
-     *
-     * @param result this batch's send result
-     * @param id this batch's message id
-     */
-    void complete(Result result, const MessageId& id) const;
-
-    SendCallback createSendCallback(const FlushCallback& flushCallback) const;
-
-    const MessageImplPtr& msgImpl() const { return msgImpl_; }
     uint64_t sequenceId() const noexcept { return sequenceId_; }
 
-    uint32_t messagesCount() const { return messagesCount_; }
-    uint64_t messagesSize() const { return messagesSize_; }
+    void clear();
 
    private:
-    MessageImplPtr msgImpl_;
+    std::unique_ptr<proto::MessageMetadata> metadata_;
+    std::vector<Message> messages_;
     std::vector<SendCallback> callbacks_;
     std::atomic<uint64_t> sequenceId_{static_cast<uint64_t>(-1L)};
-
-    uint32_t messagesCount_{0};
     uint64_t messagesSize_{0ull};
+
+    SendCallback createSendCallback() const;
 };
 
 }  // namespace pulsar
