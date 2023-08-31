@@ -21,6 +21,7 @@
 
 #include <pulsar/Message.h>
 #include <pulsar/Producer.h>
+#include <pulsar/Result.h>
 
 #include <boost/date_time/posix_time/ptime.hpp>
 
@@ -31,46 +32,72 @@
 
 namespace pulsar {
 
+struct SendArguments {
+    const uint64_t producerId;
+    const uint64_t sequenceId;
+    const proto::MessageMetadata metadata;
+    const SharedBuffer payload;
+
+    SendArguments(uint64_t producerId, uint64_t sequenceId, const proto::MessageMetadata& metadata,
+                  const SharedBuffer& payload)
+        : producerId(producerId), sequenceId(sequenceId), metadata(metadata), payload(payload) {}
+    SendArguments(const SendArguments&) = delete;
+    SendArguments& operator=(const SendArguments&) = delete;
+};
+
 struct OpSendMsg {
-    proto::MessageMetadata metadata_;
-    SharedBuffer payload_;
-    SendCallback sendCallback_;
-    uint64_t producerId_;
-    uint64_t sequenceId_;
-    boost::posix_time::ptime timeout_;
-    uint32_t messagesCount_;
-    uint64_t messagesSize_;
-    std::vector<std::function<void(Result)>> trackerCallbacks_;
-    ChunkMessageIdImplPtr chunkedMessageId_;
+    const Result result;
+    const int32_t chunkId;
+    const int32_t numChunks;
+    const uint32_t messagesCount;
+    const uint64_t messagesSize;
+    const boost::posix_time::ptime timeout;
+    const SendCallback sendCallback;
+    std::vector<std::function<void(Result)>> trackerCallbacks;
+    ChunkMessageIdImplPtr chunkedMessageId;
+    // Use shared_ptr here because producer might resend the message with the same arguments
+    const std::shared_ptr<SendArguments> sendArgs;
 
-    OpSendMsg() = default;
-
-    OpSendMsg(const proto::MessageMetadata& metadata, const SharedBuffer& payload,
-              const SendCallback& sendCallback, uint64_t producerId, uint64_t sequenceId, int sendTimeoutMs,
-              uint32_t messagesCount, uint64_t messagesSize, ChunkMessageIdImplPtr chunkedMessageId = nullptr)
-        : metadata_(metadata),  // the copy happens here because OpSendMsg of chunks are constructed with
-                                // a shared metadata object
-          payload_(payload),
-          sendCallback_(sendCallback),
-          producerId_(producerId),
-          sequenceId_(sequenceId),
-          timeout_(TimeUtils::now() + milliseconds(sendTimeoutMs)),
-          messagesCount_(messagesCount),
-          messagesSize_(messagesSize),
-          chunkedMessageId_(chunkedMessageId) {}
+    template <typename... Args>
+    static std::unique_ptr<OpSendMsg> create(Args&&... args) {
+        return std::unique_ptr<OpSendMsg>(new OpSendMsg(std::forward<Args>(args)...));
+    }
 
     void complete(Result result, const MessageId& messageId) const {
-        if (sendCallback_) {
-            sendCallback_(result, messageId);
+        if (sendCallback) {
+            sendCallback(result, messageId);
         }
-        for (const auto& trackerCallback : trackerCallbacks_) {
+        for (const auto& trackerCallback : trackerCallbacks) {
             trackerCallback(result);
         }
     }
 
     void addTrackerCallback(std::function<void(Result)> trackerCallback) {
-        trackerCallbacks_.emplace_back(trackerCallback);
+        trackerCallbacks.emplace_back(trackerCallback);
     }
+
+   private:
+    OpSendMsg(Result result, SendCallback&& callback)
+        : result(result),
+          chunkId(-1),
+          numChunks(-1),
+          messagesCount(0),
+          messagesSize(0),
+          sendCallback(std::move(callback)),
+          sendArgs(nullptr) {}
+
+    OpSendMsg(const proto::MessageMetadata& metadata, uint32_t messagesCount, uint64_t messagesSize,
+              int sendTimeoutMs, SendCallback&& callback, ChunkMessageIdImplPtr chunkedMessageId,
+              uint64_t producerId, SharedBuffer payload)
+        : result(ResultOk),
+          chunkId(metadata.chunk_id()),
+          numChunks(metadata.num_chunks_from_msg()),
+          messagesCount(messagesCount),
+          messagesSize(messagesSize),
+          timeout(TimeUtils::now() + boost::posix_time::milliseconds(sendTimeoutMs)),
+          sendCallback(std::move(callback)),
+          chunkedMessageId(chunkedMessageId),
+          sendArgs(new SendArguments(producerId, metadata.sequence_id(), metadata, payload)) {}
 };
 
 }  // namespace pulsar

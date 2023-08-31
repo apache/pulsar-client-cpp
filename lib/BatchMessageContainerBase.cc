@@ -37,23 +37,13 @@ BatchMessageContainerBase::BatchMessageContainerBase(const ProducerImpl& produce
       producerId_(producer.producerId_),
       msgCryptoWeakPtr_(producer.msgCrypto_) {}
 
-Result BatchMessageContainerBase::createOpSendMsgHelper(OpSendMsg& opSendMsg,
-                                                        const FlushCallback& flushCallback,
-                                                        const MessageAndCallbackBatch& batch) const {
-    opSendMsg.sendCallback_ = batch.createSendCallback();
-    opSendMsg.messagesCount_ = batch.messagesCount();
-    opSendMsg.messagesSize_ = batch.messagesSize();
+BatchMessageContainerBase::~BatchMessageContainerBase() {}
 
-    if (flushCallback) {
-        auto sendCallback = opSendMsg.sendCallback_;
-        opSendMsg.sendCallback_ = [sendCallback, flushCallback](Result result, const MessageId& id) {
-            sendCallback(result, id);
-            flushCallback(result);
-        };
-    }
-
+std::unique_ptr<OpSendMsg> BatchMessageContainerBase::createOpSendMsgHelper(
+    const FlushCallback& flushCallback, const MessageAndCallbackBatch& batch) const {
+    auto sendCallback = batch.createSendCallback(flushCallback);
     if (batch.empty()) {
-        return ResultOperationNotSupported;
+        return OpSendMsg::create(ResultOperationNotSupported, std::move(sendCallback));
     }
 
     MessageImplPtr impl = batch.msgImpl();
@@ -70,45 +60,18 @@ Result BatchMessageContainerBase::createOpSendMsgHelper(OpSendMsg& opSendMsg,
         SharedBuffer encryptedPayload;
         if (!msgCrypto->encrypt(producerConfig_.getEncryptionKeys(), producerConfig_.getCryptoKeyReader(),
                                 impl->metadata, impl->payload, encryptedPayload)) {
-            return ResultCryptoError;
+            return OpSendMsg::create(ResultCryptoError, std::move(sendCallback));
         }
         impl->payload = encryptedPayload;
     }
 
     if (impl->payload.readableBytes() > ClientConnection::getMaxMessageSize()) {
-        return ResultMessageTooBig;
+        return OpSendMsg::create(ResultMessageTooBig, std::move(sendCallback));
     }
 
-    opSendMsg.metadata_ = impl->metadata;
-    opSendMsg.payload_ = impl->payload;
-    opSendMsg.sequenceId_ = impl->metadata.sequence_id();
-    opSendMsg.producerId_ = producerId_;
-    opSendMsg.timeout_ = TimeUtils::now() + milliseconds(producerConfig_.getSendTimeout());
-
-    return ResultOk;
-}
-
-void BatchMessageContainerBase::processAndClear(
-    std::function<void(Result, const OpSendMsg&)> opSendMsgCallback, FlushCallback flushCallback) {
-    if (isEmpty()) {
-        if (flushCallback) {
-            // do nothing, flushCallback complete until the lastOpSend complete
-        }
-    } else {
-        const auto numBatches = getNumBatches();
-        if (numBatches == 1) {
-            OpSendMsg opSendMsg;
-            Result result = createOpSendMsg(opSendMsg, flushCallback);
-            opSendMsgCallback(result, opSendMsg);
-        } else if (numBatches > 1) {
-            std::vector<OpSendMsg> opSendMsgs;
-            std::vector<Result> results = createOpSendMsgs(opSendMsgs, flushCallback);
-            for (size_t i = 0; i < results.size(); i++) {
-                opSendMsgCallback(results[i], opSendMsgs[i]);
-            }
-        }  // else numBatches is 0, do nothing
-    }
-    clear();
+    return OpSendMsg::create(impl->metadata, batch.messagesCount(), batch.messagesSize(),
+                             producerConfig_.getSendTimeout(), batch.createSendCallback(flushCallback),
+                             nullptr, producerId_, impl->payload);
 }
 
 }  // namespace pulsar

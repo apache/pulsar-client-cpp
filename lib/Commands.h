@@ -40,6 +40,7 @@ using BatchMessageAckerPtr = std::shared_ptr<BatchMessageAcker>;
 class MessageIdImpl;
 using MessageIdImplPtr = std::shared_ptr<MessageIdImpl>;
 class BitSet;
+struct SendArguments;
 
 namespace proto {
 class BaseCommand;
@@ -98,9 +99,8 @@ class Commands {
     static SharedBuffer newGetSchema(const std::string& topic, const std::string& version,
                                      uint64_t requestId);
 
-    static PairSharedBuffer newSend(SharedBuffer& headers, proto::BaseCommand& cmd, uint64_t producerId,
-                                    uint64_t sequenceId, ChecksumType checksumType,
-                                    const proto::MessageMetadata& metadata, const SharedBuffer& payload);
+    static PairSharedBuffer newSend(SharedBuffer& headers, proto::BaseCommand& cmd, ChecksumType checksumType,
+                                    const SendArguments& args);
 
     static SharedBuffer newSubscribe(
         const std::string& topic, const std::string& subscription, uint64_t consumerId, uint64_t requestId,

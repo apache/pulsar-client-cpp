@@ -21,6 +21,7 @@
 #include <stdexcept>
 
 #include "LogUtils.h"
+#include "OpSendMsg.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -52,14 +53,10 @@ void BatchMessageContainer::clear() {
     LOG_DEBUG(*this << " clear() called");
 }
 
-Result BatchMessageContainer::createOpSendMsg(OpSendMsg& opSendMsg,
-                                              const FlushCallback& flushCallback) const {
-    return createOpSendMsgHelper(opSendMsg, flushCallback, batch_);
-}
-
-std::vector<Result> BatchMessageContainer::createOpSendMsgs(std::vector<OpSendMsg>& opSendMsgs,
-                                                            const FlushCallback& flushCallback) const {
-    throw std::runtime_error("createOpSendMsgs is not supported for BatchMessageContainer");
+std::unique_ptr<OpSendMsg> BatchMessageContainer::createOpSendMsg(const FlushCallback& flushCallback) {
+    auto op = createOpSendMsgHelper(flushCallback, batch_);
+    clear();
+    return op;
 }
 
 void BatchMessageContainer::serialize(std::ostream& os) const {
