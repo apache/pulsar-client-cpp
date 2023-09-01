@@ -30,7 +30,6 @@
 #include "BatchedMessageIdImpl.h"
 #include "BitSet.h"
 #include "ChunkMessageIdImpl.h"
-#include "LogUtils.h"
 #include "MessageImpl.h"
 #include "OpSendMsg.h"
 #include "PulsarApi.pb.h"
@@ -39,8 +38,6 @@
 
 using namespace pulsar;
 namespace pulsar {
-
-DECLARE_LOG_OBJECT();
 
 using proto::AuthData;
 using proto::BaseCommand;
@@ -836,11 +833,14 @@ void Commands::initBatchMessageMetadata(const Message& msg, pulsar::proto::Messa
     }
 }
 
-uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, SharedBuffer& batchPayLoad,
-                                                            unsigned long maxMessageSizeInBytes) {
-    const auto& msgMetadata = msg.impl_->metadata;
+// The overhead of constructing and destructing a SingleMessageMetadata is higher than allocating and
+// deallocating memory for a byte array, so use a thread local SingleMessageMetadata and serialize it to a
+// byte array.
+static std::pair<std::unique_ptr<char[]>, size_t> serializeSingleMessageMetadata(
+    const proto::MessageMetadata& msgMetadata, size_t payloadSize) {
     thread_local SingleMessageMetadata metadata;
     metadata.Clear();
+    metadata.set_payload_size(payloadSize);
     if (msgMetadata.has_partition_key()) {
         metadata.set_partition_key(msgMetadata.partition_key());
     }
@@ -863,34 +863,38 @@ uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, 
         metadata.set_sequence_id(msgMetadata.sequence_id());
     }
 
+    size_t size = metadata.ByteSizeLong();
+    std::unique_ptr<char[]> data{new char[size]};
+    metadata.SerializeToArray(data.get(), size);
+    return std::make_pair(std::move(data), size);
+}
+
+uint64_t Commands::serializeSingleMessagesToBatchPayload(SharedBuffer& batchPayload,
+                                                         const std::vector<Message>& messages) {
+    assert(!messages.empty());
+    size_t size = sizeof(uint32_t) * messages.size();
+
+    std::vector<std::pair<std::unique_ptr<char[]>, size_t>> singleMetadataBuffers(messages.size());
+    for (size_t i = 0; i < messages.size(); i++) {
+        const auto& impl = messages[i].impl_;
+        singleMetadataBuffers[i] =
+            serializeSingleMessageMetadata(impl->metadata, impl->payload.readableBytes());
+        size += singleMetadataBuffers[i].second;
+        size += messages[i].getLength();
+    }
+
     // Format of batch message
     // Each Message = [METADATA_SIZE][METADATA] [PAYLOAD]
-
-    int payloadSize = msg.impl_->payload.readableBytes();
-    metadata.set_payload_size(payloadSize);
-
-    auto msgMetadataSize = metadata.ByteSizeLong();
-
-    unsigned long requiredSpace = sizeof(uint32_t) + msgMetadataSize + payloadSize;
-    if (batchPayLoad.writableBytes() <= sizeof(uint32_t) + msgMetadataSize + payloadSize) {
-        LOG_DEBUG("remaining size of batchPayLoad buffer ["
-                  << batchPayLoad.writableBytes() << "] can't accomodate new payload [" << requiredSpace
-                  << "] - expanding the batchPayload buffer");
-        uint32_t new_size =
-            std::min(batchPayLoad.readableBytes() * 2, static_cast<uint32_t>(maxMessageSizeInBytes));
-        new_size = std::max(new_size, batchPayLoad.readableBytes() + static_cast<uint32_t>(requiredSpace));
-        SharedBuffer buffer = SharedBuffer::allocate(new_size);
-        // Adding batch created so far
-        buffer.write(batchPayLoad.data(), batchPayLoad.readableBytes());
-        batchPayLoad = buffer;
+    batchPayload = SharedBuffer::allocate(size);
+    for (size_t i = 0; i < messages.size(); i++) {
+        auto msgMetadataSize = singleMetadataBuffers[i].second;
+        batchPayload.writeUnsignedInt(msgMetadataSize);
+        batchPayload.write(singleMetadataBuffers[i].first.get(), msgMetadataSize);
+        const auto& payload = messages[i].impl_->payload;
+        batchPayload.write(payload.data(), payload.readableBytes());
     }
-    // Adding the new message
-    batchPayLoad.writeUnsignedInt(msgMetadataSize);
-    metadata.SerializeToArray(batchPayLoad.mutableData(), msgMetadataSize);
-    batchPayLoad.bytesWritten(msgMetadataSize);
-    batchPayLoad.write(msg.impl_->payload.data(), payloadSize);
 
-    return msgMetadata.sequence_id();
+    return messages.back().impl_->metadata.sequence_id();
 }
 
 Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,

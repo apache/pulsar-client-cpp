@@ -37,7 +37,6 @@ void MessageAndCallbackBatch::add(const Message& msg, const SendCallback& callba
     if (callbacks_.empty()) {
         metadata_.reset(new proto::MessageMetadata);
         Commands::initBatchMessageMetadata(msg, *metadata_);
-        sequenceId_ = metadata_->sequence_id();
     }
     messages_.emplace_back(msg);
     callbacks_.emplace_back(callback);
@@ -51,22 +50,10 @@ std::unique_ptr<OpSendMsg> MessageAndCallbackBatch::createOpSendMsg(
         return OpSendMsg::create(ResultOperationNotSupported, std::move(callback));
     }
 
-    // The magic number 64 is just an estimated size increment after setting some fields of the
-    // SingleMessageMetadata. It does not have to be accurate because it's only used to reduce the
-    // reallocation of the payload buffer.
-    static const size_t kEstimatedHeaderSize =
-        sizeof(uint32_t) + proto::MessageMetadata{}.ByteSizeLong() + 64;
-    const auto maxMessageSize = ClientConnection::getMaxMessageSize();
-    // Estimate the buffer size just to avoid resizing the buffer
-    size_t maxBufferSize = kEstimatedHeaderSize * messages_.size();
-    for (const auto& msg : messages_) {
-        maxBufferSize += msg.getLength();
-    }
-    auto payload = SharedBuffer::allocate(maxBufferSize);
-    for (const auto& msg : messages_) {
-        sequenceId_ = Commands::serializeSingleMessageInBatchWithPayload(msg, payload, maxMessageSize);
-    }
-    metadata_->set_sequence_id(sequenceId_);
+    // TODO: Store payload as a field and support shrinking
+    SharedBuffer payload;
+    auto sequenceId = Commands::serializeSingleMessagesToBatchPayload(payload, messages_);
+    metadata_->set_sequence_id(sequenceId);
     metadata_->set_num_messages_in_batch(messages_.size());
     auto compressionType = producerConfig.getCompressionType();
     if (compressionType != CompressionNone) {

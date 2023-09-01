@@ -58,8 +58,6 @@ class MessageAndCallbackBatch final : public boost::noncopyable {
                                                const ProducerConfiguration& producerConfig,
                                                MessageCrypto* crypto);
 
-    uint64_t sequenceId() const noexcept { return sequenceId_; }
-
     void clear();
 
    private:
