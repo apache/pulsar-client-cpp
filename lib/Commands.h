@@ -148,8 +148,8 @@ class Commands {
 
     static void initBatchMessageMetadata(const Message& msg, pulsar::proto::MessageMetadata& batchMetadata);
 
-    static PULSAR_PUBLIC uint64_t serializeSingleMessageInBatchWithPayload(
-        const Message& msg, SharedBuffer& batchPayLoad, unsigned long maxMessageSizeInBytes);
+    static uint64_t serializeSingleMessagesToBatchPayload(SharedBuffer& batchPayload,
+                                                          const std::vector<Message>& messages);
 
     static Message deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
                                                    int32_t batchSize, const BatchMessageAckerPtr& acker);

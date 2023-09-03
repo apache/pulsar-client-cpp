@@ -54,7 +54,10 @@ void BatchMessageContainer::clear() {
 }
 
 std::unique_ptr<OpSendMsg> BatchMessageContainer::createOpSendMsg(const FlushCallback& flushCallback) {
-    auto op = createOpSendMsgHelper(flushCallback, batch_);
+    auto op = createOpSendMsgHelper(batch_);
+    if (flushCallback) {
+        op->addTrackerCallback(flushCallback);
+    }
     clear();
     return op;
 }

@@ -74,22 +74,19 @@ void BatchMessageKeyBasedContainer::clear() {
 
 std::vector<std::unique_ptr<OpSendMsg>> BatchMessageKeyBasedContainer::createOpSendMsgs(
     const FlushCallback& flushCallback) {
-    // Sorted the batches by sequence id
-    std::vector<const MessageAndCallbackBatch*> sortedBatches;
-    for (const auto& kv : batches_) {
-        sortedBatches.emplace_back(&kv.second);
+    // Store raw pointers to use std::sort
+    std::vector<OpSendMsg*> rawOpSendMsgs;
+    for (auto& kv : batches_) {
+        rawOpSendMsgs.emplace_back(createOpSendMsgHelper(kv.second).release());
     }
-    std::sort(sortedBatches.begin(), sortedBatches.end(),
-              [](const MessageAndCallbackBatch* lhs, const MessageAndCallbackBatch* rhs) {
-                  return lhs->sequenceId() < rhs->sequenceId();
-              });
+    std::sort(rawOpSendMsgs.begin(), rawOpSendMsgs.end(), [](const OpSendMsg* lhs, const OpSendMsg* rhs) {
+        return lhs->sendArgs->sequenceId < rhs->sendArgs->sequenceId;
+    });
+    rawOpSendMsgs.back()->addTrackerCallback(flushCallback);
 
-    std::vector<std::unique_ptr<OpSendMsg>> opSendMsgs{sortedBatches.size()};
-    for (size_t i = 0; i + 1 < opSendMsgs.size(); i++) {
-        opSendMsgs[i].reset(createOpSendMsgHelper(nullptr, *sortedBatches[i]).release());
-    }
-    if (!opSendMsgs.empty()) {
-        opSendMsgs.back().reset(createOpSendMsgHelper(flushCallback, *sortedBatches.back()).release());
+    std::vector<std::unique_ptr<OpSendMsg>> opSendMsgs{rawOpSendMsgs.size()};
+    for (size_t i = 0; i < opSendMsgs.size(); i++) {
+        opSendMsgs[i].reset(rawOpSendMsgs[i]);
     }
     clear();
     return opSendMsgs;

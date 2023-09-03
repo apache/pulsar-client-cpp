@@ -953,7 +953,7 @@ TEST(BatchMessageTest, producerFailureResult) {
     PulsarFriend::producerFailMessages(producer, res);
 }
 
-TEST(BatchMessageTest, testPraseMessageBatchEntry) {
+TEST(BatchMessageTest, testParseMessageBatchEntry) {
     struct Case {
         std::string content;
         std::string propKey;
@@ -963,13 +963,14 @@ TEST(BatchMessageTest, testPraseMessageBatchEntry) {
     cases.push_back(Case{"example1", "prop1", "value1"});
     cases.push_back(Case{"example2", "prop2", "value2"});
 
-    SharedBuffer payload = SharedBuffer::allocate(128);
-    for (auto it = cases.begin(); it != cases.end(); ++it) {
+    std::vector<Message> msgs;
+    for (const auto& x : cases) {
         MessageBuilder msgBuilder;
-        const Message& message =
-            msgBuilder.setContent(it->content).setProperty(it->propKey, it->propValue).build();
-        Commands::serializeSingleMessageInBatchWithPayload(message, payload, 1024);
+        msgs.emplace_back(msgBuilder.setContent(x.content).setProperty(x.propKey, x.propValue).build());
     }
+    SharedBuffer payload;
+    Commands::serializeSingleMessagesToBatchPayload(payload, msgs);
+    ASSERT_EQ(payload.writableBytes(), 0);
 
     MessageBatch messageBatch;
     auto fakeId = MessageIdBuilder().ledgerId(5000L).entryId(10L).partition(0).build();

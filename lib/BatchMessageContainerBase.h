@@ -109,8 +109,7 @@ class BatchMessageContainerBase : public boost::noncopyable {
     void updateStats(const Message& msg);
     void resetStats();
 
-    std::unique_ptr<OpSendMsg> createOpSendMsgHelper(const FlushCallback& flushCallback,
-                                                     const MessageAndCallbackBatch& batch) const;
+    std::unique_ptr<OpSendMsg> createOpSendMsgHelper(MessageAndCallbackBatch& flushCallback) const;
 
     virtual void clear() = 0;
 };
