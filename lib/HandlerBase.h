@@ -128,6 +128,7 @@ class HandlerBase {
     DeadlineTimerPtr timer_;
 
     mutable std::mutex connectionMutex_;
+    std::atomic<bool> reconnectionPending_;
     ClientConnectionWeakPtr connection_;
     friend class ClientConnection;
     friend class PulsarFriend;
