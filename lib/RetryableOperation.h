@@ -79,7 +79,12 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
     std::atomic_bool started_{false};
     DeadlineTimerPtr timer_;
 
-    Future<Result, T> runImpl(TimeDuration remainingTime) {
+    // Fix the "declared with greater visibility" error for GCC <= 7
+#ifdef __GNUC__
+    __attribute__((visibility("hidden")))
+#endif
+    Future<Result, T>
+    runImpl(TimeDuration remainingTime) {
         std::weak_ptr<RetryableOperation<T>> weakSelf{this->shared_from_this()};
         func_().addListener([this, weakSelf, remainingTime](Result result, const T& value) {
             auto self = weakSelf.lock();
