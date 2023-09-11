@@ -31,13 +31,6 @@ using NamespaceTopicsPromisePtr = std::shared_ptr<NamespaceTopicsPromise>;
 using GetSchemaPromise = Promise<Result, SchemaInfo>;
 
 class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
-    class CurlInitializer {
-       public:
-        CurlInitializer();
-        ~CurlInitializer();
-    };
-    static CurlInitializer curlInitializer;
-
     enum RequestType
     {
         Lookup,
