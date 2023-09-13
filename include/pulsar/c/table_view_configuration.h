@@ -21,6 +21,7 @@
 
 #include <pulsar/defines.h>
 
+#include "consumer_configuration.h"
 #include "producer_configuration.h"
 
 #ifdef __cplusplus
@@ -43,6 +44,15 @@ PULSAR_PUBLIC void pulsar_table_view_configuration_set_subscription_name(
 PULSAR_PUBLIC const char *pulsar_table_view_configuration_get_subscription_name(
     pulsar_table_view_configuration_t *table_view_configuration_t);
 
+PULSAR_PUBLIC void pulsar_table_view_configuration_set_default_crypto_key_reader(
+    pulsar_table_view_configuration_t *table_view_configuration_t, const char *public_key_path, const char *private_key_path);
+
+PULSAR_PUBLIC pulsar_consumer_crypto_failure_action
+pulsar_table_view_configuration_get_crypto_failure_action(
+    pulsar_table_view_configuration_t *table_view_configuration_t);
+
+PULSAR_PUBLIC void pulsar_table_view_configuration_set_crypto_failure_action(
+    pulsar_table_view_configuration_t *table_view_configuration_t, pulsar_consumer_crypto_failure_action crypto_failure_action);
 #ifdef __cplusplus
 }
 #endif

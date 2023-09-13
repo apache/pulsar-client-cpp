@@ -44,3 +44,19 @@ const char *pulsar_table_view_configuration_get_subscription_name(
     pulsar_table_view_configuration_t *table_view_configuration_t) {
     return table_view_configuration_t->tableViewConfiguration.subscriptionName.c_str();
 }
+
+void pulsar_table_view_configuration_set_default_crypto_key_reader(
+    pulsar_table_view_configuration_t *table_view_configuration_t, const char *public_key_path, const char *private_key_path) {
+    std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader = std::make_shared<pulsar::DefaultCryptoKeyReader>(public_key_path, private_key_path);
+    table_view_configuration_t->tableViewConfiguration.cryptoKeyReader = keyReader;
+}
+
+pulsar_consumer_crypto_failure_action pulsar_table_view_configuration_get_crypto_failure_action(
+    pulsar_table_view_configuration_t *table_view_configuration_t) {
+    return (pulsar_consumer_crypto_failure_action) table_view_configuration_t->tableViewConfiguration.cryptoFailureAction;
+}
+
+void pulsar_table_view_configuration_set_crypto_failure_action(
+    pulsar_table_view_configuration_t *table_view_configuration_t, pulsar_consumer_crypto_failure_action crypto_failure_action) {
+    table_view_configuration_t->tableViewConfiguration.cryptoFailureAction = (pulsar::ConsumerCryptoFailureAction)crypto_failure_action;
+}
