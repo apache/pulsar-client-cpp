@@ -39,6 +39,11 @@ Future<Result, TableViewImplPtr> TableViewImpl::start() {
     readerConfiguration.setReadCompacted(true);
     readerConfiguration.setInternalSubscriptionName(conf_.subscriptionName);
 
+    if (conf_.cryptoKeyReader != nullptr) {
+        readerConfiguration.setCryptoFailureAction(conf_.cryptoFailureAction);
+        readerConfiguration.setCryptoKeyReader(conf_.cryptoKeyReader);
+    }
+
     TableViewImplPtr self = shared_from_this();
     ReaderCallback readerCallback = [self, promise](Result res, Reader reader) {
         if (res == ResultOk) {

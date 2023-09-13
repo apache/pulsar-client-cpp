@@ -19,6 +19,8 @@
 #ifndef PULSAR_TABLEVIEW_CONFIGURATION_H_
 #define PULSAR_TABLEVIEW_CONFIGURATION_H_
 
+#include <pulsar/ConsumerCryptoFailureAction.h>
+#include <pulsar/CryptoKeyReader.h>
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
 
@@ -31,6 +33,10 @@ struct TableViewConfiguration {
     SchemaInfo schemaInfo;
     // The name of the subscription to the topic. Default value is reader-{random string}.
     std::string subscriptionName;
+    // the shared pointer to CryptoKeyReader
+    CryptoKeyReaderPtr cryptoKeyReader;
+    // the ConsumerCryptoFailureAction to use
+    ConsumerCryptoFailureAction cryptoFailureAction = ConsumerCryptoFailureAction::FAIL;
 };
 }  // namespace pulsar
 #endif /* PULSAR_TABLEVIEW_CONFIGURATION_H_ */
