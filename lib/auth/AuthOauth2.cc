@@ -18,8 +18,6 @@
  */
 #include "AuthOauth2.h"
 
-#include <curl/curl.h>
-
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <sstream>
@@ -27,6 +25,7 @@
 
 #include "InitialAuthData.h"
 #include "lib/Base64Utils.h"
+#include "lib/CurlWrapper.h"
 #include "lib/LogUtils.h"
 DECLARE_LOG_OBJECT()
 
@@ -208,11 +207,6 @@ ClientCredentialFlow::ClientCredentialFlow(ParamMap& params)
 
 std::string ClientCredentialFlow::getTokenEndPoint() const { return tokenEndPoint_; }
 
-static size_t curlWriteCallback(void* contents, size_t size, size_t nmemb, void* responseDataPtr) {
-    ((std::string*)responseDataPtr)->append((char*)contents, size * nmemb);
-    return size * nmemb;
-}
-
 void ClientCredentialFlow::initialize() {
     if (issuerUrl_.empty()) {
         LOG_ERROR("Failed to initialize ClientCredentialFlow: issuer_url is not set");
@@ -222,48 +216,37 @@ void ClientCredentialFlow::initialize() {
         return;
     }
 
-    CURL* handle = curl_easy_init();
-    CURLcode res;
-    std::string responseData;
-
-    // set header: json, request type: post
-    struct curl_slist* list = NULL;
-    list = curl_slist_append(list, "Accept: application/json");
-    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, list);
-    curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, "GET");
-
     // set URL: well-know endpoint
     std::string wellKnownUrl = issuerUrl_;
     if (wellKnownUrl.back() == '/') {
         wellKnownUrl.pop_back();
     }
     wellKnownUrl.append("/.well-known/openid-configuration");
-    curl_easy_setopt(handle, CURLOPT_URL, wellKnownUrl.c_str());
 
-    // Write callback
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, curlWriteCallback);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, &responseData);
-
-    // New connection is made for each call
-    curl_easy_setopt(handle, CURLOPT_FRESH_CONNECT, 1L);
-    curl_easy_setopt(handle, CURLOPT_FORBID_REUSE, 1L);
-
-    curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
-
-    char errorBuffer[CURL_ERROR_SIZE];
-    curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errorBuffer);
-
+    CurlWrapper curl;
+    if (!curl.init()) {
+        LOG_ERROR("Failed to initialize curl");
+        return;
+    }
+    std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
     if (!tlsTrustCertsFilePath_.empty()) {
-        curl_easy_setopt(handle, CURLOPT_CAINFO, tlsTrustCertsFilePath_.c_str());
+        tlsContext.reset(new CurlWrapper::TlsContext);
+        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
     }
 
-    // Make get call to server
-    res = curl_easy_perform(handle);
+    auto result = curl.get(wellKnownUrl, "Accept: application/json", {}, tlsContext.get());
+    if (!result.error.empty()) {
+        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl_ << ": " << result.error);
+        return;
+    }
+
+    const auto res = result.code;
+    const auto response_code = result.responseCode;
+    const auto& responseData = result.responseData;
+    const auto& errorBuffer = result.serverError;
 
     switch (res) {
         case CURLE_OK:
-            long response_code;
-            curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
             LOG_DEBUG("Received well-known configuration data " << issuerUrl_ << " code " << response_code);
             if (response_code == 200) {
                 boost::property_tree::ptree root;
@@ -290,9 +273,6 @@ void ClientCredentialFlow::initialize() {
                       << issuerUrl_ << ". Error Code " << res << ": " << errorBuffer);
             break;
     }
-    // Free header list
-    curl_slist_free_all(list);
-    curl_easy_cleanup(handle);
 }
 void ClientCredentialFlow::close() {}
 
@@ -312,7 +292,7 @@ ParamMap ClientCredentialFlow::generateParamMap() const {
     return params;
 }
 
-static std::string buildClientCredentialsBody(CURL* curl, const ParamMap& params) {
+static std::string buildClientCredentialsBody(CurlWrapper& curl, const ParamMap& params) {
     std::ostringstream oss;
     bool addSeparater = false;
 
@@ -323,12 +303,12 @@ static std::string buildClientCredentialsBody(CURL* curl, const ParamMap& params
             addSeparater = true;
         }
 
-        char* encodedKey = curl_easy_escape(curl, kv.first.c_str(), kv.first.length());
+        char* encodedKey = curl.escape(kv.first);
         if (!encodedKey) {
             LOG_ERROR("curl_easy_escape for " << kv.first << " failed");
             continue;
         }
-        char* encodedValue = curl_easy_escape(curl, kv.second.c_str(), kv.second.length());
+        char* encodedValue = curl.escape(kv.second);
         if (!encodedValue) {
             LOG_ERROR("curl_easy_escape for " << kv.second << " failed");
             continue;
@@ -349,51 +329,32 @@ Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
         return resultPtr;
     }
 
-    CURL* handle = curl_easy_init();
-    const auto postData = buildClientCredentialsBody(handle, generateParamMap());
+    CurlWrapper curl;
+    if (!curl.init()) {
+        LOG_ERROR("Failed to initialize curl");
+        return resultPtr;
+    }
+    auto postData = buildClientCredentialsBody(curl, generateParamMap());
     if (postData.empty()) {
-        curl_easy_cleanup(handle);
         return resultPtr;
     }
     LOG_DEBUG("Generate URL encoded body for ClientCredentialFlow: " << postData);
 
-    CURLcode res;
-    std::string responseData;
-
-    struct curl_slist* list = NULL;
-    list = curl_slist_append(list, "Content-Type: application/x-www-form-urlencoded");
-    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, list);
-    curl_easy_setopt(handle, CURLOPT_CUSTOMREQUEST, "POST");
-
-    // set URL: issuerUrl
-    curl_easy_setopt(handle, CURLOPT_URL, tokenEndPoint_.c_str());
-
-    // Write callback
-    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, curlWriteCallback);
-    curl_easy_setopt(handle, CURLOPT_WRITEDATA, &responseData);
-
-    // New connection is made for each call
-    curl_easy_setopt(handle, CURLOPT_FRESH_CONNECT, 1L);
-    curl_easy_setopt(handle, CURLOPT_FORBID_REUSE, 1L);
-
-    curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 1L);
-
-    curl_easy_setopt(handle, CURLOPT_POSTFIELDS, postData.c_str());
-
-    char errorBuffer[CURL_ERROR_SIZE];
-    curl_easy_setopt(handle, CURLOPT_ERRORBUFFER, errorBuffer);
-
-    if (!tlsTrustCertsFilePath_.empty()) {
-        curl_easy_setopt(handle, CURLOPT_CAINFO, tlsTrustCertsFilePath_.c_str());
+    CurlWrapper::Options options;
+    options.postFields = std::move(postData);
+    auto result =
+        curl.get(tokenEndPoint_, "Content-Type: application/x-www-form-urlencoded", options, nullptr);
+    if (!result.error.empty()) {
+        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl_ << ": " << result.error);
+        return resultPtr;
     }
-
-    // Make get call to server
-    res = curl_easy_perform(handle);
+    const auto res = result.code;
+    const auto response_code = result.responseCode;
+    const auto& responseData = result.responseData;
+    const auto& errorBuffer = result.serverError;
 
     switch (res) {
         case CURLE_OK:
-            long response_code;
-            curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
             LOG_DEBUG("Response received for issuerurl " << issuerUrl_ << " code " << response_code);
             if (response_code == 200) {
                 boost::property_tree::ptree root;
@@ -429,9 +390,6 @@ Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
                                                        << errorBuffer << " passedin: " << postData);
             break;
     }
-    // Free header list
-    curl_slist_free_all(list);
-    curl_easy_cleanup(handle);
 
     return resultPtr;
 }
