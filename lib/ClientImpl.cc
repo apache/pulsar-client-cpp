@@ -517,8 +517,8 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
     }
 }
 
-Future<Result, ClientConnectionWeakPtr> ClientImpl::getConnection(const std::string& topic) {
-    Promise<Result, ClientConnectionWeakPtr> promise;
+Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string& topic) {
+    Promise<Result, ClientConnectionPtr> promise;
 
     const auto topicNamePtr = TopicName::get(topic);
     if (!topicNamePtr) {
@@ -537,7 +537,12 @@ Future<Result, ClientConnectionWeakPtr> ClientImpl::getConnection(const std::str
             pool_.getConnectionAsync(data.logicalAddress, data.physicalAddress)
                 .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
                     if (result == ResultOk) {
-                        promise.setValue(weakCnx);
+                        auto cnx = weakCnx.lock();
+                        if (cnx) {
+                            promise.setValue(cnx);
+                        } else {
+                            promise.setFailed(ResultConnectError);
+                        }
                     } else {
                         promise.setFailed(result);
                     }

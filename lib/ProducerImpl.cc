@@ -268,13 +268,13 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
 
             // Producer had already been initially created, we need to retry connecting in any case
             LOG_WARN(getName() << "Failed to reconnect producer: " << strResult(result));
-            scheduleReconnection(shared_from_this());
+            scheduleReconnection();
         } else {
             // Producer was not yet created, retry to connect to broker if it's possible
             result = convertToTimeoutIfNecessary(result, creationTimestamp_);
             if (result == ResultRetryable) {
                 LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(result));
-                scheduleReconnection(shared_from_this());
+                scheduleReconnection();
             } else {
                 LOG_ERROR(getName() << "Failed to create producer: " << strResult(result));
                 failPendingMessages(result, false);
@@ -949,7 +949,7 @@ bool ProducerImpl::encryptMessage(proto::MessageMetadata& metadata, SharedBuffer
 void ProducerImpl::disconnectProducer() {
     LOG_DEBUG("Broker notification of Closed producer: " << producerId_);
     resetCnx();
-    scheduleReconnection(shared_from_this());
+    scheduleReconnection();
 }
 
 void ProducerImpl::start() {

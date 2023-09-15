@@ -54,6 +54,7 @@ using TcpResolverPtr = std::shared_ptr<boost::asio::ip::tcp::resolver>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
+class ConnectionPool;
 class ClientConnection;
 typedef std::shared_ptr<ClientConnection> ClientConnectionPtr;
 typedef std::weak_ptr<ClientConnection> ClientConnectionWeakPtr;
@@ -127,8 +128,13 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                      ExecutorServicePtr executor, const ClientConfiguration& clientConfiguration,
-                     const AuthenticationPtr& authentication, const std::string& clientVersion);
+                     const AuthenticationPtr& authentication, const std::string& clientVersion,
+                     ConnectionPool& pool);
     ~ClientConnection();
+
+#if __cplusplus < 201703L
+    std::weak_ptr<ClientConnection> weak_from_this() noexcept { return shared_from_this(); }
+#endif
 
     /*
      * starts tcp connect_async
@@ -136,7 +142,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     void tcpConnectAsync();
 
-    void close(Result result = ResultConnectError);
+    void close(Result result = ResultConnectError, bool detach = true);
 
     bool isClosed() const;
 
@@ -383,6 +389,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     bool isTlsAllowInsecureConnection_ = false;
 
     const std::string clientVersion_;
+    ConnectionPool& pool_;
     friend class PulsarFriend;
 
     void closeSocket();

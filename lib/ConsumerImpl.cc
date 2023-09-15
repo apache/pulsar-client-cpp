@@ -315,13 +315,13 @@ void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result r
         if (consumerCreatedPromise_.isComplete()) {
             // Consumer had already been initially created, we need to retry connecting in any case
             LOG_WARN(getName() << "Failed to reconnect consumer: " << strResult(result));
-            scheduleReconnection(get_shared_this_ptr());
+            scheduleReconnection();
         } else {
             // Consumer was not yet created, retry to connect to broker if it's possible
             result = convertToTimeoutIfNecessary(result, creationTimestamp_);
             if (result == ResultRetryable) {
                 LOG_WARN(getName() << "Temporary error in creating consumer: " << strResult(result));
-                scheduleReconnection(get_shared_this_ptr());
+                scheduleReconnection();
             } else {
                 LOG_ERROR(getName() << "Failed to create consumer: " << strResult(result));
                 consumerCreatedPromise_.setFailed(result);
@@ -1206,7 +1206,7 @@ void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
 void ConsumerImpl::disconnectConsumer() {
     LOG_INFO("Broker notification of Closed consumer: " << consumerId_);
     resetCnx();
-    scheduleReconnection(get_shared_this_ptr());
+    scheduleReconnection();
 }
 
 void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
