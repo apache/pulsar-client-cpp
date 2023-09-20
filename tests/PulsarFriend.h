@@ -132,12 +132,9 @@ class PulsarFriend {
     static std::vector<ClientConnectionPtr> getConnections(const Client& client) {
         auto& pool = client.impl_->pool_;
         std::vector<ClientConnectionPtr> connections;
-        std::lock_guard<std::mutex> lock(pool.mutex_);
+        std::lock_guard<std::recursive_mutex> lock(pool.mutex_);
         for (const auto& kv : pool.pool_) {
-            auto cnx = kv.second.lock();
-            if (cnx) {
-                connections.emplace_back(cnx);
-            }
+            connections.emplace_back(kv.second);
         }
         return connections;
     }

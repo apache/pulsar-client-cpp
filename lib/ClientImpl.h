@@ -50,7 +50,7 @@ class ConsumerImplBase;
 typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
 
 class ClientConnection;
-using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 
 class LookupService;
 using LookupServicePtr = std::shared_ptr<LookupService>;
@@ -96,7 +96,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
 
-    Future<Result, ClientConnectionWeakPtr> getConnection(const std::string& topic);
+    Future<Result, ClientConnectionPtr> getConnection(const std::string& topic);
 
     void closeAsync(CloseCallback callback);
     void shutdown();

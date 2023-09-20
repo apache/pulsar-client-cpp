@@ -24,6 +24,7 @@
 #include <fstream>
 
 #include "Commands.h"
+#include "ConnectionPool.h"
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
@@ -157,7 +158,8 @@ std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessa
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                                    ExecutorServicePtr executor,
                                    const ClientConfiguration& clientConfiguration,
-                                   const AuthenticationPtr& authentication, const std::string& clientVersion)
+                                   const AuthenticationPtr& authentication, const std::string& clientVersion,
+                                   ConnectionPool& pool)
     : operationsTimeout_(seconds(clientConfiguration.getOperationTimeoutSeconds())),
       authentication_(authentication),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
@@ -180,7 +182,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       outgoingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
       consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
       maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()),
-      clientVersion_(clientVersion) {
+      clientVersion_(clientVersion),
+      pool_(pool) {
     LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
     if (clientConfiguration.isUseTls()) {
 #if BOOST_VERSION >= 105400
@@ -260,7 +263,9 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
     }
 }
 
-ClientConnection::~ClientConnection() { LOG_INFO(cnxString_ << "Destroyed connection"); }
+ClientConnection::~ClientConnection() {
+    LOG_INFO(cnxString_ << "Destroyed connection to " << logicalAddress_);
+}
 
 void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdConnected) {
     if (!cmdConnected.has_server_version()) {
@@ -290,8 +295,13 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         keepAliveTimer_ = executor_->createDeadlineTimer();
         if (keepAliveTimer_) {
             keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
-            keepAliveTimer_->async_wait(
-                std::bind(&ClientConnection::handleKeepAliveTimeout, shared_from_this()));
+            auto weakSelf = weak_from_this();
+            keepAliveTimer_->async_wait([weakSelf](const boost::system::error_code&) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleKeepAliveTimeout();
+                }
+            });
         }
     }
 
@@ -330,9 +340,14 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
     // Check if we have a timer still before we set the request timer to pop again.
     if (consumerStatsRequestTimer_) {
         consumerStatsRequestTimer_->expires_from_now(operationsTimeout_);
-        consumerStatsRequestTimer_->async_wait(std::bind(&ClientConnection::handleConsumerStatsTimeout,
-                                                         shared_from_this(), std::placeholders::_1,
-                                                         consumerStatsRequests));
+        auto weakSelf = weak_from_this();
+        consumerStatsRequestTimer_->async_wait(
+            [weakSelf, consumerStatsRequests](const boost::system::error_code& err) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleConsumerStatsTimeout(err, consumerStatsRequests);
+                }
+            });
     }
     lock.unlock();
     // Complex logic since promises need to be fulfilled outside the lock
@@ -433,15 +448,19 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
                     return;
                 }
             }
+            auto weakSelf = weak_from_this();
+            auto callback = [weakSelf](const boost::system::error_code& err) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleHandshake(err);
+                }
+            };
 #if BOOST_VERSION >= 106600
-            tlsSocket_->async_handshake(
-                boost::asio::ssl::stream<tcp::socket>::client,
-                boost::asio::bind_executor(strand_, std::bind(&ClientConnection::handleHandshake,
-                                                              shared_from_this(), std::placeholders::_1)));
+            tlsSocket_->async_handshake(boost::asio::ssl::stream<tcp::socket>::client,
+                                        boost::asio::bind_executor(strand_, callback));
 #else
             tlsSocket_->async_handshake(boost::asio::ssl::stream<tcp::socket>::client,
-                                        strand_.wrap(std::bind(&ClientConnection::handleHandshake,
-                                                               shared_from_this(), std::placeholders::_1)));
+                                        strand_.wrap(callback));
 #endif
         } else {
             handleHandshake(boost::system::errc::make_error_code(boost::system::errc::success));
@@ -460,9 +479,14 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
             LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
             connectTimeoutTask_->start();
             tcp::endpoint endpoint = *endpointIterator;
+            auto weakSelf = weak_from_this();
             socket_->async_connect(endpoint,
-                                   std::bind(&ClientConnection::handleTcpConnected, shared_from_this(),
-                                             std::placeholders::_1, ++endpointIterator));
+                                   [weakSelf, endpointIterator](const boost::system::error_code& err) {
+                                       auto self = weakSelf.lock();
+                                       if (self) {
+                                           self->handleTcpConnected(err, endpointIterator);
+                                       }
+                                   });
         } else {
             if (err == boost::asio::error::operation_aborted) {
                 // TCP connect timeout, which is not retryable
@@ -494,8 +518,14 @@ void ClientConnection::handleHandshake(const boost::system::error_code& err) {
         return;
     }
     // Send CONNECT command to broker
-    asyncWrite(buffer.const_asio_buffer(), std::bind(&ClientConnection::handleSentPulsarConnect,
-                                                     shared_from_this(), std::placeholders::_1, buffer));
+    auto weakSelf = weak_from_this();
+    asyncWrite(buffer.const_asio_buffer(),
+               customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err, size_t) {
+                   auto self = weakSelf.lock();
+                   if (self) {
+                       self->handleSentPulsarConnect(err, buffer);
+                   }
+               }));
 }
 
 void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& err,
@@ -547,8 +577,14 @@ void ClientConnection::tcpConnectAsync() {
 
     LOG_DEBUG(cnxString_ << "Resolving " << service_url.host() << ":" << service_url.port());
     tcp::resolver::query query(service_url.host(), std::to_string(service_url.port()));
-    resolver_->async_resolve(query, std::bind(&ClientConnection::handleResolve, shared_from_this(),
-                                              std::placeholders::_1, std::placeholders::_2));
+    auto weakSelf = weak_from_this();
+    resolver_->async_resolve(
+        query, [weakSelf](const boost::system::error_code& err, tcp::resolver::iterator iterator) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleResolve(err, iterator);
+            }
+        });
 }
 
 void ClientConnection::handleResolve(const boost::system::error_code& err,
@@ -559,10 +595,9 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
         return;
     }
 
-    auto self = ClientConnectionWeakPtr(shared_from_this());
-
-    connectTimeoutTask_->setCallback([self](const PeriodicTask::ErrorCode& ec) {
-        ClientConnectionPtr ptr = self.lock();
+    auto weakSelf = weak_from_this();
+    connectTimeoutTask_->setCallback([weakSelf](const PeriodicTask::ErrorCode& ec) {
+        ClientConnectionPtr ptr = weakSelf.lock();
         if (!ptr) {
             // Connection was already destroyed
             return;
@@ -586,8 +621,12 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
         LOG_DEBUG(cnxString_ << "Resolved hostname " << endpointIterator->host_name()  //
                              << " to " << endpointIterator->endpoint());
         socket_->async_connect(*endpointIterator,
-                               std::bind(&ClientConnection::handleTcpConnected, shared_from_this(),
-                                         std::placeholders::_1, endpointIterator));
+                               [weakSelf, endpointIterator](const boost::system::error_code& err) {
+                                   auto self = weakSelf.lock();
+                                   if (self) {
+                                       self->handleTcpConnected(err, endpointIterator);
+                                   }
+                               });
     } else {
         LOG_WARN(cnxString_ << "No IP address found");
         close();
@@ -597,10 +636,15 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
 
 void ClientConnection::readNextCommand() {
     const static uint32_t minReadSize = sizeof(uint32_t);
+    auto weakSelf = weak_from_this();
     asyncReceive(
         incomingBuffer_.asio_buffer(),
-        customAllocReadHandler(std::bind(&ClientConnection::handleRead, shared_from_this(),
-                                         std::placeholders::_1, std::placeholders::_2, minReadSize)));
+        customAllocReadHandler([weakSelf](const boost::system::error_code& err, size_t bytesTransferred) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleRead(err, bytesTransferred, minReadSize);
+            }
+        }));
 }
 
 void ClientConnection::handleRead(const boost::system::error_code& err, size_t bytesTransferred,
@@ -621,10 +665,16 @@ void ClientConnection::handleRead(const boost::system::error_code& err, size_t b
         // Read the remaining part, use a slice of buffer to write on the next
         // region
         SharedBuffer buffer = incomingBuffer_.slice(bytesTransferred);
+        auto weakSelf = weak_from_this();
+        auto nextMinReadSize = minReadSize - bytesTransferred;
         asyncReceive(buffer.asio_buffer(),
-                     customAllocReadHandler(std::bind(&ClientConnection::handleRead, shared_from_this(),
-                                                      std::placeholders::_1, std::placeholders::_2,
-                                                      minReadSize - bytesTransferred)));
+                     customAllocReadHandler([weakSelf, nextMinReadSize](const boost::system::error_code& err,
+                                                                        size_t bytesTransferred) {
+                         auto self = weakSelf.lock();
+                         if (self) {
+                             self->handleRead(err, bytesTransferred, nextMinReadSize);
+                         }
+                     }));
     } else {
         processIncomingBuffer();
     }
@@ -645,24 +695,22 @@ void ClientConnection::processIncomingBuffer() {
             // we'll read it again
             incomingBuffer_.rollback(sizeof(uint32_t));
 
-            if (bytesToReceive <= incomingBuffer_.writableBytes()) {
-                // The rest of the frame still fits in the current buffer
-                asyncReceive(incomingBuffer_.asio_buffer(),
-                             customAllocReadHandler(std::bind(&ClientConnection::handleRead,
-                                                              shared_from_this(), std::placeholders::_1,
-                                                              std::placeholders::_2, bytesToReceive)));
-                return;
-            } else {
+            if (bytesToReceive > incomingBuffer_.writableBytes()) {
                 // Need to allocate a buffer big enough for the frame
                 uint32_t newBufferSize = std::max<uint32_t>(DefaultBufferSize, frameSize + sizeof(uint32_t));
                 incomingBuffer_ = SharedBuffer::copyFrom(incomingBuffer_, newBufferSize);
-
-                asyncReceive(incomingBuffer_.asio_buffer(),
-                             customAllocReadHandler(std::bind(&ClientConnection::handleRead,
-                                                              shared_from_this(), std::placeholders::_1,
-                                                              std::placeholders::_2, bytesToReceive)));
-                return;
             }
+            auto weakSelf = weak_from_this();
+            asyncReceive(
+                incomingBuffer_.asio_buffer(),
+                customAllocReadHandler([weakSelf, bytesToReceive](const boost::system::error_code& err,
+                                                                  size_t bytesTransferred) {
+                    auto self = weakSelf.lock();
+                    if (self) {
+                        self->handleRead(err, bytesTransferred, bytesToReceive);
+                    }
+                }));
+            return;
         }
 
         // At this point,  we have at least one complete frame available in the buffer
@@ -738,10 +786,15 @@ void ClientConnection::processIncomingBuffer() {
         // At least we need to read 4 bytes to have the complete frame size
         uint32_t minReadSize = sizeof(uint32_t) - incomingBuffer_.readableBytes();
 
-        asyncReceive(
-            incomingBuffer_.asio_buffer(),
-            customAllocReadHandler(std::bind(&ClientConnection::handleRead, shared_from_this(),
-                                             std::placeholders::_1, std::placeholders::_2, minReadSize)));
+        auto weakSelf = weak_from_this();
+        asyncReceive(incomingBuffer_.asio_buffer(),
+                     customAllocReadHandler([weakSelf, minReadSize](const boost::system::error_code& err,
+                                                                    size_t bytesTransferred) {
+                         auto self = weakSelf.lock();
+                         if (self) {
+                             self->handleRead(err, bytesTransferred, minReadSize);
+                         }
+                     }));
         return;
     }
 
@@ -856,8 +909,8 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
         }
 
         case Ready: {
-            // Since we are receiving data from the connection, we are assuming that for now the connection is
-            // still working well.
+            // Since we are receiving data from the connection, we are assuming that for now the
+            // connection is still working well.
             havePendingPingRequest_ = false;
 
             // Handle normal commands
@@ -989,8 +1042,13 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, const uint64_t request
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
-    requestData.timer->async_wait(std::bind(&ClientConnection::handleLookupTimeout, shared_from_this(),
-                                            std::placeholders::_1, requestData));
+    auto weakSelf = weak_from_this();
+    requestData.timer->async_wait([weakSelf, requestData](const boost::system::error_code& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleLookupTimeout(ec, requestData);
+        }
+    });
 
     pendingLookupRequests_.insert(std::make_pair(requestId, requestData));
     numOfPendingLookupRequest_++;
@@ -1004,11 +1062,17 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
     if (pendingWriteOperations_++ == 0) {
         // Write immediately to socket
         if (tlsSocket_) {
+            auto weakSelf = weak_from_this();
+            auto callback = [weakSelf, cmd]() {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->sendCommandInternal(cmd);
+                }
+            };
 #if BOOST_VERSION >= 106600
-            boost::asio::post(strand_,
-                              std::bind(&ClientConnection::sendCommandInternal, shared_from_this(), cmd));
+            boost::asio::post(strand_, callback);
 #else
-            strand_.post(std::bind(&ClientConnection::sendCommandInternal, shared_from_this(), cmd));
+            strand_.post(callback);
 #endif
         } else {
             sendCommandInternal(cmd);
@@ -1020,9 +1084,15 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
 }
 
 void ClientConnection::sendCommandInternal(const SharedBuffer& cmd) {
+    auto weakSelf = weak_from_this();
     asyncWrite(cmd.const_asio_buffer(),
                customAllocWriteHandler(
-                   std::bind(&ClientConnection::handleSend, shared_from_this(), std::placeholders::_1, cmd)));
+                   [weakSelf, cmd](const boost::system::error_code& err, size_t bytesTransferred) {
+                       auto self = weakSelf.lock();
+                       if (self) {
+                           self->handleSend(err, cmd);
+                       }
+                   }));
 }
 
 void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
@@ -1031,12 +1101,23 @@ void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
         pendingWriteBuffers_.emplace_back(args);
         return;
     }
-    auto self = shared_from_this();
-    auto sendMessageInternal = [this, self, args] {
+    auto weakSelf = weak_from_this();
+    auto sendMessageInternal = [this, weakSelf, args] {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
         BaseCommand outgoingCmd;
         auto buffer = Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
-        asyncWrite(buffer, customAllocReadHandler(std::bind(&ClientConnection::handleSendPair,
-                                                            shared_from_this(), std::placeholders::_1)));
+        // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
+        // callback is called, an invalid buffer range might be passed to the underlying socket send.
+        asyncWrite(buffer, customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err,
+                                                                      size_t bytesTransferred) {
+                       auto self = weakSelf.lock();
+                       if (self) {
+                           self->handleSendPair(err);
+                       }
+                   }));
     };
     if (tlsSocket_) {
 #if BOOST_VERSION >= 106600
@@ -1075,11 +1156,17 @@ void ClientConnection::sendPendingCommands() {
         boost::any any = pendingWriteBuffers_.front();
         pendingWriteBuffers_.pop_front();
 
+        auto weakSelf = weak_from_this();
         if (any.type() == typeid(SharedBuffer)) {
             SharedBuffer buffer = boost::any_cast<SharedBuffer>(any);
-            asyncWrite(buffer.const_asio_buffer(),
-                       customAllocWriteHandler(std::bind(&ClientConnection::handleSend, shared_from_this(),
-                                                         std::placeholders::_1, buffer)));
+            asyncWrite(
+                buffer.const_asio_buffer(),
+                customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err, size_t) {
+                    auto self = weakSelf.lock();
+                    if (self) {
+                        self->handleSend(err, buffer);
+                    }
+                }));
         } else {
             assert(any.type() == typeid(std::shared_ptr<SendArguments>));
 
@@ -1088,8 +1175,15 @@ void ClientConnection::sendPendingCommands() {
             PairSharedBuffer buffer =
                 Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
 
-            asyncWrite(buffer, customAllocWriteHandler(std::bind(&ClientConnection::handleSendPair,
-                                                                 shared_from_this(), std::placeholders::_1)));
+            // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
+            // callback is called, an invalid buffer range might be passed to the underlying socket send.
+            asyncWrite(buffer, customAllocWriteHandler(
+                                   [weakSelf, buffer](const boost::system::error_code& err, size_t) {
+                                       auto self = weakSelf.lock();
+                                       if (self) {
+                                           self->handleSendPair(err);
+                                       }
+                                   }));
         }
     } else {
         // No more pending writes
@@ -1110,8 +1204,13 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
     PendingRequestData requestData;
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
-    requestData.timer->async_wait(std::bind(&ClientConnection::handleRequestTimeout, shared_from_this(),
-                                            std::placeholders::_1, requestData));
+    auto weakSelf = weak_from_this();
+    requestData.timer->async_wait([weakSelf, requestData](const boost::system::error_code& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleRequestTimeout(ec, requestData);
+        }
+    });
 
     pendingRequests_.insert(std::make_pair(requestId, requestData));
     lock.unlock();
@@ -1155,13 +1254,18 @@ void ClientConnection::handleKeepAliveTimeout() {
         havePendingPingRequest_ = true;
         sendCommand(Commands::newPing());
 
-        // If the close operation has already called the keepAliveTimer_.reset() then the use_count will be
-        // zero And we do not attempt to dereference the pointer.
+        // If the close operation has already called the keepAliveTimer_.reset() then the use_count will
+        // be zero And we do not attempt to dereference the pointer.
         Lock lock(mutex_);
         if (keepAliveTimer_) {
             keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
-            keepAliveTimer_->async_wait(
-                std::bind(&ClientConnection::handleKeepAliveTimeout, shared_from_this()));
+            auto weakSelf = weak_from_this();
+            keepAliveTimer_->async_wait([weakSelf](const boost::system::error_code&) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleKeepAliveTimeout();
+                }
+            });
         }
         lock.unlock();
     }
@@ -1176,7 +1280,7 @@ void ClientConnection::handleConsumerStatsTimeout(const boost::system::error_cod
     startConsumerStatsTimer(consumerStatsRequests);
 }
 
-void ClientConnection::close(Result result) {
+void ClientConnection::close(Result result, bool detach) {
     Lock lock(mutex_);
     if (isClosed()) {
         return;
@@ -1227,14 +1331,26 @@ void ClientConnection::close(Result result) {
     } else {
         LOG_INFO(cnxString_ << "Connection disconnected");
     }
+    // Remove the connection from the pool before completing any promise
+    if (detach) {
+        pool_.remove(logicalAddress_, this);  // trigger the destructor
+    }
 
+    auto self = shared_from_this();
     for (ProducersMap::iterator it = producers.begin(); it != producers.end(); ++it) {
-        HandlerBase::handleDisconnection(result, shared_from_this(), it->second);
+        auto producer = it->second.lock();
+        if (producer) {
+            producer->handleDisconnection(result, self);
+        }
     }
 
     for (ConsumersMap::iterator it = consumers.begin(); it != consumers.end(); ++it) {
-        HandlerBase::handleDisconnection(result, shared_from_this(), it->second);
+        auto consumer = it->second.lock();
+        if (consumer) {
+            consumer->handleDisconnection(result, self);
+        }
     }
+    self.reset();
 
     connectPromise_.setFailed(result);
 
@@ -1310,8 +1426,13 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
-    requestData.timer->async_wait(std::bind(&ClientConnection::handleGetLastMessageIdTimeout,
-                                            shared_from_this(), std::placeholders::_1, requestData));
+    auto weakSelf = weak_from_this();
+    requestData.timer->async_wait([weakSelf, requestData](const boost::system::error_code& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleGetLastMessageIdTimeout(ec, requestData);
+        }
+    });
     pendingGetLastMessageIdRequests_.insert(std::make_pair(requestId, requestData));
     lock.unlock();
     sendCommand(Commands::newGetLastMessageId(consumerId, requestId));
@@ -1706,8 +1827,14 @@ void ClientConnection::handleAuthChallenge() {
         close(result);
         return;
     }
-    asyncWrite(buffer.const_asio_buffer(), std::bind(&ClientConnection::handleSentAuthResponse,
-                                                     shared_from_this(), std::placeholders::_1, buffer));
+    auto weakSelf = weak_from_this();
+    asyncWrite(buffer.const_asio_buffer(),
+               customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err, size_t) {
+                   auto self = weakSelf.lock();
+                   if (self) {
+                       self->handleSentAuthResponse(err, buffer);
+                   }
+               }));
 }
 
 void ClientConnection::handleGetLastMessageIdResponse(

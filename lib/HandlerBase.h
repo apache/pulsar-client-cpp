@@ -67,7 +67,7 @@ class HandlerBase {
     /*
      * Schedule reconnection after backoff time
      */
-    static void scheduleReconnection(HandlerBasePtr handler);
+    void scheduleReconnection();
 
     /**
      * Do some cleanup work before changing `connection_` to `cnx`.
@@ -89,10 +89,9 @@ class HandlerBase {
     virtual const std::string& getName() const = 0;
 
    private:
-    static void handleNewConnection(Result result, ClientConnectionWeakPtr connection, HandlerBaseWeakPtr wp);
-    static void handleDisconnection(Result result, ClientConnectionWeakPtr connection, HandlerBaseWeakPtr wp);
+    void handleDisconnection(Result result, const ClientConnectionPtr& cnx);
 
-    static void handleTimeout(const boost::system::error_code& ec, HandlerBasePtr handler);
+    void handleTimeout(const boost::system::error_code& ec);
 
    protected:
     ClientImplWeakPtr client_;

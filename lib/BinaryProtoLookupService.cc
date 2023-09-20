@@ -122,8 +122,12 @@ void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::str
         promise->setFailed(result);
         return;
     }
+    auto conn = clientCnx.lock();
+    if (!conn) {
+        promise->setFailed(ResultConnectError);
+        return;
+    }
     LookupDataResultPromisePtr lookupPromise = std::make_shared<LookupDataResultPromise>();
-    ClientConnectionPtr conn = clientCnx.lock();
     uint64_t requestId = newRequestId();
     conn->newPartitionedMetadataLookup(topicName, requestId, lookupPromise);
     lookupPromise->getFuture().addListener(std::bind(&BinaryProtoLookupService::handlePartitionMetadataLookup,
@@ -212,7 +216,11 @@ void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string
         return;
     }
 
-    ClientConnectionPtr conn = clientCnx.lock();
+    auto conn = clientCnx.lock();
+    if (!conn) {
+        promise->setFailed(ResultConnectError);
+        return;
+    }
     uint64_t requestId = newRequestId();
     LOG_DEBUG("sendGetTopicsOfNamespaceRequest. requestId: " << requestId << " nsName: " << nsName);
     conn->newGetTopicsOfNamespace(nsName, mode, requestId)
