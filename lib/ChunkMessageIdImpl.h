@@ -38,11 +38,22 @@ class ChunkMessageIdImpl : public MessageIdImpl, public std::enable_shared_from_
         this->partition_ = msgId.partition();
     }
 
+    void setChunkedMessageIds(std::vector<MessageId>&& chunkedMessageIds) {
+        chunkedMessageIds_ = std::move(chunkedMessageIds);
+        setFirstChunkMessageId(chunkedMessageIds_.front());
+        setLastChunkMessageId(chunkedMessageIds_.back());
+    }
+
     std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const { return firstChunkMsgId_; }
+
+    std::vector<MessageId> moveChunkedMessageIds() const noexcept {
+        return std::move(chunkedMessageIds_);
+    }
 
     MessageId build() { return MessageId{std::dynamic_pointer_cast<MessageIdImpl>(shared_from_this())}; }
 
    private:
     std::shared_ptr<MessageIdImpl> firstChunkMsgId_;
+    std::vector<MessageId> chunkedMessageIds_;
 };
 }  // namespace pulsar

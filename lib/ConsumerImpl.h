@@ -270,6 +270,10 @@ class ConsumerImpl : public ConsumerImplBase {
 
         const std::vector<MessageId>& getChunkedMessageIds() const noexcept { return chunkedMessageIds_; }
 
+        std::vector<MessageId> moveChunkedMessageIds() const noexcept {
+            return std::move(chunkedMessageIds_);
+        }
+
         long getReceivedTimeMs() const noexcept { return receivedTimeMs_; }
 
         friend std::ostream& operator<<(std::ostream& os, const ChunkedMessageCtx& ctx) {

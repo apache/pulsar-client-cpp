@@ -81,7 +81,9 @@ class MessageChunkingTest : public ::testing::TestWithParam<CompressionType> {
     }
 
     void createConsumer(const std::string& topic, Consumer& consumer) {
-        ASSERT_EQ(ResultOk, client_.subscribe(topic, "my-sub", consumer));
+        ConsumerConfiguration conf;
+        conf.setBrokerConsumerStatsCacheTimeInMs(1000);
+        ASSERT_EQ(ResultOk, client_.subscribe(topic, "my-sub", conf, consumer));
     }
 
     void createConsumer(const std::string& topic, Consumer& consumer, ConsumerConfiguration& conf) {
@@ -138,6 +140,7 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
             std::dynamic_pointer_cast<ChunkMessageIdImpl>(PulsarFriend::getMessageIdImpl(messageId));
         ASSERT_TRUE(chunkMsgId);
         receivedMessageIds.emplace_back(messageId);
+        consumer.acknowledge(messageId);
     }
     ASSERT_EQ(receivedMessageIds, sendMessageIds);
     ASSERT_EQ(receivedMessageIds.front().ledgerId(), receivedMessageIds.front().ledgerId());
@@ -146,6 +149,18 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
     // Verify the cache has been cleared
     auto& chunkedMessageCache = PulsarFriend::getChunkedMessageCache(consumer);
     ASSERT_EQ(chunkedMessageCache.size(), 0);
+
+    BrokerConsumerStats consumerStats;
+    waitUntil(
+        std::chrono::seconds(10),
+        [&] {
+            if (consumer.getBrokerConsumerStats(consumerStats) != ResultOk) {
+                return false;
+            }
+            return consumerStats.getMsgBacklog() == 0;
+        },
+        1000);
+    ASSERT_EQ(consumerStats.getMsgBacklog(), 0);
 
     producer.close();
     consumer.close();

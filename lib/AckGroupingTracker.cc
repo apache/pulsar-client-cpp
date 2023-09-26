@@ -21,8 +21,10 @@
 
 #include <atomic>
 #include <limits>
+#include <set>
 
 #include "BitSet.h"
+#include "ChunkMessageIdImpl.h"
 #include "ClientConnection.h"
 #include "Commands.h"
 #include "LogUtils.h"
@@ -40,6 +42,14 @@ void AckGroupingTracker::doImmediateAck(const MessageId& msgId, ResultCallback c
         if (callback) {
             callback(ResultAlreadyClosed);
         }
+        return;
+    }
+    if (auto chunkMessageId =
+            std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
+        auto msgIdList = chunkMessageId->moveChunkedMessageIds();
+        doImmediateAck(std::set<MessageId>(std::make_move_iterator(msgIdList.begin()),
+                                           std::make_move_iterator(msgIdList.end())),
+                       callback);
         return;
     }
     const auto& ackSet = Commands::getMessageIdImpl(msgId)->getBitSet();
@@ -84,29 +94,43 @@ void AckGroupingTracker::doImmediateAck(const std::set<MessageId>& msgIds, Resul
         return;
     }
 
+    std::set<MessageId> ackMsgIds;
+
+    for (const auto& msgId : msgIds) {
+        if (auto chunkMessageId =
+                std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
+            auto msgIdList = chunkMessageId->moveChunkedMessageIds();
+            doImmediateAck(std::set<MessageId>(std::make_move_iterator(msgIdList.begin()),
+                                               std::make_move_iterator(msgIdList.end())),
+                           callback);
+        } else {
+            ackMsgIds.insert(msgId);
+        }
+    }
+
     if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
         if (waitResponse_) {
             const auto requestId = requestIdSupplier_();
-            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, msgIds, requestId), requestId)
+            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId)
                 .addListener([callback](Result result, const ResponseData&) {
                     if (callback) {
                         callback(result);
                     }
                 });
         } else {
-            cnx->sendCommand(Commands::newMultiMessageAck(consumerId_, msgIds));
+            cnx->sendCommand(Commands::newMultiMessageAck(consumerId_, ackMsgIds));
             if (callback) {
                 callback(ResultOk);
             }
         }
     } else {
-        auto count = std::make_shared<std::atomic<size_t>>(msgIds.size());
+        auto count = std::make_shared<std::atomic<size_t>>(ackMsgIds.size());
         auto wrappedCallback = [callback, count](Result result) {
             if (--*count == 0 && callback) {
                 callback(result);
             }
         };
-        for (auto&& msgId : msgIds) {
+        for (auto&& msgId : ackMsgIds) {
             doImmediateAck(msgId, wrappedCallback, CommandAck_AckType_Individual);
         }
     }
