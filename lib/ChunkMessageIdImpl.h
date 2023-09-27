@@ -38,11 +38,11 @@ class ChunkMessageIdImpl : public MessageIdImpl, public std::enable_shared_from_
         this->partition_ = lastChunkMsgId.partition();
     }
 
-    std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const { return chunkedMessageIds_.front().impl_; }
-
-    std::vector<MessageId> moveChunkedMessageIds() noexcept {
-        return std::move(chunkedMessageIds_);
+    std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const {
+        return chunkedMessageIds_.front().impl_;
     }
+
+    std::vector<MessageId> moveChunkedMessageIds() noexcept { return std::move(chunkedMessageIds_); }
 
     MessageId build() { return MessageId{std::dynamic_pointer_cast<MessageIdImpl>(shared_from_this())}; }
 
