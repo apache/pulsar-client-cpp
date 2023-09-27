@@ -100,8 +100,8 @@ MessageId MessageId::deserialize(const std::string& serializedMessageId) {
 
     if (idData.has_first_chunk_message_id()) {
         ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
-        chunkMsgId->setFirstChunkMessageId(MessageIdBuilder::from(idData.first_chunk_message_id()).build());
-        chunkMsgId->setLastChunkMessageId(msgId);
+        chunkMsgId->setChunkedMessageIds(
+            {MessageIdBuilder::from(idData.first_chunk_message_id()).build(), msgId});
         return chunkMsgId->build();
     }
 

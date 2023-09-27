@@ -30,23 +30,17 @@ class ChunkMessageIdImpl : public MessageIdImpl, public std::enable_shared_from_
    public:
     ChunkMessageIdImpl() : firstChunkMsgId_(std::make_shared<MessageIdImpl>()) {}
 
-    void setFirstChunkMessageId(const MessageId& msgId) { *firstChunkMsgId_ = *msgId.impl_; }
-
-    void setLastChunkMessageId(const MessageId& msgId) {
-        this->ledgerId_ = msgId.ledgerId();
-        this->entryId_ = msgId.entryId();
-        this->partition_ = msgId.partition();
-    }
-
     void setChunkedMessageIds(std::vector<MessageId>&& chunkedMessageIds) {
         chunkedMessageIds_ = std::move(chunkedMessageIds);
-        setFirstChunkMessageId(chunkedMessageIds_.front());
-        setLastChunkMessageId(chunkedMessageIds_.back());
+        auto lastChunkMsgId = chunkedMessageIds_.back();
+        this->ledgerId_ = lastChunkMsgId.ledgerId();
+        this->entryId_ = lastChunkMsgId.entryId();
+        this->partition_ = lastChunkMsgId.partition();
     }
 
-    std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const { return firstChunkMsgId_; }
+    std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const { return chunkedMessageIds_.front().impl_; }
 
-    std::vector<MessageId> moveChunkedMessageIds() const noexcept {
+    std::vector<MessageId> moveChunkedMessageIds() noexcept {
         return std::move(chunkedMessageIds_);
     }
 

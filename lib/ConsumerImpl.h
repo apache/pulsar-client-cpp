@@ -270,7 +270,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
         const std::vector<MessageId>& getChunkedMessageIds() const noexcept { return chunkedMessageIds_; }
 
-        std::vector<MessageId> moveChunkedMessageIds() const noexcept {
+        std::vector<MessageId> moveChunkedMessageIds() noexcept {
             return std::move(chunkedMessageIds_);
         }
 

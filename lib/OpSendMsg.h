@@ -55,6 +55,7 @@ struct OpSendMsg {
     const SendCallback sendCallback;
     std::vector<std::function<void(Result)>> trackerCallbacks;
     ChunkMessageIdImplPtr chunkedMessageId;
+    std::vector<MessageId> chunkMessageIdList;
     // Use shared_ptr here because producer might resend the message with the same arguments
     const std::shared_ptr<SendArguments> sendArgs;
 

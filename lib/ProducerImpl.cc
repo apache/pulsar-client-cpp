@@ -886,7 +886,7 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
         return true;
     }
 
-    const auto& op = *pendingMessagesQueue_.front();
+    auto& op = *pendingMessagesQueue_.front();
     if (op.result != ResultOk) {
         LOG_ERROR("Unexpected OpSendMsg whose result is " << op.result << " for " << sequenceId << " and "
                                                           << rawMessageId);
@@ -912,10 +912,9 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
 
     if (op.chunkedMessageId) {
         // Handling the chunk message id.
-        if (op.chunkId == 0) {
-            op.chunkedMessageId->setFirstChunkMessageId(messageId);
-        } else if (op.chunkId == op.numChunks - 1) {
-            op.chunkedMessageId->setLastChunkMessageId(messageId);
+        op.chunkMessageIdList.push_back(messageId);
+        if (op.chunkId == op.numChunks - 1) {
+            op.chunkedMessageId->setChunkedMessageIds(std::move(op.chunkMessageIdList));
             messageId = op.chunkedMessageId->build();
         }
     }

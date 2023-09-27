@@ -154,10 +154,8 @@ TEST_P(MessageChunkingTest, testEndToEnd) {
     waitUntil(
         std::chrono::seconds(10),
         [&] {
-            if (consumer.getBrokerConsumerStats(consumerStats) != ResultOk) {
-                return false;
-            }
-            return consumerStats.getMsgBacklog() == 0;
+            return consumer.getBrokerConsumerStats(consumerStats) == ResultOk &&
+                   consumerStats.getMsgBacklog() == 0;
         },
         1000);
     ASSERT_EQ(consumerStats.getMsgBacklog(), 0);
@@ -333,8 +331,8 @@ TEST(ChunkMessageIdTest, testSetChunkMessageId) {
     MessageId msgId;
     {
         ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
-        chunkMsgId->setFirstChunkMessageId(MessageIdBuilder().ledgerId(1).entryId(2).partition(3).build());
-        chunkMsgId->setLastChunkMessageId(MessageIdBuilder().ledgerId(4).entryId(5).partition(6).build());
+        chunkMsgId->setChunkedMessageIds({MessageIdBuilder().ledgerId(1).entryId(2).partition(3).build(),
+                                          MessageIdBuilder().ledgerId(4).entryId(5).partition(6).build()});
         msgId = chunkMsgId->build();
         // Test the destructor of the underlying message id should also work for the generated messageId.
     }
