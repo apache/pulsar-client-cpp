@@ -22,6 +22,7 @@
 #include "ClientImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
+#include "ResultUtils.h"
 #include "TimeUtils.h"
 
 DECLARE_LOG_OBJECT()
@@ -117,7 +118,7 @@ void HandlerBase::handleDisconnection(Result result, const ClientConnectionPtr& 
 
     resetCnx();
 
-    if (result == ResultRetryable) {
+    if (isResultRetryable(result)) {
         scheduleReconnection();
         return;
     }
@@ -169,7 +170,7 @@ void HandlerBase::handleTimeout(const boost::system::error_code& ec) {
 }
 
 Result HandlerBase::convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const {
-    if (result == ResultRetryable && (TimeUtils::now() - startTimestamp >= operationTimeut_)) {
+    if (isResultRetryable(result) && (TimeUtils::now() - startTimestamp >= operationTimeut_)) {
         return ResultTimeout;
     } else {
         return result;

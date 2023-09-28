@@ -36,6 +36,7 @@
 #include "OpSendMsg.h"
 #include "ProducerConfigurationImpl.h"
 #include "PulsarApi.pb.h"
+#include "ResultUtils.h"
 #include "Semaphore.h"
 #include "TimeUtils.h"
 #include "TopicName.h"
@@ -272,7 +273,7 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
         } else {
             // Producer was not yet created, retry to connect to broker if it's possible
             result = convertToTimeoutIfNecessary(result, creationTimestamp_);
-            if (result == ResultRetryable) {
+            if (isResultRetryable(result)) {
                 LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(result));
                 scheduleReconnection();
             } else {

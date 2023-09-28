@@ -42,6 +42,7 @@
 #include "MessagesImpl.h"
 #include "ProducerConfigurationImpl.h"
 #include "PulsarApi.pb.h"
+#include "ResultUtils.h"
 #include "TimeUtils.h"
 #include "TopicName.h"
 #include "UnAckedMessageTrackerDisabled.h"
@@ -319,7 +320,7 @@ void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result r
         } else {
             // Consumer was not yet created, retry to connect to broker if it's possible
             result = convertToTimeoutIfNecessary(result, creationTimestamp_);
-            if (result == ResultRetryable) {
+            if (isResultRetryable(result)) {
                 LOG_WARN(getName() << "Temporary error in creating consumer: " << strResult(result));
                 scheduleReconnection();
             } else {
