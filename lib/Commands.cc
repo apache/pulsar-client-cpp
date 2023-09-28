@@ -583,9 +583,9 @@ SharedBuffer Commands::newSeek(uint64_t consumerId, uint64_t requestId, const Me
 
     auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageId.impl_);
     if (chunkMsgId) {
-        auto firstId = chunkMsgId->getFirstChunkMessageId();
-        messageIdData.set_ledgerid(firstId->ledgerId_);
-        messageIdData.set_entryid(firstId->entryId_);
+        const auto& firstId = chunkMsgId->getChunkedMessageIds().front();
+        messageIdData.set_ledgerid(firstId.ledgerId());
+        messageIdData.set_entryid(firstId.entryId());
     } else {
         messageIdData.set_ledgerid(messageId.ledgerId());
         messageIdData.set_entryid(messageId.entryId());

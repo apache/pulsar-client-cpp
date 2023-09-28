@@ -294,8 +294,6 @@ class ConsumerImpl : public ConsumerImplBase {
     // concurrently on the topic) then it guards against broken chunked message which was not fully published
     const bool autoAckOldestChunkedMessageOnQueueFull_;
 
-    // The key is UUID, value is the associated ChunkedMessageCtx of the chunked message.
-    std::unordered_map<std::string, ChunkedMessageCtx> chunkedMessagesMap_;
     // This list contains all the keys of `chunkedMessagesMap_`, each key is an UUID that identifies a pending
     // chunked message. Once the number of pending chunked messages exceeds the limit, the oldest UUIDs and
     // the associated ChunkedMessageCtx will be removed.

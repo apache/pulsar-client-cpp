@@ -571,13 +571,13 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& c
         }
     } else {
         const bool sendChunks = (totalChunks > 1);
+        ChunkMessageIdListPtr chunkMessageIdList;
         if (sendChunks) {
             msgMetadata.set_uuid(producerName_ + "-" + std::to_string(sequenceId));
             msgMetadata.set_num_chunks_from_msg(totalChunks);
             msgMetadata.set_total_chunk_msg_size(compressedSize);
+            chunkMessageIdList = std::make_shared<std::vector<MessageId>>();
         }
-
-        auto chunkMessageId = totalChunks > 1 ? std::make_shared<ChunkMessageIdImpl>() : nullptr;
 
         int beginIndex = 0;
         for (int chunkId = 0; chunkId < totalChunks; chunkId++) {
@@ -595,7 +595,7 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& c
             }
 
             auto op = OpSendMsg::create(msgMetadata, 1, uncompressedSize, conf_.getSendTimeout(),
-                                        (chunkId == totalChunks - 1) ? callback : nullptr, chunkMessageId,
+                                        (chunkId == totalChunks - 1) ? callback : nullptr, chunkMessageIdList,
                                         producerId_, encryptedPayload);
 
             if (!chunkingEnabled_) {
@@ -910,12 +910,12 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
     // Message was persisted correctly
     LOG_DEBUG(getName() << "Received ack for msg " << sequenceId);
 
-    if (op.chunkedMessageId) {
+    if (op.numChunks > 1) {
         // Handling the chunk message id.
-        op.chunkMessageIdList.push_back(messageId);
+        op.chunkMessageIdList->push_back(messageId);
         if (op.chunkId == op.numChunks - 1) {
-            op.chunkedMessageId->setChunkedMessageIds(std::move(op.chunkMessageIdList));
-            messageId = op.chunkedMessageId->build();
+            auto chunkedMessageId = std::make_shared<ChunkMessageIdImpl>(std::move(*op.chunkMessageIdList));
+            messageId = chunkedMessageId->build();
         }
     }
 

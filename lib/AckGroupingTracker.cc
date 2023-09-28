@@ -44,13 +44,16 @@ void AckGroupingTracker::doImmediateAck(const MessageId& msgId, ResultCallback c
         }
         return;
     }
-    if (auto chunkMessageId =
-            std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
-        auto msgIdList = chunkMessageId->moveChunkedMessageIds();
-        doImmediateAck(std::set<MessageId>(std::make_move_iterator(msgIdList.begin()),
-                                           std::make_move_iterator(msgIdList.end())),
-                       callback);
-        return;
+    if (ackType == CommandAck_AckType_Individual) {
+        // If it's individual ack, we need to acknowledge all message IDs in a chunked message Id
+        // If it's cumulative ack, we only need to ack the last message ID of a chunked message.
+        // ChunkedMessageId return last chunk message ID by default, so we don't need to handle it.
+        if (auto chunkMessageId =
+                std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
+            auto msgIdList = chunkMessageId->getChunkedMessageIds();
+            doImmediateAck(std::set<MessageId>(msgIdList.begin(), msgIdList.end()), callback);
+            return;
+        }
     }
     const auto& ackSet = Commands::getMessageIdImpl(msgId)->getBitSet();
     if (waitResponse_) {
@@ -99,10 +102,8 @@ void AckGroupingTracker::doImmediateAck(const std::set<MessageId>& msgIds, Resul
     for (const auto& msgId : msgIds) {
         if (auto chunkMessageId =
                 std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
-            auto msgIdList = chunkMessageId->moveChunkedMessageIds();
-            doImmediateAck(std::set<MessageId>(std::make_move_iterator(msgIdList.begin()),
-                                               std::make_move_iterator(msgIdList.end())),
-                           callback);
+            auto msgIdList = chunkMessageId->getChunkedMessageIds();
+            ackMsgIds.insert(msgIdList.begin(), msgIdList.end());
         } else {
             ackMsgIds.insert(msgId);
         }

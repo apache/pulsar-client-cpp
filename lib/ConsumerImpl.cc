@@ -478,9 +478,7 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
         return boost::none;
     }
 
-    ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
-    chunkMsgId->setChunkedMessageIds(chunkedMsgCtx.moveChunkedMessageIds());
-    messageId = chunkMsgId->build();
+    messageId = std::make_shared<ChunkMessageIdImpl>(chunkedMsgCtx.moveChunkedMessageIds())->build();
 
     LOG_DEBUG("Chunked message completed chunkId: " << chunkId << ", ChunkedMessageCtx: " << chunkedMsgCtx
                                                     << ", sequenceId: " << metadata.sequence_id());
@@ -1164,9 +1162,6 @@ bool ConsumerImpl::isCumulativeAcknowledgementAllowed(ConsumerType consumerType)
 
 std::pair<MessageId, bool> ConsumerImpl::prepareIndividualAck(const MessageId& messageId) {
     auto messageIdImpl = Commands::getMessageIdImpl(messageId);
-    if (std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageIdImpl)) {
-        return std::make_pair(messageId, true);
-    }
     auto batchedMessageIdImpl = std::dynamic_pointer_cast<BatchedMessageIdImpl>(messageIdImpl);
 
     auto batchSize = messageId.batchSize();
@@ -1175,6 +1170,9 @@ std::pair<MessageId, bool> ConsumerImpl::prepareIndividualAck(const MessageId& m
                                                    (batchSize > 0) ? batchSize : 1);
         unAckedMessageTrackerPtr_->remove(messageId);
         possibleSendToDeadLetterTopicMessages_.remove(messageId);
+        if (std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageIdImpl)) {
+            return std::make_pair(messageId, true);
+        }
         return std::make_pair(discardBatch(messageId), true);
     } else if (config_.isBatchIndexAckEnabled()) {
         return std::make_pair(messageId, true);

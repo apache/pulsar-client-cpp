@@ -45,6 +45,8 @@ struct SendArguments {
     SendArguments& operator=(const SendArguments&) = delete;
 };
 
+typedef std::shared_ptr<std::vector<MessageId>> ChunkMessageIdListPtr;
+
 struct OpSendMsg {
     const Result result;
     const int32_t chunkId;
@@ -54,8 +56,7 @@ struct OpSendMsg {
     const boost::posix_time::ptime timeout;
     const SendCallback sendCallback;
     std::vector<std::function<void(Result)>> trackerCallbacks;
-    ChunkMessageIdImplPtr chunkedMessageId;
-    std::vector<MessageId> chunkMessageIdList;
+    ChunkMessageIdListPtr chunkMessageIdList;
     // Use shared_ptr here because producer might resend the message with the same arguments
     const std::shared_ptr<SendArguments> sendArgs;
 
@@ -90,7 +91,7 @@ struct OpSendMsg {
           sendArgs(nullptr) {}
 
     OpSendMsg(const proto::MessageMetadata& metadata, uint32_t messagesCount, uint64_t messagesSize,
-              int sendTimeoutMs, SendCallback&& callback, ChunkMessageIdImplPtr chunkedMessageId,
+              int sendTimeoutMs, SendCallback&& callback, ChunkMessageIdListPtr chunkMessageIdList,
               uint64_t producerId, SharedBuffer payload)
         : result(ResultOk),
           chunkId(metadata.chunk_id()),
@@ -99,7 +100,7 @@ struct OpSendMsg {
           messagesSize(messagesSize),
           timeout(TimeUtils::now() + boost::posix_time::milliseconds(sendTimeoutMs)),
           sendCallback(std::move(callback)),
-          chunkedMessageId(chunkedMessageId),
+          chunkMessageIdList(std::move(chunkMessageIdList)),
           sendArgs(new SendArguments(producerId, metadata.sequence_id(), metadata, payload)) {}
 };
 
