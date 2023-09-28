@@ -910,7 +910,7 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
     // Message was persisted correctly
     LOG_DEBUG(getName() << "Received ack for msg " << sequenceId);
 
-    if (op.numChunks > 1) {
+    if (op.chunkMessageIdList) {
         // Handling the chunk message id.
         op.chunkMessageIdList->push_back(messageId);
         if (op.chunkId == op.numChunks - 1) {
