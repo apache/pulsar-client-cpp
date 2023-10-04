@@ -40,11 +40,14 @@ class OpBatchReceive {
     const int64_t createAt_;
 };
 
-class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this<ConsumerImplBase> {
+class ConsumerImplBase : public HandlerBase {
    public:
     virtual ~ConsumerImplBase(){};
     ConsumerImplBase(ClientImplPtr client, const std::string& topic, Backoff backoff,
                      const ConsumerConfiguration& conf, ExecutorServicePtr listenerExecutor);
+    std::shared_ptr<ConsumerImplBase> shared_from_this() noexcept {
+        return std::dynamic_pointer_cast<ConsumerImplBase>(HandlerBase::shared_from_this());
+    }
 
     // interface by consumer
     virtual Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() = 0;
@@ -83,7 +86,6 @@ class ConsumerImplBase : public HandlerBase, public std::enable_shared_from_this
     // overrided methods from HandlerBase
     void connectionOpened(const ClientConnectionPtr& cnx) override {}
     void connectionFailed(Result result) override {}
-    HandlerBaseWeakPtr get_weak_from_this() override { return shared_from_this(); }
 
     // consumer impl generic method.
     ExecutorServicePtr listenerExecutor_;
