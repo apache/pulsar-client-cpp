@@ -33,9 +33,6 @@ using namespace boost::posix_time;
 using boost::posix_time::milliseconds;
 using boost::posix_time::seconds;
 
-class HandlerBase;
-typedef std::weak_ptr<HandlerBase> HandlerBaseWeakPtr;
-typedef std::shared_ptr<HandlerBase> HandlerBasePtr;
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
 using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
@@ -46,7 +43,7 @@ class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 
-class HandlerBase {
+class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
    public:
     HandlerBase(const ClientImplPtr&, const std::string&, const Backoff&);
 
@@ -83,8 +80,6 @@ class HandlerBase {
     virtual void connectionOpened(const ClientConnectionPtr& connection) = 0;
 
     virtual void connectionFailed(Result result) = 0;
-
-    virtual HandlerBaseWeakPtr get_weak_from_this() = 0;
 
     virtual const std::string& getName() const = 0;
 

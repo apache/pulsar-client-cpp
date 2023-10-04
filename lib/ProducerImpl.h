@@ -60,9 +60,7 @@ namespace proto {
 class MessageMetadata;
 }  // namespace proto
 
-class ProducerImpl : public HandlerBase,
-                     public std::enable_shared_from_this<ProducerImpl>,
-                     public ProducerImplBase {
+class ProducerImpl : public HandlerBase, public ProducerImplBase {
    public:
     ProducerImpl(ClientImplPtr client, const TopicName& topic,
                  const ProducerConfiguration& producerConfiguration,
@@ -98,8 +96,11 @@ class ProducerImpl : public HandlerBase,
 
     static int getNumOfChunks(uint32_t size, uint32_t maxMessageSize);
 
-    // NOTE: this method is introduced into `enable_shared_from_this` since C++17
-    ProducerImplWeakPtr weak_from_this() noexcept;
+    ProducerImplPtr shared_from_this() noexcept {
+        return std::dynamic_pointer_cast<ProducerImpl>(HandlerBase::shared_from_this());
+    }
+
+    ProducerImplWeakPtr weak_from_this() noexcept { return shared_from_this(); }
 
    protected:
     ProducerStatsBasePtr producerStatsBasePtr_;
@@ -121,7 +122,6 @@ class ProducerImpl : public HandlerBase,
     void beforeConnectionChange(ClientConnection& connection) override;
     void connectionOpened(const ClientConnectionPtr& connection) override;
     void connectionFailed(Result result) override;
-    HandlerBaseWeakPtr get_weak_from_this() override { return shared_from_this(); }
     const std::string& getName() const override { return producerStr_; }
 
    private:
