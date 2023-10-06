@@ -29,6 +29,7 @@
 #include "ExecutorService.h"
 #include "Future.h"
 #include "LogUtils.h"
+#include "ResultUtils.h"
 
 namespace pulsar {
 
@@ -95,7 +96,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
                 promise_.setValue(value);
                 return;
             }
-            if (result != ResultRetryable) {
+            if (!isResultRetryable(result)) {
                 promise_.setFailed(result);
                 return;
             }
