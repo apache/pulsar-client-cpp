@@ -28,21 +28,19 @@ class ChunkMessageIdImpl;
 typedef std::shared_ptr<ChunkMessageIdImpl> ChunkMessageIdImplPtr;
 class ChunkMessageIdImpl : public MessageIdImpl, public std::enable_shared_from_this<ChunkMessageIdImpl> {
    public:
-    ChunkMessageIdImpl() : firstChunkMsgId_(std::make_shared<MessageIdImpl>()) {}
-
-    void setFirstChunkMessageId(const MessageId& msgId) { *firstChunkMsgId_ = *msgId.impl_; }
-
-    void setLastChunkMessageId(const MessageId& msgId) {
-        this->ledgerId_ = msgId.ledgerId();
-        this->entryId_ = msgId.entryId();
-        this->partition_ = msgId.partition();
+    explicit ChunkMessageIdImpl(std::vector<MessageId>&& chunkedMessageIds)
+        : chunkedMessageIds_(std::move(chunkedMessageIds)) {
+        auto lastChunkMsgId = chunkedMessageIds_.back();
+        this->ledgerId_ = lastChunkMsgId.ledgerId();
+        this->entryId_ = lastChunkMsgId.entryId();
+        this->partition_ = lastChunkMsgId.partition();
     }
 
-    std::shared_ptr<const MessageIdImpl> getFirstChunkMessageId() const { return firstChunkMsgId_; }
+    const std::vector<MessageId>& getChunkedMessageIds() const noexcept { return chunkedMessageIds_; }
 
     MessageId build() { return MessageId{std::dynamic_pointer_cast<MessageIdImpl>(shared_from_this())}; }
 
    private:
-    std::shared_ptr<MessageIdImpl> firstChunkMsgId_;
+    std::vector<MessageId> chunkedMessageIds_;
 };
 }  // namespace pulsar

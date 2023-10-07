@@ -76,11 +76,11 @@ void MessageId::serialize(std::string& result) const {
     auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(impl_);
     if (chunkMsgId) {
         proto::MessageIdData& firstChunkIdData = *idData.mutable_first_chunk_message_id();
-        auto firstChunkId = chunkMsgId->getFirstChunkMessageId();
-        firstChunkIdData.set_ledgerid(firstChunkId->ledgerId_);
-        firstChunkIdData.set_entryid(firstChunkId->entryId_);
+        const auto& firstChunkId = chunkMsgId->getChunkedMessageIds().front();
+        firstChunkIdData.set_ledgerid(firstChunkId.ledgerId());
+        firstChunkIdData.set_entryid(firstChunkId.entryId());
         if (chunkMsgId->partition_ != -1) {
-            firstChunkIdData.set_partition(firstChunkId->partition_);
+            firstChunkIdData.set_partition(firstChunkId.partition());
         }
     }
 
@@ -99,9 +99,8 @@ MessageId MessageId::deserialize(const std::string& serializedMessageId) {
     MessageId msgId = MessageIdBuilder::from(idData).build();
 
     if (idData.has_first_chunk_message_id()) {
-        ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>();
-        chunkMsgId->setFirstChunkMessageId(MessageIdBuilder::from(idData.first_chunk_message_id()).build());
-        chunkMsgId->setLastChunkMessageId(msgId);
+        ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>(
+            std::vector<MessageId>({MessageIdBuilder::from(idData.first_chunk_message_id()).build(), msgId}));
         return chunkMsgId->build();
     }
 
@@ -121,9 +120,9 @@ int32_t MessageId::batchSize() const { return impl_->batchSize_; }
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const pulsar::MessageId& messageId) {
     auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageId.impl_);
     if (chunkMsgId) {
-        auto firstId = chunkMsgId->getFirstChunkMessageId();
-        s << '(' << firstId->ledgerId_ << ',' << firstId->entryId_ << ',' << firstId->partition_ << ','
-          << firstId->batchIndex_ << ");";
+        const auto& firstId = chunkMsgId->getChunkedMessageIds().front();
+        s << '(' << firstId.ledgerId() << ',' << firstId.entryId() << ',' << firstId.partition() << ','
+          << firstId.batchIndex() << ");";
     }
     s << '(' << messageId.impl_->ledgerId_ << ',' << messageId.impl_->entryId_ << ','
       << messageId.impl_->partition_ << ',' << messageId.impl_->batchIndex_ << ')';
