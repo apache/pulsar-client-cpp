@@ -519,18 +519,18 @@ void ClientConnection::handleHandshake(const boost::system::error_code& err) {
         return;
     }
     // Send CONNECT command to broker
-    auto weakSelf = weak_from_this();
+    auto self = shared_from_this();
     asyncWrite(buffer.const_asio_buffer(),
-               customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err, size_t) {
-                   auto self = weakSelf.lock();
-                   if (self) {
-                       self->handleSentPulsarConnect(err, buffer);
-                   }
+               customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err, size_t) {
+                   handleSentPulsarConnect(err, buffer);
                }));
 }
 
 void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& err,
                                                const SharedBuffer& buffer) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
         close();
@@ -543,6 +543,9 @@ void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& 
 
 void ClientConnection::handleSentAuthResponse(const boost::system::error_code& err,
                                               const SharedBuffer& buffer) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_WARN(cnxString_ << "Failed to send auth response: " << err.message());
         close();
@@ -637,11 +640,11 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
 
 void ClientConnection::readNextCommand() {
     const static uint32_t minReadSize = sizeof(uint32_t);
-    auto weakSelf = weak_from_this();
+    auto weak_self = weak_from_this();
     asyncReceive(
         incomingBuffer_.asio_buffer(),
-        customAllocReadHandler([weakSelf](const boost::system::error_code& err, size_t bytesTransferred) {
-            auto self = weakSelf.lock();
+        customAllocReadHandler([weak_self](const boost::system::error_code& err, size_t bytesTransferred) {
+            auto self = weak_self.lock();
             if (self) {
                 self->handleRead(err, bytesTransferred, minReadSize);
             }
@@ -650,6 +653,9 @@ void ClientConnection::readNextCommand() {
 
 void ClientConnection::handleRead(const boost::system::error_code& err, size_t bytesTransferred,
                                   uint32_t minReadSize) {
+    if (isClosed()) {
+        return;
+    }
     // Update buffer write idx with new data
     incomingBuffer_.bytesWritten(bytesTransferred);
 
@@ -666,12 +672,12 @@ void ClientConnection::handleRead(const boost::system::error_code& err, size_t b
         // Read the remaining part, use a slice of buffer to write on the next
         // region
         SharedBuffer buffer = incomingBuffer_.slice(bytesTransferred);
-        auto weakSelf = weak_from_this();
+        auto weak_self = weak_from_this();
         auto nextMinReadSize = minReadSize - bytesTransferred;
         asyncReceive(buffer.asio_buffer(),
-                     customAllocReadHandler([weakSelf, nextMinReadSize](const boost::system::error_code& err,
-                                                                        size_t bytesTransferred) {
-                         auto self = weakSelf.lock();
+                     customAllocReadHandler([weak_self, nextMinReadSize](const boost::system::error_code& err,
+                                                                         size_t bytesTransferred) {
+                         auto self = weak_self.lock();
                          if (self) {
                              self->handleRead(err, bytesTransferred, nextMinReadSize);
                          }
@@ -701,12 +707,12 @@ void ClientConnection::processIncomingBuffer() {
                 uint32_t newBufferSize = std::max<uint32_t>(DefaultBufferSize, frameSize + sizeof(uint32_t));
                 incomingBuffer_ = SharedBuffer::copyFrom(incomingBuffer_, newBufferSize);
             }
-            auto weakSelf = weak_from_this();
+            auto weak_self = weak_from_this();
             asyncReceive(
                 incomingBuffer_.asio_buffer(),
-                customAllocReadHandler([weakSelf, bytesToReceive](const boost::system::error_code& err,
-                                                                  size_t bytesTransferred) {
-                    auto self = weakSelf.lock();
+                customAllocReadHandler([weak_self, bytesToReceive](const boost::system::error_code& err,
+                                                                   size_t bytesTransferred) {
+                    auto self = weak_self.lock();
                     if (self) {
                         self->handleRead(err, bytesTransferred, bytesToReceive);
                     }
@@ -787,11 +793,11 @@ void ClientConnection::processIncomingBuffer() {
         // At least we need to read 4 bytes to have the complete frame size
         uint32_t minReadSize = sizeof(uint32_t) - incomingBuffer_.readableBytes();
 
-        auto weakSelf = weak_from_this();
+        auto weak_self = weak_from_this();
         asyncReceive(incomingBuffer_.asio_buffer(),
-                     customAllocReadHandler([weakSelf, minReadSize](const boost::system::error_code& err,
-                                                                    size_t bytesTransferred) {
-                         auto self = weakSelf.lock();
+                     customAllocReadHandler([weak_self, minReadSize](const boost::system::error_code& err,
+                                                                     size_t bytesTransferred) {
+                         auto self = weak_self.lock();
                          if (self) {
                              self->handleRead(err, bytesTransferred, minReadSize);
                          }
@@ -1085,15 +1091,10 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
 }
 
 void ClientConnection::sendCommandInternal(const SharedBuffer& cmd) {
-    auto weakSelf = weak_from_this();
+    auto self = shared_from_this();
     asyncWrite(cmd.const_asio_buffer(),
-               customAllocWriteHandler(
-                   [weakSelf, cmd](const boost::system::error_code& err, size_t bytesTransferred) {
-                       auto self = weakSelf.lock();
-                       if (self) {
-                           self->handleSend(err, cmd);
-                       }
-                   }));
+               customAllocWriteHandler([this, self, cmd](const boost::system::error_code& err,
+                                                         size_t bytesTransferred) { handleSend(err, cmd); }));
 }
 
 void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
@@ -1102,23 +1103,15 @@ void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
         pendingWriteBuffers_.emplace_back(args);
         return;
     }
-    auto weakSelf = weak_from_this();
-    auto sendMessageInternal = [this, weakSelf, args] {
-        auto self = weakSelf.lock();
-        if (!self) {
-            return;
-        }
+    auto self = shared_from_this();
+    auto sendMessageInternal = [this, self, args] {
         BaseCommand outgoingCmd;
         auto buffer = Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
         // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
         // callback is called, an invalid buffer range might be passed to the underlying socket send.
-        asyncWrite(buffer, customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err,
-                                                                      size_t bytesTransferred) {
-                       auto self = weakSelf.lock();
-                       if (self) {
-                           self->handleSendPair(err);
-                       }
-                   }));
+        asyncWrite(buffer, customAllocWriteHandler(
+                               [this, self, buffer](const boost::system::error_code& err,
+                                                    size_t bytesTransferred) { handleSendPair(err); }));
     };
     if (tlsSocket_) {
 #if BOOST_VERSION >= 106600
@@ -1132,6 +1125,9 @@ void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
 }
 
 void ClientConnection::handleSend(const boost::system::error_code& err, const SharedBuffer&) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_WARN(cnxString_ << "Could not send message on connection: " << err << " " << err.message());
         close(ResultDisconnected);
@@ -1141,6 +1137,9 @@ void ClientConnection::handleSend(const boost::system::error_code& err, const Sh
 }
 
 void ClientConnection::handleSendPair(const boost::system::error_code& err) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_WARN(cnxString_ << "Could not send pair message on connection: " << err << " " << err.message());
         close(ResultDisconnected);
@@ -1157,17 +1156,12 @@ void ClientConnection::sendPendingCommands() {
         boost::any any = pendingWriteBuffers_.front();
         pendingWriteBuffers_.pop_front();
 
-        auto weakSelf = weak_from_this();
+        auto self = shared_from_this();
         if (any.type() == typeid(SharedBuffer)) {
             SharedBuffer buffer = boost::any_cast<SharedBuffer>(any);
-            asyncWrite(
-                buffer.const_asio_buffer(),
-                customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err, size_t) {
-                    auto self = weakSelf.lock();
-                    if (self) {
-                        self->handleSend(err, buffer);
-                    }
-                }));
+            asyncWrite(buffer.const_asio_buffer(),
+                       customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err,
+                                                                    size_t) { handleSend(err, buffer); }));
         } else {
             assert(any.type() == typeid(std::shared_ptr<SendArguments>));
 
@@ -1178,13 +1172,9 @@ void ClientConnection::sendPendingCommands() {
 
             // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
             // callback is called, an invalid buffer range might be passed to the underlying socket send.
-            asyncWrite(buffer, customAllocWriteHandler(
-                                   [weakSelf, buffer](const boost::system::error_code& err, size_t) {
-                                       auto self = weakSelf.lock();
-                                       if (self) {
-                                           self->handleSendPair(err);
-                                       }
-                                   }));
+            asyncWrite(buffer,
+                       customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err,
+                                                                    size_t) { handleSendPair(err); }));
         }
     } else {
         // No more pending writes
@@ -1334,10 +1324,11 @@ void ClientConnection::close(Result result, bool detach) {
     }
 
     lock.unlock();
+    int refCount = weak_from_this().use_count();
     if (!isResultRetryable(result)) {
-        LOG_ERROR(cnxString_ << "Connection closed with " << result);
+        LOG_ERROR(cnxString_ << "Connection closed with " << result << " (refCnt: " << refCount << ")");
     } else {
-        LOG_INFO(cnxString_ << "Connection disconnected");
+        LOG_INFO(cnxString_ << "Connection disconnected (refCnt: " << refCount << ")");
     }
     // Remove the connection from the pool before completing any promise
     if (detach) {
@@ -1824,13 +1815,10 @@ void ClientConnection::handleAuthChallenge() {
         close(result);
         return;
     }
-    auto weakSelf = weak_from_this();
+    auto self = shared_from_this();
     asyncWrite(buffer.const_asio_buffer(),
-               customAllocWriteHandler([weakSelf, buffer](const boost::system::error_code& err, size_t) {
-                   auto self = weakSelf.lock();
-                   if (self) {
-                       self->handleSentAuthResponse(err, buffer);
-                   }
+               customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err, size_t) {
+                   handleSentAuthResponse(err, buffer);
                }));
 }
 
