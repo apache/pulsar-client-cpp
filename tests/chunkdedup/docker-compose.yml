@@ -23,7 +23,8 @@ networks:
     driver: bridge
 services:
   standalone:
-    image: apachepulsar/pulsar:3.1.0 # Ensure https://github.com/apache/pulsar/pull/20948 is not included
+    # Don't change the version here to ensure https://github.com/apache/pulsar/pull/20948 is not included
+    image: apachepulsar/pulsar:3.1.0
     container_name: standalone
     hostname: local
     restart: "no"
