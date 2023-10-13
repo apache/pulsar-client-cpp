@@ -84,7 +84,12 @@ class ConsumerImplBase : public HandlerBase {
 
    protected:
     // overrided methods from HandlerBase
-    void connectionOpened(const ClientConnectionPtr& cnx) override {}
+    Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override {
+        // Do not use bool, only Result.
+        Promise<Result, bool> promise;
+        promise.setSuccess();
+        return promise.getFuture();
+    }
     void connectionFailed(Result result) override {}
 
     // consumer impl generic method.

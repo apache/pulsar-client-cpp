@@ -67,14 +67,15 @@ void HandlerBase::setCnx(const ClientConnectionPtr& cnx) {
 }
 
 void HandlerBase::grabCnx() {
-    if (getCnx().lock()) {
-        LOG_INFO(getName() << "Ignoring reconnection request since we're already connected");
+    bool expectedState = false;
+    if (!reconnectionPending_.compare_exchange_strong(expectedState, true)) {
+        LOG_INFO(getName() << "Ignoring reconnection attempt since there's already a pending reconnection");
         return;
     }
 
-    bool expectedState = false;
-    if (!reconnectionPending_.compare_exchange_strong(expectedState, true)) {
-        LOG_DEBUG(getName() << "Ignoring reconnection attempt since there's already a pending reconnection");
+    if (getCnx().lock()) {
+        LOG_INFO(getName() << "Ignoring reconnection request since we're already connected");
+        reconnectionPending_ = false;
         return;
     }
 
@@ -83,17 +84,23 @@ void HandlerBase::grabCnx() {
     if (!client) {
         LOG_WARN(getName() << "Client is invalid when calling grabCnx()");
         connectionFailed(ResultConnectError);
+        reconnectionPending_ = false;
         return;
     }
     auto self = shared_from_this();
     client->getConnection(*topic_).addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
-        reconnectionPending_ = false;
-
         if (result == ResultOk) {
             LOG_DEBUG(getName() << "Connected to broker: " << cnx->cnxString());
-            connectionOpened(cnx);
+            connectionOpened(cnx).addListener([this, self](Result result, bool) {
+                // Do not use bool, only Result.
+                reconnectionPending_ = false;
+                if (result == ResultRetryable) {
+                    scheduleReconnection();
+                }
+            });
         } else {
             connectionFailed(result);
+            reconnectionPending_ = false;
             scheduleReconnection();
         }
     });

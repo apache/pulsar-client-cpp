@@ -138,6 +138,8 @@ class Promise {
 
     bool setFailed(Result result) const { return state_->complete(result, {}); }
 
+    bool setSuccess() const { return state_->complete({}, {}); }
+
     bool isComplete() const { return state_->completed(); }
 
     Future<Result, Type> getFuture() const { return Future<Result, Type>{state_}; }

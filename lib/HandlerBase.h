@@ -26,6 +26,7 @@
 #include <string>
 
 #include "Backoff.h"
+#include "Future.h"
 
 namespace pulsar {
 
@@ -74,10 +75,13 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     virtual void beforeConnectionChange(ClientConnection& cnx) = 0;
 
     /*
-     * connectionOpened will be implemented by derived class to receive notification
+     * connectionOpened will be implemented by derived class to receive notification.
+     *
+     * @return ResultOk if the connection is successfully completed.
+     * @return ResultError if there was a failure. ResultRetryable if reconnection is needed.
+     * @return Do not use bool, only Result.
      */
-
-    virtual void connectionOpened(const ClientConnectionPtr& connection) = 0;
+    virtual Future<Result, bool> connectionOpened(const ClientConnectionPtr& connection) = 0;
 
     virtual void connectionFailed(Result result) = 0;
 

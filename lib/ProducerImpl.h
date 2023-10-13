@@ -120,15 +120,15 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     // overrided methods from HandlerBase
     void beforeConnectionChange(ClientConnection& connection) override;
-    void connectionOpened(const ClientConnectionPtr& connection) override;
+    Future<Result, bool> connectionOpened(const ClientConnectionPtr& connection) override;
     void connectionFailed(Result result) override;
     const std::string& getName() const override { return producerStr_; }
 
    private:
     void printStats();
 
-    void handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
-                              const ResponseData& responseData);
+    Result handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
+                                const ResponseData& responseData);
 
     void resendMessages(ClientConnectionPtr cnx);
 

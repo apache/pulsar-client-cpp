@@ -142,14 +142,14 @@ class ConsumerImpl : public ConsumerImplBase {
 
    protected:
     // overrided methods from HandlerBase
-    void connectionOpened(const ClientConnectionPtr& cnx) override;
+    Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override;
     void connectionFailed(Result result) override;
 
     // impl methods from ConsumerImpl base
     bool hasEnoughMessagesForBatchReceive() const override;
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
 
-    void handleCreateConsumer(const ClientConnectionPtr& cnx, Result result);
+    Result handleCreateConsumer(const ClientConnectionPtr& cnx, Result result);
 
     void internalListener();
 

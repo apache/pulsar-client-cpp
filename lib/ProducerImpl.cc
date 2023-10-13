@@ -135,10 +135,14 @@ void ProducerImpl::beforeConnectionChange(ClientConnection& connection) {
     connection.removeProducer(producerId_);
 }
 
-void ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
+Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
+    // Do not use bool, only Result.
+    Promise<Result, bool> promise;
+
     if (state_ == Closed) {
         LOG_DEBUG(getName() << "connectionOpened : Producer is already closed");
-        return;
+        promise.setFailed(ResultAlreadyClosed);
+        return promise.getFuture();
     }
 
     ClientImplPtr client = client_.lock();
@@ -149,9 +153,20 @@ void ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
                                              userProvidedProducerName_, conf_.isEncryptionEnabled(),
                                              static_cast<proto::ProducerAccessMode>(conf_.getAccessMode()),
                                              topicEpoch, conf_.impl_->initialSubscriptionName);
+
+    // Keep a reference to ensure object is kept alive.
+    auto self = shared_from_this();
     cnx->sendRequestWithId(cmd, requestId)
-        .addListener(std::bind(&ProducerImpl::handleCreateProducer, shared_from_this(), cnx,
-                               std::placeholders::_1, std::placeholders::_2));
+        .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
+            Result handleResult = handleCreateProducer(cnx, result, responseData);
+            if (handleResult == ResultOk) {
+                promise.setSuccess();
+            } else {
+                promise.setFailed(handleResult);
+            }
+        });
+
+    return promise.getFuture();
 }
 
 void ProducerImpl::connectionFailed(Result result) {
@@ -167,8 +182,10 @@ void ProducerImpl::connectionFailed(Result result) {
     }
 }
 
-void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
-                                        const ResponseData& responseData) {
+Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
+                                          const ResponseData& responseData) {
+    Result handleResult = ResultOk;
+
     Lock lock(mutex_);
 
     LOG_DEBUG(getName() << "ProducerImpl::handleCreateProducer res: " << strResult(result));
@@ -190,7 +207,7 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             lock.unlock();
             producerCreatedPromise_.setFailed(ResultAlreadyClosed);
         }
-        return;
+        return ResultAlreadyClosed;
     }
 
     if (result == ResultOk) {
@@ -259,6 +276,7 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
             }
             lock.unlock();
             producerCreatedPromise_.setFailed(result);
+            handleResult = result;
         } else if (producerCreatedPromise_.isComplete()) {
             if (result == ResultProducerBlockedQuotaExceededException) {
                 LOG_WARN(getName() << "Backlog is exceeded on topic. Sending exception to producer");
@@ -269,22 +287,23 @@ void ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result r
 
             // Producer had already been initially created, we need to retry connecting in any case
             LOG_WARN(getName() << "Failed to reconnect producer: " << strResult(result));
-            scheduleReconnection();
+            handleResult = ResultRetryable;
         } else {
             // Producer was not yet created, retry to connect to broker if it's possible
-            result = convertToTimeoutIfNecessary(result, creationTimestamp_);
-            if (isResultRetryable(result)) {
-                LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(result));
-                scheduleReconnection();
+            handleResult = convertToTimeoutIfNecessary(result, creationTimestamp_);
+            if (isResultRetryable(handleResult)) {
+                LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(handleResult));
             } else {
-                LOG_ERROR(getName() << "Failed to create producer: " << strResult(result));
-                failPendingMessages(result, false);
+                LOG_ERROR(getName() << "Failed to create producer: " << strResult(handleResult));
+                failPendingMessages(handleResult, false);
                 state_ = Failed;
                 lock.unlock();
-                producerCreatedPromise_.setFailed(result);
+                producerCreatedPromise_.setFailed(handleResult);
             }
         }
     }
+
+    return handleResult;
 }
 
 auto ProducerImpl::getPendingCallbacksWhenFailed() -> decltype(pendingMessagesQueue_) {
