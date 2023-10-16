@@ -218,10 +218,14 @@ void ConsumerImpl::onNegativeAcksSend(const std::set<MessageId>& messageIds) {
     interceptors_->onNegativeAcksSend(Consumer(shared_from_this()), messageIds);
 }
 
-void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
+Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
+    // Do not use bool, only Result.
+    Promise<Result, bool> promise;
+
     if (state_ == Closed) {
         LOG_DEBUG(getName() << "connectionOpened : Consumer is already closed");
-        return;
+        promise.setFailed(ResultAlreadyClosed);
+        return promise.getFuture();
     }
 
     // Register consumer so that we can handle other incomming commands (e.g. ACTIVE_CONSUMER_CHANGE) after
@@ -249,9 +253,20 @@ void ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
         subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
         config_.getSchema(), getInitialPosition(), config_.isReplicateSubscriptionStateEnabled(),
         config_.getKeySharedPolicy(), config_.getPriorityLevel());
+
+    // Keep a reference to ensure object is kept alive.
+    auto self = get_shared_this_ptr();
     cnx->sendRequestWithId(cmd, requestId)
-        .addListener(std::bind(&ConsumerImpl::handleCreateConsumer, get_shared_this_ptr(), cnx,
-                               std::placeholders::_1));
+        .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
+            Result handleResult = handleCreateConsumer(cnx, result);
+            if (handleResult == ResultOk) {
+                promise.setSuccess();
+            } else {
+                promise.setFailed(handleResult);
+            }
+        });
+
+    return promise.getFuture();
 }
 
 void ConsumerImpl::connectionFailed(Result result) {
@@ -271,7 +286,9 @@ void ConsumerImpl::sendFlowPermitsToBroker(const ClientConnectionPtr& cnx, int n
     }
 }
 
-void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result result) {
+Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result result) {
+    Result handleResult = ResultOk;
+
     static bool firstTime = true;
     if (result == ResultOk) {
         if (firstTime) {
@@ -313,20 +330,21 @@ void ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result r
         if (consumerCreatedPromise_.isComplete()) {
             // Consumer had already been initially created, we need to retry connecting in any case
             LOG_WARN(getName() << "Failed to reconnect consumer: " << strResult(result));
-            scheduleReconnection();
+            handleResult = ResultRetryable;
         } else {
             // Consumer was not yet created, retry to connect to broker if it's possible
-            result = convertToTimeoutIfNecessary(result, creationTimestamp_);
-            if (isResultRetryable(result)) {
-                LOG_WARN(getName() << "Temporary error in creating consumer: " << strResult(result));
-                scheduleReconnection();
+            handleResult = convertToTimeoutIfNecessary(result, creationTimestamp_);
+            if (isResultRetryable(handleResult)) {
+                LOG_WARN(getName() << "Temporary error in creating consumer: " << strResult(handleResult));
             } else {
-                LOG_ERROR(getName() << "Failed to create consumer: " << strResult(result));
-                consumerCreatedPromise_.setFailed(result);
+                LOG_ERROR(getName() << "Failed to create consumer: " << strResult(handleResult));
+                consumerCreatedPromise_.setFailed(handleResult);
                 state_ = Failed;
             }
         }
     }
+
+    return handleResult;
 }
 
 void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
