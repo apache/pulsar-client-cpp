@@ -94,7 +94,7 @@ void HandlerBase::grabCnx() {
             connectionOpened(cnx).addListener([this, self](Result result, bool) {
                 // Do not use bool, only Result.
                 reconnectionPending_ = false;
-                if (result == ResultRetryable) {
+                if (isResultRetryable(result)) {
                     scheduleReconnection();
                 }
             });
