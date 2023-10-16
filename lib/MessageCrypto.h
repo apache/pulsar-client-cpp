@@ -49,7 +49,7 @@ class MessageCrypto {
     typedef std::map<std::string, std::string> StringMap;
     typedef std::map<std::string, std::pair<std::string, boost::posix_time::ptime>> DataKeyCacheMap;
 
-    MessageCrypto(std::string& logCtx, bool keyGenNeeded);
+    MessageCrypto(const std::string& logCtx, bool keyGenNeeded);
     ~MessageCrypto();
 
     /*

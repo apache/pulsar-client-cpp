@@ -215,7 +215,7 @@ class ConsumerImpl : public ConsumerImplBase {
     const int receiverQueueRefillThreshold_;
     uint64_t consumerId_;
     std::string consumerName_;
-    std::string consumerStr_;
+    const std::string consumerStr_;
     int32_t partitionIndex_ = -1;
     Promise<Result, ConsumerImplBaseWeakPtr> consumerCreatedPromise_;
     std::atomic_bool messageListenerRunning_;

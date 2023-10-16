@@ -84,6 +84,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       receiverQueueRefillThreshold_(config_.getReceiverQueueSize() / 2),
       consumerId_(client->newConsumerId()),
       consumerName_(config_.getConsumerName()),
+      consumerStr_("[" + topic + ", " + subscriptionName + ", " + std::to_string(consumerId_) + "] "),
       messageListenerRunning_(true),
       negativeAcksTracker_(client, *this, conf),
       readCompacted_(conf.isReadCompacted()),
@@ -92,10 +93,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
       expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
       interceptors_(interceptors) {
-    std::stringstream consumerStrStream;
-    consumerStrStream << "[" << topic_ << ", " << subscription_ << ", " << consumerId_ << "] ";
-    consumerStr_ = consumerStrStream.str();
-
     // Initialize un-ACKed messages OT tracker.
     if (conf.getUnAckedMessagesTimeoutMs() != 0) {
         if (conf.getTickDurationInMs() > 0) {

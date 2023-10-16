@@ -28,7 +28,7 @@ namespace pulsar {
 
 DECLARE_LOG_OBJECT()
 
-MessageCrypto::MessageCrypto(std::string& logCtx, bool keyGenNeeded)
+MessageCrypto::MessageCrypto(const std::string& logCtx, bool keyGenNeeded)
     : dataKeyLen_(32),
       dataKey_(new unsigned char[dataKeyLen_]),
       tagLen_(16),
