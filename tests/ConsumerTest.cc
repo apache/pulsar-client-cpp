@@ -1374,7 +1374,10 @@ TEST(ConsumerTest, testNoListenerThreadBlocking) {
     producer.flush();
     producer.close();
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    waitUntil(std::chrono::seconds(1), [consumer1] {
+        auto multiConsumerImpl = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer1);
+        return multiConsumerImpl->getNumOfPrefetchedMessages() == receiverQueueSizeAcrossPartitions;
+    });
 
     // check consumer1 prefetch num
     auto multiConsumerImpl = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer1);
