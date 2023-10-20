@@ -24,7 +24,6 @@
 #include <memory>
 #include <vector>
 
-#include "BlockingQueue.h"
 #include "Commands.h"
 #include "ConsumerImplBase.h"
 #include "ConsumerInterceptors.h"
@@ -33,6 +32,7 @@
 #include "LookupDataResult.h"
 #include "SynchronizedHashMap.h"
 #include "TestUtil.h"
+#include "UnboundedBlockingQueue.h"
 
 namespace pulsar {
 typedef std::shared_ptr<Promise<Result, Consumer>> ConsumerSubResultPromisePtr;
@@ -115,7 +115,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     std::map<std::string, int> topicsPartitions_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;
-    BlockingQueue<Message> incomingMessages_;
+    UnboundedBlockingQueue<Message> incomingMessages_;
     std::atomic_int incomingMessagesSize_ = {0};
     MessageListener messageListener_;
     DeadlineTimerPtr partitionsUpdateTimer_;
