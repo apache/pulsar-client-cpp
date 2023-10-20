@@ -531,7 +531,10 @@ void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& 
             auto self = weakSelf.lock();
             if (self) {
                 notifyPendingReceivedCallback(ResultOk, msg, callback);
-                msg.impl_->consumerPtr_->increaseAvailablePermits(msg);
+                auto consumer = msg.impl_->consumerPtr_.lock();
+                if (consumer) {
+                    consumer->increaseAvailablePermits(msg);
+                }
             }
         });
         return;
@@ -1067,7 +1070,10 @@ void MultiTopicsConsumerImpl::notifyBatchPendingReceivedCallback(const BatchRece
 void MultiTopicsConsumerImpl::messageProcessed(Message& msg) {
     incomingMessagesSize_.fetch_sub(msg.getLength());
     unAckedMessageTrackerPtr_->add(msg.getMessageId());
-    msg.impl_->consumerPtr_->increaseAvailablePermits(msg);
+    auto consumer = msg.impl_->consumerPtr_.lock();
+    if (consumer) {
+        consumer->increaseAvailablePermits(msg);
+    }
 }
 
 std::shared_ptr<MultiTopicsConsumerImpl> MultiTopicsConsumerImpl::get_shared_this_ptr() {
