@@ -58,7 +58,7 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       partition_(partition),
       producerName_(conf_.getProducerName()),
       userProvidedProducerName_(false),
-      producerStr_("[" + *topic_ + ", " + producerName_ + "] "),
+      producerStr_("[" + topic() + ", " + producerName_ + "] "),
       producerId_(client->newProducerId()),
       msgSequenceGenerator_(0),
       batchTimer_(executor_->createDeadlineTimer()),
@@ -67,7 +67,7 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       memoryLimitController_(client->getMemoryLimitController()),
       chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()),
       interceptors_(interceptors) {
-    LOG_DEBUG("ProducerName - " << producerName_ << " Created producer on topic " << topic_
+    LOG_DEBUG("ProducerName - " << producerName_ << " Created producer on topic " << topic()
                                 << " id: " << producerId_);
 
     int64_t initialSequenceId = conf.getInitialSequenceId();
@@ -93,7 +93,7 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
 
     if (conf_.isEncryptionEnabled()) {
         std::ostringstream logCtxStream;
-        logCtxStream << "[" << topic_ << ", " << producerName_ << ", " << producerId_ << "]";
+        logCtxStream << "[" << topic() << ", " << producerName_ << ", " << producerId_ << "]";
         std::string logCtx = logCtxStream.str();
         msgCrypto_ = std::make_shared<MessageCrypto>(logCtx, true);
         msgCrypto_->addPublicKeyCipher(conf_.getEncryptionKeys(), conf_.getCryptoKeyReader());
@@ -123,7 +123,7 @@ ProducerImpl::~ProducerImpl() {
     }
 }
 
-const std::string& ProducerImpl::getTopic() const { return *topic_; }
+const std::string& ProducerImpl::getTopic() const { return topic(); }
 
 const std::string& ProducerImpl::getProducerName() const { return producerName_; }
 
@@ -148,7 +148,7 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
     ClientImplPtr client = client_.lock();
     int requestId = client->newRequestId();
 
-    SharedBuffer cmd = Commands::newProducer(*topic_, producerId_, producerName_, requestId,
+    SharedBuffer cmd = Commands::newProducer(topic(), producerId_, producerName_, requestId,
                                              conf_.getProperties(), conf_.getSchema(), epoch_,
                                              userProvidedProducerName_, conf_.isEncryptionEnabled(),
                                              static_cast<proto::ProducerAccessMode>(conf_.getAccessMode()),
@@ -218,7 +218,7 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
         cnx->registerProducer(producerId_, shared_from_this());
         producerName_ = responseData.producerName;
         schemaVersion_ = responseData.schemaVersion;
-        producerStr_ = "[" + *topic_ + ", " + producerName_ + "] ";
+        producerStr_ = "[" + topic() + ", " + producerName_ + "] ";
         topicEpoch = responseData.topicEpoch;
 
         if (lastSequenceIdPublished_ == -1 && conf_.getInitialSequenceId() == -1) {
@@ -788,7 +788,7 @@ void ProducerImpl::closeAsync(CloseCallback originalCallback) {
 
         return;
     }
-    LOG_INFO(getName() << "Closing producer for topic " << topic_);
+    LOG_INFO(getName() << "Closing producer for topic " << topic());
     state_ = Closing;
 
     ClientConnectionPtr cnx = getCnx().lock();

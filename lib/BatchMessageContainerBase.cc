@@ -27,7 +27,7 @@
 namespace pulsar {
 
 BatchMessageContainerBase::BatchMessageContainerBase(const ProducerImpl& producer)
-    : topicName_(producer.topic_),
+    : topicName_(producer.topic()),
       producerConfig_(producer.conf_),
       producerName_(producer.producerName_),
       producerId_(producer.producerId_),
