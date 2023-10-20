@@ -87,14 +87,18 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
 
     virtual const std::string& getName() const = 0;
 
+    const std::string& topic() const { return *topic_; }
+    const std::shared_ptr<std::string>& getTopicPtr() const { return topic_; }
+
    private:
+    const std::shared_ptr<std::string> topic_;
+
     void handleDisconnection(Result result, const ClientConnectionPtr& cnx);
 
     void handleTimeout(const boost::system::error_code& ec);
 
    protected:
     ClientImplWeakPtr client_;
-    const std::shared_ptr<std::string> topic_;
     ExecutorServicePtr executor_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;

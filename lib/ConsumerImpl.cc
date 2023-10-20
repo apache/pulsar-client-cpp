@@ -174,7 +174,7 @@ Future<Result, ConsumerImplBaseWeakPtr> ConsumerImpl::getConsumerCreatedFuture()
 
 const std::string& ConsumerImpl::getSubscriptionName() const { return originalSubscriptionName_; }
 
-const std::string& ConsumerImpl::getTopic() const { return *topic_; }
+const std::string& ConsumerImpl::getTopic() const { return topic(); }
 
 void ConsumerImpl::start() {
     HandlerBase::start();
@@ -194,7 +194,7 @@ void ConsumerImpl::start() {
 
     // Initialize ackGroupingTrackerPtr_ here because the get_shared_this_ptr() was not initialized until the
     // constructor completed.
-    if (TopicName::get(*topic_)->isPersistent()) {
+    if (TopicName::get(topic())->isPersistent()) {
         if (config_.getAckGroupingTimeMs() > 0) {
             ackGroupingTrackerPtr_.reset(new AckGroupingTrackerEnabled(
                 connectionSupplier, requestIdSupplier, consumerId_, config_.isAckReceiptEnabled(),
@@ -249,7 +249,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     ClientImplPtr client = client_.lock();
     uint64_t requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
-        *topic_, subscription_, consumerId_, requestId, getSubType(), consumerName_, subscriptionMode_,
+        topic(), subscription_, consumerId_, requestId, getSubType(), consumerName_, subscriptionMode_,
         subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
         config_.getSchema(), getInitialPosition(), config_.isReplicateSubscriptionStateEnabled(),
         config_.getKeySharedPolicy(), config_.getPriorityLevel());
@@ -552,7 +552,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
 
     Message m(messageId, brokerEntryMetadata, metadata, payload);
     m.impl_->cnx_ = cnx.get();
-    m.impl_->setTopicName(topic_);
+    m.impl_->setTopicName(getTopicPtr());
     m.impl_->setRedeliveryCount(msg.redelivery_count());
 
     if (metadata.has_schema_version()) {
@@ -1243,7 +1243,7 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
         return;
     }
 
-    LOG_INFO(getName() << "Closing consumer for topic " << topic_);
+    LOG_INFO(getName() << "Closing consumer for topic " << topic());
     state_ = Closing;
     incomingMessages_.close();
 
@@ -1764,7 +1764,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCa
                             return;
                         }
                         if (result != ResultOk) {
-                            LOG_WARN("{" << self->topic_ << "} {" << self->subscription_ << "} {"
+                            LOG_WARN("{" << self->topic() << "} {" << self->subscription_ << "} {"
                                          << self->consumerName_ << "} Failed to acknowledge the message {"
                                          << originMessageId
                                          << "} of the original topic but send to the DLQ successfully : "
@@ -1777,7 +1777,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCa
                         }
                     });
                 } else {
-                    LOG_WARN("{" << self->topic_ << "} {" << self->subscription_ << "} {"
+                    LOG_WARN("{" << self->topic() << "} {" << self->subscription_ << "} {"
                                  << self->consumerName_ << "} Failed to send DLQ message to {"
                                  << self->deadLetterPolicy_.getDeadLetterTopic() << "} for message id "
                                  << "{" << originMessageId << "} : " << res);

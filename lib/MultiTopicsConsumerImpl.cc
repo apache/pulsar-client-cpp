@@ -72,7 +72,7 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
       interceptors_(interceptors) {
     std::stringstream consumerStrStream;
     consumerStrStream << "[Muti Topics Consumer: "
-                      << "TopicName - " << topic_ << " - Subscription - " << subscriptionName << "]";
+                      << "TopicName - " << topic() << " - Subscription - " << subscriptionName << "]";
     consumerStr_ = consumerStrStream.str();
 
     if (conf.getUnAckedMessagesTimeoutMs() != 0) {
@@ -312,7 +312,7 @@ void MultiTopicsConsumerImpl::handleSingleConsumerCreated(
 }
 
 void MultiTopicsConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
-    LOG_INFO("[ Topics Consumer " << topic_ << "," << subscriptionName_ << "] Unsubscribing");
+    LOG_INFO("[ Topics Consumer " << topic() << "," << subscriptionName_ << "] Unsubscribing");
 
     auto callback = [this, originalCallback](Result result) {
         if (result == ResultOk) {
@@ -483,7 +483,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
     *numberTopicPartitions_ = 0;
     if (consumers.empty()) {
         LOG_DEBUG("TopicsConsumer have no consumers to close "
-                  << " topic" << topic_ << " subscription - " << subscriptionName_);
+                  << " topic" << topic() << " subscription - " << subscriptionName_);
         callback(ResultAlreadyClosed);
         return;
     }
@@ -518,7 +518,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
 void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& msg) {
     LOG_DEBUG("Received Message from one of the topic - " << consumer.getTopic()
                                                           << " message:" << msg.getDataAsString());
-    msg.impl_->setTopicName(consumer.impl_->topic_);
+    msg.impl_->setTopicName(consumer.impl_->getTopicPtr());
 
     Lock lock(pendingReceiveMutex_);
     if (!pendingReceives_.empty()) {
@@ -744,7 +744,7 @@ Future<Result, ConsumerImplBaseWeakPtr> MultiTopicsConsumerImpl::getConsumerCrea
 }
 const std::string& MultiTopicsConsumerImpl::getSubscriptionName() const { return subscriptionName_; }
 
-const std::string& MultiTopicsConsumerImpl::getTopic() const { return *topic_; }
+const std::string& MultiTopicsConsumerImpl::getTopic() const { return topic(); }
 
 const std::string& MultiTopicsConsumerImpl::getName() const { return consumerStr_; }
 

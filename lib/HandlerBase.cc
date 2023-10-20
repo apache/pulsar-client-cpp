@@ -30,8 +30,8 @@ DECLARE_LOG_OBJECT()
 namespace pulsar {
 
 HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, const Backoff& backoff)
-    : client_(client),
-      topic_(std::make_shared<std::string>(topic)),
+    : topic_(std::make_shared<std::string>(topic)),
+      client_(client),
       executor_(client->getIOExecutorProvider()->get()),
       mutex_(),
       creationTimestamp_(TimeUtils::now()),
@@ -88,7 +88,7 @@ void HandlerBase::grabCnx() {
         return;
     }
     auto self = shared_from_this();
-    client->getConnection(*topic_).addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
+    client->getConnection(topic()).addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
         if (result == ResultOk) {
             LOG_DEBUG(getName() << "Connected to broker: " << cnx->cnxString());
             connectionOpened(cnx).addListener([this, self](Result result, bool) {
