@@ -519,6 +519,7 @@ void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& 
     LOG_DEBUG("Received Message from one of the topic - " << consumer.getTopic()
                                                           << " message:" << msg.getDataAsString());
     msg.impl_->setTopicName(consumer.impl_->getTopicPtr());
+    msg.impl_->consumerPtr_ = std::static_pointer_cast<ConsumerImpl>(consumer.impl_);
 
     Lock lock(pendingReceiveMutex_);
     if (!pendingReceives_.empty()) {
@@ -530,18 +531,15 @@ void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& 
             auto self = weakSelf.lock();
             if (self) {
                 notifyPendingReceivedCallback(ResultOk, msg, callback);
+                auto consumer = msg.impl_->consumerPtr_.lock();
+                if (consumer) {
+                    consumer->increaseAvailablePermits(msg);
+                }
             }
         });
         return;
     }
 
-    if (incomingMessages_.full()) {
-        lock.unlock();
-    }
-
-    // add message to block queue.
-    // when messages queue is full, will block listener thread on ConsumerImpl,
-    // then will not send permits to broker, will broker stop push message.
     incomingMessages_.push(msg);
     incomingMessagesSize_.fetch_add(msg.getLength());
 
@@ -1072,6 +1070,10 @@ void MultiTopicsConsumerImpl::notifyBatchPendingReceivedCallback(const BatchRece
 void MultiTopicsConsumerImpl::messageProcessed(Message& msg) {
     incomingMessagesSize_.fetch_sub(msg.getLength());
     unAckedMessageTrackerPtr_->add(msg.getMessageId());
+    auto consumer = msg.impl_->consumerPtr_.lock();
+    if (consumer) {
+        consumer->increaseAvailablePermits(msg);
+    }
 }
 
 std::shared_ptr<MultiTopicsConsumerImpl> MultiTopicsConsumerImpl::get_shared_this_ptr() {

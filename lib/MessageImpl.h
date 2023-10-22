@@ -47,6 +47,7 @@ class MessageImpl {
     int redeliveryCount_;
     bool hasSchemaVersion_;
     const std::string* schemaVersion_;
+    std::weak_ptr<class ConsumerImpl> consumerPtr_;
 
     const std::string& getPartitionKey() const;
     bool hasPartitionKey() const;

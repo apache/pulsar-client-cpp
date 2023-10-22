@@ -168,6 +168,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void discardCorruptedMessage(const ClientConnectionPtr& cnx, const proto::MessageIdData& messageId,
                                  CommandAck_ValidationError validationError);
     void increaseAvailablePermits(const ClientConnectionPtr& currentCnx, int delta = 1);
+    void increaseAvailablePermits(const Message& msg);
     void drainIncomingMessageQueue(size_t count);
     uint32_t receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx, Message& batchedMessage,
                                                 const BitSet& ackSet, int redeliveryCount);

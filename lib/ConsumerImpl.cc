@@ -1032,7 +1032,9 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
         return;
     }
 
-    increaseAvailablePermits(currentCnx);
+    if (!hasParent_) {
+        increaseAvailablePermits(currentCnx);
+    }
     if (track) {
         trackMessage(msg.getMessageId());
     }
@@ -1087,6 +1089,16 @@ void ConsumerImpl::increaseAvailablePermits(const ClientConnectionPtr& currentCn
             break;
         }
     }
+}
+
+void ConsumerImpl::increaseAvailablePermits(const Message& msg) {
+    ClientConnectionPtr currentCnx = getCnx().lock();
+    if (currentCnx && msg.impl_->cnx_ != currentCnx.get()) {
+        LOG_DEBUG(getName() << "Not adding permit since connection is different.");
+        return;
+    }
+
+    increaseAvailablePermits(currentCnx);
 }
 
 inline CommandSubscribe_SubType ConsumerImpl::getSubType() {
