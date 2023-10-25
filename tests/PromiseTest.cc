@@ -19,10 +19,13 @@
 #include <gtest/gtest.h>
 
 #include <chrono>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
 
+#include "WaitUtils.h"
 #include "lib/Future.h"
 #include "lib/LogUtils.h"
 
@@ -88,26 +91,38 @@ TEST(PromiseTest, testListeners) {
     ASSERT_EQ(values, (std::vector<std::string>(2, "hello")));
 }
 
-TEST(PromiseTest, testTriggerListeners) {
-    InternalState<int, int> state;
-    state.addListener([](int, const int&) {
-        LOG_INFO("Start task 1...");
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        LOG_INFO("Finish task 1...");
-    });
-    state.addListener([](int, const int&) {
-        LOG_INFO("Start task 2...");
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        LOG_INFO("Finish task 2...");
+TEST(PromiseTest, testListenerDeadlock) {
+    Promise<int, int> promise;
+    auto future = promise.getFuture();
+    auto mutex = std::make_shared<std::mutex>();
+    auto done = std::make_shared<std::atomic_bool>(false);
+
+    future.addListener([mutex, done](int, int) {
+        LOG_INFO("Listener-1 before acquiring the lock");
+        std::lock_guard<std::mutex> lock{*mutex};
+        LOG_INFO("Listener-1 after acquiring the lock");
+        done->store(true);
     });
 
-    auto start = std::chrono::high_resolution_clock::now();
-    auto future1 = std::async(std::launch::async, [&state] { state.triggerListeners(0, 0); });
-    auto future2 = std::async(std::launch::async, [&state] { state.triggerListeners(0, 0); });
-    future1.wait();
-    future2.wait();
-    auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
-                       std::chrono::high_resolution_clock::now() - start)
-                       .count();
-    ASSERT_TRUE(elapsed > 2000) << "elapsed: " << elapsed << "ms";
+    std::thread t1{[mutex, &future] {
+        std::lock_guard<std::mutex> lock{*mutex};
+        // Make it a great chance that `t2` executes `promise.setValue` first
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+
+        // Since the future is completed, `Future::get` will be called in `addListener` to get the result
+        LOG_INFO("Before adding Listener-2 (acquired the mutex)")
+        future.addListener([](int, int) { LOG_INFO("Listener-2 is triggered"); });
+        LOG_INFO("After adding Listener-2 (releasing the mutex)");
+    }};
+    t1.detach();
+    std::thread t2{[mutex, promise] {
+        // Make there a great chance that `t1` acquires `mutex` first
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        LOG_INFO("Before setting value");
+        promise.setValue(0);  // the 1st listener is called, which is blocked at acquiring `mutex`
+        LOG_INFO("After setting value");
+    }};
+    t2.detach();
+
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(5000), [done] { return done->load(); }));
 }

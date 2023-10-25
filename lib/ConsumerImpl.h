@@ -23,6 +23,7 @@
 
 #include <boost/optional.hpp>
 #include <functional>
+#include <list>
 #include <memory>
 #include <utility>
 

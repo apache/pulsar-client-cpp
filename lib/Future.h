@@ -20,14 +20,11 @@
 #define LIB_FUTURE_H_
 
 #include <atomic>
-#include <chrono>
+#include <condition_variable>
+#include <forward_list>
 #include <functional>
-#include <future>
-#include <list>
 #include <memory>
 #include <mutex>
-#include <thread>
-#include <utility>
 
 namespace pulsar {
 
@@ -38,71 +35,70 @@ class InternalState {
     using Pair = std::pair<Result, Type>;
     using Lock = std::unique_lock<std::mutex>;
 
+    enum Status : uint8_t
+    {
+        INITIAL,
+        COMPLETING,
+        COMPLETED
+    };
+
     // NOTE: Add the constructor explicitly just to be compatible with GCC 4.8
     InternalState() {}
 
     void addListener(Listener listener) {
         Lock lock{mutex_};
-        listeners_.emplace_back(listener);
-        lock.unlock();
-
         if (completed()) {
-            Type value;
-            Result result = get(value);
-            triggerListeners(result, value);
+            auto result = result_;
+            auto value = value_;
+            lock.unlock();
+            listener(result, value);
+        } else {
+            tailListener_ = listeners_.emplace_after(tailListener_, std::move(listener));
         }
     }
 
     bool complete(Result result, const Type &value) {
-        bool expected = false;
-        if (!completed_.compare_exchange_strong(expected, true)) {
+        Status expected = Status::INITIAL;
+        if (!status_.compare_exchange_strong(expected, Status::COMPLETING)) {
             return false;
         }
-        triggerListeners(result, value);
-        promise_.set_value(std::make_pair(result, value));
+
+        // Ensure if another thread calls `addListener` at the same time, that thread can get the value by
+        // `get` before the existing listeners are executed
+        Lock lock{mutex_};
+        result_ = result;
+        value_ = value;
+        status_ = COMPLETED;
+        cond_.notify_all();
+
+        if (!listeners_.empty()) {
+            auto listeners = std::move(listeners_);
+            lock.unlock();
+            for (auto &&listener : listeners) {
+                listener(result, value);
+            }
+        }
+
         return true;
     }
 
-    bool completed() const noexcept { return completed_; }
+    bool completed() const noexcept { return status_.load() == COMPLETED; }
 
-    Result get(Type &result) {
-        const auto &pair = future_.get();
-        result = pair.second;
-        return pair.first;
-    }
-
-    // Only public for test
-    void triggerListeners(Result result, const Type &value) {
-        while (true) {
-            Lock lock{mutex_};
-            if (listeners_.empty()) {
-                return;
-            }
-
-            bool expected = false;
-            if (!listenerRunning_.compare_exchange_strong(expected, true)) {
-                // There is another thread that polled a listener that is running, skip polling and release
-                // the lock. Here we wait for some time to avoid busy waiting.
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                continue;
-            }
-            auto listener = std::move(listeners_.front());
-            listeners_.pop_front();
-            lock.unlock();
-
-            listener(result, value);
-            listenerRunning_ = false;
-        }
+    Result get(Type &value) const {
+        Lock lock{mutex_};
+        cond_.wait(lock, [this] { return completed(); });
+        value = value_;
+        return result_;
     }
 
    private:
-    std::atomic_bool completed_{false};
-    std::promise<Pair> promise_;
-    std::shared_future<Pair> future_{promise_.get_future()};
-
-    std::list<Listener> listeners_;
     mutable std::mutex mutex_;
-    std::atomic_bool listenerRunning_{false};
+    mutable std::condition_variable cond_;
+    std::forward_list<Listener> listeners_;
+    decltype(listeners_.before_begin()) tailListener_{listeners_.before_begin()};
+    Result result_;
+    Type value_;
+    std::atomic<Status> status_;
 };
 
 template <typename Result, typename Type>
