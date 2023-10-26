@@ -71,8 +71,6 @@ class InternalState {
         status_ = COMPLETED;
         cond_.notify_all();
 
-        lock.unlock();
-        lock.lock();
         if (!listeners_.empty()) {
             auto listeners = std::move(listeners_);
             lock.unlock();
@@ -100,7 +98,7 @@ class InternalState {
     decltype(listeners_.before_begin()) tailListener_{listeners_.before_begin()};
     Result result_;
     Type value_;
-    std::atomic<Status> status_;
+    std::atomic<Status> status_{INITIAL};
 };
 
 template <typename Result, typename Type>
