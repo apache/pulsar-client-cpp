@@ -71,6 +71,8 @@ class InternalState {
         status_ = COMPLETED;
         cond_.notify_all();
 
+        lock.unlock();
+        lock.lock();
         if (!listeners_.empty()) {
             auto listeners = std::move(listeners_);
             lock.unlock();
