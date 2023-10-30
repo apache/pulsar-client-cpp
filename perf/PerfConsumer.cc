@@ -67,19 +67,11 @@ struct Arguments {
     int receiverQueueSize;
     int ioThreads;
     int listenerThreads;
-    bool poolConnections;
+    int connectionsPerBroker;
+
     std::string encKeyName;
     std::string encKeyValueFile;
 };
-
-namespace pulsar {
-class PulsarFriend {
-   public:
-    static Client getClient(const std::string& url, const ClientConfiguration conf, bool poolConnections) {
-        return Client(url, conf, poolConnections);
-    }
-};
-}  // namespace pulsar
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 4
 // Used for gcc-4.4.7 with boost-1.41
@@ -167,6 +159,7 @@ void startPerfConsumer(const Arguments& args) {
         std::string tlsTrustCertsFilePath(args.tlsTrustCertsFilePath);
         conf.setTlsTrustCertsFilePath(tlsTrustCertsFilePath);
     }
+    conf.setConnectionsPerBroker(args.connectionsPerBroker);
     conf.setIOThreads(args.ioThreads);
     conf.setMessageListenerThreads(args.listenerThreads);
     if (!args.authPlugin.empty()) {
@@ -174,7 +167,7 @@ void startPerfConsumer(const Arguments& args) {
         conf.setAuth(auth);
     }
 
-    Client client(pulsar::PulsarFriend::getClient(args.serviceURL, conf, args.poolConnections));
+    Client client(args.serviceURL, conf);
 
     ConsumerConfiguration consumerConf;
     consumerConf.setMessageListener(messageListener);
@@ -299,8 +292,8 @@ int main(int argc, char** argv) {
         ("listener-threads,l", po::value<int>(&args.listenerThreads)->default_value(1),
          "Number of listener threads")  //
 
-        ("pool-connections", po::value<bool>(&args.poolConnections)->default_value(false),
-         "whether pool connections used")  //
+        ("connections-per-broker", po::value<int>(&args.connectionsPerBroker)->default_value(1),
+         "Number of connections per each broker")  //
 
         ("encryption-key-name,k", po::value<std::string>(&args.encKeyName)->default_value(""),
          "The private key name to decrypt payload")  //

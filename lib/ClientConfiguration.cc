@@ -40,6 +40,13 @@ ClientConfiguration& ClientConfiguration::setMemoryLimit(uint64_t memoryLimitByt
 
 uint64_t ClientConfiguration::getMemoryLimit() const { return impl_->memoryLimit; }
 
+ClientConfiguration& ClientConfiguration::setConnectionsPerBroker(int connectionsPerBroker) {
+    impl_->connectionsPerBroker = connectionsPerBroker;
+    return *this;
+}
+
+int ClientConfiguration::getConnectionsPerBroker() const { return impl_->connectionsPerBroker; }
+
 ClientConfiguration& ClientConfiguration::setAuth(const AuthenticationPtr& authentication) {
     impl_->authenticationPtr = authentication;
     return *this;

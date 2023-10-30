@@ -415,8 +415,6 @@ class PULSAR_PUBLIC Client {
                             std::function<void(Result, const SchemaInfo&)> callback);
 
    private:
-    Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
-           bool poolConnections);
     Client(const std::shared_ptr<ClientImpl>);
 
     friend class PulsarFriend;

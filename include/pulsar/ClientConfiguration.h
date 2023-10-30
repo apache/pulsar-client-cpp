@@ -47,6 +47,21 @@ class PULSAR_PUBLIC ClientConfiguration {
     uint64_t getMemoryLimit() const;
 
     /**
+     * Sets the max number of connection that the client library will open to a single broker.
+     * By default, the connection pool will use a single connection for all the producers and consumers.
+     * Increasing this parameter may improve throughput when using many producers over a high latency
+     * connection.
+     *
+     * @param connectionsPerBroker max number of connections per broker (needs to be greater than 0)
+     */
+    ClientConfiguration& setConnectionsPerBroker(int connectionsPerBroker);
+
+    /**
+     * @return the max number of connection that the client library will open to a single broker
+     */
+    int getConnectionsPerBroker() const;
+
+    /**
      * Set the authentication method to be used with the broker
      *
      * @param authentication the authentication data to use
