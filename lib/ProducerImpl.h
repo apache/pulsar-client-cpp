@@ -20,6 +20,7 @@
 #define LIB_PRODUCERIMPL_H_
 
 #include <boost/optional.hpp>
+#include <list>
 #include <memory>
 
 #include "Future.h"
