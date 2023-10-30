@@ -34,15 +34,13 @@ DECLARE_LOG_OBJECT()
 namespace pulsar {
 
 ConnectionPool::ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
-                               const AuthenticationPtr& authentication,
-                               const std::string& clientVersion)
+                               const AuthenticationPtr& authentication, const std::string& clientVersion)
     : clientConfiguration_(conf),
       executorProvider_(executorProvider),
       authentication_(authentication),
       clientVersion_(clientVersion),
       randomDistribution_(0, conf.getConnectionsPerBroker()),
-    randomEngine_(std::chrono::high_resolution_clock::now().time_since_epoch().count()) {
-}
+      randomEngine_(std::chrono::high_resolution_clock::now().time_since_epoch().count()) {}
 
 bool ConnectionPool::close() {
     bool expectedState = false;
@@ -88,8 +86,8 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(
             return cnx->getConnectFuture();
         } else {
             // The closed connection should have been removed from the pool in ClientConnection::close
-            LOG_WARN("Deleting stale connection from pool for "
-                     << key << " use_count: " << (cnx.use_count()) << " @ " << cnx.get());
+            LOG_WARN("Deleting stale connection from pool for " << key << " use_count: " << (cnx.use_count())
+                                                                << " @ " << cnx.get());
             pool_.erase(key);
         }
     }
