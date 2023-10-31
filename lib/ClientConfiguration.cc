@@ -41,6 +41,9 @@ ClientConfiguration& ClientConfiguration::setMemoryLimit(uint64_t memoryLimitByt
 uint64_t ClientConfiguration::getMemoryLimit() const { return impl_->memoryLimit; }
 
 ClientConfiguration& ClientConfiguration::setConnectionsPerBroker(int connectionsPerBroker) {
+    if (connectionsPerBroker <= 0) {
+        throw std::invalid_argument("connectionsPerBroker should be greater than 0");
+    }
     impl_->connectionsPerBroker = connectionsPerBroker;
     return *this;
 }
