@@ -39,7 +39,7 @@ ConnectionPool::ConnectionPool(const ClientConfiguration& conf, ExecutorServiceP
       executorProvider_(executorProvider),
       authentication_(authentication),
       clientVersion_(clientVersion),
-      randomDistribution_(0, conf.getConnectionsPerBroker()),
+      randomDistribution_(0, conf.getConnectionsPerBroker() - 1),
       randomEngine_(std::chrono::high_resolution_clock::now().time_since_epoch().count()) {}
 
 bool ConnectionPool::close() {
