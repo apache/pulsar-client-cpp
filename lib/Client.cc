@@ -36,14 +36,10 @@ namespace pulsar {
 Client::Client(const std::shared_ptr<ClientImpl> impl) : impl_(impl) {}
 
 Client::Client(const std::string& serviceUrl)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, ClientConfiguration(), true)) {}
+    : impl_(std::make_shared<ClientImpl>(serviceUrl, ClientConfiguration())) {}
 
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration, true)) {}
-
-Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
-               bool poolConnections)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration, poolConnections)) {}
+    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {}
 
 Result Client::createProducer(const std::string& topic, Producer& producer) {
     return createProducer(topic, ProducerConfiguration(), producer);

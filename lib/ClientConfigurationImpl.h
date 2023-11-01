@@ -27,6 +27,7 @@ struct ClientConfigurationImpl {
     AuthenticationPtr authenticationPtr{AuthFactory::Disabled()};
     uint64_t memoryLimit{0ull};
     int ioThreads{1};
+    int connectionsPerBroker{1};
     int operationTimeoutSeconds{30};
     int messageListenerThreads{1};
     int concurrentLookupRequest{50000};

@@ -27,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <string>
 
 #include "Future.h"
@@ -41,8 +42,7 @@ using ExecutorServiceProviderPtr = std::shared_ptr<ExecutorServiceProvider>;
 class PULSAR_PUBLIC ConnectionPool {
    public:
     ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
-                   const AuthenticationPtr& authentication, bool poolConnections,
-                   const std::string& clientVersion);
+                   const AuthenticationPtr& authentication, const std::string& clientVersion);
 
     /**
      * Close the connection pool.
@@ -82,10 +82,12 @@ class PULSAR_PUBLIC ConnectionPool {
     AuthenticationPtr authentication_;
     typedef std::map<std::string, std::shared_ptr<ClientConnection>> PoolMap;
     PoolMap pool_;
-    bool poolConnections_;
     const std::string clientVersion_;
     mutable std::recursive_mutex mutex_;
     std::atomic_bool closed_{false};
+
+    std::uniform_int_distribution<> randomDistribution_;
+    std::mt19937 randomEngine_;
 
     friend class PulsarFriend;
 };

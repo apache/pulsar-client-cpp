@@ -64,20 +64,11 @@ struct Arguments {
     unsigned int batchingMaxMessages;
     long batchingMaxAllowedSizeInBytes;
     long batchingMaxPublishDelayMs;
-    bool poolConnections;
+    int connectionsPerBroker;
     std::string encKeyName;
     std::string encKeyValueFile;
     std::string compression;
 };
-
-namespace pulsar {
-class PulsarFriend {
-   public:
-    static Client getClient(const std::string& url, const ClientConfiguration conf, bool poolConnections) {
-        return Client(url, conf, poolConnections);
-    }
-};
-}  // namespace pulsar
 
 unsigned long messagesProduced;
 unsigned long bytesProduced;
@@ -283,8 +274,8 @@ int main(int argc, char** argv) {
          po::value<long>(&args.batchingMaxPublishDelayMs)->default_value(3000),
          "Use only is batch-size > 1, Default is 3 seconds")  //
 
-        ("pool-connections", po::value<bool>(&args.poolConnections)->default_value(false),
-         "whether pool connections used")  //
+        ("connections-per-broker", po::value<int>(&args.connectionsPerBroker)->default_value(1),
+         "Number of connections per each broker")  //
 
         ("encryption-key-name,k", po::value<std::string>(&args.encKeyName)->default_value(""),
          "The public key name to encrypt payload")  //
@@ -371,6 +362,7 @@ int main(int argc, char** argv) {
     producerConf.setPartitionsRoutingMode(ProducerConfiguration::RoundRobinDistribution);
 
     pulsar::ClientConfiguration conf;
+    conf.setConnectionsPerBroker(args.connectionsPerBroker);
     conf.setMemoryLimit(args.memoryLimitMb * 1024 * 1024);
     conf.setUseTls(args.isUseTls);
     conf.setTlsAllowInsecureConnection(args.isTlsAllowInsecureConnection);
@@ -385,7 +377,7 @@ int main(int argc, char** argv) {
         conf.setAuth(auth);
     }
 
-    pulsar::Client client(pulsar::PulsarFriend::getClient(args.serviceURL, conf, args.poolConnections));
+    pulsar::Client client(args.serviceURL, conf);
 
     std::atomic<bool> exitCondition(false);
     startPerfProducer(args, producerConf, client, exitCondition);

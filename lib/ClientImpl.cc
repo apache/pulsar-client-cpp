@@ -75,8 +75,7 @@ typedef std::unique_lock<std::mutex> Lock;
 
 typedef std::vector<std::string> StringList;
 
-ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
-                       bool poolConnections)
+ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
     : mutex_(),
       state_(Open),
       serviceNameResolver_(serviceUrl),
@@ -87,7 +86,7 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
           std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getMessageListenerThreads())),
       partitionListenerExecutorProvider_(
           std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getMessageListenerThreads())),
-      pool_(clientConfiguration_, ioExecutorProvider_, clientConfiguration_.getAuthPtr(), poolConnections,
+      pool_(clientConfiguration_, ioExecutorProvider_, clientConfiguration_.getAuthPtr(),
             ClientImpl::getClientVersion(clientConfiguration)),
       producerIdGenerator_(0),
       consumerIdGenerator_(0),

@@ -68,8 +68,7 @@ std::string generateRandomName();
 
 class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
    public:
-    ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
-               bool poolConnections);
+    ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
     ~ClientImpl();
 
     /**
