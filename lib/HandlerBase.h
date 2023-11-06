@@ -99,6 +99,7 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
 
    protected:
     ClientImplWeakPtr client_;
+    const size_t connectionKeySuffix_;
     ExecutorServicePtr executor_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;

@@ -618,4 +618,19 @@ TEST(ProducerTest, testNoDeadlockWhenClosingPartitionedProducerAfterPartitionsUp
     client.close();
 }
 
+TEST(ProducerTest, testReconnectMultiConnectionsPerBroker) {
+    ClientConfiguration conf;
+    conf.setConnectionsPerBroker(10);
+
+    Client client(serviceUrl, conf);
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer("producer-test-reconnect-twice", producer));
+
+    for (int i = 0; i < 5; i++) {
+        ASSERT_TRUE(PulsarFriend::reconnect(producer)) << "i: " << i;
+    }
+
+    client.close();
+}
+
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerTest, ::testing::Values(true, false));

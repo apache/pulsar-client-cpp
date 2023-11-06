@@ -65,16 +65,28 @@ class PULSAR_PUBLIC ConnectionPool {
      * a proxy layer. Essentially, the pool is using the logical address as a way to
      * decide whether to reuse a particular connection.
      *
+     * There could be many connections to the same broker, so this pool uses an integer key as the suffix of
+     * the key that represents the connection.
+     *
      * @param logicalAddress the address to use as the broker tag
      * @param physicalAddress the real address where the TCP connection should be made
+     * @param keySuffix the key suffix to choose which connection on the same broker
      * @return a future that will produce the ClientCnx object
      */
     Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
-                                                               const std::string& physicalAddress);
+                                                               const std::string& physicalAddress,
+                                                               size_t keySuffix);
+
+    Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
+                                                               const std::string& physicalAddress) {
+        return getConnectionAsync(logicalAddress, physicalAddress, generateRandomIndex());
+    }
 
     Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& address) {
         return getConnectionAsync(address, address);
     }
+
+    size_t generateRandomIndex() { return randomDistribution_(randomEngine_); }
 
    private:
     ClientConfiguration clientConfiguration_;

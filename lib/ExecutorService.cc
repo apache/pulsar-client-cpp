@@ -133,10 +133,10 @@ void ExecutorService::postWork(std::function<void(void)> task) { io_service_.pos
 ExecutorServiceProvider::ExecutorServiceProvider(int nthreads)
     : executors_(nthreads), executorIdx_(0), mutex_() {}
 
-ExecutorServicePtr ExecutorServiceProvider::get() {
+ExecutorServicePtr ExecutorServiceProvider::get(size_t idx) {
+    idx %= executors_.size();
     Lock lock(mutex_);
 
-    int idx = executorIdx_++ % executors_.size();
     if (!executors_[idx]) {
         executors_[idx] = ExecutorService::create();
     }
