@@ -21,6 +21,7 @@
 
 #include <string>
 
+#include "WaitUtils.h"
 #include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
 #include "lib/ConsumerConfigurationImpl.h"
@@ -196,6 +197,13 @@ class PulsarFriend {
         LookupDataResultPtr lookupData = std::make_shared<LookupDataResult>();
         lookupData->setPartitions(newPartitions);
         partitionedProducer.handleGetPartitions(ResultOk, lookupData);
+    }
+
+    static bool reconnect(Producer producer) {
+        auto producerImpl = std::dynamic_pointer_cast<ProducerImpl>(producer.impl_);
+        producerImpl->disconnectProducer();
+        return waitUntil(std::chrono::seconds(3),
+                         [producerImpl] { return !producerImpl->getCnx().expired(); });
     }
 };
 }  // namespace pulsar

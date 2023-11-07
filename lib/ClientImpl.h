@@ -95,7 +95,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
 
-    Future<Result, ClientConnectionPtr> getConnection(const std::string& topic);
+    Future<Result, ClientConnectionPtr> getConnection(const std::string& topic, size_t key);
 
     void closeAsync(CloseCallback callback);
     void shutdown();
@@ -122,6 +122,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void cleanupConsumer(ConsumerImplBase* address) { consumers_.remove(address); }
 
     std::shared_ptr<std::atomic<uint64_t>> getRequestIdGenerator() const { return requestIdGenerator_; }
+
+    ConnectionPool& getConnectionPool() noexcept { return pool_; }
 
     friend class PulsarFriend;
 

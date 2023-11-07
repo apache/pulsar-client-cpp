@@ -966,7 +966,7 @@ bool ProducerImpl::encryptMessage(proto::MessageMetadata& metadata, SharedBuffer
 }
 
 void ProducerImpl::disconnectProducer() {
-    LOG_DEBUG("Broker notification of Closed producer: " << producerId_);
+    LOG_INFO("Broker notification of Closed producer: " << producerId_);
     resetCnx();
     scheduleReconnection();
 }
