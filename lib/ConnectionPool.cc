@@ -61,8 +61,9 @@ bool ConnectionPool::close() {
     return true;
 }
 
-Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(
-    const std::string& logicalAddress, const std::string& physicalAddress) {
+Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const std::string& logicalAddress,
+                                                                           const std::string& physicalAddress,
+                                                                           size_t keySuffix) {
     if (closed_) {
         Promise<Result, ClientConnectionWeakPtr> promise;
         promise.setFailed(ResultAlreadyClosed);
@@ -72,7 +73,7 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(
     std::unique_lock<std::recursive_mutex> lock(mutex_);
 
     std::stringstream ss;
-    ss << logicalAddress << '-' << randomDistribution_(randomEngine_);
+    ss << logicalAddress << '-' << keySuffix;
     const std::string key = ss.str();
 
     PoolMap::iterator cnxIt = pool_.find(key);
@@ -95,7 +96,7 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(
     // No valid or pending connection found in the pool, creating a new one
     ClientConnectionPtr cnx;
     try {
-        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(),
+        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(keySuffix),
                                        clientConfiguration_, authentication_, clientVersion_, *this));
     } catch (const std::runtime_error& e) {
         lock.unlock();

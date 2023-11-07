@@ -88,7 +88,9 @@ class PULSAR_PUBLIC ExecutorServiceProvider {
    public:
     explicit ExecutorServiceProvider(int nthreads);
 
-    ExecutorServicePtr get();
+    ExecutorServicePtr get() { return get(executorIdx_++); }
+
+    ExecutorServicePtr get(size_t index);
 
     // See TimeoutProcessor for the semantics of the parameter.
     void close(long timeoutMs = 3000);
@@ -96,7 +98,7 @@ class PULSAR_PUBLIC ExecutorServiceProvider {
    private:
     typedef std::vector<ExecutorServicePtr> ExecutorList;
     ExecutorList executors_;
-    int executorIdx_;
+    std::atomic_size_t executorIdx_;
     std::mutex mutex_;
     typedef std::unique_lock<std::mutex> Lock;
 };

@@ -516,7 +516,7 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
     }
 }
 
-Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string& topic) {
+Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string& topic, size_t key) {
     Promise<Result, ClientConnectionPtr> promise;
 
     const auto topicNamePtr = TopicName::get(topic);
@@ -528,12 +528,12 @@ Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string&
 
     auto self = shared_from_this();
     lookupServicePtr_->getBroker(*topicNamePtr)
-        .addListener([this, self, promise](Result result, const LookupService::LookupResult& data) {
+        .addListener([this, self, promise, key](Result result, const LookupService::LookupResult& data) {
             if (result != ResultOk) {
                 promise.setFailed(result);
                 return;
             }
-            pool_.getConnectionAsync(data.logicalAddress, data.physicalAddress)
+            pool_.getConnectionAsync(data.logicalAddress, data.physicalAddress, key)
                 .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
                     if (result == ResultOk) {
                         auto cnx = weakCnx.lock();

@@ -32,6 +32,7 @@ namespace pulsar {
 HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, const Backoff& backoff)
     : topic_(std::make_shared<std::string>(topic)),
       client_(client),
+      connectionKeySuffix_(client->getConnectionPool().generateRandomIndex()),
       executor_(client->getIOExecutorProvider()->get()),
       mutex_(),
       creationTimestamp_(TimeUtils::now()),
@@ -88,7 +89,8 @@ void HandlerBase::grabCnx() {
         return;
     }
     auto self = shared_from_this();
-    client->getConnection(topic()).addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
+    auto cnxFuture = client->getConnection(topic(), connectionKeySuffix_);
+    cnxFuture.addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
         if (result == ResultOk) {
             LOG_DEBUG(getName() << "Connected to broker: " << cnx->cnxString());
             connectionOpened(cnx).addListener([this, self](Result result, bool) {
