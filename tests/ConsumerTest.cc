@@ -1405,4 +1405,29 @@ TEST(ConsumerTest, testNoListenerThreadBlocking) {
     client.close();
 }
 
+TEST(ConsumerTest, testCloseAfterUnsubscribe) {
+    Client client{lookupUrl};
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe("test-close-after-unsubscribe", "sub", consumer));
+    ASSERT_EQ(ResultOk, consumer.unsubscribe());
+    ASSERT_EQ(ResultOk, consumer.close());
+}
+
+TEST(ConsumerTest, testCloseAgainBeforeCloseDone) {
+    Client client{lookupUrl};
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe("test-close-again-before-close-done", "sub", consumer));
+    auto done = std::make_shared<std::atomic_bool>(false);
+    auto result = std::make_shared<std::atomic<Result>>(ResultOk);
+    consumer.closeAsync([done, result](Result innerResult) {
+        result->store(innerResult);
+        done->store(true);
+    });
+    ASSERT_EQ(ResultOk, consumer.close());
+    ASSERT_FALSE(*done);
+    waitUntil(std::chrono::seconds(3), [done] { return done->load(); });
+    ASSERT_EQ(ResultOk, *result);
+    ASSERT_TRUE(*done);
+}
+
 }  // namespace pulsar

@@ -1238,10 +1238,12 @@ void ConsumerImpl::disconnectConsumer() {
 }
 
 void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
-    auto callback = [this, originalCallback](Result result) {
+    auto callback = [this, originalCallback](Result result, bool alreadyClosed = false) {
         shutdown();
         if (result == ResultOk) {
-            LOG_INFO(getName() << "Closed consumer " << consumerId_);
+            if (!alreadyClosed) {
+                LOG_INFO(getName() << "Closed consumer " << consumerId_);
+            }
         } else {
             LOG_WARN(getName() << "Failed to close consumer: " << result);
         }
@@ -1250,8 +1252,9 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
         }
     };
 
-    if (state_ != Ready) {
-        callback(ResultAlreadyClosed);
+    auto state = state_.load();
+    if (state == Closing || state == Closed) {
+        callback(ResultOk, true);
         return;
     }
 
