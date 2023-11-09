@@ -395,6 +395,8 @@ if (BUILD_DYNAMIC_LIB)
 endif()
 
 if (BUILD_TESTS)
+    set(TOKEN_PATH "${PROJECT_SOURCE_DIR}/.test-token.txt")
+    set(TEST_CONF_DIR "${PROJECT_SOURCE_DIR}/test-conf")
     add_subdirectory(tests)
 endif()
 

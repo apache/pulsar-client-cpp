@@ -27,11 +27,11 @@
 
 using namespace pulsar;
 
-#ifndef TEST_ROOT_PATH
-#define TEST_ROOT_PATH "."
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
 #endif
 
-static const std::string gKeyPath = std::string(TEST_ROOT_PATH) + "/../test-conf/cpp_credentials_file.json";
+static const std::string gKeyPath = TEST_CONF_DIR "/cpp_credentials_file.json";
 static std::string gClientId;
 static std::string gClientSecret;
 static ParamMap gCommonParams;

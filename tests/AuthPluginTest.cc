@@ -37,15 +37,19 @@ int globalTestTlsMessagesCounter = 0;
 static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
 static const std::string serviceUrlHttps = "https://localhost:8443";
 
-static const std::string caPath = "../test-conf/cacert.pem";
-static const std::string clientPublicKeyPath = "../test-conf/client-cert.pem";
-static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
+#endif
+
+static const std::string caPath = TEST_CONF_DIR "/cacert.pem";
+static const std::string clientPublicKeyPath = TEST_CONF_DIR "/client-cert.pem";
+static const std::string clientPrivateKeyPath = TEST_CONF_DIR "/client-key.pem";
 
 // Man in middle certificate which tries to act as a broker by sending its own valid certificate
 static const std::string mimServiceUrlTls = "pulsar+ssl://localhost:6653";
 static const std::string mimServiceUrlHttps = "https://localhost:8444";
 
-static const std::string mimCaPath = "../test-conf/hn-verification/cacert.pem";
+static const std::string mimCaPath = TEST_CONF_DIR "/hn-verification/cacert.pem";
 
 static void sendCallBackTls(Result r, const MessageId& msgId) {
     ASSERT_EQ(r, ResultOk);
@@ -468,11 +472,15 @@ TEST(AuthPluginTest, testOauth2WrongSecret) {
 TEST(AuthPluginTest, testOauth2CredentialFile) {
     // test success get token from oauth2 server.
     pulsar::AuthenticationDataPtr data;
-    std::string params = R"({
+    const char* paramsTemplate = R"({
         "type": "client_credentials",
         "issuer_url": "https://dev-kt-aa9ne.us.auth0.com",
-        "private_key": "../test-conf/cpp_credentials_file.json",
+        "private_key": "%s/cpp_credentials_file.json",
         "audience": "https://dev-kt-aa9ne.us.auth0.com/api/v2/"})";
+
+    char params[4096];
+    int numWritten = snprintf(params, sizeof(params), paramsTemplate, TEST_CONF_DIR);
+    ASSERT_TRUE(numWritten < sizeof(params));
 
     int expectedTokenLength = 3379;
     LOG_INFO("PARAMS: " << params);

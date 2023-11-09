@@ -54,6 +54,10 @@ DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
+#endif
+
 std::mutex mutex_;
 static int globalCount = 0;
 static long globalResendMessageCount = 0;
@@ -1341,9 +1345,9 @@ TEST(BasicEndToEndTest, testRSAEncryption) {
     std::string subName = "my-sub-name";
     Producer producer;
 
-    std::string PUBLIC_CERT_FILE_PATH = "../test-conf/public-key.client-rsa.pem";
+    std::string PUBLIC_CERT_FILE_PATH = TEST_CONF_DIR "/public-key.client-rsa.pem";
 
-    std::string PRIVATE_CERT_FILE_PATH = "../test-conf//private-key.client-rsa.pem";
+    std::string PRIVATE_CERT_FILE_PATH = TEST_CONF_DIR "/private-key.client-rsa.pem";
 
     std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader =
         std::make_shared<pulsar::DefaultCryptoKeyReader>(PUBLIC_CERT_FILE_PATH, PRIVATE_CERT_FILE_PATH);
@@ -1407,9 +1411,9 @@ TEST(BasicEndToEndTest, testEncryptionFailure) {
     std::string subName = "my-sub-name";
     Producer producer;
 
-    std::string PUBLIC_CERT_FILE_PATH = "../test-conf/public-key.client-rsa-test.pem";
+    std::string PUBLIC_CERT_FILE_PATH = TEST_CONF_DIR "/public-key.client-rsa-test.pem";
 
-    std::string PRIVATE_CERT_FILE_PATH = "../test-conf//private-key.client-rsa-test.pem";
+    std::string PRIVATE_CERT_FILE_PATH = TEST_CONF_DIR "/private-key.client-rsa-test.pem";
 
     std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader =
         std::make_shared<pulsar::DefaultCryptoKeyReader>(PUBLIC_CERT_FILE_PATH, PRIVATE_CERT_FILE_PATH);
@@ -1449,9 +1453,9 @@ TEST(BasicEndToEndTest, testEncryptionFailure) {
 
     // 2. Add valid key
     {
-        PUBLIC_CERT_FILE_PATH = "../test-conf/public-key.client-rsa.pem";
+        PUBLIC_CERT_FILE_PATH = TEST_CONF_DIR "/public-key.client-rsa.pem";
 
-        PRIVATE_CERT_FILE_PATH = "../test-conf/private-key.client-rsa.pem";
+        PRIVATE_CERT_FILE_PATH = TEST_CONF_DIR "/private-key.client-rsa.pem";
         keyReader =
             std::make_shared<pulsar::DefaultCryptoKeyReader>(PUBLIC_CERT_FILE_PATH, PRIVATE_CERT_FILE_PATH);
         ProducerConfiguration prodConf;

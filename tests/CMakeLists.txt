@@ -57,7 +57,7 @@ file(GLOB TEST_SOURCES *.cc c/*.cc)
 add_executable(pulsar-tests ${TEST_SOURCES} ${PROTO_SOURCES})
 
 target_include_directories(pulsar-tests PRIVATE ${AUTOGEN_DIR}/lib)
-
+target_compile_options(pulsar-tests PRIVATE -DTOKEN_PATH="${TOKEN_PATH}" -DTEST_CONF_DIR="${TEST_CONF_DIR}")
 target_link_libraries(pulsar-tests ${CLIENT_LIBS} pulsarStatic $<$<CONFIG:Debug>:${GMOCKD_LIBRARY_PATH}> $<$<CONFIG:Debug>:${GTESTD_LIBRARY_PATH}> $<$<NOT:$<CONFIG:Debug>>:${GMOCK_LIBRARY_PATH}> $<$<NOT:$<CONFIG:Debug>>:${GTEST_LIBRARY_PATH}>)
 
 if (UNIX)
@@ -69,7 +69,7 @@ add_executable(BrokerMetadataTest brokermetadata/BrokerMetadataTest.cc)
 target_link_libraries(BrokerMetadataTest ${CLIENT_LIBS} pulsarStatic ${GTEST_LIBRARY_PATH})
 
 add_executable(Oauth2Test oauth2/Oauth2Test.cc)
-target_compile_options(Oauth2Test PRIVATE "-DTEST_ROOT_PATH=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
+target_compile_options(Oauth2Test PRIVATE -DTEST_CONF_DIR="${TEST_CONF_DIR}")
 target_link_libraries(Oauth2Test ${CLIENT_LIBS} pulsarStatic ${GTEST_LIBRARY_PATH})
 
 add_executable(ChunkDedupTest chunkdedup/ChunkDedupTest.cc)
