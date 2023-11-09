@@ -72,5 +72,5 @@ add_executable(Oauth2Test oauth2/Oauth2Test.cc)
 target_compile_options(Oauth2Test PRIVATE -DTEST_CONF_DIR="${TEST_CONF_DIR}")
 target_link_libraries(Oauth2Test ${CLIENT_LIBS} pulsarStatic ${GTEST_LIBRARY_PATH})
 
-add_executable(ChunkDedupTest chunkdedup/ChunkDedupTest.cc)
+add_executable(ChunkDedupTest chunkdedup/ChunkDedupTest.cc HttpHelper.cc)
 target_link_libraries(ChunkDedupTest ${CLIENT_LIBS} pulsarStatic ${GTEST_LIBRARY_PATH})

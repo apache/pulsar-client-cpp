@@ -198,7 +198,9 @@ void PartitionedProducerImpl::createLazyPartitionProducer(unsigned int partition
 // override
 void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callback) {
     if (state_ != Ready) {
-        callback(ResultAlreadyClosed, msg.getMessageId());
+        if (callback) {
+            callback(ResultAlreadyClosed, msg.getMessageId());
+        }
         return;
     }
 
@@ -209,7 +211,9 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
         LOG_ERROR("Got Invalid Partition for message from Router Policy, Partition - " << partition);
         // change me: abort or notify failure in callback?
         //          change to appropriate error if callback
-        callback(ResultUnknownError, msg.getMessageId());
+        if (callback) {
+            callback(ResultUnknownError, msg.getMessageId());
+        }
         return;
     }
     // find a producer for that partition, index should start from 0
@@ -223,7 +227,20 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
     producersLock.unlock();
 
     // send message on that partition
-    producer->sendAsync(msg, callback);
+    if (!conf_.getLazyStartPartitionedProducers() || producer->ready()) {
+        producer->sendAsync(msg, std::move(callback));
+    } else {
+        // Wrapping the callback into a lambda has overhead, so we check if the producer is ready first
+        producer->getProducerCreatedFuture().addListener(
+            [msg, callback](Result result, ProducerImplBaseWeakPtr weakProducer) {
+                if (result == ResultOk) {
+                    std::dynamic_pointer_cast<ProducerImpl>(weakProducer.lock())
+                        ->sendAsync(msg, std::move(callback));
+                } else if (callback) {
+                    callback(result, {});
+                }
+            });
+    }
 }
 
 // override

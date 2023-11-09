@@ -19,6 +19,7 @@
 #ifndef LIB_PRODUCERIMPL_H_
 #define LIB_PRODUCERIMPL_H_
 
+#include <atomic>
 #include <boost/optional.hpp>
 #include <list>
 #include <memory>
@@ -103,6 +104,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     ProducerImplWeakPtr weak_from_this() noexcept { return shared_from_this(); }
 
+    bool ready() const { return producerCreatedPromise_.isComplete(); }
+
    protected:
     ProducerStatsBasePtr producerStatsBasePtr_;
 
@@ -169,13 +172,13 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     bool userProvidedProducerName_;
     std::string producerStr_;
     uint64_t producerId_;
-    int64_t msgSequenceGenerator_;
 
     std::unique_ptr<BatchMessageContainerBase> batchMessageContainer_;
     DeadlineTimerPtr batchTimer_;
     PendingFailures batchMessageAndSend(const FlushCallback& flushCallback = nullptr);
 
-    volatile int64_t lastSequenceIdPublished_;
+    std::atomic_int64_t lastSequenceIdPublished_;
+    std::atomic_int64_t msgSequenceGenerator_;
     std::string schemaVersion_;
 
     DeadlineTimerPtr sendTimer_;
