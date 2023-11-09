@@ -37,7 +37,11 @@ using namespace pulsar;
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string serviceUrlHttp = "http://localhost:8080";
 
-static const std::string tokenPath = "../.test-token.txt";
+#ifndef TOKEN_PATH
+#error "TOKEN_PATH is not specified"
+#endif
+
+static const std::string tokenPath = TOKEN_PATH;
 
 static std::string getToken() {
     std::ifstream file(tokenPath);

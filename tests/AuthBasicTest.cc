@@ -25,13 +25,17 @@
 
 using namespace pulsar;
 
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
+#endif
+
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string serviceUrlHttp = "http://localhost:8080";
 static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
 static const std::string serviceUrlHttps = "https://localhost:8443";
-static const std::string caPath = "../test-conf/cacert.pem";
-static const std::string clientCertificatePath = "../test-conf/client-cert.pem";
-static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
+static const std::string caPath = TEST_CONF_DIR "/cacert.pem";
+static const std::string clientCertificatePath = TEST_CONF_DIR "/client-cert.pem";
+static const std::string clientPrivateKeyPath = TEST_CONF_DIR "/client-key.pem";
 
 TEST(AuthPluginBasic, testBasic) {
     ClientConfiguration config = ClientConfiguration();

@@ -20,8 +20,8 @@
 
 set -e
 
-SRC_DIR=$(git rev-parse --show-toplevel)
-cd $SRC_DIR
+cd `dirname $0`
+SRC_DIR=$PWD
 
 ./pulsar-test-service-stop.sh
 
