@@ -234,8 +234,7 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
         producer->getProducerCreatedFuture().addListener(
             [msg, callback](Result result, ProducerImplBaseWeakPtr weakProducer) {
                 if (result == ResultOk) {
-                    std::dynamic_pointer_cast<ProducerImpl>(weakProducer.lock())
-                        ->sendAsync(msg, std::move(callback));
+                    weakProducer.lock()->sendAsync(msg, std::move(callback));
                 } else if (callback) {
                     callback(result, {});
                 }
