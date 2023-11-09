@@ -50,6 +50,10 @@ static const std::string adminUrl = "http://localhost:8080/";
 
 DECLARE_LOG_OBJECT()
 
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
+#endif
+
 namespace pulsar {
 
 class ConsumerStateEventListener : public ConsumerEventListener {
@@ -960,8 +964,8 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     std::string topicName = "testRedeliveryOfDecryptionFailedMessages" + std::to_string(time(nullptr));
     std::string subName = "sub-test";
 
-    std::string PUBLIC_CERT_FILE_PATH = "../test-conf/public-key.client-rsa.pem";
-    std::string PRIVATE_CERT_FILE_PATH = "../test-conf/private-key.client-rsa.pem";
+    std::string PUBLIC_CERT_FILE_PATH = TEST_CONF_DIR "/public-key.client-rsa.pem";
+    std::string PRIVATE_CERT_FILE_PATH = TEST_CONF_DIR "/private-key.client-rsa.pem";
     std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader =
         std::make_shared<pulsar::DefaultCryptoKeyReader>(PUBLIC_CERT_FILE_PATH, PRIVATE_CERT_FILE_PATH);
 
