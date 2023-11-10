@@ -177,8 +177,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     DeadlineTimerPtr batchTimer_;
     PendingFailures batchMessageAndSend(const FlushCallback& flushCallback = nullptr);
 
-    std::atomic_int64_t lastSequenceIdPublished_;
-    std::atomic_int64_t msgSequenceGenerator_;
+    std::atomic<int64_t> lastSequenceIdPublished_;
+    std::atomic<int64_t> msgSequenceGenerator_;
     std::string schemaVersion_;
 
     DeadlineTimerPtr sendTimer_;
