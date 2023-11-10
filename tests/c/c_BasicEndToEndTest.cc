@@ -109,7 +109,7 @@ TEST(c_BasicEndToEndTest, testAsyncProduceConsume) {
     delete receive_ctx.data;
 
     ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_unsubscribe(consumer));
-    ASSERT_EQ(pulsar_result_AlreadyClosed, pulsar_consumer_close(consumer));
+    ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_close(consumer));
     ASSERT_EQ(pulsar_result_Ok, pulsar_producer_close(producer));
     ASSERT_EQ(pulsar_result_Ok, pulsar_client_close(client));
 

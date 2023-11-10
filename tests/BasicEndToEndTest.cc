@@ -244,7 +244,7 @@ TEST(BasicEndToEndTest, testProduceConsume) {
     consumer.receive(receivedMsg);
     ASSERT_EQ(content, receivedMsg.getDataAsString());
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
-    ASSERT_EQ(ResultAlreadyClosed, consumer.close());
+    ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
@@ -405,7 +405,7 @@ TEST(BasicEndToEndTest, testMultipleClientsMultipleSubscriptions) {
 
     ASSERT_EQ(ResultOk, producer1.close());
     ASSERT_EQ(ResultOk, consumer1.close());
-    ASSERT_EQ(ResultAlreadyClosed, consumer1.close());
+    ASSERT_EQ(ResultOk, consumer1.close());
     ASSERT_EQ(ResultConsumerNotInitialized, consumer2.close());
     ASSERT_EQ(ResultOk, client1.close());
 
@@ -637,7 +637,7 @@ TEST(BasicEndToEndTest, testCompressionLZ4) {
     ASSERT_EQ(content2, receivedMsg.getDataAsString());
 
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
-    ASSERT_EQ(ResultAlreadyClosed, consumer.close());
+    ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
@@ -675,7 +675,7 @@ TEST(BasicEndToEndTest, testCompressionZLib) {
     ASSERT_EQ(content2, receivedMsg.getDataAsString());
 
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
-    ASSERT_EQ(ResultAlreadyClosed, consumer.close());
+    ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
@@ -750,7 +750,7 @@ TEST(BasicEndToEndTest, testConsumerClose) {
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));
     ASSERT_EQ(consumer.close(), ResultOk);
-    ASSERT_EQ(consumer.close(), ResultAlreadyClosed);
+    ASSERT_EQ(consumer.close(), ResultOk);
 }
 
 TEST(BasicEndToEndTest, testDuplicateConsumerCreationOnPartitionedTopic) {
@@ -1398,7 +1398,7 @@ TEST(BasicEndToEndTest, testRSAEncryption) {
         }
 
         ASSERT_EQ(ResultOk, consumer.unsubscribe());
-        ASSERT_EQ(ResultAlreadyClosed, consumer.close());
+        ASSERT_EQ(ResultOk, consumer.close());
         ASSERT_EQ(ResultOk, producer.close());
     }
     ASSERT_EQ(ResultOk, client.close());
@@ -1617,7 +1617,7 @@ TEST(BasicEndToEndTest, testSeek) {
     ASSERT_EQ(expected.str(), msgReceived.getDataAsString());
     ASSERT_EQ(ResultOk, consumer.acknowledge(msgReceived));
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
-    ASSERT_EQ(ResultAlreadyClosed, consumer.close());
+    ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
