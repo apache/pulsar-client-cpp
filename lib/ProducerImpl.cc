@@ -60,8 +60,9 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       userProvidedProducerName_(false),
       producerStr_("[" + topic() + ", " + producerName_ + "] "),
       producerId_(client->newProducerId()),
-      msgSequenceGenerator_(0),
       batchTimer_(executor_->createDeadlineTimer()),
+      lastSequenceIdPublished_(conf.getInitialSequenceId()),
+      msgSequenceGenerator_(lastSequenceIdPublished_ + 1),
       sendTimer_(executor_->createDeadlineTimer()),
       dataKeyRefreshTask_(*executor_, 4 * 60 * 60 * 1000),
       memoryLimitController_(client->getMemoryLimitController()),
@@ -69,11 +70,6 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       interceptors_(interceptors) {
     LOG_DEBUG("ProducerName - " << producerName_ << " Created producer on topic " << topic()
                                 << " id: " << producerId_);
-
-    int64_t initialSequenceId = conf.getInitialSequenceId();
-    lastSequenceIdPublished_ = initialSequenceId;
-    msgSequenceGenerator_ = initialSequenceId + 1;
-
     if (!producerName_.empty()) {
         userProvidedProducerName_ = true;
     }
