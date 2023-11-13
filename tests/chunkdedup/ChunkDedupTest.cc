@@ -18,7 +18,9 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <time.h>
 
+#include "../HttpHelper.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
 
@@ -44,6 +46,30 @@ TEST(ChunkDedupTest, testSendChunks) {
                            latch.countdown();
                        });
     ASSERT_TRUE(latch.wait(std::chrono::seconds(10)));
+    client.close();
+}
+
+TEST(ChunkDedupTest, testLazyPartitionedProducer) {
+    std::string topic = "test-lazy-partitioned-producer-" + std::to_string(time(nullptr));
+    Client client{"pulsar://localhost:6650"};
+    ProducerConfiguration conf;
+    conf.setLazyStartPartitionedProducers(true);
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, conf, producer));
+
+    constexpr int numPartitions = 3;
+    int res =
+        makePutRequest("http://localhost:8080/admin/v2/persistent/public/default/" + topic + "/partitions",
+                       std::to_string(numPartitions));
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    for (int i = 0; i < 10; i++) {
+        const auto key = std::to_string(i % numPartitions);
+        MessageId msgId;
+        producer.send(MessageBuilder().setPartitionKey(key).setContent("msg-" + std::to_string(i)).build(),
+                      msgId);
+        ASSERT_TRUE(msgId.ledgerId() >= 0 && msgId.entryId() >= 0) << "i: " << i << ", msgId: " << msgId;
+    }
     client.close();
 }
 
