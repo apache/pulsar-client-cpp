@@ -581,3 +581,19 @@ TEST(AuthPluginTest, testOauth2Failure) {
     ASSERT_EQ(client5.createProducer(topic, producer), ResultAuthenticationError);
     client5.close();
 }
+
+TEST(AuthPluginTest, testInvalidPlugin) {
+    Client client("pulsar://localhost:6650", ClientConfiguration{}.setAuth(AuthFactory::create("invalid")));
+    Producer producer;
+    ASSERT_EQ(ResultAuthenticationError, client.createProducer("my-topic", producer));
+    client.close();
+}
+
+TEST(AuthPluginTest, testTlsConfigError) {
+    Client client(serviceUrlTls, ClientConfiguration{}
+                                     .setAuth(AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath))
+                                     .setTlsTrustCertsFilePath("invalid"));
+    Producer producer;
+    ASSERT_EQ(ResultAuthenticationError, client.createProducer("my-topic", producer));
+    client.close();
+}

@@ -187,6 +187,12 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       pool_(pool),
       poolIndex_(poolIndex) {
     LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
+    if (!authentication_) {
+        LOG_ERROR("Invalid authentication plugin");
+        throw ResultAuthenticationError;
+        return;
+    }
+
     if (clientConfiguration.isUseTls()) {
 #if BOOST_VERSION >= 105400
         boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_client);
@@ -207,18 +213,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                     ctx.load_verify_file(trustCertFilePath);
                 } else {
                     LOG_ERROR(trustCertFilePath << ": No such trustCertFile");
-                    close(ResultAuthenticationError, false);
-                    return;
+                    throw ResultAuthenticationError;
                 }
             } else {
                 ctx.set_default_verify_paths();
             }
-        }
-
-        if (!authentication_) {
-            LOG_ERROR("Invalid authentication plugin");
-            close(ResultAuthenticationError, false);
-            return;
         }
 
         std::string tlsCertificates = clientConfiguration.getTlsCertificateFilePath();
@@ -231,13 +230,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
             tlsPrivateKey = authData->getTlsPrivateKey();
             if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
-                close(ResultAuthenticationError, false);
-                return;
+                throw ResultAuthenticationError;
             }
             if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
-                close(ResultAuthenticationError, false);
-                return;
+                throw ResultAuthenticationError;
             }
             ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
             ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
