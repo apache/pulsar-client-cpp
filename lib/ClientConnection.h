@@ -148,9 +148,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * @param result all pending futures will complete with this result
      * @param detach remove it from the pool if it's true
      *
-     * `detach` should only be false when:
-     * 1. Before the connection is put into the pool, i.e. during the construction.
-     * 2. When the connection pool is closed
+     * `detach` should only be false when the connection pool is closed.
      */
     void close(Result result = ResultConnectError, bool detach = true);
 

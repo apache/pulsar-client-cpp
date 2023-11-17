@@ -99,6 +99,10 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const
         cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(keySuffix),
                                        clientConfiguration_, authentication_, clientVersion_, *this,
                                        keySuffix));
+    } catch (Result result) {
+        Promise<Result, ClientConnectionWeakPtr> promise;
+        promise.setFailed(result);
+        return promise.getFuture();
     } catch (const std::runtime_error& e) {
         lock.unlock();
         LOG_ERROR("Failed to create connection: " << e.what())
