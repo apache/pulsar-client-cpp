@@ -400,3 +400,44 @@ TEST(ClientTest, testClientVersion) {
 
     client.close();
 }
+
+TEST(ClientTest, testConnectionClose) {
+    std::vector<Client> clients;
+    clients.emplace_back(lookupUrl);
+    clients.emplace_back(lookupUrl, ClientConfiguration().setConnectionsPerBroker(5));
+
+    const auto topic = "client-test-connection-close";
+    for (auto &client : clients) {
+        auto testClose = [&client](ClientConnectionWeakPtr weakCnx) {
+            auto cnx = weakCnx.lock();
+            ASSERT_TRUE(cnx);
+
+            auto numConnections = PulsarFriend::getConnections(client).size();
+            LOG_INFO("Connection refcnt: " << cnx.use_count() << " before close");
+            auto executor = PulsarFriend::getExecutor(*cnx);
+            // Simulate the close() happens in the event loop
+            executor->postWork([cnx, &client, numConnections] {
+                cnx->close();
+                ASSERT_EQ(PulsarFriend::getConnections(client).size(), numConnections - 1);
+                LOG_INFO("Connection refcnt: " << cnx.use_count() << " after close");
+            });
+            cnx.reset();
+
+            // The ClientConnection could still be referred in a socket callback, wait until all these
+            // callbacks being cancelled due to the socket close.
+            ASSERT_TRUE(waitUntil(
+                std::chrono::seconds(1), [weakCnx] { return weakCnx.expired(); }, 1));
+        };
+        Producer producer;
+        ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+        testClose(PulsarFriend::getProducerImpl(producer).getCnx());
+        producer.close();
+
+        Consumer consumer;
+        ASSERT_EQ(ResultOk, client.subscribe("client-test-connection-close", "sub", consumer));
+        testClose(PulsarFriend::getConsumerImpl(consumer).getCnx());
+        consumer.close();
+
+        client.close();
+    }
+}
