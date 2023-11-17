@@ -129,7 +129,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                      ExecutorServicePtr executor, const ClientConfiguration& clientConfiguration,
                      const AuthenticationPtr& authentication, const std::string& clientVersion,
-                     ConnectionPool& pool);
+                     ConnectionPool& pool, size_t poolIndex);
     ~ClientConnection();
 
 #if __cplusplus < 201703L
@@ -400,6 +400,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     const std::string clientVersion_;
     ConnectionPool& pool_;
+    const size_t poolIndex_;
+
     friend class PulsarFriend;
 
     void checkServerError(ServerError error);

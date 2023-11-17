@@ -160,7 +160,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                                    ExecutorServicePtr executor,
                                    const ClientConfiguration& clientConfiguration,
                                    const AuthenticationPtr& authentication, const std::string& clientVersion,
-                                   ConnectionPool& pool)
+                                   ConnectionPool& pool, size_t poolIndex)
     : operationsTimeout_(seconds(clientConfiguration.getOperationTimeoutSeconds())),
       authentication_(authentication),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
@@ -184,7 +184,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
       maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()),
       clientVersion_(clientVersion),
-      pool_(pool) {
+      pool_(pool),
+      poolIndex_(poolIndex) {
     LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
     if (clientConfiguration.isUseTls()) {
 #if BOOST_VERSION >= 105400
@@ -265,7 +266,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
 }
 
 ClientConnection::~ClientConnection() {
-    LOG_INFO(cnxString_ << "Destroyed connection to " << logicalAddress_);
+    LOG_INFO(cnxString_ << "Destroyed connection to " << logicalAddress_ << "-" << poolIndex_);
 }
 
 void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdConnected) {
@@ -1320,7 +1321,7 @@ void ClientConnection::close(Result result, bool detach) {
     }
     // Remove the connection from the pool before completing any promise
     if (detach) {
-        pool_.remove(logicalAddress_, this);  // trigger the destructor
+        pool_.remove(logicalAddress_ + "-" + std::to_string(poolIndex_), this);
     }
 
     auto self = shared_from_this();

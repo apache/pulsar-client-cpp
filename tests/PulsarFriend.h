@@ -140,6 +140,8 @@ class PulsarFriend {
         return connections;
     }
 
+    static ExecutorServicePtr getExecutor(const ClientConnection& cnx) { return cnx.executor_; }
+
     static std::vector<ProducerImplPtr> getProducers(const ClientConnection& cnx) {
         std::vector<ProducerImplPtr> producers;
         std::lock_guard<std::mutex> lock(cnx.mutex_);
