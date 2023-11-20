@@ -476,7 +476,23 @@ TEST_P(ProducerTest, testFlushBatch) {
         producer.sendAsync(msg, cb);
     }
 
-    producer.flush();
+    auto assertFlushCallbackOnce = [&producer] {
+        Latch latch{1};
+        std::mutex mutex;
+        std::vector<Result> results;
+        producer.flushAsync([&](Result result) {
+            {
+                std::lock_guard<std::mutex> lock{mutex};
+                results.emplace_back(result);
+            }
+            latch.countdown();
+        });
+        latch.wait();
+        std::lock_guard<std::mutex> lock{mutex};
+        ASSERT_EQ(results, (std::vector<Result>{ResultOk}));
+    };
+
+    assertFlushCallbackOnce();
     ASSERT_EQ(needCallBack.load(), 0);
     producer.close();
 
@@ -494,7 +510,7 @@ TEST_P(ProducerTest, testFlushBatch) {
         producer.sendAsync(msg, cb2);
     }
 
-    producer.flush();
+    assertFlushCallbackOnce();
     ASSERT_EQ(needCallBack2.load(), 0);
     producer.close();
 
