@@ -376,29 +376,37 @@ void ProducerImpl::setMessageMetadata(const Message& msg, const uint64_t& sequen
 
 void ProducerImpl::flushAsync(FlushCallback callback) {
     if (state_ != Ready) {
-        callback(ResultAlreadyClosed);
+        if (callback) {
+            callback(ResultAlreadyClosed);
+        }
         return;
     }
+
+    auto addCallbackToLastOp = [this, &callback] {
+        if (pendingMessagesQueue_.empty()) {
+            return false;
+        }
+        pendingMessagesQueue_.back()->addTrackerCallback(callback);
+        return true;
+    };
+
     if (batchMessageContainer_) {
         Lock lock(mutex_);
-        auto failures = batchMessageAndSend(callback);
-        if (!pendingMessagesQueue_.empty()) {
-            auto& opSendMsg = pendingMessagesQueue_.back();
-            lock.unlock();
-            failures.complete();
-            opSendMsg->addTrackerCallback(callback);
-        } else {
-            lock.unlock();
-            failures.complete();
-            callback(ResultOk);
+
+        if (batchMessageContainer_->isEmpty()) {
+            if (!addCallbackToLastOp() && callback) {
+                lock.unlock();
+                callback(ResultOk);
+            }
+            return;
         }
+
+        auto failures = batchMessageAndSend(callback);
+        lock.unlock();
+        failures.complete();
     } else {
         Lock lock(mutex_);
-        if (!pendingMessagesQueue_.empty()) {
-            auto& opSendMsg = pendingMessagesQueue_.back();
-            lock.unlock();
-            opSendMsg->addTrackerCallback(callback);
-        } else {
+        if (!addCallbackToLastOp() && callback) {
             lock.unlock();
             callback(ResultOk);
         }
