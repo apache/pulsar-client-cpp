@@ -88,9 +88,17 @@ find_package(Threads REQUIRED)
 MESSAGE(STATUS "Threads library: " ${CMAKE_THREAD_LIBS_INIT})
 
 set(Boost_NO_BOOST_CMAKE ON)
+
+if (APPLE AND NOT LINK_STATIC)
+    # The latest Protobuf dependency on macOS requires the C++17 support and
+    # it could only be found by the CONFIG mode
+    set(LATEST_PROTOBUF TRUE)
+else ()
+    set(LATEST_PROTOBUF FALSE)
+endif ()
+
 if (NOT CMAKE_CXX_STANDARD)
-    if (APPLE)
-        # The latest Protobuf dependency on macOS requires the C++17 support
+    if (LATEST_PROTOBUF)
         set(CMAKE_CXX_STANDARD 17)
     else ()
         set(CMAKE_CXX_STANDARD 11)
@@ -143,7 +151,7 @@ find_package(OpenSSL REQUIRED)
 message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
 message("OPENSSL_LIBRARIES: " ${OPENSSL_LIBRARIES})
 
-if (APPLE)
+if (LATEST_PROTOBUF)
     # See https://github.com/apache/arrow/issues/35987
     add_definitions(-DPROTOBUF_USE_DLLS)
     # Use Config mode to avoid FindProtobuf.cmake does not find the Abseil library
@@ -318,7 +326,7 @@ set(COMMON_LIBS
   ${CMAKE_DL_LIBS}
 )
 
-if (APPLE)
+if (LATEST_PROTOBUF)
     # Protobuf_LIBRARIES is empty when finding Protobuf in Config mode
     set(COMMON_LIBS ${COMMON_LIBS} protobuf::libprotobuf)
 else ()
