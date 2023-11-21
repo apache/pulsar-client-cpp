@@ -104,3 +104,5 @@ vcpkg_installed/
 .tests-container-id.txt
 Testing
 .test-token.txt
+pkg/mac/.build
+pkg/mac/.install
