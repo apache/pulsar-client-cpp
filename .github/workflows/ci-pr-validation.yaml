@@ -302,6 +302,28 @@ jobs:
         run: |
           cmake --build ./build-macos --parallel --config Release
 
+  cpp-build-macos-static:
+    timeout-minutes: 120
+    name: Build CPP Client on macOS with static dependencies
+    runs-on: macos-12
+    needs: unit-tests
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Build libraries
+        run: ./pkg/mac/build-static-library.sh
+
+      - name: Test static libraries
+        run: |
+          export PULSAR_DIR=$PWD/pkg/mac/.install
+          echo "Build with static library"
+          clang++ win-examples/example.cc -o static.out -std=c++11 -I $PULSAR_DIR/include $PULSAR_DIR/lib/libpulsarwithdeps.a
+          ./static.out
+          echo "Build with dynamic library"
+          clang++ win-examples/example.cc -o dynamic.out -std=c++11 -I $PULSAR_DIR/include -L $PULSAR_DIR/lib -Wl,-rpath $PULSAR_DIR/lib -lpulsar
+          ./dynamic.out
+
   # Job that will be required to complete and depends on all the other jobs
   check-completion:
     name: Check Completion

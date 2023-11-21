@@ -192,3 +192,34 @@ jobs:
         with:
           name: ${{ matrix.triplet }}-Debug
           path: ${{ env.INSTALL_DIR }}-Debug
+
+  package-macos:
+    name: Build macOS libraries
+    runs-on: macos-latest
+    timeout-minutes: 500
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, arm64]
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          export ARCH=${{ matrix.arch }}
+          ./pkg/mac/build-static-library.sh
+
+      - name: Zip artifact
+        run: |
+          cd ./pkg/mac/.install
+          zip -r macos-${{ matrix.arch }}.zip ./include/pulsar/* ./lib/*
+          cp macos-${{ matrix.arch }}.zip ../../../
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: macos-${{ matrix.arch }}.zip
+          path: macos-${{ matrix.arch }}.zip
