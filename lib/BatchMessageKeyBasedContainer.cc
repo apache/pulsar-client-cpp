@@ -77,11 +77,16 @@ std::vector<std::unique_ptr<OpSendMsg>> BatchMessageKeyBasedContainer::createOpS
     // Store raw pointers to use std::sort
     std::vector<OpSendMsg*> rawOpSendMsgs;
     for (auto& kv : batches_) {
-        rawOpSendMsgs.emplace_back(createOpSendMsgHelper(kv.second).release());
+        if (!kv.second.empty()) {
+            rawOpSendMsgs.emplace_back(createOpSendMsgHelper(kv.second).release());
+        }
     }
     std::sort(rawOpSendMsgs.begin(), rawOpSendMsgs.end(), [](const OpSendMsg* lhs, const OpSendMsg* rhs) {
         return lhs->sendArgs->sequenceId < rhs->sendArgs->sequenceId;
     });
+    if (rawOpSendMsgs.empty()) {
+        return {};
+    }
     rawOpSendMsgs.back()->addTrackerCallback(flushCallback);
 
     std::vector<std::unique_ptr<OpSendMsg>> opSendMsgs{rawOpSendMsgs.size()};
