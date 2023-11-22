@@ -43,6 +43,11 @@ pushd "$DEST_PATH"
 tar cvzf x64-windows-static.tar.gz x64-windows-static
 tar cvzf x86-windows-static.tar.gz x86-windows-static
 rm -r x64-windows-static x86-windows-static
+mv macos-arm64.zip macos-arm64
+mv macos-arm64/* .
+mv macos-x86_64.zip macos-x86_64
+mv macos-x86_64/* .
+rm -rf macos-x86_64/ macos-arm64/
 popd
 
 # Sign all files
