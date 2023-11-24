@@ -172,7 +172,10 @@ inline CurlWrapper::Result CurlWrapper::get(const std::string& url, const std::s
     if (responseCode == 307 || responseCode == 302 || responseCode == 301) {
         char* url;
         curl_easy_getinfo(handle_, CURLINFO_REDIRECT_URL, &url);
-        result.redirectUrl = url;
+        // `url` is null when the host of the redirect URL cannot be resolved
+        if (url) {
+            result.redirectUrl = url;
+        }
     }
     return result;
 }
