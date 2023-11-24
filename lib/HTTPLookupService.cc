@@ -191,98 +191,77 @@ Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &
 
 Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData,
                                           long &responseCode) {
-    uint16_t reqCount = 0;
-    Result retResult = ResultOk;
-    while (++reqCount <= maxLookupRedirects_) {
-        // Authorization data
-        AuthenticationDataPtr authDataContent;
-        Result authResult = authenticationPtr_->getAuthData(authDataContent);
-        if (authResult != ResultOk) {
-            LOG_ERROR("Failed to getAuthData: " << authResult);
-            return authResult;
-        }
+    // Authorization data
+    AuthenticationDataPtr authDataContent;
+    Result authResult = authenticationPtr_->getAuthData(authDataContent);
+    if (authResult != ResultOk) {
+        LOG_ERROR("Failed to getAuthData: " << authResult);
+        return authResult;
+    }
 
-        CurlWrapper curl;
-        if (!curl.init()) {
-            LOG_ERROR("Unable to curl_easy_init for url " << completeUrl);
-            return ResultLookupError;
-        }
+    CurlWrapper curl;
+    if (!curl.init()) {
+        LOG_ERROR("Unable to curl_easy_init for url " << completeUrl);
+        return ResultLookupError;
+    }
 
-        std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
-        if (isUseTls_) {
-            tlsContext.reset(new CurlWrapper::TlsContext);
-            tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
-            tlsContext->validateHostname = tlsValidateHostname_;
-            tlsContext->allowInsecure = tlsAllowInsecure_;
-            if (authDataContent->hasDataForTls()) {
-                tlsContext->certPath = authDataContent->getTlsCertificates();
-                tlsContext->keyPath = authDataContent->getTlsPrivateKey();
-            } else {
-                tlsContext->certPath = tlsCertificateFilePath_;
-                tlsContext->keyPath = tlsPrivateFilePath_;
-            }
-        }
-
-        LOG_INFO("Curl [" << reqCount << "] Lookup Request sent for " << completeUrl);
-        CurlWrapper::Options options;
-        options.timeoutInSeconds = lookupTimeoutInSeconds_;
-        options.userAgent = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
-        options.maxLookupRedirects = 1;  // redirection is implemented by the outer loop
-        auto result = curl.get(completeUrl, authDataContent->getHttpHeaders(), options, tlsContext.get());
-        const auto &error = result.error;
-        if (!error.empty()) {
-            LOG_ERROR(completeUrl << " failed: " << error);
-            return ResultConnectError;
-        }
-
-        responseData = result.responseData;
-        responseCode = result.responseCode;
-        auto res = result.code;
-        LOG_INFO("Response received for url " << completeUrl << " responseCode " << responseCode
-                                              << " curl res " << res);
-
-        const auto &redirectUrl = result.redirectUrl;
-        switch (res) {
-            case CURLE_OK:
-                if (responseCode == 200) {
-                    retResult = ResultOk;
-                } else if (!redirectUrl.empty()) {
-                    LOG_INFO("Response from url " << completeUrl << " to new url " << redirectUrl);
-                    completeUrl = redirectUrl;
-                    retResult = ResultLookupError;
-                } else {
-                    retResult = ResultLookupError;
-                }
-                break;
-            case CURLE_COULDNT_CONNECT:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultRetryable;
-                break;
-            case CURLE_COULDNT_RESOLVE_PROXY:
-            case CURLE_COULDNT_RESOLVE_HOST:
-            case CURLE_HTTP_RETURNED_ERROR:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultConnectError;
-                break;
-            case CURLE_READ_ERROR:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultReadError;
-                break;
-            case CURLE_OPERATION_TIMEDOUT:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultTimeout;
-                break;
-            default:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultLookupError;
-                break;
-        }
-        if (redirectUrl.empty()) {
-            break;
+    std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
+    if (isUseTls_) {
+        tlsContext.reset(new CurlWrapper::TlsContext);
+        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
+        tlsContext->validateHostname = tlsValidateHostname_;
+        tlsContext->allowInsecure = tlsAllowInsecure_;
+        if (authDataContent->hasDataForTls()) {
+            tlsContext->certPath = authDataContent->getTlsCertificates();
+            tlsContext->keyPath = authDataContent->getTlsPrivateKey();
+        } else {
+            tlsContext->certPath = tlsCertificateFilePath_;
+            tlsContext->keyPath = tlsPrivateFilePath_;
         }
     }
 
-    return retResult;
+    LOG_INFO("Curl Lookup Request sent for " << completeUrl);
+    CurlWrapper::Options options;
+    options.timeoutInSeconds = lookupTimeoutInSeconds_;
+    options.userAgent = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
+    options.maxLookupRedirects = maxLookupRedirects_;
+    auto result = curl.get(completeUrl, authDataContent->getHttpHeaders(), options, tlsContext.get());
+    const auto &error = result.error;
+    if (!error.empty()) {
+        LOG_ERROR(completeUrl << " failed: " << error);
+        return ResultConnectError;
+    }
+
+    responseData = result.responseData;
+    responseCode = result.responseCode;
+    auto res = result.code;
+    if (res == CURLE_OK) {
+        LOG_INFO("Response received for url " << completeUrl << " responseCode " << responseCode);
+    } else if (res == CURLE_TOO_MANY_REDIRECTS) {
+        LOG_ERROR("Response received for url " << completeUrl << ": " << curl_easy_strerror(res)
+                                               << ", curl error: " << result.serverError
+                                               << ", redirect URL: " << result.redirectUrl);
+    } else {
+        LOG_ERROR("Response failed for url " << completeUrl << ": " << curl_easy_strerror(res)
+                                             << ", curl error: " << result.serverError);
+    }
+
+    switch (res) {
+        case CURLE_OK:
+            return ResultOk;
+        case CURLE_COULDNT_CONNECT:
+            return ResultRetryable;
+        case CURLE_COULDNT_RESOLVE_PROXY:
+        case CURLE_COULDNT_RESOLVE_HOST:
+        case CURLE_HTTP_RETURNED_ERROR:
+            return ResultConnectError;
+        case CURLE_READ_ERROR:
+            return ResultReadError;
+        case CURLE_OPERATION_TIMEDOUT:
+            return ResultTimeout;
+        default:
+            return ResultLookupError;
+    }
 }
 
 LookupDataResultPtr HTTPLookupService::parsePartitionData(const std::string &json) {
