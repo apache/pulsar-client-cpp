@@ -29,8 +29,8 @@
 #include <thread>
 #include <vector>
 
-#include "HttpHelper.h"
 #include "NoOpsCryptoKeyReader.h"
+#include "PulsarAdminHelper.h"
 #include "PulsarFriend.h"
 #include "SynchronizedQueue.h"
 #include "WaitUtils.h"
@@ -1428,6 +1428,52 @@ TEST(ConsumerTest, testCloseAgainBeforeCloseDone) {
     waitUntil(std::chrono::seconds(3), [done] { return done->load(); });
     ASSERT_EQ(ResultOk, *result);
     ASSERT_TRUE(*done);
+}
+
+inline std::string getConsumerName(const std::string& topic) {
+    boost::property_tree::ptree root;
+    const auto error = getTopicStats(topic, root);
+    if (!error.empty()) {
+        LOG_INFO(error);
+        return {};
+    }
+    return root.get_child("subscriptions")
+        .get_child("sub")
+        .get_child("consumers")
+        .front()
+        .second.get<std::string>("consumerName");
+}
+
+TEST(ConsumerTest, testConsumerName) {
+    Client client{lookupUrl};
+    Consumer consumer;
+    ASSERT_TRUE(consumer.getConsumerName().empty());
+    const auto topic1 = "consumer-test-consumer-name-1";
+    const auto topic2 = "consumer-test-consumer-name-2";
+
+    // Default consumer name
+    ASSERT_EQ(ResultOk, client.subscribe(topic1, "sub", consumer));
+    LOG_INFO("Random consumer name: " << consumer.getConsumerName());
+    ASSERT_FALSE(consumer.getConsumerName().empty());  // a random name
+    ASSERT_EQ(consumer.getConsumerName(), getConsumerName(topic1));
+    consumer.close();
+
+    // Single-topic consumer
+    ConsumerConfiguration conf;
+    const std::string consumerName = "custom-consumer";
+    conf.setConsumerName(consumerName);
+    ASSERT_EQ(ResultOk, client.subscribe(topic1, "sub", conf, consumer));
+    ASSERT_EQ(consumerName, consumer.getConsumerName());
+    ASSERT_EQ(consumerName, getConsumerName(topic1));
+    consumer.close();
+
+    // Multi-topics consumer
+    ASSERT_EQ(ResultOk, client.subscribe(std::vector<std::string>{topic1, topic2}, "sub", conf, consumer));
+    ASSERT_EQ(consumerName, consumer.getConsumerName());
+    ASSERT_EQ(consumerName, getConsumerName(topic1));
+    ASSERT_EQ(consumerName, getConsumerName(topic2));
+
+    client.close();
 }
 
 }  // namespace pulsar

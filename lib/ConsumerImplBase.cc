@@ -33,7 +33,8 @@ ConsumerImplBase::ConsumerImplBase(ClientImplPtr client, const std::string& topi
                                    const ConsumerConfiguration& conf, ExecutorServicePtr listenerExecutor)
     : HandlerBase(client, topic, backoff),
       listenerExecutor_(listenerExecutor),
-      batchReceivePolicy_(conf.getBatchReceivePolicy()) {
+      batchReceivePolicy_(conf.getBatchReceivePolicy()),
+      consumerName_(conf.getConsumerName()) {
     auto userBatchReceivePolicy = conf.getBatchReceivePolicy();
     if (userBatchReceivePolicy.getMaxNumMessages() > conf.getReceiverQueueSize()) {
         batchReceivePolicy_ =

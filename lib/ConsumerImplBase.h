@@ -82,6 +82,8 @@ class ConsumerImplBase : public HandlerBase {
     virtual const std::string& getName() const override = 0;
     virtual void hasMessageAvailableAsync(HasMessageAvailableCallback callback) = 0;
 
+    const std::string& getConsumerName() const noexcept { return consumerName_; }
+
    protected:
     // overrided methods from HandlerBase
     Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override {
@@ -106,6 +108,8 @@ class ConsumerImplBase : public HandlerBase {
     virtual bool hasEnoughMessagesForBatchReceive() const = 0;
 
    private:
+    const std::string consumerName_;
+
     virtual void setNegativeAcknowledgeEnabledForTesting(bool enabled) = 0;
 
     friend class MultiTopicsConsumerImpl;

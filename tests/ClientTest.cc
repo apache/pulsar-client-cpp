@@ -21,13 +21,11 @@
 #include <pulsar/Version.h>
 
 #include <algorithm>
-#include <boost/property_tree/json_parser.hpp>
-#include <boost/property_tree/ptree.hpp>
 #include <chrono>
 #include <future>
 #include <sstream>
 
-#include "HttpHelper.h"
+#include "PulsarAdminHelper.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
 #include "lib/ClientConnection.h"
@@ -335,18 +333,13 @@ class PulsarWrapper {
 // When `subscription` is empty, get client versions of the producers.
 // Otherwise, get client versions of the consumers under the subscribe.
 static std::vector<std::string> getClientVersions(const std::string &topic, std::string subscription = "") {
-    const auto url = adminUrl + "admin/v2/persistent/public/default/" + topic + "/stats";
-    std::string responseData;
-    int res = makeGetRequest(url, responseData);
-    if (res != 200) {
-        LOG_ERROR(url << " failed: " << res);
+    boost::property_tree::ptree root;
+    const auto error = getTopicStats(topic, root);
+    if (!error.empty()) {
+        LOG_ERROR(error);
         return {};
     }
 
-    std::stringstream stream;
-    stream << responseData;
-    boost::property_tree::ptree root;
-    boost::property_tree::read_json(stream, root);
     std::vector<std::string> versions;
     if (subscription.empty()) {
         for (auto &child : root.get_child("publishers")) {

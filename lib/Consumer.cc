@@ -39,6 +39,10 @@ const std::string& Consumer::getSubscriptionName() const {
     return impl_ != NULL ? impl_->getSubscriptionName() : EMPTY_STRING;
 }
 
+const std::string& Consumer::getConsumerName() const {
+    return impl_ ? impl_->getConsumerName() : EMPTY_STRING;
+}
+
 Result Consumer::unsubscribe() {
     if (!impl_) {
         return ResultConsumerNotInitialized;

@@ -83,7 +83,6 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       availablePermits_(0),
       receiverQueueRefillThreshold_(config_.getReceiverQueueSize() / 2),
       consumerId_(client->newConsumerId()),
-      consumerName_(config_.getConsumerName()),
       consumerStr_("[" + topic + ", " + subscriptionName + ", " + std::to_string(consumerId_) + "] "),
       messageListenerRunning_(true),
       negativeAcksTracker_(client, *this, conf),
@@ -249,7 +248,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     ClientImplPtr client = client_.lock();
     uint64_t requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
-        topic(), subscription_, consumerId_, requestId, getSubType(), consumerName_, subscriptionMode_,
+        topic(), subscription_, consumerId_, requestId, getSubType(), getConsumerName(), subscriptionMode_,
         subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
         config_.getSchema(), getInitialPosition(), config_.isReplicateSubscriptionStateEnabled(),
         config_.getKeySharedPolicy(), config_.getPriorityLevel());
@@ -1780,7 +1779,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCa
                         }
                         if (result != ResultOk) {
                             LOG_WARN("{" << self->topic() << "} {" << self->subscription_ << "} {"
-                                         << self->consumerName_ << "} Failed to acknowledge the message {"
+                                         << self->getConsumerName() << "} Failed to acknowledge the message {"
                                          << originMessageId
                                          << "} of the original topic but send to the DLQ successfully : "
                                          << result);
@@ -1793,7 +1792,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCa
                     });
                 } else {
                     LOG_WARN("{" << self->topic() << "} {" << self->subscription_ << "} {"
-                                 << self->consumerName_ << "} Failed to send DLQ message to {"
+                                 << self->getConsumerName() << "} Failed to send DLQ message to {"
                                  << self->deadLetterPolicy_.getDeadLetterTopic() << "} for message id "
                                  << "{" << originMessageId << "} : " << res);
                     cb(false);

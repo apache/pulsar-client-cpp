@@ -216,7 +216,6 @@ class ConsumerImpl : public ConsumerImplBase {
     std::atomic_int availablePermits_;
     const int receiverQueueRefillThreshold_;
     uint64_t consumerId_;
-    std::string consumerName_;
     const std::string consumerStr_;
     int32_t partitionIndex_ = -1;
     Promise<Result, ConsumerImplBaseWeakPtr> consumerCreatedPromise_;

@@ -48,9 +48,14 @@ class PULSAR_PUBLIC Consumer {
     const std::string& getTopic() const;
 
     /**
-     * @return the consumer name
+     * @return the subscription name
      */
     const std::string& getSubscriptionName() const;
+
+    /**
+     * @return the consumer name
+     */
+    const std::string& getConsumerName() const;
 
     /**
      * Unsubscribe the current consumer from the topic.
