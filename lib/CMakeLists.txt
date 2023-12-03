@@ -156,3 +156,4 @@ if (BUILD_DYNAMIC_LIB)
 endif()
 
 install(DIRECTORY "../include/pulsar" DESTINATION include)
+install(FILES "${PROJECT_BINARY_DIR}/include/pulsar/Version.h" DESTINATION include/pulsar/)
