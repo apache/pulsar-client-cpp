@@ -28,6 +28,8 @@ class UnAckedMessageTrackerInterface {
    public:
     virtual ~UnAckedMessageTrackerInterface() {}
     UnAckedMessageTrackerInterface() {}
+    virtual void start() {}
+    virtual void stop() {}
     virtual bool add(const MessageId& m) = 0;
     virtual bool remove(const MessageId& m) = 0;
     virtual void remove(const MessageIdList& msgIds) = 0;

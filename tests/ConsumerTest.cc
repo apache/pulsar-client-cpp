@@ -1222,7 +1222,7 @@ TEST(ConsumerTest, testNegativeAcksTrackerClose) {
 
     consumer.close();
     auto consumerImplPtr = PulsarFriend::getConsumerImplPtr(consumer);
-    ASSERT_TRUE(consumerImplPtr->negativeAcksTracker_.nackedMessages_.empty());
+    ASSERT_TRUE(consumerImplPtr->negativeAcksTracker_->nackedMessages_.empty());
 
     client.close();
 }
