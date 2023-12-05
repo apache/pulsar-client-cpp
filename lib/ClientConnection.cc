@@ -33,6 +33,7 @@
 #include "PulsarApi.pb.h"
 #include "ResultUtils.h"
 #include "Url.h"
+#include "auth/AuthOauth2.h"
 #include "auth/InitialAuthData.h"
 #include "checksum/ChecksumProvider.h"
 
@@ -193,6 +194,14 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         return;
     }
 
+    auto oauth2Auth = std::dynamic_pointer_cast<AuthOauth2>(authentication_);
+    if (oauth2Auth) {
+        // Configure the TLS trust certs file for Oauth2
+        auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
+            std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
+        oauth2Auth->getAuthData(authData);
+    }
+
     if (clientConfiguration.isUseTls()) {
 #if BOOST_VERSION >= 105400
         boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_client);
@@ -223,8 +232,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         std::string tlsCertificates = clientConfiguration.getTlsCertificateFilePath();
         std::string tlsPrivateKey = clientConfiguration.getTlsPrivateKeyFilePath();
 
-        auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
-            std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
+        AuthenticationDataPtr authData;
         if (authentication_->getAuthData(authData) == ResultOk && authData->hasDataForTls()) {
             tlsCertificates = authData->getTlsCertificates();
             tlsPrivateKey = authData->getTlsPrivateKey();
