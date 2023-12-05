@@ -3973,6 +3973,7 @@ TEST(BasicEndToEndTest, testUnAckedMessageTrackerEnabledIndividualAck) {
 
     auto tracker0 = std::make_shared<UnAckedMessageTrackerEnabledMock>(unAckedMessagesTimeoutMs,
                                                                        clientImplPtr, consumerImpl0);
+    tracker0->start();
     ASSERT_EQ(tracker0->getUnAckedMessagesTimeoutMs(), unAckedMessagesTimeoutMs);
     ASSERT_EQ(tracker0->getTickDurationInMs(), unAckedMessagesTimeoutMs);
 
@@ -4048,6 +4049,7 @@ TEST(BasicEndToEndTest, testUnAckedMessageTrackerEnabledCumulativeAck) {
     }
     auto tracker = std::make_shared<UnAckedMessageTrackerEnabledMock>(unAckedMessagesTimeoutMs, clientImplPtr,
                                                                       consumerImpl0);
+    tracker->start();
     for (auto idx = 0; idx < numMsg; ++idx) {
         ASSERT_TRUE(tracker->add(recvMsgId[idx]));
     }
