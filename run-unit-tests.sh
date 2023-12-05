@@ -35,7 +35,13 @@ docker compose -f tests/oauth2/docker-compose.yml up -d
 # Wait until the namespace is created, currently there is no good way to check it
 # because it's hard to configure OAuth2 authentication via CLI.
 sleep 15
+if [[ -f /etc/ssl/certs/ca-certificates.crt ]]; then
+    mv /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/my-cert.crt
+fi
 $CMAKE_BUILD_DIRECTORY/tests/Oauth2Test
+if [[ -f /etc/ssl/certs/my-cert.crt ]]; then
+    mv /etc/ssl/certs/my-cert.crt /etc/ssl/certs/ca-certificates.crt
+fi
 docker compose -f tests/oauth2/docker-compose.yml down
 
 # Run BrokerMetadata tests
