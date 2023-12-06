@@ -993,6 +993,7 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     auto consumer2ImplPtr = PulsarFriend::getConsumerImplPtr(consumer2);
     consumer2ImplPtr->unAckedMessageTrackerPtr_.reset(new UnAckedMessageTrackerEnabled(
         100, 100, PulsarFriend::getClientImplPtr(client), static_cast<ConsumerImplBase&>(*consumer2ImplPtr)));
+    consumer2ImplPtr->unAckedMessageTrackerPtr_->start();
 
     ConsumerConfiguration consConfig3;
     consConfig3.setConsumerType(pulsar::ConsumerShared);
@@ -1003,6 +1004,7 @@ TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {
     auto consumer3ImplPtr = PulsarFriend::getConsumerImplPtr(consumer3);
     consumer3ImplPtr->unAckedMessageTrackerPtr_.reset(new UnAckedMessageTrackerEnabled(
         100, 100, PulsarFriend::getClientImplPtr(client), static_cast<ConsumerImplBase&>(*consumer3ImplPtr)));
+    consumer3ImplPtr->unAckedMessageTrackerPtr_->start();
 
     int numberOfMessages = 20;
     std::string msgContent = "msg-content";
@@ -1222,7 +1224,7 @@ TEST(ConsumerTest, testNegativeAcksTrackerClose) {
 
     consumer.close();
     auto consumerImplPtr = PulsarFriend::getConsumerImplPtr(consumer);
-    ASSERT_TRUE(consumerImplPtr->negativeAcksTracker_.nackedMessages_.empty());
+    ASSERT_TRUE(consumerImplPtr->negativeAcksTracker_->nackedMessages_.empty());
 
     client.close();
 }

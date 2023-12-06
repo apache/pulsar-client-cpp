@@ -49,8 +49,13 @@ void NegativeAcksTracker::scheduleTimer() {
     if (closed_) {
         return;
     }
+    std::weak_ptr<NegativeAcksTracker> weakSelf{shared_from_this()};
     timer_->expires_from_now(timerInterval_);
-    timer_->async_wait(std::bind(&NegativeAcksTracker::handleTimer, this, std::placeholders::_1));
+    timer_->async_wait([weakSelf](const boost::system::error_code &ec) {
+        if (auto self = weakSelf.lock()) {
+            self->handleTimer(ec);
+        }
+    });
 }
 
 void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {

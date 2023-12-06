@@ -85,7 +85,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       consumerId_(client->newConsumerId()),
       consumerStr_("[" + topic + ", " + subscriptionName + ", " + std::to_string(consumerId_) + "] "),
       messageListenerRunning_(true),
-      negativeAcksTracker_(client, *this, conf),
+      negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
       readCompacted_(conf.isReadCompacted()),
       startMessageId_(startMessageId),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
@@ -104,6 +104,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
     } else {
         unAckedMessageTrackerPtr_.reset(new UnAckedMessageTrackerDisabled());
     }
+    unAckedMessageTrackerPtr_->start();
 
     // Setup stats reporter.
     unsigned int statsIntervalInSeconds = client->getClientConfig().getStatsIntervalInSeconds();
@@ -1227,7 +1228,7 @@ std::pair<MessageId, bool> ConsumerImpl::prepareCumulativeAck(const MessageId& m
 
 void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
     unAckedMessageTrackerPtr_->remove(messageId);
-    negativeAcksTracker_.add(messageId);
+    negativeAcksTracker_->add(messageId);
 }
 
 void ConsumerImpl::disconnectConsumer() {
@@ -1265,7 +1266,7 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
     if (ackGroupingTrackerPtr_) {
         ackGroupingTrackerPtr_->close();
     }
-    negativeAcksTracker_.close();
+    negativeAcksTracker_->close();
 
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
@@ -1303,7 +1304,7 @@ void ConsumerImpl::shutdown() {
     if (client) {
         client->cleanupConsumer(this);
     }
-    negativeAcksTracker_.close();
+    negativeAcksTracker_->close();
     cancelTimers();
     consumerCreatedPromise_.setFailed(ResultAlreadyClosed);
     failPendingReceiveCallback();
@@ -1608,7 +1609,7 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
 }
 
 void ConsumerImpl::setNegativeAcknowledgeEnabledForTesting(bool enabled) {
-    negativeAcksTracker_.setEnabledForTesting(enabled);
+    negativeAcksTracker_->setEnabledForTesting(enabled);
 }
 
 void ConsumerImpl::trackMessage(const MessageId& messageId) {
@@ -1695,6 +1696,7 @@ void ConsumerImpl::cancelTimers() noexcept {
     boost::system::error_code ec;
     batchReceiveTimer_->cancel(ec);
     checkExpiredChunkedTimer_->cancel(ec);
+    unAckedMessageTrackerPtr_->stop();
 }
 
 void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCallBack cb) {

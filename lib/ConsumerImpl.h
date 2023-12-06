@@ -223,7 +223,7 @@ class ConsumerImpl : public ConsumerImplBase {
     CompressionCodecProvider compressionCodecProvider_;
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
     BrokerConsumerStatsImpl brokerConsumerStats_;
-    NegativeAcksTracker negativeAcksTracker_;
+    std::shared_ptr<NegativeAcksTracker> negativeAcksTracker_;
     AckGroupingTrackerPtr ackGroupingTrackerPtr_;
 
     MessageCryptoPtr msgCrypto_;

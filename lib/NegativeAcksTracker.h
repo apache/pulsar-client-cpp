@@ -40,7 +40,7 @@ using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
-class NegativeAcksTracker {
+class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTracker> {
    public:
     NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &consumer, const ConsumerConfiguration &conf);
 
