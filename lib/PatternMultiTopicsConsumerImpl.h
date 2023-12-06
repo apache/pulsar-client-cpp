@@ -86,6 +86,10 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     void onTopicsRemoved(NamespaceTopicsPtr removedTopics, ResultCallback callback);
     void handleOneTopicAdded(const Result result, const std::string& topic,
                              std::shared_ptr<std::atomic<int>> topicsNeedCreate, ResultCallback callback);
+
+    std::weak_ptr<PatternMultiTopicsConsumerImpl> weak_from_this() noexcept {
+        return std::static_pointer_cast<PatternMultiTopicsConsumerImpl>(shared_from_this());
+    }
 };
 
 }  // namespace pulsar

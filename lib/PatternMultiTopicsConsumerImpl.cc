@@ -47,8 +47,13 @@ const PULSAR_REGEX_NAMESPACE::regex PatternMultiTopicsConsumerImpl::getPattern()
 void PatternMultiTopicsConsumerImpl::resetAutoDiscoveryTimer() {
     autoDiscoveryRunning_ = false;
     autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
-    autoDiscoveryTimer_->async_wait(
-        std::bind(&PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask, this, std::placeholders::_1));
+
+    auto weakSelf = weak_from_this();
+    autoDiscoveryTimer_->async_wait([weakSelf](const boost::system::error_code& err) {
+        if (auto self = weakSelf.lock()) {
+            self->autoDiscoveryTimerTask(err);
+        }
+    });
 }
 
 void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const boost::system::error_code& err) {
@@ -222,8 +227,12 @@ void PatternMultiTopicsConsumerImpl::start() {
 
     if (conf_.getPatternAutoDiscoveryPeriod() > 0) {
         autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
-        autoDiscoveryTimer_->async_wait(
-            std::bind(&PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask, this, std::placeholders::_1));
+        auto weakSelf = weak_from_this();
+        autoDiscoveryTimer_->async_wait([weakSelf](const boost::system::error_code& err) {
+            if (auto self = weakSelf.lock()) {
+                self->autoDiscoveryTimerTask(err);
+            }
+        });
     }
 }
 

@@ -35,11 +35,11 @@ void UnAckedMessageTrackerEnabled::timeoutHandler() {
     ExecutorServicePtr executorService = client_->getIOExecutorProvider()->get();
     timer_ = executorService->createDeadlineTimer();
     timer_->expires_from_now(boost::posix_time::milliseconds(tickDurationInMs_));
-    timer_->async_wait([&](const boost::system::error_code& ec) {
-        if (ec) {
-            LOG_DEBUG("Ignoring timer cancelled event, code[" << ec << "]");
-        } else {
-            timeoutHandler();
+    std::weak_ptr<UnAckedMessageTrackerEnabled> weakSelf{shared_from_this()};
+    timer_->async_wait([weakSelf](const boost::system::error_code& ec) {
+        auto self = weakSelf.lock();
+        if (self && !ec) {
+            self->timeoutHandler();
         }
     });
 }
@@ -91,9 +91,9 @@ UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, long 
         std::set<MessageId> msgIds;
         timePartitions.push_back(msgIds);
     }
-
-    timeoutHandler();
 }
+
+void UnAckedMessageTrackerEnabled::start() { timeoutHandler(); }
 
 bool UnAckedMessageTrackerEnabled::add(const MessageId& msgId) {
     std::lock_guard<std::recursive_mutex> acquire(lock_);
@@ -172,9 +172,10 @@ void UnAckedMessageTrackerEnabled::clear() {
     }
 }
 
-UnAckedMessageTrackerEnabled::~UnAckedMessageTrackerEnabled() {
+void UnAckedMessageTrackerEnabled::stop() {
+    boost::system::error_code ec;
     if (timer_) {
-        timer_->cancel();
+        timer_->cancel(ec);
     }
 }
 } /* namespace pulsar */

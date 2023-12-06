@@ -21,6 +21,7 @@
 #include <boost/asio/deadline_timer.hpp>
 #include <deque>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <set>
 
@@ -34,19 +35,21 @@ class ConsumerImplBase;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
 using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 
-class UnAckedMessageTrackerEnabled : public UnAckedMessageTrackerInterface {
+class UnAckedMessageTrackerEnabled : public std::enable_shared_from_this<UnAckedMessageTrackerEnabled>,
+                                     public UnAckedMessageTrackerInterface {
    public:
-    ~UnAckedMessageTrackerEnabled();
     UnAckedMessageTrackerEnabled(long timeoutMs, ClientImplPtr, ConsumerImplBase&);
     UnAckedMessageTrackerEnabled(long timeoutMs, long tickDuration, ClientImplPtr, ConsumerImplBase&);
-    bool add(const MessageId& msgId);
-    bool remove(const MessageId& msgId);
-    void remove(const MessageIdList& msgIds);
-    void removeMessagesTill(const MessageId& msgId);
-    void removeTopicMessage(const std::string& topic);
+    void start() override;
+    void stop() override;
+    bool add(const MessageId& msgId) override;
+    bool remove(const MessageId& msgId) override;
+    void remove(const MessageIdList& msgIds) override;
+    void removeMessagesTill(const MessageId& msgId) override;
+    void removeTopicMessage(const std::string& topic) override;
     void timeoutHandler();
 
-    void clear();
+    void clear() override;
 
    protected:
     void timeoutHandlerHelper();
