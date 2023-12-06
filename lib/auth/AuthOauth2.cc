@@ -342,8 +342,13 @@ Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
 
     CurlWrapper::Options options;
     options.postFields = std::move(postData);
-    auto result =
-        curl.get(tokenEndPoint_, "Content-Type: application/x-www-form-urlencoded", options, nullptr);
+    std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
+    if (!tlsTrustCertsFilePath_.empty()) {
+        tlsContext.reset(new CurlWrapper::TlsContext);
+        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
+    }
+    auto result = curl.get(tokenEndPoint_, "Content-Type: application/x-www-form-urlencoded", options,
+                           tlsContext.get());
     if (!result.error.empty()) {
         LOG_ERROR("Failed to get the well-known configuration " << issuerUrl_ << ": " << result.error);
         return resultPtr;
