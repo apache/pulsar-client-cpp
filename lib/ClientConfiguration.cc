@@ -19,6 +19,7 @@
 #include <stdexcept>
 
 #include "ClientConfigurationImpl.h"
+#include "auth/AuthOauth2.h"
 
 namespace pulsar {
 

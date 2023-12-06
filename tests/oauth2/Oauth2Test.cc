@@ -22,6 +22,7 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <fstream>
 
 #include "lib/Base64Utils.h"
 
@@ -62,6 +63,26 @@ TEST(Oauth2Test, testWrongUrl) {
     ASSERT_EQ(ResultAuthenticationError,
               testCreateProducer("data:application/json;text," + credentials(gClientId, gClientSecret)));
     ASSERT_EQ(ResultAuthenticationError, testCreateProducer("my-protocol:" + gKeyPath));
+}
+
+TEST(Oauth2Test, testTlsTrustFilePath) {
+    const auto caPath = "/etc/ssl/certs/my-cert.crt";
+    std::ifstream fin{caPath};
+    if (!fin) {  // Skip this test if the CA cert is not prepared
+        return;
+    }
+    fin.close();
+
+    ClientConfiguration conf;
+    conf.setTlsTrustCertsFilePath(caPath);
+    auto params = gCommonParams;
+    params["private_key"] = "file://" + gKeyPath;
+    conf.setAuth(AuthOauth2::create(params));
+
+    Client client{"pulsar://localhost:6650", conf};
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer("oauth2-test", producer));
+    client.close();
 }
 
 int main(int argc, char* argv[]) {
