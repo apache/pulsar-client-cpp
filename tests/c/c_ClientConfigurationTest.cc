@@ -28,4 +28,7 @@ TEST(C_ClientConfigurationTest, testCApiConfig) {
 
     ASSERT_STREQ(pulsar_client_configuration_get_tls_private_key_file_path(conf), "private.key");
     ASSERT_STREQ(pulsar_client_configuration_get_tls_certificate_file_path(conf), "certificate.pem");
+
+    pulsar_client_configuration_set_listener_name(conf, "listenerName");
+    ASSERT_STREQ(pulsar_client_configuration_get_listener_name(conf), "listenerName");
 }

@@ -187,6 +187,11 @@ PULSAR_PUBLIC int pulsar_client_configuration_is_validate_hostname(pulsar_client
 PULSAR_PUBLIC void pulsar_client_configuration_set_validate_hostname(pulsar_client_configuration_t *conf,
                                                                      int validateHostName);
 
+PULSAR_PUBLIC void pulsar_client_configuration_set_listener_name(pulsar_client_configuration_t *conf,
+                                                                 const char *listenerName);
+
+PULSAR_PUBLIC const char *pulsar_client_configuration_get_listener_name(pulsar_client_configuration_t *conf);
+
 /*
  * Get the stats interval set in the client.
  */
