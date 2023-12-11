@@ -65,39 +65,39 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Install deps
+      - name: Build core libraries
         run: |
-            sudo apt-get update -y &&           \
-                sudo apt-get install -y         \
-                libcurl4-openssl-dev            \
-                protobuf-compiler               \
-                libprotobuf-dev                 \
-                libboost-dev                    \
-                libboost-program-options-dev    \
-                libzstd-dev                     \
-                libsnappy-dev                   \
-                libgmock-dev                    \
-                libgtest-dev
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
+          cmake --build . -j8
+
+      - name: Check formatting
+        run: |
+          ./vcpkg/vcpkg format-manifest vcpkg.json
+          if [[ $(git diff | wc -l) -gt 0 ]]; then
+              echo "Please run `./vcpkg/vcpkg format-manifest vcpkg.json` to reformat vcpkg.json"
+          fi
+          make check-format
+
+      - name: Build tests
+        run: |
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON
+          cmake --build . -j8
 
       - name: Install gtest-parallel
         run: |
           sudo curl -o /gtest-parallel https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py 
 
-      - name: CMake
-        run: cmake . -DCMAKE_BUILD_TYPE=Debug -DBUILD_PERF_TOOLS=ON
-
-      - name: Check formatting
-        run: make check-format
-
-      - name: Build
-        run: |
-          # Build the libraries first to avoid possible link failures
-          cmake --build . -j8 --target pulsarShared pulsarStatic
-          cmake --build . -j8
-
       - name: Run unit tests
         run: RETRY_FAILED=3 ./run-unit-tests.sh
+
+      - name: Build perf tools
+        run: |
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
+          cmake --build . -j8
 
   cpp20-build:
     name: Build with the C++20 standard
