@@ -189,3 +189,12 @@ void pulsar_client_configuration_set_memory_limit(pulsar_client_configuration_t 
 unsigned long long pulsar_client_configuration_get_memory_limit(pulsar_client_configuration_t *conf) {
     return conf->conf.getMemoryLimit();
 }
+
+void pulsar_client_configuration_set_listener_name(pulsar_client_configuration_t *conf,
+                                                   const char *listenerName) {
+    conf->conf.setListenerName(listenerName);
+}
+
+const char *pulsar_client_configuration_get_listener_name(pulsar_client_configuration_t *conf) {
+    return conf->conf.getListenerName().c_str();
+}
