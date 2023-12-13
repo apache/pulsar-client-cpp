@@ -39,8 +39,8 @@ Since it's integrated with vcpkg, see [vcpkg#README](https://github.com/microsof
 
 ```bash
 git clone https://github.com/apache/pulsar-client-cpp.git
-git submodule update --init --recursive
 cd pulsar-client-cpp
+git submodule update --init --recursive
 cmake -B build -DINTEGRATE_VCPKG=ON
 cmake --build build -j8
 ```
