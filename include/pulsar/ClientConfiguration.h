@@ -32,6 +32,10 @@ class PULSAR_PUBLIC ClientConfiguration {
     ~ClientConfiguration();
     ClientConfiguration(const ClientConfiguration&);
     ClientConfiguration& operator=(const ClientConfiguration&);
+    enum ProxyProtocol
+    {
+        SNI = 0
+    };
 
     /**
      * Configure a limit on the amount of memory that will be allocated by this client instance.
@@ -319,6 +323,31 @@ class PULSAR_PUBLIC ClientConfiguration {
      * @return
      */
     ClientConfiguration& setConnectionTimeout(int timeoutMs);
+
+    /**
+     * Set proxy-service url when client would like to connect to broker via proxy. Client must configure both
+     * proxyServiceUrl and appropriate proxyProtocol.
+     *
+     * Example: pulsar+ssl://ats-proxy.example.com:4443
+     *
+     * @param proxyServiceUrl proxy url to connect with broker
+     * @return
+     */
+    ClientConfiguration& setProxyServiceUrl(const std::string& proxyServiceUrl);
+
+    const std::string& getProxyServiceUrl() const;
+
+    /**
+     * Set appropriate proxy-protocol along with proxy-service url. Currently Pulsar supports SNI proxy routing.
+     *
+     * SNI routing: https://docs.trafficserver.apache.org/en/latest/admin-guide/layer-4-routing.en.html#sni-routing.
+     *
+     * @param proxyProtocol possible options (SNI)
+     * @return
+     */
+    ClientConfiguration& setProxyProtocol(const ProxyProtocol proxyProtocol);
+
+    const ProxyProtocol getProxyProtocol() const;
 
     /**
      * The getter associated with setConnectionTimeout().

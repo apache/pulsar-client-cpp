@@ -209,7 +209,15 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         boost::asio::ssl::context ctx(executor_->getIOService(), boost::asio::ssl::context::tlsv1_client);
 #endif
         Url serviceUrl;
+        Url proxyUrl;
         Url::parse(physicalAddress, serviceUrl);
+        proxyServiceUrl_ = clientConfiguration.getProxyServiceUrl();
+        proxyProtocol_ = clientConfiguration.getProxyProtocol();
+        if (proxyProtocol_ == ClientConfiguration::SNI && !proxyServiceUrl_.empty()) {
+            Url::parse(proxyServiceUrl_, proxyUrl);
+            isSniProxy_ = true;
+            LOG_INFO("Configuring SNI Proxy-url=" << proxyServiceUrl_);
+        }
         if (clientConfiguration.isTlsAllowInsecureConnection()) {
             ctx.set_verify_mode(boost::asio::ssl::context::verify_none);
             isTlsAllowInsecureConnection_ = true;
@@ -257,7 +265,9 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
 
         if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
             LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
-            tlsSocket_->set_verify_callback(boost::asio::ssl::rfc2818_verification(serviceUrl.host()));
+			std::string urlHost =
+					isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
+            tlsSocket_->set_verify_callback(boost::asio::ssl::rfc2818_verification(urlHost));
         }
 
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
@@ -403,7 +413,8 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
         if (logicalAddress_ == physicalAddress_) {
             LOG_INFO(cnxString_ << "Connected to broker");
         } else {
-            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_);
+            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " <<
+            		logicalAddress_ << ", proxy: " << proxyServiceUrl_);
         }
 
         Lock lock(mutex_);
@@ -572,7 +583,8 @@ void ClientConnection::tcpConnectAsync() {
 
     boost::system::error_code err;
     Url service_url;
-    if (!Url::parse(physicalAddress_, service_url)) {
+    std::string hostUrl = isSniProxy_ ? proxyServiceUrl_ : physicalAddress_;
+    if (!Url::parse(hostUrl, service_url)) {
         LOG_ERROR(cnxString_ << "Invalid Url, unable to parse: " << err << " " << err.message());
         close();
         return;
@@ -600,7 +612,8 @@ void ClientConnection::tcpConnectAsync() {
 void ClientConnection::handleResolve(const boost::system::error_code& err,
                                      tcp::resolver::iterator endpointIterator) {
     if (err) {
-        LOG_ERROR(cnxString_ << "Resolve error: " << err << " : " << err.message());
+        std::string hostUrl = isSniProxy_? cnxString_ : proxyServiceUrl_;
+        LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
         close();
         return;
     }
