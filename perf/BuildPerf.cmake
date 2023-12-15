@@ -17,8 +17,8 @@
 # under the License.
 #
 
-if (INTEGRATE_VCPKG)
-    include(BuildPerf.cmake)
-else ()
-    include(LegacyBuildPerf.cmake)
-endif ()
+add_executable(perfProducer PerfProducer.cc)
+target_link_libraries(perfProducer pulsarShared Boost::program_options)
+
+add_executable(perfConsumer PerfConsumer.cc)
+target_link_libraries(perfConsumer pulsarShared Boost::program_options)
