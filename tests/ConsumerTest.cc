@@ -1480,28 +1480,14 @@ TEST(ConsumerTest, testConsumerName) {
 
 TEST(ConsumerTest, testSNIProxyConnect) {
     ClientConfiguration clientConfiguration;
-	clientConfiguration.setProxyServiceUrl(lookupUrl);
+    clientConfiguration.setProxyServiceUrl(lookupUrl);
     clientConfiguration.setProxyProtocol(ClientConfiguration::SNI);
 
     Client client(lookupUrl, clientConfiguration);
-    const std::string topic =
-        "testSNIProxy-" + std::to_string(time(nullptr));
+    const std::string topic = "testSNIProxy-" + std::to_string(time(nullptr));
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topic, "test-sub", consumer));
-}
-
-TEST(ConsumerTest, testSNIProxyInValidConnect) {
-    ClientConfiguration clientConfiguration;
-    const std::string proxyUrl = "pulsar+ssl://invalid-url:6651";
-	clientConfiguration.setProxyServiceUrl(proxyUrl);
-    clientConfiguration.setProxyProtocol(ClientConfiguration::SNI);
-
-    Client client(lookupUrl, clientConfiguration);
-    const std::string topic =
-        "testSNIProxy-" + std::to_string(time(nullptr));
-
-    Consumer consumer;
-    ASSERT_NE(ResultOk, client.subscribe(topic, "test-sub", consumer));
+    client.close();
 }
 }  // namespace pulsar

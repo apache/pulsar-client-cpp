@@ -338,9 +338,11 @@ class PULSAR_PUBLIC ClientConfiguration {
     const std::string& getProxyServiceUrl() const;
 
     /**
-     * Set appropriate proxy-protocol along with proxy-service url. Currently Pulsar supports SNI proxy routing.
+     * Set appropriate proxy-protocol along with proxy-service url. Currently Pulsar supports SNI proxy
+     * routing.
      *
-     * SNI routing: https://docs.trafficserver.apache.org/en/latest/admin-guide/layer-4-routing.en.html#sni-routing.
+     * SNI routing:
+     * https://docs.trafficserver.apache.org/en/latest/admin-guide/layer-4-routing.en.html#sni-routing.
      *
      * @param proxyProtocol possible options (SNI)
      * @return

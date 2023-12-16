@@ -139,17 +139,16 @@ ClientConfiguration& ClientConfiguration::setProxyServiceUrl(const std::string& 
     return *this;
 }
 
-const std::string& ClientConfiguration::getProxyServiceUrl() const {
-	return impl_->proxyServiceUrl;
-}
+const std::string& ClientConfiguration::getProxyServiceUrl() const { return impl_->proxyServiceUrl; }
 
-ClientConfiguration& ClientConfiguration::setProxyProtocol(const ClientConfiguration::ProxyProtocol proxyProtocol) {
+ClientConfiguration& ClientConfiguration::setProxyProtocol(
+    const ClientConfiguration::ProxyProtocol proxyProtocol) {
     impl_->proxyProtocol = proxyProtocol;
     return *this;
 }
 
 const ClientConfiguration::ProxyProtocol ClientConfiguration::getProxyProtocol() const {
-	return impl_->proxyProtocol;
+    return impl_->proxyProtocol;
 }
 
 int ClientConfiguration::getConcurrentLookupRequest() const { return impl_->concurrentLookupRequest; }

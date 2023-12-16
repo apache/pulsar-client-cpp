@@ -265,8 +265,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
 
         if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
             LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
-			std::string urlHost =
-					isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
+            std::string urlHost = isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
             tlsSocket_->set_verify_callback(boost::asio::ssl::rfc2818_verification(urlHost));
         }
 
@@ -413,8 +412,8 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
         if (logicalAddress_ == physicalAddress_) {
             LOG_INFO(cnxString_ << "Connected to broker");
         } else {
-            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " <<
-            		logicalAddress_ << ", proxy: " << proxyServiceUrl_);
+            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_
+                                << ", proxy: " << proxyServiceUrl_);
         }
 
         Lock lock(mutex_);
@@ -612,7 +611,7 @@ void ClientConnection::tcpConnectAsync() {
 void ClientConnection::handleResolve(const boost::system::error_code& err,
                                      tcp::resolver::iterator endpointIterator) {
     if (err) {
-        std::string hostUrl = isSniProxy_? cnxString_ : proxyServiceUrl_;
+        std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
         LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
         close();
         return;
