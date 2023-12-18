@@ -92,11 +92,9 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       consumerIdGenerator_(0),
       closingError(ResultOk) {
     std::unique_ptr<LoggerFactory> loggerFactory = clientConfiguration_.impl_->takeLogger();
-    if (!loggerFactory) {
-        // Use default simple console logger
-        loggerFactory.reset(new ConsoleLoggerFactory);
+    if (loggerFactory) {
+        LogUtils::setLoggerFactory(std::move(loggerFactory));
     }
-    LogUtils::setLoggerFactory(std::move(loggerFactory));
 
     LookupServicePtr underlyingLookupServicePtr;
     if (serviceNameResolver_.useHttp()) {
