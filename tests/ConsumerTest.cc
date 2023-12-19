@@ -1478,4 +1478,16 @@ TEST(ConsumerTest, testConsumerName) {
     client.close();
 }
 
+TEST(ConsumerTest, testSNIProxyConnect) {
+    ClientConfiguration clientConfiguration;
+    clientConfiguration.setProxyServiceUrl(lookupUrl);
+    clientConfiguration.setProxyProtocol(ClientConfiguration::SNI);
+
+    Client client(lookupUrl, clientConfiguration);
+    const std::string topic = "testSNIProxy-" + std::to_string(time(nullptr));
+
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "test-sub", consumer));
+    client.close();
+}
 }  // namespace pulsar

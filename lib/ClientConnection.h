@@ -333,6 +333,10 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     const std::string physicalAddress_;
 
+    std::string proxyServiceUrl_;
+
+    ClientConfiguration::ProxyProtocol proxyProtocol_;
+
     // Represent both endpoint of the tcp connection. eg: [client:1234 -> server:6650]
     std::string cnxString_;
 
@@ -384,6 +388,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     // Signals whether we're waiting for a response from broker
     bool havePendingPingRequest_ = false;
+    bool isSniProxy_ = false;
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
 
