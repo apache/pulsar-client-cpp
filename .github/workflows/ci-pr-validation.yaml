@@ -50,6 +50,8 @@ jobs:
       - name: Install deps (macOS)
         if: ${{ startsWith(matrix.os, 'macos') }}
         run: |
+          # See https://github.com/Homebrew/homebrew-core/issues/157142
+          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
           brew update
           brew install pkg-config wireshark protobuf
       - name: Build wireshark plugin
