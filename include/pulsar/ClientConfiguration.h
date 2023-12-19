@@ -347,9 +347,9 @@ class PULSAR_PUBLIC ClientConfiguration {
      * @param proxyProtocol possible options (SNI)
      * @return
      */
-    ClientConfiguration& setProxyProtocol(const ProxyProtocol proxyProtocol);
+    ClientConfiguration& setProxyProtocol(ProxyProtocol proxyProtocol);
 
-    const ProxyProtocol getProxyProtocol() const;
+    ProxyProtocol getProxyProtocol() const;
 
     /**
      * The getter associated with setConnectionTimeout().
