@@ -141,8 +141,7 @@ ClientConfiguration& ClientConfiguration::setProxyServiceUrl(const std::string& 
 
 const std::string& ClientConfiguration::getProxyServiceUrl() const { return impl_->proxyServiceUrl; }
 
-ClientConfiguration& ClientConfiguration::setProxyProtocol(
-    ClientConfiguration::ProxyProtocol proxyProtocol) {
+ClientConfiguration& ClientConfiguration::setProxyProtocol(ClientConfiguration::ProxyProtocol proxyProtocol) {
     impl_->proxyProtocol = proxyProtocol;
     return *this;
 }
