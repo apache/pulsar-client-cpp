@@ -21,6 +21,7 @@
 set -e -x
 
 cd /pulsar-client-cpp
+git config --global --add safe.directory /pulsar-client-cpp
 git submodule update --init --recursive
 if [[ $ARCH == "aarch64" ]]; then
     export VCPKG_FORCE_SYSTEM_BINARIES=arm
