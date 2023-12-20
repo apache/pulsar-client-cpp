@@ -21,29 +21,25 @@
 set -e -x
 
 cd /pulsar-client-cpp
+git submodule update --init --recursive
+if [[ $ARCH == "aarch64" ]]; then
+    export VCPKG_FORCE_SYSTEM_BINARIES=arm
+fi
 SRC_ROOT_DIR=$(pwd)
-cd pkg/deb
+CPP_DIR="$SRC_ROOT_DIR/build"
+chmod +x $(find . -name "*.sh")
+cmake -B $CPP_DIR -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON
+cmake --build $CPP_DIR -j8
 
 POM_VERSION=`cat $SRC_ROOT_DIR/version.txt | xargs`
 # Sanitize VERSION by removing `SNAPSHOT` if any since it's not legal in DEB
 VERSION=`echo $POM_VERSION | awk -F-  '{print $1}'`
 
-ROOT_DIR=apache-pulsar-client-cpp-$POM_VERSION
-CPP_DIR=$ROOT_DIR
-
-rm -rf BUILD
-mkdir BUILD
-cd BUILD
-tar xfz $SRC_ROOT_DIR/apache-pulsar-client-cpp-$POM_VERSION.tar.gz
-pushd $CPP_DIR
-
-# link libraries for protoc
-export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
-
-chmod +x $(find . -name "*.sh")
-cmake . -DBUILD_TESTS=OFF -DBUILD_PERF_TOOLS=OFF -DLINK_STATIC=ON
-make -j 3
-popd
+if [[ $ARCH == "aarch64" ]]; then
+    export PLATFORM="arm64"
+else
+    export PLATFORM="amd64"
+fi
 
 DEST_DIR=apache-pulsar-client
 mkdir -p $DEST_DIR/DEBIAN
@@ -74,16 +70,19 @@ mkdir -p $DEVEL_DEST_DIR/usr/share/doc/pulsar-client-dev-$VERSION
 
 ls $CPP_DIR/lib/libpulsar*
 
-cp -ar $CPP_DIR/include/pulsar $DEVEL_DEST_DIR/usr/include/
+mkdir -p $DEVEL_DEST_DIR/usr/include/pulsar
+cp -ar $SRC_ROOT_DIR/include/pulsar/* $DEVEL_DEST_DIR/usr/include/pulsar/
+cp -ar $CPP_DIR/include/pulsar/* $DEVEL_DEST_DIR/usr/include/pulsar/
 cp $CPP_DIR/lib/libpulsar.a $DEVEL_DEST_DIR/usr/lib
-cp $CPP_DIR/lib/libpulsarwithdeps.a $DEVEL_DEST_DIR/usr/lib
+# TODO: generate libpulsarwithdeps.a
+#cp $CPP_DIR/lib/libpulsarwithdeps.a $DEVEL_DEST_DIR/usr/lib
 cp $CPP_DIR/lib/libpulsar.so $DEST_DIR/usr/lib
 
-cp $ROOT_DIR/NOTICE $DEST_DIR/usr/share/doc/pulsar-client-$VERSION
-cp $CPP_DIR/pkg/licenses/* $DEST_DIR/usr/share/doc/pulsar-client-$VERSION
-cp $CPP_DIR/pkg/licenses/LICENSE.txt $DEST_DIR/usr/share/doc/pulsar-client-$VERSION/copyright
-cp $CPP_DIR/pkg/licenses/LICENSE.txt $DEST_DIR/DEBIAN/copyright
-cp $CPP_DIR/pkg/licenses/LICENSE.txt $DEVEL_DEST_DIR/DEBIAN/copyright
+cp $SRC_ROOT_DIR/NOTICE $DEST_DIR/usr/share/doc/pulsar-client-$VERSION
+cp $SRC_ROOT_DIR/pkg/licenses/* $DEST_DIR/usr/share/doc/pulsar-client-$VERSION
+cp $SRC_ROOT_DIR/pkg/licenses/LICENSE.txt $DEST_DIR/usr/share/doc/pulsar-client-$VERSION/copyright
+cp $SRC_ROOT_DIR/pkg/licenses/LICENSE.txt $DEST_DIR/DEBIAN/copyright
+cp $SRC_ROOT_DIR/pkg/licenses/LICENSE.txt $DEVEL_DEST_DIR/DEBIAN/copyright
 
 cp $DEST_DIR/usr/share/doc/pulsar-client-$VERSION/* $DEVEL_DEST_DIR/usr/share/doc/pulsar-client-dev-$VERSION
 
