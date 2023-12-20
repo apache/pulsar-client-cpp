@@ -28,7 +28,6 @@ RUN apt-get update -y && \
         g++ \
         ninja-build \
         python3 \
-        git \
         curl \
         zip \
         unzip \
