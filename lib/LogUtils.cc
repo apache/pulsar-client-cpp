@@ -25,6 +25,7 @@
 
 namespace pulsar {
 
+static std::atomic<LoggerFactory*> s_defaultLoggerFactory(new ConsoleLoggerFactory());
 static std::atomic<LoggerFactory*> s_loggerFactory(nullptr);
 
 void LogUtils::setLoggerFactory(std::unique_ptr<LoggerFactory> loggerFactory) {
@@ -37,10 +38,10 @@ void LogUtils::setLoggerFactory(std::unique_ptr<LoggerFactory> loggerFactory) {
 
 LoggerFactory* LogUtils::getLoggerFactory() {
     if (s_loggerFactory.load() == nullptr) {
-        std::unique_ptr<LoggerFactory> newFactory(new ConsoleLoggerFactory());
-        setLoggerFactory(std::move(newFactory));
+        return s_defaultLoggerFactory.load();
+    } else {
+        return s_loggerFactory.load();
     }
-    return s_loggerFactory.load();
 }
 
 std::string LogUtils::getLoggerName(const std::string& path) {
