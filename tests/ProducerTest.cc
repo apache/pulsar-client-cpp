@@ -649,4 +649,37 @@ TEST(ProducerTest, testReconnectMultiConnectionsPerBroker) {
     client.close();
 }
 
+TEST(ProducerTest, testFailedToCreateNewPartitionProducer) {
+    const std::string topic =
+        "public/default/testFailedToCreateNewPartitionProducer" + std::to_string(time(nullptr));
+    std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" + topic + "/partitions";
+
+    int res = makePutRequest(topicOperateUrl, "2");
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    ClientConfiguration clientConf;
+    clientConf.setPartititionsUpdateInterval(1);
+    Client client(serviceUrl, clientConf);
+    ProducerConfiguration conf;
+    Producer producer;
+    client.createProducer(topic, conf, producer);
+    waitUntil(std::chrono::seconds(1), [&producer]() -> bool { return producer.isConnected(); });
+    ASSERT_TRUE(producer.isConnected());
+
+    PartitionedProducerImpl& partitionedProducer = PulsarFriend::getPartitionedProducerImpl(producer);
+    PulsarFriend::updatePartitions(partitionedProducer, 3);
+    std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    auto& new_producer = PulsarFriend::getInternalProducerImpl(producer, 2);
+    ASSERT_FALSE(new_producer.isConnected());  // should fail with topic not found
+
+    res = makePostRequest(topicOperateUrl, "3");
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    waitUntil(std::chrono::seconds(5), [&new_producer]() -> bool { return new_producer.isConnected(); });
+    ASSERT_TRUE(new_producer.isConnected());
+
+    producer.close();
+    client.close();
+}
+
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerTest, ::testing::Values(true, false));
