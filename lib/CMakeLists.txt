@@ -113,6 +113,19 @@ if (BUILD_STATIC_LIB)
     target_compile_definitions(pulsarStatic PRIVATE PULSAR_STATIC)
 endif()
 
+if (INTEGRATE_VCPKG)
+    # TODO: support MSVC
+    if (NOT MSVC)
+        add_custom_target(pulsarStaticWithDeps
+            ALL
+            BYPRODUCTS merged-library
+            COMMAND ${CMAKE_SOURCE_DIR}/build-support/merge_archives_vcpkg.sh ${CMAKE_BINARY_DIR}
+            DEPENDS pulsarStatic
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+        install(PROGRAMS ${CMAKE_BINARY_DIR}/lib/libpulsarwithdeps.a DESTINATION lib)
+    endif ()
+endif ()
+
 # When linking statically, install a libpulsar.a that contains all the
 # required dependencies except ssl
 if (LINK_STATIC AND BUILD_STATIC_LIB)

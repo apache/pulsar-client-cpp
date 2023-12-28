@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 #
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
@@ -17,31 +18,15 @@
 # under the License.
 #
 
-# Build pulsar client library in Centos with tools to
+set -e
+cd `dirname $0`
 
-FROM ubuntu:22.04
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 <cmake-build-directory>"
+    exit 1
+fi
 
-ARG PLATFORM
-
-RUN apt-get update -y && \
-     apt-get install -y \
-        g++ \
-        ninja-build \
-        python3 \
-        git \
-        curl \
-        zip \
-        unzip \
-        tar \
-        pkg-config \
-        dpkg-dev
-
-# CMake >= 3.15 is required for vcpkg
-WORKDIR /app
-RUN if [[ $ARCH == "arm64" ]]; then SUFFIX="aarch64"; else SUFFIX="x86_64"; fi && \
-    curl -O -L https://github.com/Kitware/CMake/releases/download/v3.28.1/cmake-3.28.1-linux-${PLATFORM}.tar.gz && \
-    tar zxf cmake-3.28.1-linux-${PLATFORM}.tar.gz && \
-    mv cmake-3.28.1-linux-${PLATFORM}/ cmake/ && \
-    rm -f cmake-3.28.1-linux-*.tar.gz
-ENV PATH="/app/cmake/bin:$PATH"
-ENV ARCH=${PLATFORM}
+CMAKE_BUILD_DIRECTORY=$1
+./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
+    $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
+    $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed" -name "*.a" | grep -v debug)
