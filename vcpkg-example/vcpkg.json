@@ -1,0 +1,11 @@
+{
+  "name": "vcpkg-pulsar-demo",
+  "version-string": "0.1.0",
+  "builtin-baseline": "38d1652f152d36481f2f4e8a85c0f1e14f3769f7",
+  "dependencies": [
+    {
+      "name": "pulsar-client-cpp",
+      "version>=": "3.4.2#1"
+    }
+  ]
+}
