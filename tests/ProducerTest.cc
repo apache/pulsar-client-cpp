@@ -663,20 +663,19 @@ TEST(ProducerTest, testFailedToCreateNewPartitionProducer) {
     ProducerConfiguration conf;
     Producer producer;
     client.createProducer(topic, conf, producer);
-    waitUntil(std::chrono::seconds(1), [&producer]() -> bool { return producer.isConnected(); });
-    ASSERT_TRUE(producer.isConnected());
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(1), [&producer]() -> bool { return producer.isConnected(); }));
 
     PartitionedProducerImpl& partitionedProducer = PulsarFriend::getPartitionedProducerImpl(producer);
     PulsarFriend::updatePartitions(partitionedProducer, 3);
     std::this_thread::sleep_for(std::chrono::milliseconds(500));
-    auto& new_producer = PulsarFriend::getInternalProducerImpl(producer, 2);
-    ASSERT_FALSE(new_producer.isConnected());  // should fail with topic not found
+    auto& newProducer = PulsarFriend::getInternalProducerImpl(producer, 2);
+    ASSERT_FALSE(newProducer.isConnected());  // should fail with topic not found
 
     res = makePostRequest(topicOperateUrl, "3");
     ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
 
-    waitUntil(std::chrono::seconds(5), [&new_producer]() -> bool { return new_producer.isConnected(); });
-    ASSERT_TRUE(new_producer.isConnected());
+    ASSERT_TRUE(
+        waitUntil(std::chrono::seconds(5), [&newProducer]() -> bool { return newProducer.isConnected(); }));
 
     producer.close();
     client.close();
