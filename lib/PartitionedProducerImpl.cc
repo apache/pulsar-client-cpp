@@ -92,10 +92,12 @@ unsigned int PartitionedProducerImpl::getNumPartitionsWithLock() const {
     return getNumPartitions();
 }
 
-ProducerImplPtr PartitionedProducerImpl::newInternalProducer(unsigned int partition, bool lazy) {
+ProducerImplPtr PartitionedProducerImpl::newInternalProducer(unsigned int partition, bool lazy,
+                                                             bool retryOnCreationError) {
     using namespace std::placeholders;
     auto client = client_.lock();
-    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, interceptors_, partition);
+    auto producer = std::make_shared<ProducerImpl>(client, *topicName_, conf_, interceptors_, partition,
+                                                   retryOnCreationError);
     if (!client) {
         return producer;
     }
@@ -127,13 +129,13 @@ void PartitionedProducerImpl::start() {
 
         for (unsigned int i = 0; i < getNumPartitions(); i++) {
             bool lazy = (short)i != partition;
-            producers_.push_back(newInternalProducer(i, lazy));
+            producers_.push_back(newInternalProducer(i, lazy, false));
         }
 
         producers_[partition]->start();
     } else {
         for (unsigned int i = 0; i < getNumPartitions(); i++) {
-            producers_.push_back(newInternalProducer(i, false));
+            producers_.push_back(newInternalProducer(i, false, false));
         }
 
         for (ProducerList::const_iterator prod = producers_.begin(); prod != producers_.end(); prod++) {
@@ -461,7 +463,7 @@ void PartitionedProducerImpl::handleGetPartitions(Result result,
             for (unsigned int i = currentNumPartitions; i < newNumPartitions; i++) {
                 ProducerImplPtr producer;
                 try {
-                    producer = newInternalProducer(i, lazy);
+                    producer = newInternalProducer(i, lazy, true);
                 } catch (const std::runtime_error& e) {
                     LOG_ERROR("Failed to create producer for partition " << i << ": " << e.what());
                     producers.clear();

@@ -66,7 +66,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
    public:
     ProducerImpl(ClientImplPtr client, const TopicName& topic,
                  const ProducerConfiguration& producerConfiguration,
-                 const ProducerInterceptorsPtr& interceptors, int32_t partition = -1);
+                 const ProducerInterceptorsPtr& interceptors, int32_t partition = -1,
+                 bool retryOnCreationError = false);
     ~ProducerImpl();
 
     // overrided methods from ProducerImplBase
@@ -202,6 +203,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     boost::optional<uint64_t> topicEpoch;
 
     ProducerInterceptorsPtr interceptors_;
+
+    bool retryOnCreationError_;
 };
 
 struct ProducerImplCmp {

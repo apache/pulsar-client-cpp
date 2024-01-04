@@ -48,7 +48,7 @@ DECLARE_LOG_OBJECT()
 
 ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
                            const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
-                           int32_t partition)
+                           int32_t partition, bool retryOnCreationError)
     : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
                   Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
                           milliseconds(client->getClientConfig().getMaxBackoffIntervalMs()),
@@ -67,7 +67,8 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
       dataKeyRefreshTask_(*executor_, 4 * 60 * 60 * 1000),
       memoryLimitController_(client->getMemoryLimitController()),
       chunkingEnabled_(conf_.isChunkingEnabled() && topicName.isPersistent() && !conf_.getBatchingEnabled()),
-      interceptors_(interceptors) {
+      interceptors_(interceptors),
+      retryOnCreationError_(retryOnCreationError) {
     LOG_DEBUG("ProducerName - " << producerName_ << " Created producer on topic " << topic()
                                 << " id: " << producerId_);
     if (!producerName_.empty()) {
@@ -273,7 +274,7 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
             lock.unlock();
             producerCreatedPromise_.setFailed(result);
             handleResult = result;
-        } else if (producerCreatedPromise_.isComplete()) {
+        } else if (producerCreatedPromise_.isComplete() || retryOnCreationError_) {
             if (result == ResultProducerBlockedQuotaExceededException) {
                 LOG_WARN(getName() << "Backlog is exceeded on topic. Sending exception to producer");
                 failPendingMessages(ResultProducerBlockedQuotaExceededException, false);
