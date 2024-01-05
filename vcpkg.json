@@ -37,10 +37,6 @@
       "version>=": "1.83.0"
     },
     {
-      "name": "boost-random",
-      "version>=": "1.83.0"
-    },
-    {
       "name": "boost-serialization",
       "version>=": "1.83.0"
     },

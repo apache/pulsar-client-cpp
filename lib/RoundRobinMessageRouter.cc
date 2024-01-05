@@ -18,8 +18,7 @@
  */
 #include "RoundRobinMessageRouter.h"
 
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int_distribution.hpp>
+#include <random>
 
 #include "Hash.h"
 #include "TimeUtils.h"
@@ -37,8 +36,8 @@ RoundRobinMessageRouter::RoundRobinMessageRouter(ProducerConfiguration::HashingS
       lastPartitionChange_(TimeUtils::currentTimeMillis()),
       msgCounter_(0),
       cumulativeBatchSize_(0) {
-    boost::random::mt19937 rng(time(nullptr));
-    boost::random::uniform_int_distribution<int> dist;
+    std::mt19937 rng(time(nullptr));
+    std::uniform_int_distribution<int> dist;
     currentPartitionCursor_ = dist(rng);
 }
 

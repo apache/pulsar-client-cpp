@@ -21,7 +21,6 @@
 #include <time.h> /* time */
 
 #include <algorithm>
-#include <boost/random/uniform_int_distribution.hpp>
 
 namespace pulsar {
 
@@ -47,7 +46,7 @@ TimeDuration Backoff::next() {
         }
     }
     // Add Randomness
-    boost::random::uniform_int_distribution<int> dist;
+    std::uniform_int_distribution<int> dist;
     int randomNumber = dist(rng_);
 
     current = current - (current * (randomNumber % 10) / 100);
