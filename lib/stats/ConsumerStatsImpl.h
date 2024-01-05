@@ -20,17 +20,16 @@
 #ifndef PULSAR_CONSUMER_STATS_IMPL_H_
 #define PULSAR_CONSUMER_STATS_IMPL_H_
 
-#include <boost/asio/deadline_timer.hpp>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <utility>
 
 #include "ConsumerStatsBase.h"
+#include "lib/AsioTimer.h"
 #include "lib/ExecutorService.h"
 namespace pulsar {
 
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
@@ -58,7 +57,7 @@ class ConsumerStatsImpl : public std::enable_shared_from_this<ConsumerStatsImpl>
    public:
     ConsumerStatsImpl(std::string, ExecutorServicePtr, unsigned int);
     ConsumerStatsImpl(const ConsumerStatsImpl& stats);
-    void flushAndReset(const boost::system::error_code&);
+    void flushAndReset(const ASIO_ERROR&);
     void start() override;
     void receivedMessage(Message&, Result) override;
     void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums) override;

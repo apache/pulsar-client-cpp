@@ -27,6 +27,8 @@ DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
+using std::chrono::seconds;
+
 PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(
     ClientImplPtr client, const std::string pattern, CommandGetTopicsOfNamespace_Mode getTopicsMode,
     const std::vector<std::string>& topics, const std::string& subscriptionName,
@@ -49,15 +51,15 @@ void PatternMultiTopicsConsumerImpl::resetAutoDiscoveryTimer() {
     autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
 
     auto weakSelf = weak_from_this();
-    autoDiscoveryTimer_->async_wait([weakSelf](const boost::system::error_code& err) {
+    autoDiscoveryTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
         if (auto self = weakSelf.lock()) {
             self->autoDiscoveryTimerTask(err);
         }
     });
 }
 
-void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const boost::system::error_code& err) {
-    if (err == boost::asio::error::operation_aborted) {
+void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const ASIO_ERROR& err) {
+    if (err == ASIO::error::operation_aborted) {
         LOG_DEBUG(getName() << "Timer cancelled: " << err.message());
         return;
     } else if (err) {
@@ -228,7 +230,7 @@ void PatternMultiTopicsConsumerImpl::start() {
     if (conf_.getPatternAutoDiscoveryPeriod() > 0) {
         autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
         auto weakSelf = weak_from_this();
-        autoDiscoveryTimer_->async_wait([weakSelf](const boost::system::error_code& err) {
+        autoDiscoveryTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
             if (auto self = weakSelf.lock()) {
                 self->autoDiscoveryTimerTask(err);
             }
@@ -247,6 +249,6 @@ void PatternMultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
 }
 
 void PatternMultiTopicsConsumerImpl::cancelTimers() noexcept {
-    boost::system::error_code ec;
+    ASIO_ERROR ec;
     autoDiscoveryTimer_->cancel(ec);
 }

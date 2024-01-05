@@ -20,7 +20,7 @@
 
 #include <pulsar/MessageIdBuilder.h>
 
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <chrono>
 
 #include "BatchMessageContainer.h"
 #include "BatchMessageKeyBasedContainer.h"
@@ -45,6 +45,8 @@
 
 namespace pulsar {
 DECLARE_LOG_OBJECT()
+
+using std::chrono::milliseconds;
 
 ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
                            const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
@@ -465,7 +467,7 @@ void ProducerImpl::sendAsync(const Message& msg, SendCallback callback) {
     Producer producer = Producer(shared_from_this());
     auto interceptorMessage = interceptors_->beforeSend(producer, msg);
 
-    const auto now = boost::posix_time::microsec_clock::universal_time();
+    const auto now = TimeUtils::now();
     auto self = shared_from_this();
     sendAsyncWithStatsUpdate(interceptorMessage, [this, self, now, callback, producer, interceptorMessage](
                                                      Result result, const MessageId& messageId) {
@@ -564,10 +566,9 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& c
         bool isFirstMessage = batchMessageContainer_->isFirstMessageToAdd(msg);
         bool isFull = batchMessageContainer_->add(msg, callback);
         if (isFirstMessage) {
-            batchTimer_->expires_from_now(
-                boost::posix_time::milliseconds(conf_.getBatchingMaxPublishDelayMs()));
+            batchTimer_->expires_from_now(milliseconds(conf_.getBatchingMaxPublishDelayMs()));
             auto weakSelf = weak_from_this();
-            batchTimer_->async_wait([this, weakSelf](const boost::system::error_code& ec) {
+            batchTimer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
                 auto self = weakSelf.lock();
                 if (!self) {
                     return;
@@ -824,14 +825,14 @@ Future<Result, ProducerImplBaseWeakPtr> ProducerImpl::getProducerCreatedFuture()
 
 uint64_t ProducerImpl::getProducerId() const { return producerId_; }
 
-void ProducerImpl::handleSendTimeout(const boost::system::error_code& err) {
+void ProducerImpl::handleSendTimeout(const ASIO_ERROR& err) {
     const auto state = state_.load();
     if (state != Pending && state != Ready) {
         return;
     }
     Lock lock(mutex_);
 
-    if (err == boost::asio::error::operation_aborted) {
+    if (err == ASIO::error::operation_aborted) {
         LOG_DEBUG(getName() << "Timer cancelled: " << err.message());
         return;
     } else if (err) {
@@ -847,8 +848,8 @@ void ProducerImpl::handleSendTimeout(const boost::system::error_code& err) {
     } else {
         // If there is at least one message, calculate the diff between the message timeout and
         // the current time.
-        time_duration diff = pendingMessagesQueue_.front()->timeout - TimeUtils::now();
-        if (diff.total_milliseconds() <= 0) {
+        auto diff = pendingMessagesQueue_.front()->timeout - TimeUtils::now();
+        if (toMillis(diff) <= 0) {
             // The diff is less than or equal to zero, meaning that the message has been expired.
             LOG_DEBUG(getName() << "Timer expired. Calling timeout callbacks.");
             pendingMessages = getPendingCallbacksWhenFailed();
@@ -856,7 +857,7 @@ void ProducerImpl::handleSendTimeout(const boost::system::error_code& err) {
             asyncWaitSendTimeout(milliseconds(conf_.getSendTimeout()));
         } else {
             // The diff is greater than zero, set the timeout to the diff value
-            LOG_DEBUG(getName() << "Timer hasn't expired yet, setting new timeout " << diff);
+            LOG_DEBUG(getName() << "Timer hasn't expired yet, setting new timeout " << diff.count());
             asyncWaitSendTimeout(diff);
         }
     }
@@ -1000,7 +1001,7 @@ void ProducerImpl::shutdown() {
 
 void ProducerImpl::cancelTimers() noexcept {
     dataKeyRefreshTask_.stop();
-    boost::system::error_code ec;
+    ASIO_ERROR ec;
     batchTimer_->cancel(ec);
     sendTimer_->cancel(ec);
 }
@@ -1026,7 +1027,7 @@ void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
     sendTimer_->expires_from_now(expiryTime);
 
     auto weakSelf = weak_from_this();
-    sendTimer_->async_wait([weakSelf](const boost::system::error_code& err) {
+    sendTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
         auto self = weakSelf.lock();
         if (self) {
             std::static_pointer_cast<ProducerImpl>(self)->handleSendTimeout(err);

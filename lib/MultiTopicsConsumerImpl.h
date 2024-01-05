@@ -32,6 +32,7 @@
 #include "LookupDataResult.h"
 #include "SynchronizedHashMap.h"
 #include "TestUtil.h"
+#include "TimeUtils.h"
 #include "UnboundedBlockingQueue.h"
 
 namespace pulsar {
@@ -119,7 +120,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     std::atomic_int incomingMessagesSize_ = {0};
     MessageListener messageListener_;
     DeadlineTimerPtr partitionsUpdateTimer_;
-    boost::posix_time::time_duration partitionsUpdateInterval_;
+    TimeDuration partitionsUpdateInterval_;
     LookupServicePtr lookupServicePtr_;
     std::shared_ptr<std::atomic<int>> numberTopicPartitions_;
     std::atomic<Result> failedResult{ResultOk};

@@ -46,7 +46,7 @@ ConsumerStatsImpl::ConsumerStatsImpl(const ConsumerStatsImpl& stats)
       totalAckedMsgMap_(stats.totalAckedMsgMap_),
       statsIntervalInSeconds_(stats.statsIntervalInSeconds_) {}
 
-void ConsumerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
+void ConsumerStatsImpl::flushAndReset(const ASIO_ERROR& ec) {
     if (ec) {
         LOG_DEBUG("Ignoring timer cancelled event, code[" << ec << "]");
         return;
@@ -85,9 +85,9 @@ void ConsumerStatsImpl::messageAcknowledged(Result res, CommandAck_AckType ackTy
 }
 
 void ConsumerStatsImpl::scheduleTimer() {
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
+    timer_->expires_from_now(std::chrono::seconds(statsIntervalInSeconds_));
     std::weak_ptr<ConsumerStatsImpl> weakSelf{shared_from_this()};
-    timer_->async_wait([this, weakSelf](const boost::system::error_code& ec) {
+    timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (!self) {
             return;

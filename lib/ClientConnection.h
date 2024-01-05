@@ -23,13 +23,20 @@
 #include <pulsar/defines.h>
 
 #include <atomic>
-#include <boost/any.hpp>
+#ifdef USE_ASIO
+#include <asio/bind_executor.hpp>
+#include <asio/io_service.hpp>
+#include <asio/ip/tcp.hpp>
+#include <asio/ssl/stream.hpp>
+#include <asio/strand.hpp>
+#else
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/deadline_timer.hpp>
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/strand.hpp>
+#endif
+#include <boost/any.hpp>
 #include <boost/optional.hpp>
 #include <deque>
 #include <functional>
@@ -37,19 +44,18 @@
 #include <string>
 #include <vector>
 
+#include "AsioTimer.h"
 #include "Commands.h"
 #include "GetLastMessageIdResponse.h"
 #include "LookupDataResult.h"
 #include "SharedBuffer.h"
+#include "TimeUtils.h"
 #include "UtilAllocator.h"
-
 namespace pulsar {
 
 class PulsarFriend;
 
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
-using TimeDuration = boost::posix_time::time_duration;
-using TcpResolverPtr = std::shared_ptr<boost::asio::ip::tcp::resolver>;
+using TcpResolverPtr = std::shared_ptr<ASIO::ip::tcp::resolver>;
 
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
@@ -114,10 +120,10 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     };
 
    public:
-    typedef std::shared_ptr<boost::asio::ip::tcp::socket> SocketPtr;
-    typedef std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket&>> TlsSocketPtr;
+    typedef std::shared_ptr<ASIO::ip::tcp::socket> SocketPtr;
+    typedef std::shared_ptr<ASIO::ssl::stream<ASIO::ip::tcp::socket&>> TlsSocketPtr;
     typedef std::shared_ptr<ClientConnection> ConnectionPtr;
-    typedef std::function<void(const boost::system::error_code&, ConnectionPtr)> ConnectionListener;
+    typedef std::function<void(const ASIO_ERROR&, ConnectionPtr)> ConnectionListener;
     typedef std::vector<ConnectionListener>::iterator ListenerIterator;
 
     /*
@@ -224,17 +230,16 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * although not usable at this point, since this is just tcp connection
      * Pulsar - Connect/Connected has yet to happen
      */
-    void handleTcpConnected(const boost::system::error_code& err,
-                            boost::asio::ip::tcp::resolver::iterator endpointIterator);
+    void handleTcpConnected(const ASIO_ERROR& err, ASIO::ip::tcp::resolver::iterator endpointIterator);
 
-    void handleHandshake(const boost::system::error_code& err);
+    void handleHandshake(const ASIO_ERROR& err);
 
-    void handleSentPulsarConnect(const boost::system::error_code& err, const SharedBuffer& buffer);
-    void handleSentAuthResponse(const boost::system::error_code& err, const SharedBuffer& buffer);
+    void handleSentPulsarConnect(const ASIO_ERROR& err, const SharedBuffer& buffer);
+    void handleSentAuthResponse(const ASIO_ERROR& err, const SharedBuffer& buffer);
 
     void readNextCommand();
 
-    void handleRead(const boost::system::error_code& err, size_t bytesTransferred, uint32_t minReadSize);
+    void handleRead(const ASIO_ERROR& err, size_t bytesTransferred, uint32_t minReadSize);
 
     void processIncomingBuffer();
     bool verifyChecksum(SharedBuffer& incomingBuffer_, uint32_t& remainingBytes,
@@ -248,19 +253,18 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void handlePulsarConnected(const proto::CommandConnected& cmdConnected);
 
-    void handleResolve(const boost::system::error_code& err,
-                       boost::asio::ip::tcp::resolver::iterator endpointIterator);
+    void handleResolve(const ASIO_ERROR& err, ASIO::ip::tcp::resolver::iterator endpointIterator);
 
-    void handleSend(const boost::system::error_code& err, const SharedBuffer& cmd);
-    void handleSendPair(const boost::system::error_code& err);
+    void handleSend(const ASIO_ERROR& err, const SharedBuffer& cmd);
+    void handleSendPair(const ASIO_ERROR& err);
     void sendPendingCommands();
     void newLookup(const SharedBuffer& cmd, const uint64_t requestId, LookupDataResultPromisePtr promise);
 
-    void handleRequestTimeout(const boost::system::error_code& ec, PendingRequestData pendingRequestData);
+    void handleRequestTimeout(const ASIO_ERROR& ec, PendingRequestData pendingRequestData);
 
-    void handleLookupTimeout(const boost::system::error_code&, LookupRequestData);
+    void handleLookupTimeout(const ASIO_ERROR&, LookupRequestData);
 
-    void handleGetLastMessageIdTimeout(const boost::system::error_code&, LastMessageIdRequestData data);
+    void handleGetLastMessageIdTimeout(const ASIO_ERROR&, LastMessageIdRequestData data);
 
     void handleKeepAliveTimeout();
 
@@ -280,13 +284,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
             return;
         }
         if (tlsSocket_) {
-#if BOOST_VERSION >= 106600
-            boost::asio::async_write(*tlsSocket_, buffers, boost::asio::bind_executor(strand_, handler));
-#else
-            boost::asio::async_write(*tlsSocket_, buffers, strand_.wrap(handler));
-#endif
+            ASIO::async_write(*tlsSocket_, buffers, ASIO::bind_executor(strand_, handler));
         } else {
-            boost::asio::async_write(*socket_, buffers, handler);
+            ASIO::async_write(*socket_, buffers, handler);
         }
     }
 
@@ -296,11 +296,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
             return;
         }
         if (tlsSocket_) {
-#if BOOST_VERSION >= 106600
-            tlsSocket_->async_read_some(buffers, boost::asio::bind_executor(strand_, handler));
-#else
-            tlsSocket_->async_read_some(buffers, strand_.wrap(handler));
-#endif
+            tlsSocket_->async_read_some(buffers, ASIO::bind_executor(strand_, handler));
         } else {
             socket_->async_receive(buffers, handler);
         }
@@ -321,11 +317,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     SocketPtr socket_;
     TlsSocketPtr tlsSocket_;
-#if BOOST_VERSION >= 106600
-    boost::asio::strand<boost::asio::io_service::executor_type> strand_;
-#else
-    boost::asio::io_service::strand strand_;
-#endif
+    ASIO::strand<ASIO::io_service::executor_type> strand_;
 
     const std::string logicalAddress_;
     /*
@@ -343,7 +335,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     /*
      *  indicates if async connection establishment failed
      */
-    boost::system::error_code error_;
+    ASIO_ERROR error_;
 
     SharedBuffer incomingBuffer_;
 
@@ -392,8 +384,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
 
-    void handleConsumerStatsTimeout(const boost::system::error_code& ec,
-                                    std::vector<uint64_t> consumerStatsRequests);
+    void handleConsumerStatsTimeout(const ASIO_ERROR& ec, std::vector<uint64_t> consumerStatsRequests);
 
     void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
     uint32_t maxPendingLookupRequest_;

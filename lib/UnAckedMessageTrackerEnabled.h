@@ -18,13 +18,13 @@
  */
 #ifndef LIB_UNACKEDMESSAGETRACKERENABLED_H_
 #define LIB_UNACKEDMESSAGETRACKERENABLED_H_
-#include <boost/asio/deadline_timer.hpp>
 #include <deque>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <set>
 
+#include "AsioTimer.h"
 #include "TestUtil.h"
 #include "UnAckedMessageTrackerInterface.h"
 
@@ -33,7 +33,6 @@ namespace pulsar {
 class ClientImpl;
 class ConsumerImplBase;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 
 class UnAckedMessageTrackerEnabled : public std::enable_shared_from_this<UnAckedMessageTrackerEnabled>,
                                      public UnAckedMessageTrackerInterface {

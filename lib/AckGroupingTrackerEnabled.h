@@ -22,18 +22,17 @@
 #include <pulsar/MessageId.h>
 
 #include <atomic>
-#include <boost/asio/deadline_timer.hpp>
 #include <cstdint>
 #include <mutex>
 #include <set>
 
 #include "AckGroupingTracker.h"
+#include "AsioTimer.h"
 
 namespace pulsar {
 
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 class HandlerBase;

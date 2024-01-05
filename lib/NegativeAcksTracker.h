@@ -23,12 +23,13 @@
 #include <pulsar/MessageId.h>
 
 #include <atomic>
-#include <boost/asio/deadline_timer.hpp>
 #include <chrono>
 #include <map>
 #include <memory>
 #include <mutex>
 
+#include "AsioDefines.h"
+#include "AsioTimer.h"
 #include "TestUtil.h"
 
 namespace pulsar {
@@ -36,7 +37,6 @@ namespace pulsar {
 class ConsumerImpl;
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
@@ -56,13 +56,13 @@ class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTrac
 
    private:
     void scheduleTimer();
-    void handleTimer(const boost::system::error_code &ec);
+    void handleTimer(const ASIO_ERROR &ec);
 
     ConsumerImpl &consumer_;
     std::mutex mutex_;
 
     std::chrono::milliseconds nackDelay_;
-    boost::posix_time::milliseconds timerInterval_;
+    std::chrono::milliseconds timerInterval_;
     typedef typename std::chrono::steady_clock Clock;
     std::map<MessageId, Clock::time_point> nackedMessages_;
 

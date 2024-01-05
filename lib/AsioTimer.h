@@ -16,24 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#pragma once
 
-#ifndef PULSAR_PRODUCER_STATS_BASE_HEADER
-#define PULSAR_PRODUCER_STATS_BASE_HEADER
-#include <pulsar/Message.h>
-#include <pulsar/Result.h>
+#ifdef USE_ASIO
+#include <asio/steady_timer.hpp>
+#else
+#include <boost/asio/steady_timer.hpp>
+#endif
 
-#include "lib/TimeUtils.h"
+#include <memory>
 
-namespace pulsar {
-class ProducerStatsBase {
-   public:
-    virtual void start() {}
-    virtual void messageSent(const Message& msg) = 0;
-    virtual void messageReceived(Result, const ptime&) = 0;
-    virtual ~ProducerStatsBase(){};
-};
+#include "AsioDefines.h"
 
-typedef std::shared_ptr<ProducerStatsBase> ProducerStatsBasePtr;
-}  // namespace pulsar
-
-#endif  // PULSAR_PRODUCER_STATS_BASE_HEADER
+using DeadlineTimerPtr = std::shared_ptr<ASIO::steady_timer>;

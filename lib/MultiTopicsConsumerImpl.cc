@@ -18,6 +18,7 @@
  */
 #include "MultiTopicsConsumerImpl.h"
 
+#include <chrono>
 #include <stdexcept>
 
 #include "ClientImpl.h"
@@ -36,6 +37,9 @@
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
+
+using std::chrono::milliseconds;
+using std::chrono::seconds;
 
 MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName,
                                                  int numPartitions, const std::string& subscriptionName,
@@ -90,7 +94,7 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std
     auto partitionsUpdateInterval = static_cast<unsigned int>(client->conf().getPartitionsUpdateInterval());
     if (partitionsUpdateInterval > 0) {
         partitionsUpdateTimer_ = listenerExecutor_->createDeadlineTimer();
-        partitionsUpdateInterval_ = boost::posix_time::seconds(partitionsUpdateInterval);
+        partitionsUpdateInterval_ = seconds(partitionsUpdateInterval);
         lookupServicePtr_ = client->getLookup();
     }
 
@@ -936,7 +940,7 @@ uint64_t MultiTopicsConsumerImpl::getNumberOfConnectedConsumer() {
 void MultiTopicsConsumerImpl::runPartitionUpdateTask() {
     partitionsUpdateTimer_->expires_from_now(partitionsUpdateInterval_);
     auto weakSelf = weak_from_this();
-    partitionsUpdateTimer_->async_wait([weakSelf](const boost::system::error_code& ec) {
+    partitionsUpdateTimer_->async_wait([weakSelf](const ASIO_ERROR& ec) {
         // If two requests call runPartitionUpdateTask at the same time, the timer will fail, and it
         // cannot continue at this time, and the request needs to be ignored.
         auto self = weakSelf.lock();
@@ -1087,7 +1091,7 @@ void MultiTopicsConsumerImpl::beforeConnectionChange(ClientConnection& cnx) {
 
 void MultiTopicsConsumerImpl::cancelTimers() noexcept {
     if (partitionsUpdateTimer_) {
-        boost::system::error_code ec;
+        ASIO_ERROR ec;
         partitionsUpdateTimer_->cancel(ec);
     }
 }

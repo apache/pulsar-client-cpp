@@ -22,11 +22,18 @@
 #include <assert.h>
 
 #include <array>
+#ifdef USE_ASIO
+#include <asio/buffer.hpp>
+#include <asio/detail/socket_ops.hpp>
+#else
 #include <boost/asio/buffer.hpp>
 #include <boost/asio/detail/socket_ops.hpp>
+#endif
 #include <memory>
 #include <string>
 #include <utility>
+
+#include "AsioDefines.h"
 
 namespace pulsar {
 
@@ -144,13 +151,13 @@ class SharedBuffer {
 
     inline bool writable() const { return writableBytes() > 0; }
 
-    boost::asio::const_buffers_1 const_asio_buffer() const {
-        return boost::asio::const_buffers_1(ptr_ + readIdx_, readableBytes());
+    ASIO::const_buffers_1 const_asio_buffer() const {
+        return ASIO::const_buffers_1(ptr_ + readIdx_, readableBytes());
     }
 
-    boost::asio::mutable_buffers_1 asio_buffer() {
+    ASIO::mutable_buffers_1 asio_buffer() {
         assert(data_);
-        return boost::asio::buffer(ptr_ + writeIdx_, writableBytes());
+        return ASIO::buffer(ptr_ + writeIdx_, writableBytes());
     }
 
     void write(const char* data, uint32_t size) {
@@ -239,17 +246,17 @@ class CompositeSharedBuffer {
     }
 
     // Implement the ConstBufferSequence requirements.
-    typedef boost::asio::const_buffer value_type;
-    typedef boost::asio::const_buffer* iterator;
-    typedef const boost::asio::const_buffer* const_iterator;
+    typedef ASIO::const_buffer value_type;
+    typedef ASIO::const_buffer* iterator;
+    typedef const ASIO::const_buffer* const_iterator;
 
-    const boost::asio::const_buffer* begin() const { return &(asioBuffers_.at(0)); }
+    const ASIO::const_buffer* begin() const { return &(asioBuffers_.at(0)); }
 
-    const boost::asio::const_buffer* end() const { return begin() + Size; }
+    const ASIO::const_buffer* end() const { return begin() + Size; }
 
    private:
     std::array<SharedBuffer, Size> sharedBuffers_;
-    std::array<boost::asio::const_buffer, Size> asioBuffers_;
+    std::array<ASIO::const_buffer, Size> asioBuffers_;
 };
 
 typedef CompositeSharedBuffer<2> PairSharedBuffer;

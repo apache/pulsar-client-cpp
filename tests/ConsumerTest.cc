@@ -955,7 +955,7 @@ TEST(ConsumerTest, testGetLastMessageIdBlockWhenConnectionDisconnected) {
     auto elapsed = TimeUtils::now() - start;
 
     // getLastMessageIdAsync should be blocked until operationTimeout when the connection is disconnected.
-    ASSERT_GE(elapsed.seconds(), operationTimeout);
+    ASSERT_GE(std::chrono::duration_cast<std::chrono::seconds>(elapsed).count(), operationTimeout);
 }
 
 TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages) {

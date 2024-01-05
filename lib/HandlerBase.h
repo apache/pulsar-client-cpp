@@ -20,19 +20,16 @@
 #define _PULSAR_HANDLER_BASE_HEADER_
 #include <pulsar/Result.h>
 
-#include <boost/asio/deadline_timer.hpp>
 #include <memory>
 #include <mutex>
 #include <string>
 
+#include "AsioTimer.h"
 #include "Backoff.h"
 #include "Future.h"
+#include "TimeUtils.h"
 
 namespace pulsar {
-
-using namespace boost::posix_time;
-using boost::posix_time::milliseconds;
-using boost::posix_time::seconds;
 
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
@@ -42,7 +39,6 @@ using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 
 class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
    public:
@@ -95,7 +91,7 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
 
     void handleDisconnection(Result result, const ClientConnectionPtr& cnx);
 
-    void handleTimeout(const boost::system::error_code& ec);
+    void handleTimeout(const ASIO_ERROR& ec);
 
    protected:
     ClientImplWeakPtr client_;

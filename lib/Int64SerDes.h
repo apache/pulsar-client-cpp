@@ -20,7 +20,12 @@
 
 #include <stdint.h>
 
-#include <boost/asio.hpp>  // for ntohl
+// for ntohl
+#ifdef USE_ASIO
+#include <asio/detail/socket_ops.hpp>
+#else
+#include <boost/asio/detail/socket_ops.hpp>
+#endif
 
 namespace pulsar {
 

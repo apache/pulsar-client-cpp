@@ -19,8 +19,11 @@
 
 cmake_minimum_required(VERSION 3.13)
 
+option(USE_ASIO "Use Asio instead of Boost.Asio" OFF)
+
 option(INTEGRATE_VCPKG "Integrate with Vcpkg" OFF)
 if (INTEGRATE_VCPKG)
+    set(USE_ASIO ON)
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
 endif ()
 
@@ -129,6 +132,10 @@ if (INTEGRATE_VCPKG)
         $<IF:$<TARGET_EXISTS:zstd::libzstd_shared>,zstd::libzstd_shared,zstd::libzstd_static>
         Snappy::snappy
         )
+    if (USE_ASIO)
+        find_package(asio CONFIG REQUIRED)
+        set(COMMON_LIBS ${COMMON_LIBS} asio::asio)
+    endif ()
     add_definitions(-DHAS_ZSTD -DHAS_SNAPPY)
     if (MSVC)
         find_package(dlfcn-win32 CONFIG REQUIRED)
@@ -138,6 +145,10 @@ if (INTEGRATE_VCPKG)
     endif ()
 else ()
     include(./LegacyFindPackages.cmake)
+endif ()
+
+if (USE_ASIO)
+    add_definitions(-DUSE_ASIO)
 endif ()
 
 set(LIB_NAME $ENV{PULSAR_LIBRARY_NAME})

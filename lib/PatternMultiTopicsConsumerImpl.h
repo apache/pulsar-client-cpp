@@ -22,6 +22,7 @@
 #include <string>
 #include <vector>
 
+#include "AsioTimer.h"
 #include "LookupDataResult.h"
 #include "MultiTopicsConsumerImpl.h"
 #include "NamespaceName.h"
@@ -56,7 +57,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
 
     const PULSAR_REGEX_NAMESPACE::regex getPattern();
 
-    void autoDiscoveryTimerTask(const boost::system::error_code& err);
+    void autoDiscoveryTimerTask(const ASIO_ERROR& err);
 
     // filter input `topics` with given `pattern`, return matched topics. Do not match topic domain.
     static NamespaceTopicsPtr topicsPatternFilter(const std::vector<std::string>& topics,
@@ -74,7 +75,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     const std::string patternString_;
     const PULSAR_REGEX_NAMESPACE::regex pattern_;
     const CommandGetTopicsOfNamespace_Mode getTopicsMode_;
-    typedef std::shared_ptr<boost::asio::deadline_timer> TimerPtr;
+    typedef std::shared_ptr<ASIO::steady_timer> TimerPtr;
     TimerPtr autoDiscoveryTimer_;
     bool autoDiscoveryRunning_;
     NamespaceNamePtr namespaceName_;

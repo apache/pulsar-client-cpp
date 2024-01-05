@@ -170,7 +170,7 @@ class PulsarFriend {
         handler.connection_ = conn;
     }
 
-    static boost::posix_time::ptime& getFirstBackoffTime(Backoff& backoff) {
+    static auto getFirstBackoffTime(Backoff& backoff) -> decltype(backoff.firstBackoffTime_)& {
         return backoff.firstBackoffTime_;
     }
 

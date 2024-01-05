@@ -58,7 +58,7 @@ PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const Top
     if (partitionsUpdateInterval > 0) {
         listenerExecutor_ = client->getListenerExecutorProvider()->get();
         partitionsUpdateTimer_ = listenerExecutor_->createDeadlineTimer();
-        partitionsUpdateInterval_ = boost::posix_time::seconds(partitionsUpdateInterval);
+        partitionsUpdateInterval_ = std::chrono::seconds(partitionsUpdateInterval);
         lookupServicePtr_ = client->getLookup();
     }
 }
@@ -69,7 +69,7 @@ MessageRoutingPolicyPtr PartitionedProducerImpl::getMessageRouter() {
             return std::make_shared<RoundRobinMessageRouter>(
                 conf_.getHashingScheme(), conf_.getBatchingEnabled(), conf_.getBatchingMaxMessages(),
                 conf_.getBatchingMaxAllowedSizeInBytes(),
-                boost::posix_time::milliseconds(conf_.getBatchingMaxPublishDelayMs()));
+                std::chrono::milliseconds(conf_.getBatchingMaxPublishDelayMs()));
         case ProducerConfiguration::CustomPartition:
             return conf_.getMessageRouterPtr();
         case ProducerConfiguration::UseSinglePartition:
@@ -422,7 +422,7 @@ void PartitionedProducerImpl::flushAsync(FlushCallback callback) {
 void PartitionedProducerImpl::runPartitionUpdateTask() {
     auto weakSelf = weak_from_this();
     partitionsUpdateTimer_->expires_from_now(partitionsUpdateInterval_);
-    partitionsUpdateTimer_->async_wait([weakSelf](const boost::system::error_code& ec) {
+    partitionsUpdateTimer_->async_wait([weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (self) {
             self->getPartitionMetadata();
@@ -524,7 +524,7 @@ uint64_t PartitionedProducerImpl::getNumberOfConnectedProducer() {
 
 void PartitionedProducerImpl::cancelTimers() noexcept {
     if (partitionsUpdateTimer_) {
-        boost::system::error_code ec;
+        ASIO_ERROR ec;
         partitionsUpdateTimer_->cancel(ec);
     }
 }

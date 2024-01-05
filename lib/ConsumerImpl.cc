@@ -26,6 +26,7 @@
 #include "AckGroupingTracker.h"
 #include "AckGroupingTrackerDisabled.h"
 #include "AckGroupingTrackerEnabled.h"
+#include "AsioDefines.h"
 #include "BatchMessageAcker.h"
 #include "BatchedMessageIdImpl.h"
 #include "BitSet.h"
@@ -54,6 +55,9 @@
 namespace pulsar {
 
 DECLARE_LOG_OBJECT()
+
+using std::chrono::milliseconds;
+using std::chrono::seconds;
 
 ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
@@ -402,10 +406,9 @@ void ConsumerImpl::discardChunkMessages(std::string uuid, MessageId messageId, b
 }
 
 void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
-    checkExpiredChunkedTimer_->expires_from_now(
-        boost::posix_time::milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
+    checkExpiredChunkedTimer_->expires_from_now(milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
     std::weak_ptr<ConsumerImplBase> weakSelf{shared_from_this()};
-    checkExpiredChunkedTimer_->async_wait([this, weakSelf](const boost::system::error_code& ec) -> void {
+    checkExpiredChunkedTimer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) -> void {
         auto self = weakSelf.lock();
         if (!self) {
             return;
@@ -1581,7 +1584,7 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
         }
     } else {
         TimeDuration next = std::min(remainTime, backoff->next());
-        if (next.total_milliseconds() <= 0) {
+        if (toMillis(next) <= 0) {
             LOG_ERROR(getName() << " Client Connection not ready for Consumer");
             callback(ResultNotConnected, MessageId());
             return;
@@ -1592,8 +1595,8 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
 
         auto self = shared_from_this();
         timer->async_wait([this, backoff, remainTime, timer, next, callback,
-                           self](const boost::system::error_code& ec) -> void {
-            if (ec == boost::asio::error::operation_aborted) {
+                           self](const ASIO_ERROR& ec) -> void {
+            if (ec == ASIO::error::operation_aborted) {
                 LOG_DEBUG(getName() << " Get last message id operation was cancelled, code[" << ec << "].");
                 return;
             }
@@ -1602,7 +1605,7 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
                 return;
             }
             LOG_WARN(getName() << " Could not get connection while getLastMessageId -- Will try again in "
-                               << next.total_milliseconds() << " ms")
+                               << toMillis(next) << " ms")
             this->internalGetLastMessageIdAsync(backoff, remainTime, timer, callback);
         });
     }
@@ -1693,7 +1696,7 @@ std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
 }
 
 void ConsumerImpl::cancelTimers() noexcept {
-    boost::system::error_code ec;
+    ASIO_ERROR ec;
     batchReceiveTimer_->cancel(ec);
     checkExpiredChunkedTimer_->cancel(ec);
     unAckedMessageTrackerPtr_->stop();
