@@ -5,43 +5,18 @@
   "builtin-baseline": "b051745c68faa6f65c493371d564c4eb8af34dad",
   "dependencies": [
     {
+      "name": "asio",
+      "features": [
+        "openssl"
+      ],
+      "version>=": "1.28.2"
+    },
+    {
       "name": "boost-accumulators",
       "version>=": "1.83.0"
     },
     {
-      "name": "boost-algorithm",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-any",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-asio",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-circular-buffer",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-date-time",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-predef",
-      "version>=": "1.83.0"
-    },
-    {
       "name": "boost-property-tree",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-serialization",
-      "version>=": "1.83.0"
-    },
-    {
-      "name": "boost-xpressive",
       "version>=": "1.83.0"
     },
     {

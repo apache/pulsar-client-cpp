@@ -40,9 +40,9 @@ NegativeAcksTracker::NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &con
 
     nackDelay_ =
         std::chrono::milliseconds(std::max(conf.getNegativeAckRedeliveryDelayMs(), MIN_NACK_DELAY_MILLIS));
-    timerInterval_ = boost::posix_time::milliseconds((long)(nackDelay_.count() / 3));
-    LOG_DEBUG("Created negative ack tracker with delay: " << nackDelay_.count()
-                                                          << " ms - Timer interval: " << timerInterval_);
+    timerInterval_ = std::chrono::milliseconds((long)(nackDelay_.count() / 3));
+    LOG_DEBUG("Created negative ack tracker with delay: " << nackDelay_.count() << " ms - Timer interval: "
+                                                          << timerInterval_.count());
 }
 
 void NegativeAcksTracker::scheduleTimer() {
@@ -51,14 +51,14 @@ void NegativeAcksTracker::scheduleTimer() {
     }
     std::weak_ptr<NegativeAcksTracker> weakSelf{shared_from_this()};
     timer_->expires_from_now(timerInterval_);
-    timer_->async_wait([weakSelf](const boost::system::error_code &ec) {
+    timer_->async_wait([weakSelf](const ASIO_ERROR &ec) {
         if (auto self = weakSelf.lock()) {
             self->handleTimer(ec);
         }
     });
 }
 
-void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
+void NegativeAcksTracker::handleTimer(const ASIO_ERROR &ec) {
     if (ec) {
         // Ignore cancelled events
         return;
@@ -107,7 +107,7 @@ void NegativeAcksTracker::add(const MessageId &m) {
 
 void NegativeAcksTracker::close() {
     closed_ = true;
-    boost::system::error_code ec;
+    ASIO_ERROR ec;
     timer_->cancel(ec);
     std::lock_guard<std::mutex> lock(mutex_);
     nackedMessages_.clear();

@@ -44,8 +44,6 @@ namespace ptree = boost::property_tree;
 #pragma clang diagnostic ignored "-Wunknown-warning-option"
 #endif
 
-#include <boost/xpressive/xpressive.hpp>
-
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif

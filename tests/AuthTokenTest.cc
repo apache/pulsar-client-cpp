@@ -22,7 +22,6 @@
 #include <pulsar/Client.h>
 
 #include <boost/algorithm/string.hpp>
-#include <boost/asio.hpp>
 #include <fstream>
 #include <streambuf>
 #include <string>

@@ -32,7 +32,7 @@ void ExecutorService::start() {
     auto self = shared_from_this();
     std::thread t{[this, self] {
         LOG_DEBUG("Run io_service in a single thread");
-        boost::system::error_code ec;
+        ASIO_ERROR ec;
         while (!closed_) {
             io_service_.restart();
             IOService::work work{getIOService()};
@@ -63,22 +63,22 @@ ExecutorServicePtr ExecutorService::create() {
 }
 
 /*
- *  factory method of boost::asio::ip::tcp::socket associated with io_service_ instance
+ *  factory method of ASIO::ip::tcp::socket associated with io_service_ instance
  *  @ returns shared_ptr to this socket
  */
 SocketPtr ExecutorService::createSocket() {
     try {
-        return SocketPtr(new boost::asio::ip::tcp::socket(io_service_));
-    } catch (const boost::system::system_error &e) {
+        return SocketPtr(new ASIO::ip::tcp::socket(io_service_));
+    } catch (const ASIO_SYSTEM_ERROR &e) {
         restart();
         auto error = std::string("Failed to create socket: ") + e.what();
         throw std::runtime_error(error);
     }
 }
 
-TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, boost::asio::ssl::context &ctx) {
-    return std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket &>>(
-        new boost::asio::ssl::stream<boost::asio::ip::tcp::socket &>(*socket, ctx));
+TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, ASIO::ssl::context &ctx) {
+    return std::shared_ptr<ASIO::ssl::stream<ASIO::ip::tcp::socket &>>(
+        new ASIO::ssl::stream<ASIO::ip::tcp::socket &>(*socket, ctx));
 }
 
 /*
@@ -87,8 +87,8 @@ TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, boost::asio::ss
  */
 TcpResolverPtr ExecutorService::createTcpResolver() {
     try {
-        return TcpResolverPtr(new boost::asio::ip::tcp::resolver(io_service_));
-    } catch (const boost::system::system_error &e) {
+        return TcpResolverPtr(new ASIO::ip::tcp::resolver(io_service_));
+    } catch (const ASIO_SYSTEM_ERROR &e) {
         restart();
         auto error = std::string("Failed to create resolver: ") + e.what();
         throw std::runtime_error(error);
@@ -97,10 +97,10 @@ TcpResolverPtr ExecutorService::createTcpResolver() {
 
 DeadlineTimerPtr ExecutorService::createDeadlineTimer() {
     try {
-        return DeadlineTimerPtr(new boost::asio::deadline_timer(io_service_));
-    } catch (const boost::system::system_error &e) {
+        return DeadlineTimerPtr(new ASIO::steady_timer(io_service_));
+    } catch (const ASIO_SYSTEM_ERROR &e) {
         restart();
-        auto error = std::string("Failed to create deadline_timer: ") + e.what();
+        auto error = std::string("Failed to create steady_timer: ") + e.what();
         throw std::runtime_error(error);
     }
 }

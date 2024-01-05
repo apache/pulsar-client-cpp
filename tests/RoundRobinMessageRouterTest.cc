@@ -31,7 +31,7 @@ TEST(RoundRobinMessageRouterTest, onePartition) {
     const int numPartitions = 1;
 
     RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, false, 1, 1,
-                                   boost::posix_time::milliseconds(0));
+                                   std::chrono::milliseconds(0));
 
     Message msg1 = MessageBuilder().setPartitionKey("my-key-1").setContent("one").build();
     Message msg2 = MessageBuilder().setPartitionKey("my-key-2").setContent("two").build();
@@ -49,7 +49,7 @@ TEST(RoundRobinMessageRouterTest, sameKey) {
     const int numPartitions = 13;
 
     RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, false, 1, 1,
-                                   boost::posix_time::milliseconds(0));
+                                   std::chrono::milliseconds(0));
 
     Message msg1 = MessageBuilder().setPartitionKey("my-key").setContent("one").build();
     Message msg2 = MessageBuilder().setPartitionKey("my-key").setContent("two").build();
@@ -63,7 +63,7 @@ TEST(RoundRobinMessageRouterTest, batchingDisabled) {
     const int numPartitions = 13;
 
     RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, false, 1, 1,
-                                   boost::posix_time::milliseconds(0));
+                                   std::chrono::milliseconds(0));
 
     Message msg1 = MessageBuilder().setContent("one").build();
     Message msg2 = MessageBuilder().setContent("two").build();
@@ -77,7 +77,7 @@ TEST(RoundRobinMessageRouterTest, batchingEnabled) {
     const int numPartitions = 13;
 
     RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, true, 1000, 100000,
-                                   boost::posix_time::seconds(1));
+                                   std::chrono::seconds(1));
 
     int p = -1;
     for (int i = 0; i < 100; i++) {
@@ -96,7 +96,7 @@ TEST(RoundRobinMessageRouterTest, maxDelay) {
     const int numPartitions = 13;
 
     RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, true, 1000, 100000,
-                                   boost::posix_time::seconds(1));
+                                   std::chrono::seconds(1));
 
     int p1 = -1;
     for (int i = 0; i < 100; i++) {
@@ -132,8 +132,7 @@ TEST(RoundRobinMessageRouterTest, maxDelay) {
 TEST(RoundRobinMessageRouterTest, maxNumberOfMessages) {
     const int numPartitions = 13;
 
-    RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, true, 2, 1000,
-                                   boost::posix_time::seconds(1));
+    RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, true, 2, 1000, std::chrono::seconds(1));
 
     Message msg1 = MessageBuilder().setContent("one").build();
     Message msg2 = MessageBuilder().setContent("two").build();
@@ -150,8 +149,7 @@ TEST(RoundRobinMessageRouterTest, maxNumberOfMessages) {
 TEST(RoundRobinMessageRouterTest, maxBatchSize) {
     const int numPartitions = 13;
 
-    RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, true, 10, 8,
-                                   boost::posix_time::seconds(1));
+    RoundRobinMessageRouter router(ProducerConfiguration::BoostHash, true, 10, 8, std::chrono::seconds(1));
 
     Message msg1 = MessageBuilder().setContent("one").build();
     Message msg2 = MessageBuilder().setContent("two").build();

@@ -21,9 +21,14 @@
 #include <pulsar/Client.h>
 
 #include <boost/algorithm/string.hpp>
+#ifdef USE_ASIO
+#include <asio.hpp>
+#else
 #include <boost/asio.hpp>
+#endif
 #include <thread>
 
+#include "lib/AsioDefines.h"
 #include "lib/Future.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
@@ -287,10 +292,9 @@ namespace testAthenz {
 std::string principalToken;
 void mockZTS(Latch& latch, int port) {
     LOG_INFO("-- MockZTS started");
-    boost::asio::io_service io;
-    boost::asio::ip::tcp::iostream stream;
-    boost::asio::ip::tcp::acceptor acceptor(io,
-                                            boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port));
+    ASIO::io_service io;
+    ASIO::ip::tcp::iostream stream;
+    ASIO::ip::tcp::acceptor acceptor(io, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), port));
 
     LOG_INFO("-- MockZTS waiting for connnection");
     latch.countdown();

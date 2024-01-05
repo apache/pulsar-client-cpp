@@ -191,6 +191,7 @@ jobs:
             cmake \
               -B ./build-1 \
               -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DUSE_ASIO=ON \
               -DBUILD_TESTS=OFF \
               -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
               -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
@@ -232,6 +233,7 @@ jobs:
             cmake \
               -B ./build-2 \
               -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DUSE_ASIO=ON \
               -DBUILD_TESTS=OFF \
               -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
               -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \

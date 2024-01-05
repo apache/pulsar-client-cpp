@@ -20,9 +20,11 @@
 #include "ProducerStatsImpl.h"
 
 #include <array>
+#include <chrono>
 
 #include "lib/ExecutorService.h"
 #include "lib/LogUtils.h"
+#include "lib/TimeUtils.h"
 #include "lib/Utils.h"
 
 namespace pulsar {
@@ -65,7 +67,7 @@ ProducerStatsImpl::ProducerStatsImpl(const ProducerStatsImpl& stats)
 
 void ProducerStatsImpl::start() { scheduleTimer(); }
 
-void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
+void ProducerStatsImpl::flushAndReset(const ASIO_ERROR& ec) {
     if (ec) {
         LOG_DEBUG("Ignoring timer cancelled event, code[" << ec << "]");
         return;
@@ -93,9 +95,10 @@ void ProducerStatsImpl::messageSent(const Message& msg) {
     totalBytesSent_ += msg.getLength();
 }
 
-void ProducerStatsImpl::messageReceived(Result res, const boost::posix_time::ptime& publishTime) {
-    boost::posix_time::ptime currentTime = boost::posix_time::microsec_clock::universal_time();
-    double diffInMicros = (currentTime - publishTime).total_microseconds();
+void ProducerStatsImpl::messageReceived(Result res, const ptime& publishTime) {
+    auto currentTime = TimeUtils::now();
+    double diffInMicros =
+        std::chrono::duration_cast<std::chrono::microseconds>(currentTime - publishTime).count();
     std::lock_guard<std::mutex> lock(mutex_);
     totalLatencyAccumulator_(diffInMicros);
     latencyAccumulator_(diffInMicros);
@@ -106,9 +109,9 @@ void ProducerStatsImpl::messageReceived(Result res, const boost::posix_time::pti
 ProducerStatsImpl::~ProducerStatsImpl() { timer_->cancel(); }
 
 void ProducerStatsImpl::scheduleTimer() {
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
+    timer_->expires_from_now(std::chrono::seconds(statsIntervalInSeconds_));
     std::weak_ptr<ProducerStatsImpl> weakSelf{shared_from_this()};
-    timer_->async_wait([this, weakSelf](const boost::system::error_code& ec) {
+    timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (!self) {
             return;

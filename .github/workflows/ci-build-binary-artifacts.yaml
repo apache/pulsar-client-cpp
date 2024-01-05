@@ -148,6 +148,7 @@ jobs:
           mkdir -p $BUILD_DIR
           cmake -B $BUILD_DIR \
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DUSE_ASIO=ON \
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
             -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_DIR }} \
@@ -174,6 +175,7 @@ jobs:
           mkdir -p $BUILD_DIR
           cmake -B $BUILD_DIR \
             -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DUSE_ASIO=ON \
             -DBUILD_TESTS=OFF \
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
             -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR_DEBUG \

@@ -23,6 +23,7 @@
 #include <boost/optional.hpp>
 #include <fstream>
 
+#include "AsioDefines.h"
 #include "Commands.h"
 #include "ConnectionPool.h"
 #include "ConsumerImpl.h"
@@ -39,7 +40,7 @@
 
 DECLARE_LOG_OBJECT()
 
-using namespace boost::asio::ip;
+using namespace ASIO::ip;
 
 namespace pulsar {
 
@@ -162,19 +163,13 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                                    const ClientConfiguration& clientConfiguration,
                                    const AuthenticationPtr& authentication, const std::string& clientVersion,
                                    ConnectionPool& pool, size_t poolIndex)
-    : operationsTimeout_(seconds(clientConfiguration.getOperationTimeoutSeconds())),
+    : operationsTimeout_(std::chrono::seconds(clientConfiguration.getOperationTimeoutSeconds())),
       authentication_(authentication),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
       executor_(executor),
       resolver_(executor_->createTcpResolver()),
       socket_(executor_->createSocket()),
-#if BOOST_VERSION >= 107000
-      strand_(boost::asio::make_strand(executor_->getIOService().get_executor())),
-#elif BOOST_VERSION >= 106600
-      strand_(executor_->getIOService().get_executor()),
-#else
-      strand_(executor_->getIOService()),
-#endif
+      strand_(ASIO::make_strand(executor_->getIOService().get_executor())),
       logicalAddress_(logicalAddress),
       physicalAddress_(physicalAddress),
       cnxString_("[<none> -> " + physicalAddress + "] "),
@@ -203,11 +198,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
     }
 
     if (clientConfiguration.isUseTls()) {
-#if BOOST_VERSION >= 105400
-        boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_client);
-#else
-        boost::asio::ssl::context ctx(executor_->getIOService(), boost::asio::ssl::context::tlsv1_client);
-#endif
+        ASIO::ssl::context ctx(ASIO::ssl::context::tlsv12_client);
         Url serviceUrl;
         Url proxyUrl;
         Url::parse(physicalAddress, serviceUrl);
@@ -219,10 +210,10 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
             LOG_INFO("Configuring SNI Proxy-url=" << proxyServiceUrl_);
         }
         if (clientConfiguration.isTlsAllowInsecureConnection()) {
-            ctx.set_verify_mode(boost::asio::ssl::context::verify_none);
+            ctx.set_verify_mode(ASIO::ssl::context::verify_none);
             isTlsAllowInsecureConnection_ = true;
         } else {
-            ctx.set_verify_mode(boost::asio::ssl::context::verify_peer);
+            ctx.set_verify_mode(ASIO::ssl::context::verify_peer);
 
             std::string trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
             if (!trustCertFilePath.empty()) {
@@ -252,12 +243,12 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
                 throw ResultAuthenticationError;
             }
-            ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
-            ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
+            ctx.use_private_key_file(tlsPrivateKey, ASIO::ssl::context::pem);
+            ctx.use_certificate_file(tlsCertificates, ASIO::ssl::context::pem);
         } else {
             if (file_exists(tlsPrivateKey) && file_exists(tlsCertificates)) {
-                ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
-                ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
+                ctx.use_private_key_file(tlsPrivateKey, ASIO::ssl::context::pem);
+                ctx.use_certificate_file(tlsCertificates, ASIO::ssl::context::pem);
             }
         }
 
@@ -266,14 +257,13 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
             LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
             std::string urlHost = isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
-            tlsSocket_->set_verify_callback(boost::asio::ssl::rfc2818_verification(urlHost));
+            tlsSocket_->set_verify_callback(ASIO::ssl::rfc2818_verification(urlHost));
         }
 
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
         if (!SSL_set_tlsext_host_name(tlsSocket_->native_handle(), serviceUrl.host().c_str())) {
-            boost::system::error_code ec{static_cast<int>(::ERR_get_error()),
-                                         boost::asio::error::get_ssl_category()};
-            LOG_ERROR(boost::system::system_error{ec}.what() << ": Error while setting TLS SNI");
+            ASIO_ERROR ec{static_cast<int>(::ERR_get_error()), ASIO::error::get_ssl_category()};
+            LOG_ERROR(ec.message() << ": Error while setting TLS SNI");
             return;
         }
     }
@@ -310,9 +300,9 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         // Only send keep-alive probes if the broker supports it
         keepAliveTimer_ = executor_->createDeadlineTimer();
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
+            keepAliveTimer_->expires_from_now(std::chrono::seconds(KeepAliveIntervalInSeconds));
             auto weakSelf = weak_from_this();
-            keepAliveTimer_->async_wait([weakSelf](const boost::system::error_code&) {
+            keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
                 if (self) {
                     self->handleKeepAliveTimeout();
@@ -357,13 +347,12 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
     if (consumerStatsRequestTimer_) {
         consumerStatsRequestTimer_->expires_from_now(operationsTimeout_);
         auto weakSelf = weak_from_this();
-        consumerStatsRequestTimer_->async_wait(
-            [weakSelf, consumerStatsRequests](const boost::system::error_code& err) {
-                auto self = weakSelf.lock();
-                if (self) {
-                    self->handleConsumerStatsTimeout(err, consumerStatsRequests);
-                }
-            });
+        consumerStatsRequestTimer_->async_wait([weakSelf, consumerStatsRequests](const ASIO_ERROR& err) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleConsumerStatsTimeout(err, consumerStatsRequests);
+            }
+        });
     }
     lock.unlock();
     // Complex logic since promises need to be fulfilled outside the lock
@@ -375,19 +364,19 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
 
 /// The number of unacknowledged probes to send before considering the connection dead and notifying the
 /// application layer
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPCNT> tcp_keep_alive_count;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPCNT> tcp_keep_alive_count;
 
 /// The interval between subsequential keepalive probes, regardless of what the connection has exchanged in
 /// the meantime
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPINTVL> tcp_keep_alive_interval;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPINTVL> tcp_keep_alive_interval;
 
 /// The interval between the last data packet sent (simple ACKs are not considered data) and the first
 /// keepalive
 /// probe; after the connection is marked to need keepalive, this counter is not used any further
 #ifdef __APPLE__
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPALIVE> tcp_keep_alive_idle;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPALIVE> tcp_keep_alive_idle;
 #else
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> tcp_keep_alive_idle;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> tcp_keep_alive_idle;
 #endif
 
 /*
@@ -396,15 +385,14 @@ typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> t
  *  if async_connect without any error, connected_ would be set to true
  *  at this point the connection is deemed valid to be used by clients of this class
  */
-void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
-                                          tcp::resolver::iterator endpointIterator) {
+void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
     if (!err) {
         std::stringstream cnxStringStream;
         try {
             cnxStringStream << "[" << socket_->local_endpoint() << " -> " << socket_->remote_endpoint()
                             << "] ";
             cnxString_ = cnxStringStream.str();
-        } catch (const boost::system::system_error& e) {
+        } catch (const ASIO_SYSTEM_ERROR& e) {
             LOG_ERROR("Failed to get endpoint: " << e.what());
             close(ResultRetryable);
             return;
@@ -424,7 +412,7 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
         state_ = TcpConnected;
         lock.unlock();
 
-        boost::system::error_code error;
+        ASIO_ERROR error;
         socket_->set_option(tcp::no_delay(true), error);
         if (error) {
             LOG_WARN(cnxString_ << "Socket failed to set tcp::no_delay: " << error.message());
@@ -457,7 +445,7 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
 
         if (tlsSocket_) {
             if (!isTlsAllowInsecureConnection_) {
-                boost::system::error_code err;
+                ASIO_ERROR err;
                 Url service_url;
                 if (!Url::parse(physicalAddress_, service_url)) {
                     LOG_ERROR(cnxString_ << "Invalid Url, unable to parse: " << err << " " << err.message());
@@ -466,26 +454,21 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
                 }
             }
             auto weakSelf = weak_from_this();
-            auto callback = [weakSelf](const boost::system::error_code& err) {
+            auto callback = [weakSelf](const ASIO_ERROR& err) {
                 auto self = weakSelf.lock();
                 if (self) {
                     self->handleHandshake(err);
                 }
             };
-#if BOOST_VERSION >= 106600
-            tlsSocket_->async_handshake(boost::asio::ssl::stream<tcp::socket>::client,
-                                        boost::asio::bind_executor(strand_, callback));
-#else
-            tlsSocket_->async_handshake(boost::asio::ssl::stream<tcp::socket>::client,
-                                        strand_.wrap(callback));
-#endif
+            tlsSocket_->async_handshake(ASIO::ssl::stream<tcp::socket>::client,
+                                        ASIO::bind_executor(strand_, callback));
         } else {
-            handleHandshake(boost::system::errc::make_error_code(boost::system::errc::success));
+            handleHandshake(ASIO_SUCCESS);
         }
     } else if (endpointIterator != tcp::resolver::iterator()) {
         LOG_WARN(cnxString_ << "Failed to establish connection: " << err.message());
         // The connection failed. Try the next endpoint in the list.
-        boost::system::error_code closeError;
+        ASIO_ERROR closeError;
         socket_->close(closeError);  // ignore the error of close
         if (closeError) {
             LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
@@ -497,15 +480,14 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
             connectTimeoutTask_->start();
             tcp::endpoint endpoint = *endpointIterator;
             auto weakSelf = weak_from_this();
-            socket_->async_connect(endpoint,
-                                   [weakSelf, endpointIterator](const boost::system::error_code& err) {
-                                       auto self = weakSelf.lock();
-                                       if (self) {
-                                           self->handleTcpConnected(err, endpointIterator);
-                                       }
-                                   });
+            socket_->async_connect(endpoint, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleTcpConnected(err, endpointIterator);
+                }
+            });
         } else {
-            if (err == boost::asio::error::operation_aborted) {
+            if (err == ASIO::error::operation_aborted) {
                 // TCP connect timeout, which is not retryable
                 close();
             } else {
@@ -518,7 +500,7 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
     }
 }
 
-void ClientConnection::handleHandshake(const boost::system::error_code& err) {
+void ClientConnection::handleHandshake(const ASIO_ERROR& err) {
     if (err) {
         LOG_ERROR(cnxString_ << "Handshake failed: " << err.message());
         close();
@@ -537,13 +519,12 @@ void ClientConnection::handleHandshake(const boost::system::error_code& err) {
     // Send CONNECT command to broker
     auto self = shared_from_this();
     asyncWrite(buffer.const_asio_buffer(),
-               customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err, size_t) {
+               customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
                    handleSentPulsarConnect(err, buffer);
                }));
 }
 
-void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& err,
-                                               const SharedBuffer& buffer) {
+void ClientConnection::handleSentPulsarConnect(const ASIO_ERROR& err, const SharedBuffer& buffer) {
     if (isClosed()) {
         return;
     }
@@ -557,8 +538,7 @@ void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& 
     readNextCommand();
 }
 
-void ClientConnection::handleSentAuthResponse(const boost::system::error_code& err,
-                                              const SharedBuffer& buffer) {
+void ClientConnection::handleSentAuthResponse(const ASIO_ERROR& err, const SharedBuffer& buffer) {
     if (isClosed()) {
         return;
     }
@@ -580,7 +560,7 @@ void ClientConnection::tcpConnectAsync() {
         return;
     }
 
-    boost::system::error_code err;
+    ASIO_ERROR err;
     Url service_url;
     std::string hostUrl = isSniProxy_ ? proxyServiceUrl_ : physicalAddress_;
     if (!Url::parse(hostUrl, service_url)) {
@@ -599,17 +579,15 @@ void ClientConnection::tcpConnectAsync() {
     LOG_DEBUG(cnxString_ << "Resolving " << service_url.host() << ":" << service_url.port());
     tcp::resolver::query query(service_url.host(), std::to_string(service_url.port()));
     auto weakSelf = weak_from_this();
-    resolver_->async_resolve(
-        query, [weakSelf](const boost::system::error_code& err, tcp::resolver::iterator iterator) {
-            auto self = weakSelf.lock();
-            if (self) {
-                self->handleResolve(err, iterator);
-            }
-        });
+    resolver_->async_resolve(query, [weakSelf](const ASIO_ERROR& err, tcp::resolver::iterator iterator) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleResolve(err, iterator);
+        }
+    });
 }
 
-void ClientConnection::handleResolve(const boost::system::error_code& err,
-                                     tcp::resolver::iterator endpointIterator) {
+void ClientConnection::handleResolve(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
     if (err) {
         std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
         LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
@@ -642,13 +620,12 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
     if (endpointIterator != tcp::resolver::iterator()) {
         LOG_DEBUG(cnxString_ << "Resolved hostname " << endpointIterator->host_name()  //
                              << " to " << endpointIterator->endpoint());
-        socket_->async_connect(*endpointIterator,
-                               [weakSelf, endpointIterator](const boost::system::error_code& err) {
-                                   auto self = weakSelf.lock();
-                                   if (self) {
-                                       self->handleTcpConnected(err, endpointIterator);
-                                   }
-                               });
+        socket_->async_connect(*endpointIterator, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleTcpConnected(err, endpointIterator);
+            }
+        });
     } else {
         LOG_WARN(cnxString_ << "No IP address found");
         close();
@@ -659,15 +636,13 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
 void ClientConnection::readNextCommand() {
     const static uint32_t minReadSize = sizeof(uint32_t);
     auto self = shared_from_this();
-    asyncReceive(
-        incomingBuffer_.asio_buffer(),
-        customAllocReadHandler([this, self](const boost::system::error_code& err, size_t bytesTransferred) {
-            handleRead(err, bytesTransferred, minReadSize);
-        }));
+    asyncReceive(incomingBuffer_.asio_buffer(),
+                 customAllocReadHandler([this, self](const ASIO_ERROR& err, size_t bytesTransferred) {
+                     handleRead(err, bytesTransferred, minReadSize);
+                 }));
 }
 
-void ClientConnection::handleRead(const boost::system::error_code& err, size_t bytesTransferred,
-                                  uint32_t minReadSize) {
+void ClientConnection::handleRead(const ASIO_ERROR& err, size_t bytesTransferred, uint32_t minReadSize) {
     if (isClosed()) {
         return;
     }
@@ -675,9 +650,9 @@ void ClientConnection::handleRead(const boost::system::error_code& err, size_t b
     incomingBuffer_.bytesWritten(bytesTransferred);
 
     if (err || bytesTransferred == 0) {
-        if (err == boost::asio::error::operation_aborted) {
+        if (err == ASIO::error::operation_aborted) {
             LOG_DEBUG(cnxString_ << "Read operation was canceled: " << err.message());
-        } else if (bytesTransferred == 0 || err == boost::asio::error::eof) {
+        } else if (bytesTransferred == 0 || err == ASIO::error::eof) {
             LOG_DEBUG(cnxString_ << "Server closed the connection: " << err.message());
         } else {
             LOG_ERROR(cnxString_ << "Read operation failed: " << err.message());
@@ -689,11 +664,11 @@ void ClientConnection::handleRead(const boost::system::error_code& err, size_t b
         SharedBuffer buffer = incomingBuffer_.slice(bytesTransferred);
         auto self = shared_from_this();
         auto nextMinReadSize = minReadSize - bytesTransferred;
-        asyncReceive(buffer.asio_buffer(), customAllocReadHandler([this, self, nextMinReadSize](
-                                                                      const boost::system::error_code& err,
-                                                                      size_t bytesTransferred) {
-                         handleRead(err, bytesTransferred, nextMinReadSize);
-                     }));
+        asyncReceive(buffer.asio_buffer(),
+                     customAllocReadHandler(
+                         [this, self, nextMinReadSize](const ASIO_ERROR& err, size_t bytesTransferred) {
+                             handleRead(err, bytesTransferred, nextMinReadSize);
+                         }));
     } else {
         processIncomingBuffer();
     }
@@ -720,12 +695,11 @@ void ClientConnection::processIncomingBuffer() {
                 incomingBuffer_ = SharedBuffer::copyFrom(incomingBuffer_, newBufferSize);
             }
             auto self = shared_from_this();
-            asyncReceive(
-                incomingBuffer_.asio_buffer(),
-                customAllocReadHandler([this, self, bytesToReceive](const boost::system::error_code& err,
-                                                                    size_t bytesTransferred) {
-                    handleRead(err, bytesTransferred, bytesToReceive);
-                }));
+            asyncReceive(incomingBuffer_.asio_buffer(),
+                         customAllocReadHandler(
+                             [this, self, bytesToReceive](const ASIO_ERROR& err, size_t bytesTransferred) {
+                                 handleRead(err, bytesTransferred, bytesToReceive);
+                             }));
             return;
         }
 
@@ -803,11 +777,11 @@ void ClientConnection::processIncomingBuffer() {
         uint32_t minReadSize = sizeof(uint32_t) - incomingBuffer_.readableBytes();
 
         auto self = shared_from_this();
-        asyncReceive(incomingBuffer_.asio_buffer(),
-                     customAllocReadHandler([this, self, minReadSize](const boost::system::error_code& err,
-                                                                      size_t bytesTransferred) {
-                         handleRead(err, bytesTransferred, minReadSize);
-                     }));
+        asyncReceive(
+            incomingBuffer_.asio_buffer(),
+            customAllocReadHandler([this, self, minReadSize](const ASIO_ERROR& err, size_t bytesTransferred) {
+                handleRead(err, bytesTransferred, minReadSize);
+            }));
         return;
     }
 
@@ -1056,7 +1030,7 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, const uint64_t request
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
     auto weakSelf = weak_from_this();
-    requestData.timer->async_wait([weakSelf, requestData](const boost::system::error_code& ec) {
+    requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (self) {
             self->handleLookupTimeout(ec, requestData);
@@ -1082,11 +1056,7 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
                     self->sendCommandInternal(cmd);
                 }
             };
-#if BOOST_VERSION >= 106600
-            boost::asio::post(strand_, callback);
-#else
-            strand_.post(callback);
-#endif
+            ASIO::post(strand_, callback);
         } else {
             sendCommandInternal(cmd);
         }
@@ -1099,8 +1069,9 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
 void ClientConnection::sendCommandInternal(const SharedBuffer& cmd) {
     auto self = shared_from_this();
     asyncWrite(cmd.const_asio_buffer(),
-               customAllocWriteHandler([this, self, cmd](const boost::system::error_code& err,
-                                                         size_t bytesTransferred) { handleSend(err, cmd); }));
+               customAllocWriteHandler([this, self, cmd](const ASIO_ERROR& err, size_t bytesTransferred) {
+                   handleSend(err, cmd);
+               }));
 }
 
 void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
@@ -1116,21 +1087,18 @@ void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
         // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
         // callback is called, an invalid buffer range might be passed to the underlying socket send.
         asyncWrite(buffer, customAllocWriteHandler(
-                               [this, self, buffer](const boost::system::error_code& err,
-                                                    size_t bytesTransferred) { handleSendPair(err); }));
+                               [this, self, buffer](const ASIO_ERROR& err, size_t bytesTransferred) {
+                                   handleSendPair(err);
+                               }));
     };
     if (tlsSocket_) {
-#if BOOST_VERSION >= 106600
-        boost::asio::post(strand_, sendMessageInternal);
-#else
-        strand_.post(sendMessageInternal);
-#endif
+        ASIO::post(strand_, sendMessageInternal);
     } else {
         sendMessageInternal();
     }
 }
 
-void ClientConnection::handleSend(const boost::system::error_code& err, const SharedBuffer&) {
+void ClientConnection::handleSend(const ASIO_ERROR& err, const SharedBuffer&) {
     if (isClosed()) {
         return;
     }
@@ -1142,7 +1110,7 @@ void ClientConnection::handleSend(const boost::system::error_code& err, const Sh
     }
 }
 
-void ClientConnection::handleSendPair(const boost::system::error_code& err) {
+void ClientConnection::handleSendPair(const ASIO_ERROR& err) {
     if (isClosed()) {
         return;
     }
@@ -1166,8 +1134,8 @@ void ClientConnection::sendPendingCommands() {
         if (any.type() == typeid(SharedBuffer)) {
             SharedBuffer buffer = boost::any_cast<SharedBuffer>(any);
             asyncWrite(buffer.const_asio_buffer(),
-                       customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err,
-                                                                    size_t) { handleSend(err, buffer); }));
+                       customAllocWriteHandler(
+                           [this, self, buffer](const ASIO_ERROR& err, size_t) { handleSend(err, buffer); }));
         } else {
             assert(any.type() == typeid(std::shared_ptr<SendArguments>));
 
@@ -1178,9 +1146,9 @@ void ClientConnection::sendPendingCommands() {
 
             // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
             // callback is called, an invalid buffer range might be passed to the underlying socket send.
-            asyncWrite(buffer,
-                       customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err,
-                                                                    size_t) { handleSendPair(err); }));
+            asyncWrite(buffer, customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
+                           handleSendPair(err);
+                       }));
         }
     } else {
         // No more pending writes
@@ -1202,7 +1170,7 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
     auto weakSelf = weak_from_this();
-    requestData.timer->async_wait([weakSelf, requestData](const boost::system::error_code& ec) {
+    requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (self) {
             self->handleRequestTimeout(ec, requestData);
@@ -1216,21 +1184,19 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
     return requestData.promise.getFuture();
 }
 
-void ClientConnection::handleRequestTimeout(const boost::system::error_code& ec,
-                                            PendingRequestData pendingRequestData) {
+void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec, PendingRequestData pendingRequestData) {
     if (!ec && !pendingRequestData.hasGotResponse->load()) {
         pendingRequestData.promise.setFailed(ResultTimeout);
     }
 }
 
-void ClientConnection::handleLookupTimeout(const boost::system::error_code& ec,
-                                           LookupRequestData pendingRequestData) {
+void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec, LookupRequestData pendingRequestData) {
     if (!ec) {
         pendingRequestData.promise->setFailed(ResultTimeout);
     }
 }
 
-void ClientConnection::handleGetLastMessageIdTimeout(const boost::system::error_code& ec,
+void ClientConnection::handleGetLastMessageIdTimeout(const ASIO_ERROR& ec,
                                                      ClientConnection::LastMessageIdRequestData data) {
     if (!ec) {
         data.promise->setFailed(ResultTimeout);
@@ -1255,9 +1221,9 @@ void ClientConnection::handleKeepAliveTimeout() {
         // be zero And we do not attempt to dereference the pointer.
         Lock lock(mutex_);
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
+            keepAliveTimer_->expires_from_now(std::chrono::seconds(KeepAliveIntervalInSeconds));
             auto weakSelf = weak_from_this();
-            keepAliveTimer_->async_wait([weakSelf](const boost::system::error_code&) {
+            keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
                 if (self) {
                     self->handleKeepAliveTimeout();
@@ -1268,7 +1234,7 @@ void ClientConnection::handleKeepAliveTimeout() {
     }
 }
 
-void ClientConnection::handleConsumerStatsTimeout(const boost::system::error_code& ec,
+void ClientConnection::handleConsumerStatsTimeout(const ASIO_ERROR& ec,
                                                   std::vector<uint64_t> consumerStatsRequests) {
     if (ec) {
         LOG_DEBUG(cnxString_ << " Ignoring timer cancelled event, code[" << ec << "]");
@@ -1285,15 +1251,15 @@ void ClientConnection::close(Result result, bool detach) {
     state_ = Disconnected;
 
     if (socket_) {
-        boost::system::error_code err;
-        socket_->shutdown(boost::asio::socket_base::shutdown_both, err);
+        ASIO_ERROR err;
+        socket_->shutdown(ASIO::socket_base::shutdown_both, err);
         socket_->close(err);
         if (err) {
             LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
         }
     }
     if (tlsSocket_) {
-        boost::system::error_code err;
+        ASIO_ERROR err;
         tlsSocket_->lowest_layer().close(err);
         if (err) {
             LOG_WARN(cnxString_ << "Failed to close TLS socket: " << err.message());
@@ -1432,7 +1398,7 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
     auto weakSelf = weak_from_this();
-    requestData.timer->async_wait([weakSelf, requestData](const boost::system::error_code& ec) {
+    requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (self) {
             self->handleGetLastMessageIdTimeout(ec, requestData);
@@ -1823,7 +1789,7 @@ void ClientConnection::handleAuthChallenge() {
     }
     auto self = shared_from_this();
     asyncWrite(buffer.const_asio_buffer(),
-               customAllocWriteHandler([this, self, buffer](const boost::system::error_code& err, size_t) {
+               customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
                    handleSentAuthResponse(err, buffer);
                }));
 }

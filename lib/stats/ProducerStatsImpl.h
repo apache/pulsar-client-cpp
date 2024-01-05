@@ -30,20 +30,18 @@
 #include <boost/accumulators/framework/features.hpp>
 #include <boost/accumulators/statistics.hpp>
 #include <boost/accumulators/statistics/extended_p_square.hpp>
-#include <boost/asio/deadline_timer.hpp>
-#include <boost/date_time/local_time/local_time.hpp>
 #include <iostream>
 #include <memory>
 #include <mutex>
 #include <vector>
 
 #include "ProducerStatsBase.h"
+#include "lib/AsioTimer.h"
 
 namespace pulsar {
 
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 
 typedef boost::accumulators::accumulator_set<
     double,
@@ -83,11 +81,11 @@ class ProducerStatsImpl : public std::enable_shared_from_this<ProducerStatsImpl>
 
     void start() override;
 
-    void flushAndReset(const boost::system::error_code&);
+    void flushAndReset(const ASIO_ERROR&);
 
     void messageSent(const Message&) override;
 
-    void messageReceived(Result, const boost::posix_time::ptime&) override;
+    void messageReceived(Result, const ptime&) override;
 
     ~ProducerStatsImpl();
 

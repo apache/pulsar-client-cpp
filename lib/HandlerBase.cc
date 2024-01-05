@@ -18,6 +18,7 @@
  */
 #include "HandlerBase.h"
 
+#include "Backoff.h"
 #include "ClientConnection.h"
 #include "ClientImpl.h"
 #include "ExecutorService.h"
@@ -36,7 +37,7 @@ HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, 
       executor_(client->getIOExecutorProvider()->get()),
       mutex_(),
       creationTimestamp_(TimeUtils::now()),
-      operationTimeut_(seconds(client->conf().getOperationTimeoutSeconds())),
+      operationTimeut_(std::chrono::seconds(client->conf().getOperationTimeoutSeconds())),
       state_(NotStarted),
       backoff_(backoff),
       epoch_(0),
@@ -147,13 +148,13 @@ void HandlerBase::scheduleReconnection() {
     if (state == Pending || state == Ready) {
         TimeDuration delay = backoff_.next();
 
-        LOG_INFO(getName() << "Schedule reconnection in " << (delay.total_milliseconds() / 1000.0) << " s");
+        LOG_INFO(getName() << "Schedule reconnection in " << (toMillis(delay) / 1000.0) << " s");
         timer_->expires_from_now(delay);
         // passing shared_ptr here since time_ will get destroyed, so tasks will be cancelled
         // so we will not run into the case where grabCnx is invoked on out of scope handler
         auto name = getName();
         std::weak_ptr<HandlerBase> weakSelf{shared_from_this()};
-        timer_->async_wait([name, weakSelf](const boost::system::error_code& ec) {
+        timer_->async_wait([name, weakSelf](const ASIO_ERROR& ec) {
             auto self = weakSelf.lock();
             if (self) {
                 self->handleTimeout(ec);
@@ -164,7 +165,7 @@ void HandlerBase::scheduleReconnection() {
     }
 }
 
-void HandlerBase::handleTimeout(const boost::system::error_code& ec) {
+void HandlerBase::handleTimeout(const ASIO_ERROR& ec) {
     if (ec) {
         LOG_DEBUG(getName() << "Ignoring timer cancelled event, code[" << ec << "]");
         return;

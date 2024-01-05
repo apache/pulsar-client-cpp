@@ -36,7 +36,7 @@ namespace pulsar {
  */
 class PeriodicTask : public std::enable_shared_from_this<PeriodicTask> {
    public:
-    using ErrorCode = boost::system::error_code;
+    using ErrorCode = ASIO_ERROR;
     using CallbackType = std::function<void(const ErrorCode&)>;
 
     enum State : std::uint8_t

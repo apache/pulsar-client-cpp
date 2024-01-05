@@ -18,15 +18,20 @@
  */
 #include "ConnectionPool.h"
 
+#ifdef USE_ASIO
+#include <asio/ip/tcp.hpp>
+#include <asio/ssl.hpp>
+#else
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
+#endif
 
 #include "ClientConnection.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
 
-using boost::asio::ip::tcp;
-namespace ssl = boost::asio::ssl;
+using ASIO::ip::tcp;
+namespace ssl = ASIO::ssl;
 typedef ssl::stream<tcp::socket> ssl_socket;
 
 DECLARE_LOG_OBJECT()

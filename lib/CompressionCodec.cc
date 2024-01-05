@@ -45,7 +45,6 @@ CompressionCodec& CompressionCodecProvider::getCodec(CompressionType compression
         default:
             return compressionCodecNone_;
     }
-    BOOST_THROW_EXCEPTION(std::logic_error("Invalid CompressionType enumeration value"));
 }
 
 SharedBuffer CompressionCodecNone::encode(const SharedBuffer& raw) { return raw; }
