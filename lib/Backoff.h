@@ -21,7 +21,7 @@
 #include <pulsar/defines.h>
 
 #include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/random/mersenne_twister.hpp>
+#include <random>
 
 namespace pulsar {
 
@@ -39,7 +39,7 @@ class PULSAR_PUBLIC Backoff {
     TimeDuration next_;
     TimeDuration mandatoryStop_;
     boost::posix_time::ptime firstBackoffTime_;
-    boost::random::mt19937 rng_;
+    std::mt19937 rng_;
     bool mandatoryStopMade_ = false;
 
     friend class PulsarFriend;
