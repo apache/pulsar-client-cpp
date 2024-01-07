@@ -20,21 +20,21 @@
 #include <pulsar/TopicMetadata.h>
 
 #include <atomic>
-#include <boost/asio/deadline_timer.hpp>
 #include <memory>
 #include <mutex>
 #include <vector>
 
+#include "AsioTimer.h"
 #include "LookupDataResult.h"
 #include "ProducerImplBase.h"
 #include "ProducerInterceptors.h"
+#include "TimeUtils.h"
 
 namespace pulsar {
 
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
 using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 class LookupService;
@@ -128,7 +128,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
 
     ExecutorServicePtr listenerExecutor_;
     DeadlineTimerPtr partitionsUpdateTimer_;
-    boost::posix_time::time_duration partitionsUpdateInterval_;
+    TimeDuration partitionsUpdateInterval_;
     LookupServicePtr lookupServicePtr_;
 
     ProducerInterceptorsPtr interceptors_;

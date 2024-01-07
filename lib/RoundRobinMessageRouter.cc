@@ -26,8 +26,7 @@
 namespace pulsar {
 RoundRobinMessageRouter::RoundRobinMessageRouter(ProducerConfiguration::HashingScheme hashingScheme,
                                                  bool batchingEnabled, uint32_t maxBatchingMessages,
-                                                 uint32_t maxBatchingSize,
-                                                 boost::posix_time::time_duration maxBatchingDelay)
+                                                 uint32_t maxBatchingSize, TimeDuration maxBatchingDelay)
     : MessageRouterBase(hashingScheme),
       batchingEnabled_(batchingEnabled),
       maxBatchingMessages_(maxBatchingMessages),
@@ -74,7 +73,7 @@ int RoundRobinMessageRouter::getPartition(const Message& msg, const TopicMetadat
     int64_t now = TimeUtils::currentTimeMillis();
 
     if (messageCount >= maxBatchingMessages_ || (messageSize >= maxBatchingSize_ - batchSize) ||
-        (now - lastPartitionChange >= maxBatchingDelay_.total_milliseconds())) {
+        (now - lastPartitionChange >= toMillis(maxBatchingDelay_))) {
         uint32_t currentPartitionCursor = ++currentPartitionCursor_;
         lastPartitionChange_ = now;
         cumulativeBatchSize_ = messageSize;

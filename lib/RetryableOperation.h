@@ -30,6 +30,7 @@
 #include "Future.h"
 #include "LogUtils.h"
 #include "ResultUtils.h"
+#include "TimeUtils.h"
 
 namespace pulsar {
 
@@ -43,9 +44,8 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
                        DeadlineTimerPtr timer)
         : name_(name),
           func_(std::move(func)),
-          timeout_(boost::posix_time::seconds(timeoutSeconds)),
-          backoff_(boost::posix_time::milliseconds(100), timeout_ + timeout_,
-                   boost::posix_time::milliseconds(0)),
+          timeout_(std::chrono::seconds(timeoutSeconds)),
+          backoff_(std::chrono::milliseconds(100), timeout_ + timeout_, std::chrono::milliseconds(0)),
           timer_(timer) {}
 
    public:
@@ -67,7 +67,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
 
     void cancel() {
         promise_.setFailed(ResultDisconnected);
-        boost::system::error_code ec;
+        ASIO_ERROR ec;
         timer_->cancel(ec);
     }
 
@@ -100,7 +100,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
                 promise_.setFailed(result);
                 return;
             }
-            if (remainingTime.total_milliseconds() <= 0) {
+            if (toMillis(remainingTime) <= 0) {
                 promise_.setFailed(ResultTimeout);
                 return;
             }
@@ -109,24 +109,23 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
             timer_->expires_from_now(delay);
 
             auto nextRemainingTime = remainingTime - delay;
-            LOG_INFO("Reschedule " << name_ << " for " << delay.total_milliseconds()
-                                   << " ms, remaining time: " << nextRemainingTime.total_milliseconds()
-                                   << " ms");
-            timer_->async_wait([this, weakSelf, nextRemainingTime](const boost::system::error_code& ec) {
+            LOG_INFO("Reschedule " << name_ << " for " << toMillis(delay)
+                                   << " ms, remaining time: " << toMillis(nextRemainingTime) << " ms");
+            timer_->async_wait([this, weakSelf, nextRemainingTime](const ASIO_ERROR& ec) {
                 auto self = weakSelf.lock();
                 if (!self) {
                     return;
                 }
                 if (ec) {
-                    if (ec == boost::asio::error::operation_aborted) {
+                    if (ec == ASIO::error::operation_aborted) {
                         LOG_DEBUG("Timer for " << name_ << " is cancelled");
                         promise_.setFailed(ResultTimeout);
                     } else {
                         LOG_WARN("Timer for " << name_ << " failed: " << ec.message());
                     }
                 } else {
-                    LOG_DEBUG("Run operation " << name_ << ", remaining time: "
-                                               << nextRemainingTime.total_milliseconds() << " ms");
+                    LOG_DEBUG("Run operation " << name_ << ", remaining time: " << toMillis(nextRemainingTime)
+                                               << " ms");
                     runImpl(nextRemainingTime);
                 }
             });

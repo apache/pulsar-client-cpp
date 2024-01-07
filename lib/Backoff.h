@@ -20,12 +20,12 @@
 #define _PULSAR_BACKOFF_HEADER_
 #include <pulsar/defines.h>
 
-#include <boost/date_time/posix_time/posix_time.hpp>
+#include <chrono>
 #include <random>
 
-namespace pulsar {
+#include "TimeUtils.h"
 
-using TimeDuration = boost::posix_time::time_duration;
+namespace pulsar {
 
 class PULSAR_PUBLIC Backoff {
    public:
@@ -38,7 +38,7 @@ class PULSAR_PUBLIC Backoff {
     const TimeDuration max_;
     TimeDuration next_;
     TimeDuration mandatoryStop_;
-    boost::posix_time::ptime firstBackoffTime_;
+    decltype(std::chrono::high_resolution_clock::now()) firstBackoffTime_;
     std::mt19937 rng_;
     bool mandatoryStopMade_ = false;
 

@@ -23,8 +23,6 @@
 #include <pulsar/Producer.h>
 #include <pulsar/Result.h>
 
-#include <boost/date_time/posix_time/ptime.hpp>
-
 #include "ChunkMessageIdImpl.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
@@ -53,7 +51,7 @@ struct OpSendMsg {
     const int32_t numChunks;
     const uint32_t messagesCount;
     const uint64_t messagesSize;
-    const boost::posix_time::ptime timeout;
+    const ptime timeout;
     const SendCallback sendCallback;
     std::vector<std::function<void(Result)>> trackerCallbacks;
     ChunkMessageIdListPtr chunkMessageIdList;
@@ -98,7 +96,7 @@ struct OpSendMsg {
           numChunks(metadata.num_chunks_from_msg()),
           messagesCount(messagesCount),
           messagesSize(messagesSize),
-          timeout(TimeUtils::now() + boost::posix_time::milliseconds(sendTimeoutMs)),
+          timeout(TimeUtils::now() + std::chrono::milliseconds(sendTimeoutMs)),
           sendCallback(std::move(callback)),
           chunkMessageIdList(std::move(chunkMessageIdList)),
           sendArgs(new SendArguments(producerId, metadata.sequence_id(), metadata, payload)) {}

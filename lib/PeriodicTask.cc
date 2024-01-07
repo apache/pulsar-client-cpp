@@ -18,6 +18,8 @@
  */
 #include "PeriodicTask.h"
 
+#include <chrono>
+
 namespace pulsar {
 
 void PeriodicTask::start() {
@@ -27,7 +29,7 @@ void PeriodicTask::start() {
     state_ = Ready;
     if (periodMs_ >= 0) {
         std::weak_ptr<PeriodicTask> weakSelf{shared_from_this()};
-        timer_->expires_from_now(boost::posix_time::millisec(periodMs_));
+        timer_->expires_from_now(std::chrono::milliseconds(periodMs_));
         timer_->async_wait([weakSelf](const ErrorCode& ec) {
             auto self = weakSelf.lock();
             if (self) {
@@ -48,7 +50,7 @@ void PeriodicTask::stop() noexcept {
 }
 
 void PeriodicTask::handleTimeout(const ErrorCode& ec) {
-    if (state_ != Ready || ec.value() == boost::system::errc::operation_canceled) {
+    if (state_ != Ready || ec == ASIO::error::operation_aborted) {
         return;
     }
 
@@ -57,7 +59,7 @@ void PeriodicTask::handleTimeout(const ErrorCode& ec) {
     // state_ may be changed in handleTimeout, so we check state_ again
     if (state_ == Ready) {
         auto self = shared_from_this();
-        timer_->expires_from_now(boost::posix_time::millisec(periodMs_));
+        timer_->expires_from_now(std::chrono::milliseconds(periodMs_));
         timer_->async_wait([this, self](const ErrorCode& ec) { handleTimeout(ec); });
     }
 }

@@ -16,17 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+// This header defines common macros to use Asio or Boost.Asio.
+#pragma once
 
-#include "TimeUtils.h"
-
-namespace pulsar {
-
-ptime TimeUtils::now() { return microsec_clock::universal_time(); }
-
-int64_t TimeUtils::currentTimeMillis() {
-    static ptime time_t_epoch(boost::gregorian::date(1970, 1, 1));
-
-    time_duration diff = now() - time_t_epoch;
-    return diff.total_milliseconds();
-}
-}  // namespace pulsar
+#ifdef USE_ASIO
+#define ASIO ::asio
+#define ASIO_ERROR asio::error_code
+#define ASIO_SUCCESS (ASIO_ERROR{})
+#define ASIO_SYSTEM_ERROR asio::system_error
+#else
+#define ASIO boost::asio
+#define ASIO_ERROR boost::system::error_code
+#define ASIO_SUCCESS boost::system::errc::make_error_code(boost::system::errc::success)
+#define ASIO_SYSTEM_ERROR boost::system::system_error
+#endif

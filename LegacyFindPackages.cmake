@@ -176,10 +176,6 @@ if (Boost_MAJOR_VERSION EQUAL 1 AND Boost_MINOR_VERSION LESS 69)
     MESSAGE(STATUS "Linking with Boost:System")
 endif()
 
-if (MSVC)
-    set(BOOST_COMPONENTS ${BOOST_COMPONENTS} date_time)
-endif()
-
 if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
     # GCC 4.8.2 implementation of std::regex is buggy
     set(BOOST_COMPONENTS ${BOOST_COMPONENTS} regex)

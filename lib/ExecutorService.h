@@ -22,10 +22,15 @@
 #include <pulsar/defines.h>
 
 #include <atomic>
-#include <boost/asio/deadline_timer.hpp>
+#ifdef USE_ASIO
+#include <asio/io_service.hpp>
+#include <asio/ip/tcp.hpp>
+#include <asio/ssl.hpp>
+#else
 #include <boost/asio/io_service.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
+#endif
 #include <chrono>
 #include <condition_variable>
 #include <functional>
@@ -33,14 +38,15 @@
 #include <mutex>
 #include <thread>
 
+#include "AsioTimer.h"
+
 namespace pulsar {
-typedef std::shared_ptr<boost::asio::ip::tcp::socket> SocketPtr;
-typedef std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket &> > TlsSocketPtr;
-typedef std::shared_ptr<boost::asio::ip::tcp::resolver> TcpResolverPtr;
-typedef std::shared_ptr<boost::asio::deadline_timer> DeadlineTimerPtr;
+typedef std::shared_ptr<ASIO::ip::tcp::socket> SocketPtr;
+typedef std::shared_ptr<ASIO::ssl::stream<ASIO::ip::tcp::socket &> > TlsSocketPtr;
+typedef std::shared_ptr<ASIO::ip::tcp::resolver> TcpResolverPtr;
 class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<ExecutorService> {
    public:
-    using IOService = boost::asio::io_service;
+    using IOService = ASIO::io_service;
     using SharedPtr = std::shared_ptr<ExecutorService>;
 
     static SharedPtr create();
@@ -51,7 +57,7 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
 
     // throws std::runtime_error if failed
     SocketPtr createSocket();
-    static TlsSocketPtr createTlsSocket(SocketPtr &socket, boost::asio::ssl::context &ctx);
+    static TlsSocketPtr createTlsSocket(SocketPtr &socket, ASIO::ssl::context &ctx);
     // throws std::runtime_error if failed
     TcpResolverPtr createTcpResolver();
     // throws std::runtime_error if failed

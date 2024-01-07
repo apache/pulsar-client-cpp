@@ -19,6 +19,12 @@
 #ifndef LIB_PRODUCERIMPL_H_
 #define LIB_PRODUCERIMPL_H_
 
+#include "TimeUtils.h"
+#ifdef USE_ASIO
+#include <asio/steady_timer.hpp>
+#else
+#include <boost/asio/steady_timer.hpp>
+#endif
 #include <atomic>
 #include <boost/optional.hpp>
 #include <list>
@@ -30,6 +36,7 @@
 #if defined(_MSC_VER) || defined(__APPLE__)
 #include "OpSendMsg.h"
 #endif
+#include "AsioDefines.h"
 #include "PendingFailures.h"
 #include "PeriodicTask.h"
 #include "ProducerImplBase.h"
@@ -39,7 +46,7 @@ namespace pulsar {
 class BatchMessageContainerBase;
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
-using DeadlineTimerPtr = std::shared_ptr<boost::asio::deadline_timer>;
+using DeadlineTimerPtr = std::shared_ptr<ASIO::steady_timer>;
 class MessageCrypto;
 using MessageCryptoPtr = std::shared_ptr<MessageCrypto>;
 class ProducerImpl;
@@ -137,7 +144,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     void resendMessages(ClientConnectionPtr cnx);
 
-    void refreshEncryptionKey(const boost::system::error_code& ec);
+    void refreshEncryptionKey(const ASIO_ERROR& ec);
     bool encryptMessage(proto::MessageMetadata& metadata, SharedBuffer& payload,
                         SharedBuffer& encryptedPayload);
 
@@ -183,8 +190,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     std::string schemaVersion_;
 
     DeadlineTimerPtr sendTimer_;
-    void handleSendTimeout(const boost::system::error_code& err);
-    using DurationType = typename boost::asio::deadline_timer::duration_type;
+    void handleSendTimeout(const ASIO_ERROR& err);
+    using DurationType = TimeDuration;
     void asyncWaitSendTimeout(DurationType expiryTime);
 
     Promise<Result, ProducerImplBaseWeakPtr> producerCreatedPromise_;
