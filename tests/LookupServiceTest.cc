@@ -22,11 +22,14 @@
 
 #include <algorithm>
 #include <boost/exception/all.hpp>
+#include <chrono>
 #include <future>
+#include <memory>
 #include <stdexcept>
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "PulsarWrapper.h"
 #include "lib/BinaryProtoLookupService.h"
 #include "lib/ClientConnection.h"
 #include "lib/ConnectionPool.h"
@@ -48,7 +51,10 @@ namespace pulsar {
 
 class LookupServiceTest : public ::testing::TestWithParam<std::string> {
    public:
-    void SetUp() override { client_ = Client{GetParam()}; }
+    void SetUp() override {
+        serviceUrl_ = GetParam();
+        client_ = Client{serviceUrl_};
+    }
     void TearDown() override { client_.close(); }
 
     template <typename T>
@@ -63,6 +69,7 @@ class LookupServiceTest : public ::testing::TestWithParam<std::string> {
     }
 
    protected:
+    std::string serviceUrl_;
     Client client_{httpLookupUrl};
 };
 
@@ -159,7 +166,7 @@ TEST(LookupServiceTest, testRetry) {
     ClientConfiguration conf;
 
     auto lookupService = RetryableLookupService::create(
-        std::make_shared<BinaryProtoLookupService>(serviceNameResolver, pool, conf), 30 /* seconds */,
+        std::make_shared<BinaryProtoLookupService>(serviceNameResolver, pool, conf), std::chrono::seconds(30),
         executorProvider);
 
     PulsarFriend::setServiceUrlIndex(serviceNameResolver, 0);
@@ -194,8 +201,8 @@ TEST(LookupServiceTest, testTimeout) {
 
     constexpr int timeoutInSeconds = 2;
     auto lookupService = RetryableLookupService::create(
-        std::make_shared<BinaryProtoLookupService>(serviceNameResolver, pool, conf), timeoutInSeconds,
-        executorProvider);
+        std::make_shared<BinaryProtoLookupService>(serviceNameResolver, pool, conf),
+        std::chrono::seconds(timeoutInSeconds), executorProvider);
     auto topicNamePtr = TopicName::get("lookup-service-test-retry");
 
     decltype(std::chrono::high_resolution_clock::now()) startTime;
@@ -429,6 +436,31 @@ TEST_P(LookupServiceTest, testGetSchemaByVersion) {
     consumer.close();
     producer1.close();
     producer2.close();
+}
+
+TEST_P(LookupServiceTest, testGetSchemaTimeout) {
+    if (serviceUrl_.find("pulsar://") == std::string::npos) {
+        // HTTP request timeout can only be configured with seconds
+        return;
+    }
+    const auto topic = "lookup-service-test-get-schema-timeout";
+    Producer producer;
+    ProducerConfiguration producerConf;
+    producerConf.setSchema(SchemaInfo(STRING, "", ""));
+    ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConf, producer));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build()));
+    client_.close();
+
+    ClientConfiguration conf;
+    PulsarWrapper::deref(conf).operationTimeout = std::chrono::nanoseconds(1);
+    client_ = Client{serviceUrl_, conf};
+    auto promise = std::make_shared<std::promise<Result>>();
+    client_.getSchemaInfoAsync(topic, 0L,
+                               [promise](Result result, const SchemaInfo&) { promise->set_value(result); });
+    auto future = promise->get_future();
+    ASSERT_EQ(future.wait_for(std::chrono::milliseconds(100)), std::future_status::ready);
+    ASSERT_EQ(future.get(), ResultTimeout);
+    client_.close();
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLookupUrl, httpLookupUrl));

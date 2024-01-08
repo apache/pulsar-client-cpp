@@ -141,7 +141,7 @@ class Promise {
     Future<Result, Type> getFuture() const { return Future<Result, Type>{state_}; }
 
    private:
-    const InternalStatePtr<Result, Type> state_;
+    InternalStatePtr<Result, Type> state_;
 };
 
 }  // namespace pulsar

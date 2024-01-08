@@ -21,6 +21,7 @@
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/Version.h>
 
+#include <chrono>
 #include <random>
 #include <sstream>
 
@@ -109,7 +110,7 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
     }
 
     lookupServicePtr_ = RetryableLookupService::create(
-        underlyingLookupServicePtr, clientConfiguration_.getOperationTimeoutSeconds(), ioExecutorProvider_);
+        underlyingLookupServicePtr, clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
 }
 
 ClientImpl::~ClientImpl() { shutdown(); }
@@ -766,6 +767,10 @@ std::string ClientImpl::getClientVersion(const ClientConfiguration& clientConfig
         oss << "-" << clientConfiguration.getDescription();
     }
     return oss.str();
+}
+
+std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfiguration& clientConfiguration) {
+    return clientConfiguration.impl_->operationTimeout;
 }
 
 } /* namespace pulsar */

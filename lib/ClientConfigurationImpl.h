@@ -21,6 +21,8 @@
 
 #include <pulsar/ClientConfiguration.h>
 
+#include <chrono>
+
 namespace pulsar {
 
 struct ClientConfigurationImpl {
@@ -28,7 +30,7 @@ struct ClientConfigurationImpl {
     uint64_t memoryLimit{0ull};
     int ioThreads{1};
     int connectionsPerBroker{1};
-    int operationTimeoutSeconds{30};
+    std::chrono::nanoseconds operationTimeout{30L * 1000 * 1000 * 1000};
     int messageListenerThreads{1};
     int concurrentLookupRequest{50000};
     int maxLookupRedirects{20};

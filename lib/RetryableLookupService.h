@@ -18,6 +18,8 @@
  */
 #pragma once
 
+#include <chrono>
+
 #include "LookupDataResult.h"
 #include "LookupService.h"
 #include "NamespaceName.h"
@@ -81,15 +83,15 @@ class RetryableLookupService : public LookupService {
     RetryableOperationCachePtr<NamespaceTopicsPtr> namespaceLookupCache_;
     RetryableOperationCachePtr<SchemaInfo> getSchemaCache_;
 
-    RetryableLookupService(std::shared_ptr<LookupService> lookupService, int timeoutSeconds,
+    RetryableLookupService(std::shared_ptr<LookupService> lookupService, TimeDuration timeout,
                            ExecutorServiceProviderPtr executorProvider)
         : lookupService_(lookupService),
-          lookupCache_(RetryableOperationCache<LookupResult>::create(executorProvider, timeoutSeconds)),
+          lookupCache_(RetryableOperationCache<LookupResult>::create(executorProvider, timeout)),
           partitionLookupCache_(
-              RetryableOperationCache<LookupDataResultPtr>::create(executorProvider, timeoutSeconds)),
+              RetryableOperationCache<LookupDataResultPtr>::create(executorProvider, timeout)),
           namespaceLookupCache_(
-              RetryableOperationCache<NamespaceTopicsPtr>::create(executorProvider, timeoutSeconds)),
-          getSchemaCache_(RetryableOperationCache<SchemaInfo>::create(executorProvider, timeoutSeconds)) {}
+              RetryableOperationCache<NamespaceTopicsPtr>::create(executorProvider, timeout)),
+          getSchemaCache_(RetryableOperationCache<SchemaInfo>::create(executorProvider, timeout)) {}
 };
 
 }  // namespace pulsar

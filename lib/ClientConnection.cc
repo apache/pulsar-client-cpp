@@ -24,6 +24,7 @@
 #include <fstream>
 
 #include "AsioDefines.h"
+#include "ClientImpl.h"
 #include "Commands.h"
 #include "ConnectionPool.h"
 #include "ConsumerImpl.h"
@@ -163,7 +164,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                                    const ClientConfiguration& clientConfiguration,
                                    const AuthenticationPtr& authentication, const std::string& clientVersion,
                                    ConnectionPool& pool, size_t poolIndex)
-    : operationsTimeout_(std::chrono::seconds(clientConfiguration.getOperationTimeoutSeconds())),
+    : operationsTimeout_(ClientImpl::getOperationTimeout(clientConfiguration)),
       authentication_(authentication),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
       executor_(executor),
@@ -1278,6 +1279,7 @@ void ClientConnection::close(Result result, bool detach) {
     auto pendingConsumerStatsMap = std::move(pendingConsumerStatsMap_);
     auto pendingGetLastMessageIdRequests = std::move(pendingGetLastMessageIdRequests_);
     auto pendingGetNamespaceTopicsRequests = std::move(pendingGetNamespaceTopicsRequests_);
+    auto pendingGetSchemaRequests = std::move(pendingGetSchemaRequests_);
 
     numOfPendingLookupRequest_ = 0;
 
@@ -1341,6 +1343,9 @@ void ClientConnection::close(Result result, bool detach) {
     }
     for (auto& kv : pendingGetNamespaceTopicsRequests) {
         kv.second.setFailed(result);
+    }
+    for (auto& kv : pendingGetSchemaRequests) {
+        kv.second.promise.setFailed(result);
     }
 }
 
@@ -1430,6 +1435,7 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
 Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
                                                           const std::string& version, uint64_t requestId) {
     Lock lock(mutex_);
+
     Promise<Result, SchemaInfo> promise;
     if (isClosed()) {
         lock.unlock();
@@ -1438,8 +1444,27 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
         return promise.getFuture();
     }
 
-    pendingGetSchemaRequests_.insert(std::make_pair(requestId, promise));
+    auto timer = executor_->createDeadlineTimer();
+    pendingGetSchemaRequests_.emplace(requestId, GetSchemaRequest{promise, timer});
     lock.unlock();
+
+    auto weakSelf = weak_from_this();
+    timer->expires_from_now(operationsTimeout_);
+    timer->async_wait([this, weakSelf, requestId](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
+        Lock lock(mutex_);
+        auto it = pendingGetSchemaRequests_.find(requestId);
+        if (it != pendingGetSchemaRequests_.end()) {
+            auto promise = std::move(it->second.promise);
+            pendingGetSchemaRequests_.erase(it);
+            lock.unlock();
+            promise.setFailed(ResultTimeout);
+        }
+    });
+
     sendCommand(Commands::newGetSchema(topicName, version, requestId));
     return promise.getFuture();
 }
@@ -1867,7 +1892,7 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
     Lock lock(mutex_);
     auto it = pendingGetSchemaRequests_.find(response.request_id());
     if (it != pendingGetSchemaRequests_.end()) {
-        Promise<Result, SchemaInfo> getSchemaPromise = it->second;
+        Promise<Result, SchemaInfo> getSchemaPromise = it->second.promise;
         pendingGetSchemaRequests_.erase(it);
         lock.unlock();
 

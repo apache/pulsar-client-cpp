@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <chrono>
 #include <stdexcept>
 
 #include "ClientConfigurationImpl.h"
@@ -61,11 +62,13 @@ Authentication& ClientConfiguration::getAuth() const { return *impl_->authentica
 const AuthenticationPtr& ClientConfiguration::getAuthPtr() const { return impl_->authenticationPtr; }
 
 ClientConfiguration& ClientConfiguration::setOperationTimeoutSeconds(int timeout) {
-    impl_->operationTimeoutSeconds = timeout;
+    impl_->operationTimeout = std::chrono::seconds(timeout);
     return *this;
 }
 
-int ClientConfiguration::getOperationTimeoutSeconds() const { return impl_->operationTimeoutSeconds; }
+int ClientConfiguration::getOperationTimeoutSeconds() const {
+    return std::chrono::duration_cast<std::chrono::seconds>(impl_->operationTimeout).count();
+}
 
 ClientConfiguration& ClientConfiguration::setIOThreads(int threads) {
     impl_->ioThreads = threads;
