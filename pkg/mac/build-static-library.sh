@@ -51,7 +51,7 @@ if [ ! -f boost/.done ]; then
     tar zxf boost-${BOOST_VERSION}.tar.gz
     mkdir -p $PREFIX/include
     pushd boost-${BOOST_VERSION}
-      ./bootstrap.sh --with-libraries
+      ./bootstrap.sh
       ./b2 headers
       cp -rf boost $PREFIX/include/
     popd
