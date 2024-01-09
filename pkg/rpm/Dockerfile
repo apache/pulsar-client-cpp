@@ -42,13 +42,12 @@ ADD .build/dep-version.py /usr/local/bin
 # GCC 4.8.2 implementation of std::regex is buggy, so we install boost::regex here
 RUN BOOST_VERSION=$(dep-version.py boost) && \
     echo "BOOST VERSION: '${BOOST_VERSION}'" && \
-    BOOST_VERSION_UNDESRSCORE=$(echo $BOOST_VERSION | sed 's/\./_/g') && \
-    curl -O -L https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
-    tar xfz boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz && \
-    cd boost_${BOOST_VERSION_UNDESRSCORE} && \
+    curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz && \
+    tar zxf boost-${BOOST_VERSION}.tar.gz && \
+    cd boost-${BOOST_VERSION} && \
     ./bootstrap.sh --with-libraries=regex && \
     ./b2 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
-    rm -rf /boost_${BOOST_VERSION_UNDESRSCORE}.tar.gz /boost_${BOOST_VERSION_UNDESRSCORE}
+    rm -rf /boost-${BOOST_VERSION}.tar.gz /boost-${BOOST_VERSION}
 
 RUN CMAKE_VERSION=$(dep-version.py cmake) && \
     curl -O -L https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${PLATFORM}.tar.gz && \

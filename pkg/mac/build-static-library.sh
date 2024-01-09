@@ -45,13 +45,16 @@ ZSTD_VERSION=$(./dep-version.py zstd)
 SNAPPY_VERSION=$(./dep-version.py snappy)
 CURL_VERSION=$(./dep-version.py curl)
 
-BOOST_VERSION_=${BOOST_VERSION//./_}
 if [ ! -f boost/.done ]; then
     echo "Building Boost $BOOST_VERSION"
-    curl -O -L https://boostorg.jfrog.io/artifactory/main/release/${BOOST_VERSION}/source/boost_${BOOST_VERSION_}.tar.gz
-    tar zxf boost_${BOOST_VERSION_}.tar.gz
+    curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz
+    tar zxf boost-${BOOST_VERSION}.tar.gz
     mkdir -p $PREFIX/include
-    cp -rf boost_${BOOST_VERSION_}/boost $PREFIX/include/
+    pushd boost-${BOOST_VERSION}
+      ./bootstrap.sh
+      ./b2 headers
+      cp -rf boost $PREFIX/include/
+    popd
     mkdir -p boost
     touch boost/.done
 else
