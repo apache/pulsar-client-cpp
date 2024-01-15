@@ -752,4 +752,36 @@ TEST(ReaderSeekTest, testSeekForMessageId) {
     producer.close();
 }
 
+TEST(ReaderSeekTest, testStartAtLatestMessageId) {
+    Client client(serviceUrl);
+
+    const std::string topic = "test-seek-latest-message-id-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+
+    MessageId id;
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build(), id));
+
+    Reader readerExclusive;
+    ASSERT_EQ(ResultOk,
+              client.createReader(topic, MessageId::latest(), ReaderConfiguration(), readerExclusive));
+
+    Reader readerInclusive;
+    ASSERT_EQ(ResultOk,
+              client.createReader(topic, MessageId::latest(),
+                                  ReaderConfiguration().setStartMessageIdInclusive(true), readerInclusive));
+
+    Message msg;
+    bool hasMsgAvaliable = false;
+    readerInclusive.hasMessageAvailable(hasMsgAvaliable);
+    ASSERT_TRUE(hasMsgAvaliable);
+    ASSERT_EQ(ResultOk, readerInclusive.readNext(msg, 3000));
+    ASSERT_EQ(ResultTimeout, readerExclusive.readNext(msg, 3000));
+
+    readerExclusive.close();
+    readerInclusive.close();
+    producer.close();
+}
+
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));

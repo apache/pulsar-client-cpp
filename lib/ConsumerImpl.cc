@@ -1508,18 +1508,34 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
 
     if (messageId == MessageId::latest()) {
         lock.unlock();
-        getLastMessageIdAsync([callback](Result result, const GetLastMessageIdResponse& response) {
+        auto self = get_shared_this_ptr();
+        getLastMessageIdAsync([self, callback](Result result, const GetLastMessageIdResponse& response) {
             if (result != ResultOk) {
                 callback(result, {});
                 return;
             }
-            if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
-                // We only care about comparing ledger ids and entry ids as mark delete position doesn't have
-                // other ids such as batch index
-                callback(ResultOk, compareLedgerAndEntryId(response.getMarkDeletePosition(),
-                                                           response.getLastMessageId()) < 0);
+            auto handleResponse = [self, response, callback] {
+                if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
+                    // We only care about comparing ledger ids and entry ids as mark delete position doesn't
+                    // have other ids such as batch index
+                    auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
+                                                                 response.getLastMessageId());
+                    callback(ResultOk, self->config_.isStartMessageIdInclusive() ? compareResult <= 0
+                                                                                 : compareResult < 0);
+                } else {
+                    callback(ResultOk, false);
+                }
+            };
+            if (self->config_.isStartMessageIdInclusive()) {
+                self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
+                    if (result != ResultOk) {
+                        callback(result, {});
+                        return;
+                    }
+                    handleResponse();
+                });
             } else {
-                callback(ResultOk, false);
+                handleResponse();
             }
         });
     } else {
