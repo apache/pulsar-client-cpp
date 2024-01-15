@@ -1508,25 +1508,26 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
 
     if (messageId == MessageId::latest()) {
         lock.unlock();
-        getLastMessageIdAsync([this, callback](Result result, const GetLastMessageIdResponse& response) {
+        auto self = get_shared_this_ptr();
+        getLastMessageIdAsync([self, callback](Result result, const GetLastMessageIdResponse& response) {
             if (result != ResultOk) {
                 callback(result, {});
                 return;
             }
-            auto handleResponse = [this, response, callback] {
+            auto handleResponse = [self, response, callback] {
                 if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
                     // We only care about comparing ledger ids and entry ids as mark delete position doesn't
                     // have other ids such as batch index
                     auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
                                                                  response.getLastMessageId());
-                    callback(ResultOk, this->config_.isStartMessageIdInclusive() ? compareResult <= 0
+                    callback(ResultOk, self->config_.isStartMessageIdInclusive() ? compareResult <= 0
                                                                                  : compareResult < 0);
                 } else {
                     callback(ResultOk, false);
                 }
             };
-            if (this->config_.isStartMessageIdInclusive()) {
-                this->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
+            if (self->config_.isStartMessageIdInclusive()) {
+                self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
                     if (result != ResultOk) {
                         callback(result, {});
                         return;
