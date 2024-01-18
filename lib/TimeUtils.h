@@ -35,8 +35,9 @@ inline decltype(std::chrono::milliseconds(0).count()) toMillis(TimeDuration dura
 class PULSAR_PUBLIC TimeUtils {
    public:
     static ptime now() { return std::chrono::high_resolution_clock::now(); }
+
     static int64_t currentTimeMillis() {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(now().time_since_epoch()).count();
+        return toMillis(std::chrono::system_clock::now().time_since_epoch());
     }
 };
 
