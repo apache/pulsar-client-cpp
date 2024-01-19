@@ -17,12 +17,14 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <time.h>
 
 #include <thread>
 
 #include "PulsarFriend.h"
 #include "lib/Backoff.h"
 #include "lib/ClientConnection.h"
+#include "lib/TimeUtils.h"
 #include "lib/stats/ProducerStatsImpl.h"
 
 using namespace pulsar;
@@ -41,6 +43,12 @@ static bool withinTenPercentAndDecrementTimer(Backoff& backoff, const unsigned i
     auto& firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
     firstBackOffTime -= milliseconds(t2);
     return (t1 >= t2 * 0.9 && t1 <= t2);
+}
+
+TEST(BackoffTest, testCurrentTimeMillis) {
+    auto t1 = TimeUtils::currentTimeMillis();
+    auto t2 = 1000L * time(nullptr);
+    ASSERT_TRUE(t1 - t2 < 1000L) << "t1: " << t1 << ", t2: " << t2;
 }
 
 TEST(BackoffTest, mandatoryStopTestNegativeTest) {
