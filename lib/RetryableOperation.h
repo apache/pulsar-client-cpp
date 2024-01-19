@@ -22,6 +22,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <memory>
 
@@ -40,11 +41,11 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
         explicit PassKey() {}
     };
 
-    RetryableOperation(const std::string& name, std::function<Future<Result, T>()>&& func, int timeoutSeconds,
-                       DeadlineTimerPtr timer)
+    RetryableOperation(const std::string& name, std::function<Future<Result, T>()>&& func,
+                       TimeDuration timeout, DeadlineTimerPtr timer)
         : name_(name),
           func_(std::move(func)),
-          timeout_(std::chrono::seconds(timeoutSeconds)),
+          timeout_(timeout),
           backoff_(std::chrono::milliseconds(100), timeout_ + timeout_, std::chrono::milliseconds(0)),
           timer_(timer) {}
 

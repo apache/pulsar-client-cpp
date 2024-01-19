@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 #include <atomic>
+#include <chrono>
 #include <stdexcept>
 
 #include "lib/RetryableOperationCache.h"
@@ -82,7 +83,7 @@ class RetryableOperationCacheTest : public ::testing::Test {
 using namespace pulsar;
 
 TEST_F(RetryableOperationCacheTest, testRetry) {
-    auto cache = RetryableOperationCache<int>::create(provider_, 30 /* seconds */);
+    auto cache = RetryableOperationCache<int>::create(provider_, std::chrono::seconds(30));
     for (int i = 0; i < 10; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i), CountdownFunc{i * 100}));
     }
@@ -94,7 +95,7 @@ TEST_F(RetryableOperationCacheTest, testRetry) {
 }
 
 TEST_F(RetryableOperationCacheTest, testCache) {
-    auto cache = RetryableOperationCache<int>::create(provider_, 30 /* seconds */);
+    auto cache = RetryableOperationCache<int>::create(provider_, std::chrono::seconds(30));
     constexpr int numKeys = 5;
     for (int i = 0; i < 100; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i % numKeys), CountdownFunc{i * 100}));
@@ -107,7 +108,7 @@ TEST_F(RetryableOperationCacheTest, testCache) {
 }
 
 TEST_F(RetryableOperationCacheTest, testTimeout) {
-    auto cache = RetryableOperationCache<int>::create(provider_, 1 /* seconds */);
+    auto cache = RetryableOperationCache<int>::create(provider_, std::chrono::seconds(1));
     auto future = cache->run("key", CountdownFunc{0, 1000 /* retry count */});
     try {
         wait(future);
@@ -118,7 +119,7 @@ TEST_F(RetryableOperationCacheTest, testTimeout) {
 }
 
 TEST_F(RetryableOperationCacheTest, testClear) {
-    auto cache = RetryableOperationCache<int>::create(provider_, 30 /* seconds */);
+    auto cache = RetryableOperationCache<int>::create(provider_, std::chrono::seconds(30));
     for (int i = 0; i < 10; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i), CountdownFunc{100}));
     }

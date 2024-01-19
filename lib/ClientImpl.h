@@ -125,6 +125,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
 
+    static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
+
     friend class PulsarFriend;
 
    private:

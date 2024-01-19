@@ -18,6 +18,7 @@
  */
 #pragma once
 
+#include <chrono>
 #include <mutex>
 #include <unordered_map>
 
@@ -40,8 +41,8 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
         explicit PassKey() {}
     };
 
-    RetryableOperationCache(ExecutorServiceProviderPtr executorProvider, int timeoutSeconds)
-        : executorProvider_(executorProvider), timeoutSeconds_(timeoutSeconds) {}
+    RetryableOperationCache(ExecutorServiceProviderPtr executorProvider, TimeDuration timeout)
+        : executorProvider_(executorProvider), timeout_(timeout) {}
 
     using Self = RetryableOperationCache<T>;
 
@@ -69,7 +70,7 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
                 return promise.getFuture();
             }
 
-            auto operation = RetryableOperation<T>::create(key, std::move(func), timeoutSeconds_, timer);
+            auto operation = RetryableOperation<T>::create(key, std::move(func), timeout_, timer);
             auto future = operation->run();
             operations_[key] = operation;
             lock.unlock();
@@ -106,7 +107,7 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
 
    private:
     ExecutorServiceProviderPtr executorProvider_;
-    const int timeoutSeconds_;
+    const TimeDuration timeout_;
 
     std::unordered_map<std::string, std::shared_ptr<RetryableOperation<T>>> operations_;
     mutable std::mutex mutex_;

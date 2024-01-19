@@ -42,6 +42,7 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 #include "AsioTimer.h"
@@ -224,6 +225,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         DeadlineTimerPtr timer;
     };
 
+    struct GetSchemaRequest {
+        Promise<Result, SchemaInfo> promise;
+        DeadlineTimerPtr timer;
+    };
+
     /*
      * handler for connectAsync
      * creates a ConnectionPtr which has a valid ClientConnection object
@@ -363,7 +369,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::map<long, Promise<Result, NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
     PendingGetNamespaceTopicsMap pendingGetNamespaceTopicsRequests_;
 
-    typedef std::map<long, Promise<Result, SchemaInfo>> PendingGetSchemaMap;
+    typedef std::unordered_map<uint64_t, GetSchemaRequest> PendingGetSchemaMap;
     PendingGetSchemaMap pendingGetSchemaRequests_;
 
     mutable std::mutex mutex_;
