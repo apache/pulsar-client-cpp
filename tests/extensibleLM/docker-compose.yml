@@ -14,7 +14,7 @@ services:
       - ./data/zookeeper:/pulsar/data/zookeeper
     environment:
       - metadataStoreUrl=zk:zookeeper:2181
-      - PULSAR_MEM=-Xms56m -Xmx56m -XX:MaxDirectMemorySize=56m
+      - PULSAR_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
     command: >
       bash -c "bin/apply-config-from-env.py conf/zookeeper.conf && \
              bin/generate-zookeeper-config.sh conf/zookeeper.conf && \
@@ -32,13 +32,15 @@ services:
     image: apachepulsar/pulsar:latest
     networks:
       - pulsar
+    environment:
+      - PULSAR_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
     command: >
       bin/pulsar initialize-cluster-metadata \
                --cluster cluster-a \
                --zookeeper zookeeper:2181 \
                --configuration-store zookeeper:2181 \
-               --web-service-url http://broker:8080 \
-               --broker-service-url pulsar://broker:6650
+               --web-service-url http://broker-1:8080 \
+               --broker-service-url pulsar://broker-1:6650
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -55,7 +57,7 @@ services:
       - zkServers=zookeeper:2181
       - metadataServiceUri=metadata-store:zk:zookeeper:2181
       - advertisedAddress=bookie
-      - BOOKIE_MEM=-Xms56m -Xmx56m -XX:MaxDirectMemorySize=56m
+      - BOOKIE_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
     depends_on:
       zookeeper:
         condition: service_healthy
@@ -76,7 +78,7 @@ services:
       - metadataStoreUrl=zk:zookeeper:2181
       - zookeeperServers=zookeeper:2181
       - clusterName=cluster-a
-      - PULSAR_MEM=-Xms56m -Xmx56m -XX:MaxDirectMemorySize=56m
+      - PULSAR_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
     ports:
       - "8080:8080"
       - "6650:6650"
@@ -105,7 +107,7 @@ services:
       - advertisedAddress=broker-1
       - internalListenerName=internal
       - advertisedListeners=internal:pulsar://broker-1:6650
-      - PULSAR_MEM=-Xms56m -Xmx56m -XX:MaxDirectMemorySize=56m
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=56m
       # Load Manager. Here uses the extensible load balancer, sets the unloading strategy to TransferShedder, and enables debug mode.
       - loadManagerClassName=org.apache.pulsar.broker.loadbalance.extensions.ExtensibleLoadManagerImpl
       - loadBalancerLoadSheddingStrategy=org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder
@@ -137,7 +139,7 @@ services:
       - advertisedAddress=broker-2
       - internalListenerName=internal
       - advertisedListeners=internal:pulsar://broker-2:6650
-      - PULSAR_MEM=-Xms56m -Xmx56m -XX:MaxDirectMemorySize=56m
+      - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=56m
       # Load Manager. Here uses the extensible load balancer, sets the unloading strategy to TransferShedder, and enables debug mode.
       - loadManagerClassName=org.apache.pulsar.broker.loadbalance.extensions.ExtensibleLoadManagerImpl
       - loadBalancerLoadSheddingStrategy=org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder
