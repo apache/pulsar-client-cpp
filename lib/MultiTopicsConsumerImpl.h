@@ -131,6 +131,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     const Commands::SubscriptionMode subscriptionMode_;
     boost::optional<MessageId> startMessageId_;
     ConsumerInterceptorsPtr interceptors_;
+    std::atomic_bool duringSeek_{false};
 
     /* methods */
     void handleSinglePartitionConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,

@@ -22,6 +22,7 @@
 #include <pulsar/Reader.h>
 
 #include <boost/optional.hpp>
+#include <chrono>
 #include <functional>
 #include <list>
 #include <memory>
@@ -332,8 +333,6 @@ class ConsumerImpl : public ConsumerImplBase {
                                                       const ClientConnectionPtr& cnx, MessageId& messageId);
 
     friend class PulsarFriend;
-
-    // these two declared friend to access setNegativeAcknowledgeEnabledForTesting
     friend class MultiTopicsConsumerImpl;
 
     FRIEND_TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages);
