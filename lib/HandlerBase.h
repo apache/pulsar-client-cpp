@@ -20,6 +20,7 @@
 #define _PULSAR_HANDLER_BASE_HEADER_
 #include <pulsar/Result.h>
 
+#include <boost/optional.hpp>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -55,9 +56,20 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
    protected:
     /*
      * tries reconnection and sets connection_ to valid object
+     * @param assignedBrokerUrl assigned broker url to directly connect to without lookup
+     */
+    void grabCnx(const boost::optional<std::string>& assignedBrokerUrl);
+
+    /*
+     * tries reconnection and sets connection_ to valid object
      */
     void grabCnx();
 
+    /*
+     * Schedule reconnection after backoff time
+     * @param assignedBrokerUrl assigned broker url to directly connect to without lookup
+     */
+    void scheduleReconnection(const boost::optional<std::string>& assignedBrokerUrl);
     /*
      * Schedule reconnection after backoff time
      */
@@ -89,9 +101,12 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
    private:
     const std::shared_ptr<std::string> topic_;
 
+    Future<Result, ClientConnectionPtr> getConnection(const ClientImplPtr& client,
+                                                      const boost::optional<std::string>& assignedBrokerUrl);
+
     void handleDisconnection(Result result, const ClientConnectionPtr& cnx);
 
-    void handleTimeout(const ASIO_ERROR& ec);
+    void handleTimeout(const ASIO_ERROR& ec, const boost::optional<std::string>& assignedBrokerUrl);
 
    protected:
     ClientImplWeakPtr client_;

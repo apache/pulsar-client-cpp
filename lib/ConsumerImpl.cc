@@ -1234,10 +1234,13 @@ void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
     negativeAcksTracker_->add(messageId);
 }
 
-void ConsumerImpl::disconnectConsumer() {
-    LOG_INFO("Broker notification of Closed consumer: " << consumerId_);
+void ConsumerImpl::disconnectConsumer() { disconnectConsumer(boost::none); }
+
+void ConsumerImpl::disconnectConsumer(const boost::optional<std::string>& assignedBrokerUrl) {
+    LOG_INFO("Broker notification of Closed consumer: "
+             << consumerId_ << (assignedBrokerUrl ? (" assignedBrokerUrl: " + assignedBrokerUrl.get()) : ""));
     resetCnx();
-    scheduleReconnection();
+    scheduleReconnection(assignedBrokerUrl);
 }
 
 void ConsumerImpl::closeAsync(ResultCallback originalCallback) {

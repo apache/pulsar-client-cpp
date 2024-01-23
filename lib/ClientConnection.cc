@@ -1737,6 +1737,30 @@ void ClientConnection::handleError(const proto::CommandError& error) {
     }
 }
 
+boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
+    const proto::CommandCloseProducer& closeProducer) {
+    if (tlsSocket_) {
+        if (closeProducer.has_assignedbrokerserviceurltls()) {
+            return closeProducer.assignedbrokerserviceurltls();
+        }
+    } else if (closeProducer.has_assignedbrokerserviceurl()) {
+        return closeProducer.assignedbrokerserviceurl();
+    }
+    return boost::none;
+}
+
+boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
+    const proto::CommandCloseConsumer& closeConsumer) {
+    if (tlsSocket_) {
+        if (closeConsumer.has_assignedbrokerserviceurltls()) {
+            return closeConsumer.assignedbrokerserviceurltls();
+        }
+    } else if (closeConsumer.has_assignedbrokerserviceurl()) {
+        return closeConsumer.assignedbrokerserviceurl();
+    }
+    return boost::none;
+}
+
 void ClientConnection::handleCloseProducer(const proto::CommandCloseProducer& closeProducer) {
     int producerId = closeProducer.producer_id();
 
@@ -1750,7 +1774,8 @@ void ClientConnection::handleCloseProducer(const proto::CommandCloseProducer& cl
         lock.unlock();
 
         if (producer) {
-            producer->disconnectProducer();
+            auto assignedBrokerServiceUrl = getAssignedBrokerServiceUrl(closeProducer);
+            producer->disconnectProducer(assignedBrokerServiceUrl);
         }
     } else {
         LOG_ERROR(cnxString_ << "Got invalid producer Id in closeProducer command: " << producerId);
@@ -1770,7 +1795,8 @@ void ClientConnection::handleCloseConsumer(const proto::CommandCloseConsumer& cl
         lock.unlock();
 
         if (consumer) {
-            consumer->disconnectConsumer();
+            auto assignedBrokerServiceUrl = getAssignedBrokerServiceUrl(closeconsumer);
+            consumer->disconnectConsumer(assignedBrokerServiceUrl);
         }
     } else {
         LOG_ERROR(cnxString_ << "Got invalid consumer Id in closeConsumer command: " << consumerId);

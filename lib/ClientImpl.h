@@ -97,6 +97,10 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     Future<Result, ClientConnectionPtr> getConnection(const std::string& topic, size_t key);
 
+    Future<Result, ClientConnectionPtr> connect(const std::string& logicalAddress, size_t key);
+
+    const std::string& getPhysicalAddress(const std::string& logicalAddress);
+
     void closeAsync(CloseCallback callback);
     void shutdown();
 
@@ -124,6 +128,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     std::shared_ptr<std::atomic<uint64_t>> getRequestIdGenerator() const { return requestIdGenerator_; }
 
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
+    bool useProxy() { return useProxy_; }
+    uint64_t getLookupCount() { return lookupCount_; }
 
     friend class PulsarFriend;
 
@@ -189,6 +195,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     SynchronizedHashMap<ConsumerImplBase*, ConsumerImplBaseWeakPtr> consumers_;
 
     std::atomic<Result> closingError;
+    std::atomic<bool> useProxy_;
+    std::atomic<uint64_t> lookupCount_;
 
     friend class Client;
 };

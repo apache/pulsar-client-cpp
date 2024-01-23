@@ -131,6 +131,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void hasMessageAvailableAsync(HasMessageAvailableCallback callback) override;
 
     virtual void disconnectConsumer();
+    virtual void disconnectConsumer(const boost::optional<std::string>& assignedBrokerUrl);
     Result fetchSingleMessageFromBroker(Message& msg);
 
     virtual bool isCumulativeAcknowledgementAllowed(ConsumerType consumerType);

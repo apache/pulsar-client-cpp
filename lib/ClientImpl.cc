@@ -90,7 +90,9 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
             ClientImpl::getClientVersion(clientConfiguration)),
       producerIdGenerator_(0),
       consumerIdGenerator_(0),
-      closingError(ResultOk) {
+      closingError(ResultOk),
+      useProxy_(false),
+      lookupCount_(0L) {
     std::unique_ptr<LoggerFactory> loggerFactory = clientConfiguration_.impl_->takeLogger();
     if (loggerFactory) {
         LogUtils::setLoggerFactory(std::move(loggerFactory));
@@ -531,6 +533,10 @@ Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string&
                 promise.setFailed(result);
                 return;
             }
+            if (useProxy_ != data.proxyThroughServiceUrl) {
+                useProxy_ = data.proxyThroughServiceUrl;
+            }
+            lookupCount_++;
             pool_.getConnectionAsync(data.logicalAddress, data.physicalAddress, key)
                 .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
                     if (result == ResultOk) {
@@ -546,6 +552,33 @@ Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string&
                 });
         });
 
+    return promise.getFuture();
+}
+
+const std::string& ClientImpl::getPhysicalAddress(const std::string& logicalAddress) {
+    if (useProxy_) {
+        return serviceNameResolver_.resolveHost();
+    } else {
+        return logicalAddress;
+    }
+}
+
+Future<Result, ClientConnectionPtr> ClientImpl::connect(const std::string& logicalAddress, size_t key) {
+    const auto& physicalAddress = getPhysicalAddress(logicalAddress);
+    Promise<Result, ClientConnectionPtr> promise;
+    pool_.getConnectionAsync(logicalAddress, physicalAddress, key)
+        .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
+            if (result == ResultOk) {
+                auto cnx = weakCnx.lock();
+                if (cnx) {
+                    promise.setValue(cnx);
+                } else {
+                    promise.setFailed(ResultConnectError);
+                }
+            } else {
+                promise.setFailed(result);
+            }
+        });
     return promise.getFuture();
 }
 
@@ -634,6 +667,7 @@ void ClientImpl::closeAsync(CloseCallback callback) {
     if (*numberOfOpenHandlers == 0 && callback) {
         handleClose(ResultOk, numberOfOpenHandlers, callback);
     }
+    lookupCount_ = 0;
 }
 
 void ClientImpl::handleClose(Result result, SharedInt numberOfOpenHandlers, ResultCallback callback) {
@@ -721,6 +755,7 @@ void ClientImpl::shutdown() {
     partitionListenerExecutorProvider_->close(timeoutProcessor.getLeftTimeout());
     timeoutProcessor.tok();
     LOG_DEBUG("partitionListenerExecutorProvider_ is closed");
+    lookupCount_ = 0;
 }
 
 uint64_t ClientImpl::newProducerId() {

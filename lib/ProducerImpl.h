@@ -98,6 +98,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     bool ackReceived(uint64_t sequenceId, MessageId& messageId);
 
+    virtual void disconnectProducer(const boost::optional<std::string>& assignedBrokerUrl);
     virtual void disconnectProducer();
 
     uint64_t getProducerId() const;

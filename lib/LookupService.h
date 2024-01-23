@@ -42,6 +42,7 @@ class LookupService {
     struct LookupResult {
         std::string logicalAddress;
         std::string physicalAddress;
+        bool proxyThroughServiceUrl;
 
         friend std::ostream& operator<<(std::ostream& os, const LookupResult& lookupResult) {
             return os << "logical address: " << lookupResult.logicalAddress

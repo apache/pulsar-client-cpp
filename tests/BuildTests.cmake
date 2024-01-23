@@ -55,3 +55,6 @@ target_link_libraries(Oauth2Test pulsarStatic ${GTEST_TARGETS})
 
 add_executable(ChunkDedupTest chunkdedup/ChunkDedupTest.cc HttpHelper.cc)
 target_link_libraries(ChunkDedupTest pulsarStatic ${GTEST_TARGETS})
+
+add_executable(ExtensibleLoadManagerTest extensibleLM/ExtensibleLoadManagerTest.cc HttpHelper.cc)
+target_link_libraries(ExtensibleLoadManagerTest PRIVATE pulsarStatic ${GTEST_TARGETS})

@@ -415,6 +415,10 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleGetTopicOfNamespaceResponse(const proto::CommandGetTopicsOfNamespaceResponse&);
     void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
     void handleAckResponse(const proto::CommandAckResponse&);
+    boost::optional<std::string> getAssignedBrokerServiceUrl(
+        const proto::CommandCloseProducer& closeProducer);
+    boost::optional<std::string> getAssignedBrokerServiceUrl(
+        const proto::CommandCloseConsumer& closeConsumer);
 };
 }  // namespace pulsar
 
