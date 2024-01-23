@@ -22,9 +22,12 @@
 #include <thread>
 
 #include "include/pulsar/Client.h"
+#include "lib/LogUtils.h"
 #include "lib/Semaphore.h"
 #include "tests/HttpHelper.h"
 #include "tests/PulsarFriend.h"
+
+DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
@@ -35,18 +38,16 @@ bool checkTime() {
     return duration < 180 * 1000;
 }
 
-TEST(ExtensibleLoadManagerTest, testConsumeSuccess) {
+TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
     const static std::string adminUrl = "http://localhost:8080/";
     const static std::string topicName =
         "persistent://public/unload-test/topic-1" + std::to_string(time(NULL));
-    while (checkTime()) {
+
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
         std::string url = adminUrl + "admin/v2/namespaces/public/unload-test?bundles=1";
         int res = makePutRequest(url, "");
-        if (res != 204 && res != 409) {
-            continue;
-        }
-        break;
-    }
+        return res == 204 || res == 409;
+    }));
 
     Client client{"pulsar://localhost:6650"};
     Producer producer;
@@ -80,18 +81,17 @@ TEST(ExtensibleLoadManagerTest, testConsumeSuccess) {
 
             std::string content = std::to_string(i);
             const auto msg = MessageBuilder().setContent(content).build();
-            while (checkTime()) {
+
+            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
                 Result sendResult = producer.send(msg);
-                if (sendResult != ResultOk) {
-                    continue;
-                }
-                break;
-            }
-            std::cout << "produced index:" << i << std::endl;
+                return sendResult == ResultOk;
+            }));
+
+            LOG_INFO("produced index:" << i);
             produced++;
             i++;
         }
-        std::cout << "producer finished" << std::endl;
+        LOG_INFO("producer finished");
     };
 
     int consumed = 0;
@@ -99,37 +99,33 @@ TEST(ExtensibleLoadManagerTest, testConsumeSuccess) {
         Message receivedMsg;
         int i = 0;
         while (i < msgCount && checkTime()) {
-            while (checkTime()) {
+            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
                 Result receiveResult =
                     consumer.receive(receivedMsg, 1000);  // Assumed that we wait 1000 ms for each message
-                if (receiveResult != ResultOk) {
-                    continue;
-                }
-                std::cout << "received index:" << i << std::endl;
-                break;
-            }
+                return receiveResult == ResultOk;
+            }));
+            LOG_INFO("received index:" << i);
+
             int id = std::stoi(receivedMsg.getDataAsString());
             if (id < i) {
                 continue;
             }
-            while (checkTime()) {
+            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
                 Result ackResult = consumer.acknowledge(receivedMsg);
-                if (ackResult != ResultOk) {
-                    continue;
-                }
-                std::cout << "acked index:" << i << std::endl;
-                break;
-            }
+                return ackResult == ResultOk;
+            }));
+            LOG_INFO("acked index:" << i);
+
             consumed++;
             i++;
         }
-        std::cout << "consumer finished" << std::endl;
+        LOG_INFO("consumer finished");
     };
 
     std::thread produceThread(produce);
     std::thread consumeThread(consume);
 
-    auto unload = [&client, &consumer, &producer] {
+    auto unload = [&] {
         auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
         auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
         auto &producerImpl = PulsarFriend::getProducerImpl(producer);
@@ -137,59 +133,54 @@ TEST(ExtensibleLoadManagerTest, testConsumeSuccess) {
         std::string destinationBroker;
         while (checkTime()) {
             // make sure producers and consumers are ready
-            while (checkTime() && !consumerImpl.isConnected() && !producerImpl.isConnected()) {
-                sleep(1);
-            }
+            ASSERT_TRUE(waitUntil(std::chrono::seconds(30),
+                                  [&] { return consumerImpl.isConnected() && producerImpl.isConnected(); }));
 
             std::string url = adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic-1";
-            std::string responseData;
-            int res = makeGetRequest(url, responseData);
+            std::string responseDataBeforeUnload;
+            int res = makeGetRequest(url, responseDataBeforeUnload);
             if (res != 200) {
                 continue;
             }
-            destinationBroker =
-                responseData.find("broker-2") == std::string::npos ? "broker-2:8080" : "broker-1:8080";
+            destinationBroker = responseDataBeforeUnload.find("broker-2") == std::string::npos
+                                    ? "broker-2:8080"
+                                    : "broker-1:8080";
             lookupCountBeforeUnload = clientImplPtr->getLookupCount();
             ASSERT_TRUE(lookupCountBeforeUnload > 0);
+
             url = adminUrl +
                   "admin/v2/namespaces/public/unload-test/0x00000000_0xffffffff/unload?destinationBroker=" +
                   destinationBroker;
-            std::cout << "before lookup responseData:" << responseData << ",unload url:" << url
-                      << ",lookupCountBeforeUnload:" << lookupCountBeforeUnload << std::endl;
+            LOG_INFO("before lookup responseData:" << responseDataBeforeUnload << ",unload url:" << url
+                                                   << ",lookupCountBeforeUnload:" << lookupCountBeforeUnload);
             res = makePutRequest(url, "");
-            std::cout << "unload res:" << res << std::endl;
+            LOG_INFO("unload res:" << res);
             if (res != 204) {
                 continue;
             }
 
             // make sure producers and consumers are ready
-            while (checkTime() && !consumerImpl.isConnected() && !producerImpl.isConnected()) {
-                sleep(1);
-            }
-
-            url = adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic-1";
-            res = makeGetRequest(url, responseData);
-            std::cout << "after lookup responseData:" << responseData << ",url:" << url << ",res:" << res
-                      << std::endl;
-            if (res != 200) {
-                continue;
-            }
-
-            ASSERT_TRUE(responseData.find(destinationBroker) != std::string::npos);
+            ASSERT_TRUE(waitUntil(std::chrono::seconds(30),
+                                  [&] { return consumerImpl.isConnected() && producerImpl.isConnected(); }));
+            std::string responseDataAfterUnload;
+            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
+                url = adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic-1";
+                res = makeGetRequest(url, responseDataAfterUnload);
+                return res == 200 && responseDataAfterUnload.find(destinationBroker) != std::string::npos;
+            }));
+            LOG_INFO("after lookup responseData:" << responseDataAfterUnload << ",res:" << res);
 
             // TODO: check lookup counter after pip-307 is released
             auto lookupCountAfterUnload = clientImplPtr->getLookupCount();
-            if (lookupCountBeforeUnload < lookupCountAfterUnload) {
-                continue;
-            }
+            ASSERT_TRUE(lookupCountBeforeUnload < lookupCountAfterUnload);
             break;
         }
     };
-    std::cout << "starting first unload" << std::endl;
+    LOG_INFO("starting first unload");
     unload();
     firstUnloadSemaphore.release();
     halfPubWaitSemaphore.acquire();
-    std::cout << "starting second unload" << std::endl;
+    LOG_INFO("starting second unload");
     unload();
     secondUnloadSemaphore.release();
 

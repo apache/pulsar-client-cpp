@@ -533,9 +533,7 @@ Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string&
                 promise.setFailed(result);
                 return;
             }
-            if (useProxy_ != data.proxyThroughServiceUrl) {
-                useProxy_ = data.proxyThroughServiceUrl;
-            }
+            useProxy_ = data.proxyThroughServiceUrl;
             lookupCount_++;
             pool_.getConnectionAsync(data.logicalAddress, data.physicalAddress, key)
                 .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
