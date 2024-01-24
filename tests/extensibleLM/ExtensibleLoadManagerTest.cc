@@ -63,8 +63,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
     Semaphore halfPubWaitSemaphore(0);
     const int msgCount = 10;
     int produced = 0;
-    auto produce = [&producer, &produced, &firstUnloadSemaphore, &secondUnloadSemaphore,
-                    &halfPubWaitSemaphore]() {
+    auto produce = [&]() {
         int i = 0;
         while (i < msgCount && checkTime()) {
             if (i == 3) {
@@ -95,7 +94,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
     };
 
     int consumed = 0;
-    auto consume = [&consumer, &consumed]() {
+    auto consume = [&]() {
         Message receivedMsg;
         int i = 0;
         while (i < msgCount && checkTime()) {
