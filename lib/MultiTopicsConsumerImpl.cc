@@ -916,7 +916,7 @@ void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callb
     incomingMessagesSize_ = 0L;
 
     auto weakSelf = weak_from_this();
-    auto numConsumersLeft = std::make_shared<std::atomic_int64_t>(consumers_.size());
+    auto numConsumersLeft = std::make_shared<std::atomic<int64_t>>(consumers_.size());
     auto wrappedCallback = [this, weakSelf, callback, numConsumersLeft](Result result) {
         auto self = weakSelf.lock();
         if (PULSAR_UNLIKELY(!self)) {
