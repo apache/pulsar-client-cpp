@@ -187,9 +187,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
     consumeThread.join();
     ASSERT_EQ(consumed, msgCount);
     ASSERT_EQ(produced, msgCount);
-    if (!checkTime()) {
-        FAIL() << "timed out";
-    }
+    ASSERT_TRUE(checkTime()) << "timed out";
     client.close();
 }
 
