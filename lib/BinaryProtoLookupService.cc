@@ -87,9 +87,9 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
                                                 << ", from " << cnx->cnxString());
                 if (data->shouldProxyThroughServiceUrl()) {
                     // logicalAddress is the proxy's address, we should still connect through proxy
-                    promise->setValue({responseBrokerAddress, address});
+                    promise->setValue({responseBrokerAddress, address, true});
                 } else {
-                    promise->setValue({responseBrokerAddress, responseBrokerAddress});
+                    promise->setValue({responseBrokerAddress, responseBrokerAddress, false});
                 }
             }
         });

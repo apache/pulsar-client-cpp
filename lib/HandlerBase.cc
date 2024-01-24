@@ -68,7 +68,18 @@ void HandlerBase::setCnx(const ClientConnectionPtr& cnx) {
     connection_ = cnx;
 }
 
-void HandlerBase::grabCnx() {
+void HandlerBase::grabCnx() { grabCnx(boost::none); }
+
+Future<Result, ClientConnectionPtr> HandlerBase::getConnection(
+    const ClientImplPtr& client, const boost::optional<std::string>& assignedBrokerUrl) {
+    if (assignedBrokerUrl && client->getLookupCount() > 0) {
+        return client->connect(assignedBrokerUrl.get(), connectionKeySuffix_);
+    } else {
+        return client->getConnection(topic(), connectionKeySuffix_);
+    }
+}
+
+void HandlerBase::grabCnx(const boost::optional<std::string>& assignedBrokerUrl) {
     bool expectedState = false;
     if (!reconnectionPending_.compare_exchange_strong(expectedState, true)) {
         LOG_INFO(getName() << "Ignoring reconnection attempt since there's already a pending reconnection");
@@ -90,7 +101,7 @@ void HandlerBase::grabCnx() {
         return;
     }
     auto self = shared_from_this();
-    auto cnxFuture = client->getConnection(topic(), connectionKeySuffix_);
+    auto cnxFuture = getConnection(client, assignedBrokerUrl);
     cnxFuture.addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
         if (result == ResultOk) {
             LOG_DEBUG(getName() << "Connected to broker: " << cnx->cnxString());
@@ -141,12 +152,12 @@ void HandlerBase::handleDisconnection(Result result, const ClientConnectionPtr& 
             break;
     }
 }
-
-void HandlerBase::scheduleReconnection() {
+void HandlerBase::scheduleReconnection() { scheduleReconnection(boost::none); }
+void HandlerBase::scheduleReconnection(const boost::optional<std::string>& assignedBrokerUrl) {
     const auto state = state_.load();
 
     if (state == Pending || state == Ready) {
-        TimeDuration delay = backoff_.next();
+        TimeDuration delay = assignedBrokerUrl ? std::chrono::milliseconds(0) : backoff_.next();
 
         LOG_INFO(getName() << "Schedule reconnection in " << (toMillis(delay) / 1000.0) << " s");
         timer_->expires_from_now(delay);
@@ -154,10 +165,10 @@ void HandlerBase::scheduleReconnection() {
         // so we will not run into the case where grabCnx is invoked on out of scope handler
         auto name = getName();
         std::weak_ptr<HandlerBase> weakSelf{shared_from_this()};
-        timer_->async_wait([name, weakSelf](const ASIO_ERROR& ec) {
+        timer_->async_wait([name, weakSelf, assignedBrokerUrl](const ASIO_ERROR& ec) {
             auto self = weakSelf.lock();
             if (self) {
-                self->handleTimeout(ec);
+                self->handleTimeout(ec, assignedBrokerUrl);
             } else {
                 LOG_WARN(name << "Cancel the reconnection since the handler is destroyed");
             }
@@ -165,13 +176,13 @@ void HandlerBase::scheduleReconnection() {
     }
 }
 
-void HandlerBase::handleTimeout(const ASIO_ERROR& ec) {
+void HandlerBase::handleTimeout(const ASIO_ERROR& ec, const boost::optional<std::string>& assignedBrokerUrl) {
     if (ec) {
         LOG_DEBUG(getName() << "Ignoring timer cancelled event, code[" << ec << "]");
         return;
     } else {
         epoch_++;
-        grabCnx();
+        grabCnx(assignedBrokerUrl);
     }
 }
 

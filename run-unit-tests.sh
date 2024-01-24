@@ -30,6 +30,14 @@ fi
 export http_proxy=
 export https_proxy=
 
+
+# Run ExtensibleLoadManager tests
+docker compose -f tests/extensibleLM/docker-compose.yml up -d
+until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
+sleep 5
+$CMAKE_BUILD_DIRECTORY/tests/ExtensibleLoadManagerTest
+docker compose -f tests/extensibleLM/docker-compose.yml down
+
 # Run OAuth2 tests
 docker compose -f tests/oauth2/docker-compose.yml up -d
 # Wait until the namespace is created, currently there is no good way to check it

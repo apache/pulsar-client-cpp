@@ -97,6 +97,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     Future<Result, ClientConnectionPtr> getConnection(const std::string& topic, size_t key);
 
+    Future<Result, ClientConnectionPtr> connect(const std::string& logicalAddress, size_t key);
+
     void closeAsync(CloseCallback callback);
     void shutdown();
 
@@ -124,6 +126,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     std::shared_ptr<std::atomic<uint64_t>> getRequestIdGenerator() const { return requestIdGenerator_; }
 
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
+    uint64_t getLookupCount() { return lookupCount_; }
 
     static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
 
@@ -160,6 +163,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                           const std::string& consumerName, const ConsumerConfiguration& conf,
                                           SubscribeCallback callback);
 
+    const std::string& getPhysicalAddress(const std::string& logicalAddress);
+
     static std::string getClientVersion(const ClientConfiguration& clientConfiguration);
 
     enum State
@@ -191,6 +196,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     SynchronizedHashMap<ConsumerImplBase*, ConsumerImplBaseWeakPtr> consumers_;
 
     std::atomic<Result> closingError;
+    std::atomic<bool> useProxy_;
+    std::atomic<uint64_t> lookupCount_;
 
     friend class Client;
 };
