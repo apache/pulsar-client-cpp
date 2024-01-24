@@ -27,6 +27,16 @@ For the supported Pulsar features, see [Client Feature Matrix](https://pulsar.ap
 
 For how to use APIs to publish and consume messages, see [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples).
 
+## Import the library into your project
+
+### CMake with vcpkg integration
+
+Navigate to [vcpkg-example](./vcpkg-example) for how to import the `pulsar-client-cpp` into your project via vcpkg.
+
+### Download pre-built binaries
+
+For non-vcpkg projects, you can download pre-built binaries from the [official release page](https://pulsar.apache.org/download/#pulsar-c-client).
+
 ## Generate the API documents
 
 Pulsar C++ client uses [doxygen](https://www.doxygen.nl) to build API documents. After installing `doxygen`, you only need to run `doxygen` to generate the API documents whose main page is under the `doxygen/html/index.html` path.
