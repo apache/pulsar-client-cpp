@@ -22,7 +22,6 @@
 #include <pulsar/Reader.h>
 
 #include <boost/optional.hpp>
-#include <chrono>
 #include <functional>
 #include <list>
 #include <memory>
