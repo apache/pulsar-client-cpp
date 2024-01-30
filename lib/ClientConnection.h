@@ -404,7 +404,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     friend class PulsarFriend;
 
-    void checkServerError(ServerError error);
+    void checkServerError(ServerError error, const std::string& message);
 
     void handleSendReceipt(const proto::CommandSendReceipt&);
     void handleSendError(const proto::CommandSendError&);
