@@ -333,8 +333,6 @@ class ConsumerImpl : public ConsumerImplBase {
                                                       const ClientConnectionPtr& cnx, MessageId& messageId);
 
     friend class PulsarFriend;
-
-    // these two declared friend to access setNegativeAcknowledgeEnabledForTesting
     friend class MultiTopicsConsumerImpl;
 
     FRIEND_TEST(ConsumerTest, testRedeliveryOfDecryptionFailedMessages);

@@ -28,7 +28,6 @@
 #include "LookupService.h"
 #include "MessageImpl.h"
 #include "MessagesImpl.h"
-#include "MultiResultCallback.h"
 #include "MultiTopicsBrokerConsumerStatsImpl.h"
 #include "TopicName.h"
 #include "UnAckedMessageTrackerDisabled.h"
@@ -521,6 +520,9 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
 }
 
 void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& msg) {
+    if (PULSAR_UNLIKELY(duringSeek_.load(std::memory_order_acquire))) {
+        return;
+    }
     LOG_DEBUG("Received Message from one of the topic - " << consumer.getTopic()
                                                           << " message:" << msg.getDataAsString());
     msg.impl_->setTopicName(consumer.impl_->getTopicPtr());
@@ -907,9 +909,37 @@ void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callb
         return;
     }
 
-    MultiResultCallback multiResultCallback(callback, consumers_.size());
-    consumers_.forEachValue([&timestamp, &multiResultCallback](ConsumerImplPtr consumer) {
-        consumer->seekAsync(timestamp, multiResultCallback);
+    duringSeek_.store(true, std::memory_order_release);
+    consumers_.forEachValue([](const ConsumerImplPtr& consumer) { consumer->pauseMessageListener(); });
+    unAckedMessageTrackerPtr_->clear();
+    incomingMessages_.clear();
+    incomingMessagesSize_ = 0L;
+
+    auto weakSelf = weak_from_this();
+    auto numConsumersLeft = std::make_shared<std::atomic<int64_t>>(consumers_.size());
+    auto wrappedCallback = [this, weakSelf, callback, numConsumersLeft](Result result) {
+        auto self = weakSelf.lock();
+        if (PULSAR_UNLIKELY(!self)) {
+            callback(result);
+            return;
+        }
+        if (result != ResultOk) {
+            *numConsumersLeft = 0;  // skip the following callbacks
+            callback(result);
+            return;
+        }
+        if (--*numConsumersLeft > 0) {
+            return;
+        }
+        duringSeek_.store(false, std::memory_order_release);
+        listenerExecutor_->postWork([this, self] {
+            consumers_.forEachValue(
+                [](const ConsumerImplPtr& consumer) { consumer->resumeMessageListener(); });
+        });
+        callback(ResultOk);
+    };
+    consumers_.forEachValue([timestamp, &wrappedCallback](const ConsumerImplPtr& consumer) {
+        consumer->seekAsync(timestamp, wrappedCallback);
     });
 }
 
