@@ -24,6 +24,7 @@
 #include <fstream>
 
 #include "AsioDefines.h"
+#include "ClientConnectionAdaptor.h"
 #include "ClientImpl.h"
 #include "Commands.h"
 #include "ConnectionPool.h"
@@ -1469,19 +1470,8 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
     return promise.getFuture();
 }
 
-void ClientConnection::checkServerError(ServerError error) {
-    switch (error) {
-        case proto::ServerError::ServiceNotReady:
-            close(ResultDisconnected);
-            break;
-        case proto::ServerError::TooManyRequests:
-            // TODO: Implement maxNumberOfRejectedRequestPerConnection like
-            // https://github.com/apache/pulsar/pull/274
-            close(ResultDisconnected);
-            break;
-        default:
-            break;
-    }
+void ClientConnection::checkServerError(ServerError error, const std::string& message) {
+    pulsar::adaptor::checkServerError(*this, error, message);
 }
 
 void ClientConnection::handleSendReceipt(const proto::CommandSendReceipt& sendReceipt) {
@@ -1573,7 +1563,7 @@ void ClientConnection::handlePartitionedMetadataResponse(
                                      << partitionMetadataResponse.request_id()
                                      << " error: " << partitionMetadataResponse.error()
                                      << " msg: " << partitionMetadataResponse.message());
-                checkServerError(partitionMetadataResponse.error());
+                checkServerError(partitionMetadataResponse.error(), partitionMetadataResponse.message());
                 lookupDataPromise->setFailed(
                     getResult(partitionMetadataResponse.error(), partitionMetadataResponse.message()));
             } else {
@@ -1650,7 +1640,7 @@ void ClientConnection::handleLookupTopicRespose(
                 LOG_ERROR(cnxString_ << "Failed lookup req_id: " << lookupTopicResponse.request_id()
                                      << " error: " << lookupTopicResponse.error()
                                      << " msg: " << lookupTopicResponse.message());
-                checkServerError(lookupTopicResponse.error());
+                checkServerError(lookupTopicResponse.error(), lookupTopicResponse.message());
                 lookupDataPromise->setFailed(
                     getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
             } else {
