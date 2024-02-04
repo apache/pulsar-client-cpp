@@ -140,6 +140,7 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
 
    private:
     DeadlineTimerPtr timer_;
+    DeadlineTimerPtr creationTimer_;
 
     mutable std::mutex connectionMutex_;
     std::atomic<bool> reconnectionPending_;

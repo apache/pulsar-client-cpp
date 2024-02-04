@@ -517,7 +517,7 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
     }
 }
 
-Future<Result, ClientConnectionPtr> ClientImpl::getConnection(const std::string& topic, size_t key) {
+GetConnectionFuture ClientImpl::getConnection(const std::string& topic, size_t key) {
     Promise<Result, ClientConnectionPtr> promise;
 
     const auto topicNamePtr = TopicName::get(topic);
@@ -562,7 +562,7 @@ const std::string& ClientImpl::getPhysicalAddress(const std::string& logicalAddr
     }
 }
 
-Future<Result, ClientConnectionPtr> ClientImpl::connect(const std::string& logicalAddress, size_t key) {
+GetConnectionFuture ClientImpl::connect(const std::string& logicalAddress, size_t key) {
     const auto& physicalAddress = getPhysicalAddress(logicalAddress);
     Promise<Result, ClientConnectionPtr> promise;
     pool_.getConnectionAsync(logicalAddress, physicalAddress, key)

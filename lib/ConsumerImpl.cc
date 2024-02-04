@@ -277,7 +277,7 @@ void ConsumerImpl::connectionFailed(Result result) {
     // Keep a reference to ensure object is kept alive
     auto ptr = get_shared_this_ptr();
 
-    if (consumerCreatedPromise_.setFailed(result)) {
+    if (!isResultRetryable(result) && consumerCreatedPromise_.setFailed(result)) {
         state_ = Failed;
     }
 }

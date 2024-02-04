@@ -116,6 +116,8 @@ class Future {
 
     Result get(Type &result) { return state_->get(result); }
 
+    static Future<Result, Type> failed(Result result);
+
    private:
     InternalStatePtr<Result, Type> state_;
 
@@ -143,6 +145,13 @@ class Promise {
    private:
     InternalStatePtr<Result, Type> state_;
 };
+
+template <typename Result, typename Type>
+inline Future<Result, Type> Future<Result, Type>::failed(Result result) {
+    Promise<Result, Type> promise;
+    promise.setFailed(result);
+    return promise.getFuture();
+}
 
 }  // namespace pulsar
 

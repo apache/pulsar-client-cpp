@@ -83,7 +83,7 @@ static Result getResult(ServerError serverError, const std::string& message) {
         case ServiceNotReady:
             return (message.find("the broker do not have test listener") == std::string::npos)
                        ? ResultRetryable
-                       : ResultServiceUnitNotReady;
+                       : ResultConnectError;
 
         case ProducerBlockedQuotaExceededError:
             return ResultProducerBlockedQuotaExceededError;

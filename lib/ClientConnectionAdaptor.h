@@ -37,12 +37,14 @@ inline void checkServerError(Connection& connection, ServerError error, const st
             //   "Namespace bundle ... is being unloaded"
             //   "KeeperException$..."
             //   "Failed to acquire ownership for namespace bundle ..."
+            //   "the broker do not have test listener"
             // Before https://github.com/apache/pulsar/pull/21211, the error of the 1st and 2nd messages
             // is ServiceNotReady. Before https://github.com/apache/pulsar/pull/21993, the error of the 3rd
             // message is ServiceNotReady.
             if (message.find("Failed to acquire ownership") == std::string::npos &&
                 message.find("KeeperException") == std::string::npos &&
-                message.find("is being unloaded") == std::string::npos) {
+                message.find("is being unloaded") == std::string::npos &&
+                message.find("the broker do not have test listener") == std::string::npos) {
                 connection.close(ResultDisconnected);
             }
             break;

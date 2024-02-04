@@ -18,12 +18,39 @@
  */
 #pragma once
 
+#include <assert.h>
 #include <pulsar/Result.h>
+
+#include <unordered_set>
 
 namespace pulsar {
 
 inline bool isResultRetryable(Result result) {
-    return result == ResultRetryable || result == ResultDisconnected;
+    assert(result != ResultOk);
+    if (result == ResultRetryable || result == ResultDisconnected) {
+        return true;
+    }
+
+    static const std::unordered_set<Result> fatalResults{ResultConnectError,
+                                                         ResultTimeout,
+                                                         ResultAuthenticationError,
+                                                         ResultAuthorizationError,
+                                                         ResultInvalidUrl,
+                                                         ResultInvalidConfiguration,
+                                                         ResultIncompatibleSchema,
+                                                         ResultTopicNotFound,
+                                                         ResultOperationNotSupported,
+                                                         ResultNotAllowedError,
+                                                         ResultChecksumError,
+                                                         ResultCryptoError,
+                                                         ResultConsumerAssignError,
+                                                         ResultProducerBusy,
+                                                         ResultConsumerBusy,
+                                                         ResultLookupError,
+                                                         ResultTooManyLookupRequestException,
+                                                         ResultProducerBlockedQuotaExceededException,
+                                                         ResultProducerBlockedQuotaExceededError};
+    return fatalResults.find(result) == fatalResults.cend();
 }
 
 }  // namespace pulsar

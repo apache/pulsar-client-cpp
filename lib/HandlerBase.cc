@@ -42,9 +42,14 @@ HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, 
       backoff_(backoff),
       epoch_(0),
       timer_(executor_->createDeadlineTimer()),
+      creationTimer_(executor_->createDeadlineTimer()),
       reconnectionPending_(false) {}
 
-HandlerBase::~HandlerBase() { timer_->cancel(); }
+HandlerBase::~HandlerBase() {
+    ASIO_ERROR ignored;
+    timer_->cancel(ignored);
+    creationTimer_->cancel(ignored);
+}
 
 void HandlerBase::start() {
     // guard against concurrent state changes such as closing
@@ -52,6 +57,16 @@ void HandlerBase::start() {
     if (state_.compare_exchange_strong(state, Pending)) {
         grabCnx();
     }
+    creationTimer_->expires_from_now(operationTimeut_);
+    std::weak_ptr<HandlerBase> weakSelf{shared_from_this()};
+    creationTimer_->async_wait([this, weakSelf](const ASIO_ERROR& error) {
+        auto self = weakSelf.lock();
+        if (self && !error) {
+            connectionFailed(ResultTimeout);
+            ASIO_ERROR ignored;
+            timer_->cancel(ignored);
+        }
+    });
 }
 
 ClientConnectionWeakPtr HandlerBase::getCnx() const {
@@ -96,7 +111,7 @@ void HandlerBase::grabCnx(const boost::optional<std::string>& assignedBrokerUrl)
     ClientImplPtr client = client_.lock();
     if (!client) {
         LOG_WARN(getName() << "Client is invalid when calling grabCnx()");
-        connectionFailed(ResultConnectError);
+        connectionFailed(ResultAlreadyClosed);
         reconnectionPending_ = false;
         return;
     }
@@ -108,7 +123,7 @@ void HandlerBase::grabCnx(const boost::optional<std::string>& assignedBrokerUrl)
             connectionOpened(cnx).addListener([this, self](Result result, bool) {
                 // Do not use bool, only Result.
                 reconnectionPending_ = false;
-                if (isResultRetryable(result)) {
+                if (result != ResultOk && isResultRetryable(result)) {
                     scheduleReconnection();
                 }
             });

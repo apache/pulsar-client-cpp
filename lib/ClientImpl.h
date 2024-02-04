@@ -63,13 +63,14 @@ class TopicName;
 using TopicNamePtr = std::shared_ptr<TopicName>;
 
 using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
+using GetConnectionFuture = Future<Result, ClientConnectionPtr>;
 
 std::string generateRandomName();
 
 class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
    public:
     ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
-    ~ClientImpl();
+    virtual ~ClientImpl();
 
     /**
      * @param autoDownloadSchema When it is true, Before creating a producer, it will try to get the schema
@@ -95,9 +96,10 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
 
-    Future<Result, ClientConnectionPtr> getConnection(const std::string& topic, size_t key);
+    // Use virtual method to test
+    virtual GetConnectionFuture getConnection(const std::string& topic, size_t key);
 
-    Future<Result, ClientConnectionPtr> connect(const std::string& logicalAddress, size_t key);
+    GetConnectionFuture connect(const std::string& logicalAddress, size_t key);
 
     void closeAsync(CloseCallback callback);
     void shutdown();

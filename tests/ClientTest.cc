@@ -25,6 +25,7 @@
 #include <future>
 #include <sstream>
 
+#include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
@@ -36,6 +37,7 @@
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
+using testing::AtLeast;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
 static std::string adminUrl = "http://localhost:8080/";
@@ -248,7 +250,7 @@ TEST(ClientTest, testWrongListener) {
 
     Client client(lookupUrl, ClientConfiguration().setListenerName("test"));
     Producer producer;
-    ASSERT_EQ(ResultServiceUnitNotReady, client.createProducer(topic, producer));
+    ASSERT_EQ(ResultConnectError, client.createProducer(topic, producer));
     ASSERT_EQ(ResultProducerNotInitialized, producer.close());
     ASSERT_EQ(PulsarFriend::getProducers(client).size(), 0);
     ASSERT_EQ(ResultOk, client.close());
@@ -257,7 +259,7 @@ TEST(ClientTest, testWrongListener) {
     // creation of Consumer or Reader could fail with ResultConnectError.
     client = Client(lookupUrl, ClientConfiguration().setListenerName("test"));
     Consumer consumer;
-    ASSERT_EQ(ResultServiceUnitNotReady, client.subscribe(topic, "sub", consumer));
+    ASSERT_EQ(ResultConnectError, client.subscribe(topic, "sub", consumer));
     ASSERT_EQ(ResultConsumerNotInitialized, consumer.close());
 
     ASSERT_EQ(PulsarFriend::getConsumers(client).size(), 0);
@@ -266,7 +268,7 @@ TEST(ClientTest, testWrongListener) {
     client = Client(lookupUrl, ClientConfiguration().setListenerName("test"));
 
     Consumer multiTopicsConsumer;
-    ASSERT_EQ(ResultServiceUnitNotReady,
+    ASSERT_EQ(ResultConnectError,
               client.subscribe({topic + "-partition-0", topic + "-partition-1", topic + "-partition-2"},
                                "sub", multiTopicsConsumer));
 
@@ -278,7 +280,7 @@ TEST(ClientTest, testWrongListener) {
 
     // Currently Reader can only read a non-partitioned topic in C++ client
     Reader reader;
-    ASSERT_EQ(ResultServiceUnitNotReady,
+    ASSERT_EQ(ResultConnectError,
               client.createReader(topic + "-partition-0", MessageId::earliest(), {}, reader));
     ASSERT_EQ(ResultConsumerNotInitialized, reader.close());
     ASSERT_EQ(PulsarFriend::getConsumers(client).size(), 0);
@@ -432,5 +434,70 @@ TEST(ClientTest, testConnectionClose) {
         consumer.close();
 
         client.close();
+    }
+}
+
+TEST(ClientTest, testRetryUntilSucceed) {
+    auto clientImpl = std::make_shared<MockClientImpl>(lookupUrl);
+    constexpr int kFailCount = 3;
+    EXPECT_CALL(*clientImpl, getConnection).Times((kFailCount + 1) * 2);
+    std::atomic_int count{0};
+    ON_CALL(*clientImpl, getConnection)
+        .WillByDefault([&clientImpl, &count](const std::string &topic, size_t index) {
+            if (count++ < kFailCount) {
+                return GetConnectionFuture::failed(ResultRetryable);
+            }
+            return clientImpl->getConnectionReal(topic, index);
+        });
+
+    auto topic = "client-test-retry-until-succeed";
+    ASSERT_EQ(ResultOk, clientImpl->createProducer(topic).result);
+    count = 0;
+    ASSERT_EQ(ResultOk, clientImpl->subscribe(topic).result);
+    ASSERT_EQ(ResultOk, clientImpl->close());
+}
+
+TEST(ClientTest, testRetryTimeout) {
+    auto clientImpl =
+        std::make_shared<MockClientImpl>(lookupUrl, ClientConfiguration().setOperationTimeoutSeconds(2));
+    EXPECT_CALL(*clientImpl, getConnection).Times(AtLeast(2 * 2));
+    ON_CALL(*clientImpl, getConnection).WillByDefault([](const std::string &topic, size_t index) {
+        return GetConnectionFuture::failed(ResultRetryable);
+    });
+
+    auto topic = "client-test-retry-timeout";
+    {
+        MockClientImpl::SyncOpResult result = clientImpl->createProducer(topic);
+        ASSERT_EQ(ResultTimeout, result.result);
+        ASSERT_TRUE(result.timeMs >= 2000 && result.timeMs < 2100) << "producer: " << result.timeMs << " ms";
+    }
+    {
+        MockClientImpl::SyncOpResult result = clientImpl->subscribe(topic);
+        ASSERT_EQ(ResultTimeout, result.result);
+        ASSERT_TRUE(result.timeMs >= 2000 && result.timeMs < 2100) << "consumer: " << result.timeMs << " ms";
+    }
+
+    ASSERT_EQ(ResultOk, clientImpl->close());
+}
+
+TEST(ClientTest, testNoRetry) {
+    auto clientImpl =
+        std::make_shared<MockClientImpl>(lookupUrl, ClientConfiguration().setOperationTimeoutSeconds(100));
+    EXPECT_CALL(*clientImpl, getConnection).Times(2);
+    ON_CALL(*clientImpl, getConnection).WillByDefault([](const std::string &, size_t) {
+        return GetConnectionFuture::failed(ResultAuthenticationError);
+    });
+
+    auto topic = "client-test-no-retry";
+    {
+        MockClientImpl::SyncOpResult result = clientImpl->createProducer(topic);
+        ASSERT_EQ(ResultAuthenticationError, result.result);
+        ASSERT_TRUE(result.timeMs < 1000) << "producer: " << result.timeMs << " ms";
+    }
+    {
+        MockClientImpl::SyncOpResult result = clientImpl->subscribe(topic);
+        LOG_INFO("It takes " << result.timeMs << " ms to subscribe");
+        ASSERT_EQ(ResultAuthenticationError, result.result);
+        ASSERT_TRUE(result.timeMs < 1000) << "consumer: " << result.timeMs << " ms";
     }
 }

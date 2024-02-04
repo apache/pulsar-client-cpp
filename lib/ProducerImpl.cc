@@ -176,7 +176,7 @@ void ProducerImpl::connectionFailed(Result result) {
         // if producers are lazy, then they should always try to restart
         // so don't change the state and allow reconnections
         return;
-    } else if (producerCreatedPromise_.setFailed(result)) {
+    } else if (!isResultRetryable(result) && producerCreatedPromise_.setFailed(result)) {
         state_ = Failed;
     }
 }
