@@ -630,7 +630,6 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& c
                 const uint32_t msgHeadersAndPayloadSize = msgMetadataSize + payloadSize;
                 if (msgHeadersAndPayloadSize > maxMessageSize) {
                     lock.unlock();
-                    releaseSemaphoreForSendOp(*op);
                     LOG_WARN(getName()
                              << " - compressed Message size " << msgHeadersAndPayloadSize << " cannot exceed "
                              << maxMessageSize << " bytes unless chunking is enabled");

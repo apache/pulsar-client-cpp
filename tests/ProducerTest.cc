@@ -243,6 +243,8 @@ TEST_P(ProducerTest, testMaxMessageSize) {
     ASSERT_EQ(ResultMessageTooBig,
               producer.send(MessageBuilder().setContent(std::string(maxMessageSize, 'b')).build()));
 
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(msg).build()));
+
     client.close();
 }
 
