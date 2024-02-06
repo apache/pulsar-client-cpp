@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/BrokerConsumerStats.h>
 #include <pulsar/Consumer.h>
+#include <pulsar/ConsumerConfiguration.h>
 #include <pulsar/MessageBuilder.h>
+
 #include "ConsumerImpl.h"
+#include "GetLastMessageIdResponse.h"
 #include "Utils.h"
-#include <lib/BrokerConsumerStatsImpl.h>
-#include <lib/Latch.h>
 
 namespace pulsar {
 
@@ -35,6 +37,10 @@ const std::string& Consumer::getTopic() const { return impl_ != NULL ? impl_->ge
 
 const std::string& Consumer::getSubscriptionName() const {
     return impl_ != NULL ? impl_->getSubscriptionName() : EMPTY_STRING;
+}
+
+const std::string& Consumer::getConsumerName() const {
+    return impl_ ? impl_->getConsumerName() : EMPTY_STRING;
 }
 
 Result Consumer::unsubscribe() {
@@ -82,6 +88,24 @@ void Consumer::receiveAsync(ReceiveCallback callback) {
     impl_->receiveAsync(callback);
 }
 
+Result Consumer::batchReceive(Messages& msgs) {
+    if (!impl_) {
+        return ResultConsumerNotInitialized;
+    }
+    Promise<Result, Messages> promise;
+    impl_->batchReceiveAsync(WaitForCallbackValue<Messages>(promise));
+    return promise.getFuture().get(msgs);
+}
+
+void Consumer::batchReceiveAsync(BatchReceiveCallback callback) {
+    if (!impl_) {
+        Messages msgs;
+        callback(ResultConsumerNotInitialized, msgs);
+        return;
+    }
+    impl_->batchReceiveAsync(callback);
+}
+
 Result Consumer::acknowledge(const Message& message) { return acknowledge(message.getMessageId()); }
 
 Result Consumer::acknowledge(const MessageId& messageId) {
@@ -90,6 +114,17 @@ Result Consumer::acknowledge(const MessageId& messageId) {
     }
     Promise<bool, Result> promise;
     impl_->acknowledgeAsync(messageId, WaitForCallback(promise));
+    Result result;
+    promise.getFuture().get(result);
+    return result;
+}
+
+Result Consumer::acknowledge(const MessageIdList& messageIdList) {
+    if (!impl_) {
+        return ResultConsumerNotInitialized;
+    }
+    Promise<bool, Result> promise;
+    impl_->acknowledgeAsync(messageIdList, WaitForCallback(promise));
     Result result;
     promise.getFuture().get(result);
     return result;
@@ -111,6 +146,15 @@ void Consumer::acknowledgeAsync(const MessageId& messageId, ResultCallback callb
     }
 
     impl_->acknowledgeAsync(messageId, callback);
+}
+
+void Consumer::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
+    if (!impl_) {
+        callback(ResultConsumerNotInitialized);
+        return;
+    }
+
+    impl_->acknowledgeAsync(messageIdList, callback);
 }
 
 Result Consumer::acknowledgeCumulative(const Message& message) {
@@ -255,7 +299,8 @@ void Consumer::getLastMessageIdAsync(GetLastMessageIdCallback callback) {
         callback(ResultConsumerNotInitialized, MessageId());
         return;
     }
-    getLastMessageIdAsync([callback](Result result, const GetLastMessageIdResponse& response) {
+
+    impl_->getLastMessageIdAsync([callback](Result result, const GetLastMessageIdResponse& response) {
         callback(result, response.getLastMessageId());
     });
 }

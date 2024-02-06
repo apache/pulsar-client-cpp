@@ -17,11 +17,15 @@
  * under the License.
  */
 
-#include <lib/stats/ProducerStatsImpl.h>
-
-#include <lib/LogUtils.h>
+#include "ProducerStatsImpl.h"
 
 #include <array>
+#include <chrono>
+
+#include "lib/ExecutorService.h"
+#include "lib/LogUtils.h"
+#include "lib/TimeUtils.h"
+#include "lib/Utils.h"
 
 namespace pulsar {
 DECLARE_LOG_OBJECT();
@@ -46,12 +50,8 @@ ProducerStatsImpl::ProducerStatsImpl(std::string producerStr, ExecutorServicePtr
     : producerStr_(producerStr),
       latencyAccumulator_(boost::accumulators::tag::extended_p_square::probabilities = probs),
       totalLatencyAccumulator_(boost::accumulators::tag::extended_p_square::probabilities = probs),
-      executor_(executor),
       timer_(executor->createDeadlineTimer()),
-      statsIntervalInSeconds_(statsIntervalInSeconds) {
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
-    timer_->async_wait(std::bind(&pulsar::ProducerStatsImpl::flushAndReset, this, std::placeholders::_1));
-}
+      statsIntervalInSeconds_(statsIntervalInSeconds) {}
 
 ProducerStatsImpl::ProducerStatsImpl(const ProducerStatsImpl& stats)
     : producerStr_(stats.producerStr_),
@@ -65,14 +65,17 @@ ProducerStatsImpl::ProducerStatsImpl(const ProducerStatsImpl& stats)
       totalLatencyAccumulator_(stats.totalLatencyAccumulator_),
       statsIntervalInSeconds_(stats.statsIntervalInSeconds_) {}
 
-void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
+void ProducerStatsImpl::start() { scheduleTimer(); }
+
+void ProducerStatsImpl::flushAndReset(const ASIO_ERROR& ec) {
     if (ec) {
         LOG_DEBUG("Ignoring timer cancelled event, code[" << ec << "]");
         return;
     }
 
-    Lock lock(mutex_);
-    ProducerStatsImpl tmp = *this;
+    std::unique_lock<std::mutex> lock(mutex_);
+    std::ostringstream oss;
+    oss << *this;
     numMsgsSent_ = 0;
     numBytesSent_ = 0;
     sendMap_.clear();
@@ -80,34 +83,41 @@ void ProducerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
         LatencyAccumulator(boost::accumulators::tag::extended_p_square::probabilities = probs);
     lock.unlock();
 
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
-    timer_->async_wait(std::bind(&pulsar::ProducerStatsImpl::flushAndReset, this, std::placeholders::_1));
-    LOG_INFO(tmp);
+    scheduleTimer();
+    LOG_INFO(oss.str());
 }
 
 void ProducerStatsImpl::messageSent(const Message& msg) {
-    Lock lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     numMsgsSent_++;
     totalMsgsSent_++;
     numBytesSent_ += msg.getLength();
     totalBytesSent_ += msg.getLength();
 }
 
-void ProducerStatsImpl::messageReceived(Result res, const boost::posix_time::ptime& publishTime) {
-    boost::posix_time::ptime currentTime = boost::posix_time::microsec_clock::universal_time();
-    double diffInMicros = (currentTime - publishTime).total_microseconds();
-    Lock lock(mutex_);
+void ProducerStatsImpl::messageReceived(Result res, const ptime& publishTime) {
+    auto currentTime = TimeUtils::now();
+    double diffInMicros =
+        std::chrono::duration_cast<std::chrono::microseconds>(currentTime - publishTime).count();
+    std::lock_guard<std::mutex> lock(mutex_);
     totalLatencyAccumulator_(diffInMicros);
     latencyAccumulator_(diffInMicros);
     sendMap_[res] += 1;       // Value will automatically be initialized to 0 in the constructor
     totalSendMap_[res] += 1;  // Value will automatically be initialized to 0 in the constructor
 }
 
-ProducerStatsImpl::~ProducerStatsImpl() {
-    Lock lock(mutex_);
-    if (timer_) {
-        timer_->cancel();
-    }
+ProducerStatsImpl::~ProducerStatsImpl() { timer_->cancel(); }
+
+void ProducerStatsImpl::scheduleTimer() {
+    timer_->expires_from_now(std::chrono::seconds(statsIntervalInSeconds_));
+    std::weak_ptr<ProducerStatsImpl> weakSelf{shared_from_this()};
+    timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
+        flushAndReset(ec);
+    });
 }
 
 std::ostream& operator<<(std::ostream& os, const ProducerStatsImpl& obj) {

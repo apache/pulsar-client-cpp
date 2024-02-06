@@ -20,23 +20,22 @@
 #define LIB_CLIENTIMPL_H_
 
 #include <pulsar/Client.h>
-#include "ExecutorService.h"
-#include "LookupService.h"
-#include "MemoryLimitController.h"
-#include "ConnectionPool.h"
-#include "LookupDataResult.h"
-#include <mutex>
-#include <lib/TopicName.h>
-#include "ProducerImplBase.h"
-#include "ConsumerImplBase.h"
+
 #include <atomic>
-#include <vector>
+#include <memory>
+
+#include "ConnectionPool.h"
+#include "Future.h"
+#include "LookupDataResult.h"
+#include "MemoryLimitController.h"
+#include "ProtoApiEnums.h"
 #include "ServiceNameResolver.h"
+#include "SynchronizedHashMap.h"
 
 namespace pulsar {
 
-class ClientImpl;
 class PulsarFriend;
+class ClientImpl;
 typedef std::shared_ptr<ClientImpl> ClientImplPtr;
 typedef std::weak_ptr<ClientImpl> ClientImplWeakPtr;
 
@@ -44,16 +43,40 @@ class ReaderImpl;
 typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
 typedef std::weak_ptr<ReaderImpl> ReaderImplWeakPtr;
 
+class TableViewImpl;
+typedef std::shared_ptr<TableViewImpl> TableViewImplPtr;
+
+class ConsumerImplBase;
+typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
+
+class ClientConnection;
+using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
+
+class LookupService;
+using LookupServicePtr = std::shared_ptr<LookupService>;
+
+class ProducerImplBase;
+using ProducerImplBaseWeakPtr = std::weak_ptr<ProducerImplBase>;
+class ConsumerImplBase;
+using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
+
+using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
+
 std::string generateRandomName();
 
 class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
    public:
-    ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
-               bool poolConnections);
+    ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
     ~ClientImpl();
 
+    /**
+     * @param autoDownloadSchema When it is true, Before creating a producer, it will try to get the schema
+     * that exists for the topic.
+     */
     void createProducerAsync(const std::string& topic, ProducerConfiguration conf,
-                             CreateProducerCallback callback);
+                             CreateProducerCallback callback, bool autoDownloadSchema = false);
 
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, SubscribeCallback callback);
@@ -67,9 +90,14 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, ReaderCallback callback);
 
+    void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                              TableViewCallback callback);
+
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
 
-    Future<Result, ClientConnectionWeakPtr> getConnection(const std::string& topic);
+    Future<Result, ClientConnectionPtr> getConnection(const std::string& topic, size_t key);
+
+    Future<Result, ClientConnectionPtr> connect(const std::string& logicalAddress, size_t key);
 
     void closeAsync(CloseCallback callback);
     void shutdown();
@@ -90,6 +118,18 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ExecutorServiceProviderPtr getListenerExecutorProvider();
     ExecutorServiceProviderPtr getPartitionListenerExecutorProvider();
     LookupServicePtr getLookup();
+
+    void cleanupProducer(ProducerImplBase* address) { producers_.remove(address); }
+
+    void cleanupConsumer(ConsumerImplBase* address) { consumers_.remove(address); }
+
+    std::shared_ptr<std::atomic<uint64_t>> getRequestIdGenerator() const { return requestIdGenerator_; }
+
+    ConnectionPool& getConnectionPool() noexcept { return pool_; }
+    uint64_t getLookupCount() { return lookupCount_; }
+
+    static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
+
     friend class PulsarFriend;
 
    private:
@@ -118,8 +158,14 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void handleClose(Result result, SharedInt remaining, ResultCallback callback);
 
     void createPatternMultiTopicsConsumer(const Result result, const NamespaceTopicsPtr topics,
-                                          const std::string& regexPattern, const std::string& consumerName,
-                                          const ConsumerConfiguration& conf, SubscribeCallback callback);
+                                          const std::string& regexPattern,
+                                          CommandGetTopicsOfNamespace_Mode mode,
+                                          const std::string& consumerName, const ConsumerConfiguration& conf,
+                                          SubscribeCallback callback);
+
+    const std::string& getPhysicalAddress(const std::string& logicalAddress);
+
+    static std::string getClientVersion(const ClientConfiguration& clientConfiguration);
 
     enum State
     {
@@ -144,15 +190,14 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     uint64_t producerIdGenerator_;
     uint64_t consumerIdGenerator_;
-    uint64_t requestIdGenerator_;
+    std::shared_ptr<std::atomic<uint64_t>> requestIdGenerator_{std::make_shared<std::atomic<uint64_t>>(0)};
 
-    typedef std::vector<ProducerImplBaseWeakPtr> ProducersList;
-    ProducersList producers_;
-
-    typedef std::vector<ConsumerImplBaseWeakPtr> ConsumersList;
-    ConsumersList consumers_;
+    SynchronizedHashMap<ProducerImplBase*, ProducerImplBaseWeakPtr> producers_;
+    SynchronizedHashMap<ConsumerImplBase*, ConsumerImplBaseWeakPtr> consumers_;
 
     std::atomic<Result> closingError;
+    std::atomic<bool> useProxy_;
+    std::atomic<uint64_t> lookupCount_;
 
     friend class Client;
 };

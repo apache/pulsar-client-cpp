@@ -45,7 +45,11 @@ struct ConsumerConfigurationImpl {
     ConsumerCryptoFailureAction cryptoFailureAction{ConsumerCryptoFailureAction::FAIL};
     bool readCompacted{false};
     InitialPosition subscriptionInitialPosition{InitialPosition::InitialPositionLatest};
+    BatchReceivePolicy batchReceivePolicy{};
+    DeadLetterPolicy deadLetterPolicy;
     int patternAutoDiscoveryPeriod{60};
+    RegexSubscriptionMode regexSubscriptionMode{RegexSubscriptionMode::PersistentOnly};
+
     bool replicateSubscriptionStateEnabled{false};
     std::map<std::string, std::string> properties;
     std::map<std::string, std::string> subscriptionProperties;
@@ -54,6 +58,10 @@ struct ConsumerConfigurationImpl {
     size_t maxPendingChunkedMessage{10};
     bool autoAckOldestChunkedMessageOnQueueFull{false};
     bool startMessageIdInclusive{false};
+    long expireTimeOfIncompleteChunkedMessageMs{60000};
+    bool batchIndexAckEnabled{false};
+    std::vector<ConsumerInterceptorPtr> interceptors;
+    bool ackReceiptEnabled{false};
 };
 }  // namespace pulsar
 #endif /* LIB_CONSUMERCONFIGURATIONIMPL_H_ */

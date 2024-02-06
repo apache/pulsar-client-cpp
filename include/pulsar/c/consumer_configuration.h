@@ -19,6 +19,7 @@
 #pragma once
 
 #include <pulsar/defines.h>
+
 #include "consumer.h"
 #include "producer_configuration.h"
 
@@ -77,6 +78,41 @@ typedef enum
     // not be able to retrieve individual messages in the batch
     pulsar_ConsumerConsume
 } pulsar_consumer_crypto_failure_action;
+
+typedef enum
+{
+    // Only subscribe to persistent topics.
+    pulsar_consumer_regex_sub_mode_PersistentOnly = 0,
+    // Only subscribe to non-persistent topics.
+    pulsar_consumer_regex_sub_mode_NonPersistentOnly = 1,
+    // Subscribe to both persistent and non-persistent topics.
+    pulsar_consumer_regex_sub_mode_AllTopics = 2
+} pulsar_consumer_regex_subscription_mode;
+
+// Though any field could be non-positive, if all of them are non-positive, this policy will be treated as
+// invalid
+typedef struct {
+    // Max num messages, a non-positive value means no limit.
+    int maxNumMessages;
+    // Max num bytes, a non-positive value means no limit.
+    long maxNumBytes;
+    // The receive timeout, a non-positive value means no limit.
+    long timeoutMs;
+} pulsar_consumer_batch_receive_policy_t;
+
+typedef struct {
+    // Name of the dead topic where the failing messages are sent.
+    // If it's null, use sourceTopicName + "-" + subscriptionName + "-DLQ" as the value
+    const char *dead_letter_topic;
+    // Maximum number of times that a message is redelivered before being sent to the dead letter queue.
+    // If it's not greater than 0, treat it as INT_MAX, it means DLQ disable.
+    int max_redeliver_count;
+    // Name of the initial subscription name of the dead letter topic.
+    // If it's null, the initial subscription for the dead letter topic is not created.
+    // If this field is set but the broker's `allowAutoSubscriptionCreation` is disabled, the DLQ producer
+    // fails to be created.
+    const char *initial_subscription_name;
+} pulsar_consumer_config_dead_letter_policy_t;
 
 /// Callback definition for MessageListener
 typedef void (*pulsar_message_listener)(pulsar_consumer_t *consumer, pulsar_message_t *msg, void *ctx);
@@ -296,6 +332,73 @@ PULSAR_PUBLIC void pulsar_consumer_configuration_set_auto_ack_oldest_chunked_mes
 
 PULSAR_PUBLIC int pulsar_consumer_configuration_is_auto_ack_oldest_chunked_message_on_queue_full(
     pulsar_consumer_configuration_t *consumer_configuration);
+
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_start_message_id_inclusive(
+    pulsar_consumer_configuration_t *consumer_configuration, int start_message_id_inclusive);
+
+PULSAR_PUBLIC int pulsar_consumer_configuration_is_start_message_id_inclusive(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration, int enabled);
+
+PULSAR_PUBLIC int pulsar_consumer_configuration_is_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_regex_subscription_mode regex_sub_mode);
+
+PULSAR_PUBLIC pulsar_consumer_regex_subscription_mode
+pulsar_consumer_configuration_get_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
+/**
+ * Set batch receive policy.
+ *
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [in] batch_receive_policy
+ * @return 0 on success and -1 on failure
+ *
+ * The possible failed reasons are:
+ * - batch_receive_policy is null
+ * - batch_receive_policy points to an invalid policy
+ */
+PULSAR_PUBLIC int pulsar_consumer_configuration_set_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_batch_receive_policy_t *batch_receive_policy);
+
+/**
+ * Get the batch receive policy.
+ *
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [out] batch_receive_policy
+ *
+ * If batch_receive_policy is not null, the instance that it points to will be updated to the batch receive
+ * policy of the consumer configuration.
+ *
+ * If the policy was never set before, the batch_receive_policy will be set with the following value:
+ * {maxNumMessage: -1, maxNumBytes: 10 * 1024 * 1024, timeoutMs: 100}
+ */
+PULSAR_PUBLIC void pulsar_consumer_configuration_get_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_batch_receive_policy_t *batch_receive_policy);
+
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
+
+/**
+ * Get the dlq policy
+ *
+ * @param [in] consumer_configuration a non-null pointer of the consumer configuration
+ * @param [out] dlq_policy If dlq_policy is not null,
+ * the instance that it points to will be updated to the dead letter policy of the consumer configuration.
+ *
+ */
+PULSAR_PUBLIC void pulsar_consumer_configuration_get_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_config_dead_letter_policy_t *dlq_policy);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader()
 //

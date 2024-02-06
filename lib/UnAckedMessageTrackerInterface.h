@@ -18,26 +18,21 @@
  */
 #ifndef LIB_UNACKEDMESSAGETRACKERINTERFACE_H_
 #define LIB_UNACKEDMESSAGETRACKERINTERFACE_H_
-#include <string>
+#include <pulsar/MessageId.h>
+
 #include <memory>
-#include <set>
-#include <algorithm>
-#include <utility>
-#include "pulsar/MessageId.h"
-#include "lib/ClientImpl.h"
-#include "lib/ConsumerImplBase.h"
-#include <boost/asio.hpp>
-#include <lib/LogUtils.h>
-#include "lib/PulsarApi.pb.h"
-#include <boost/asio/error.hpp>
+#include <string>
 namespace pulsar {
 
 class UnAckedMessageTrackerInterface {
    public:
     virtual ~UnAckedMessageTrackerInterface() {}
     UnAckedMessageTrackerInterface() {}
+    virtual void start() {}
+    virtual void stop() {}
     virtual bool add(const MessageId& m) = 0;
     virtual bool remove(const MessageId& m) = 0;
+    virtual void remove(const MessageIdList& msgIds) = 0;
     virtual void removeMessagesTill(const MessageId& msgId) = 0;
     virtual void clear() = 0;
     // this is only for MultiTopicsConsumerImpl, when un-subscribe a single topic, should remove all it's

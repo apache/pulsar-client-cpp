@@ -18,25 +18,30 @@
  */
 #ifndef _PULSAR_HANDLER_BASE_HEADER_
 #define _PULSAR_HANDLER_BASE_HEADER_
-#include "Backoff.h"
-#include "ClientImpl.h"
-#include "ClientConnection.h"
+#include <pulsar/Result.h>
+
+#include <boost/optional.hpp>
 #include <memory>
-#include <boost/asio.hpp>
+#include <mutex>
 #include <string>
-#include <boost/date_time/local_time/local_time.hpp>
+
+#include "AsioTimer.h"
+#include "Backoff.h"
+#include "Future.h"
+#include "TimeUtils.h"
 
 namespace pulsar {
 
-using namespace boost::posix_time;
-using boost::posix_time::milliseconds;
-using boost::posix_time::seconds;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
+class ClientConnection;
+using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
-class HandlerBase;
-typedef std::weak_ptr<HandlerBase> HandlerBaseWeakPtr;
-typedef std::shared_ptr<HandlerBase> HandlerBasePtr;
-
-class HandlerBase {
+class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
    public:
     HandlerBase(const ClientImplPtr&, const std::string&, const Backoff&);
 
@@ -44,13 +49,17 @@ class HandlerBase {
 
     void start();
 
-    /*
-     * get method for derived class to access weak ptr to connection so that they
-     * have to check if they can get a shared_ptr out of it or not
-     */
-    ClientConnectionWeakPtr getCnx() const { return connection_; }
+    ClientConnectionWeakPtr getCnx() const;
+    void setCnx(const ClientConnectionPtr& cnx);
+    void resetCnx() { setCnx(nullptr); }
 
    protected:
+    /*
+     * tries reconnection and sets connection_ to valid object
+     * @param assignedBrokerUrl assigned broker url to directly connect to without lookup
+     */
+    void grabCnx(const boost::optional<std::string>& assignedBrokerUrl);
+
     /*
      * tries reconnection and sets connection_ to valid object
      */
@@ -58,38 +67,54 @@ class HandlerBase {
 
     /*
      * Schedule reconnection after backoff time
+     * @param assignedBrokerUrl assigned broker url to directly connect to without lookup
      */
-    static void scheduleReconnection(HandlerBasePtr handler);
+    void scheduleReconnection(const boost::optional<std::string>& assignedBrokerUrl);
+    /*
+     * Schedule reconnection after backoff time
+     */
+    void scheduleReconnection();
+
+    /**
+     * Do some cleanup work before changing `connection_` to `cnx`.
+     *
+     * @param cnx the current connection
+     */
+    virtual void beforeConnectionChange(ClientConnection& cnx) = 0;
 
     /*
-     * Should we retry in error that are transient
+     * connectionOpened will be implemented by derived class to receive notification.
+     *
+     * @return ResultOk if the connection is successfully completed.
+     * @return ResultError if there was a failure. ResultRetryable if reconnection is needed.
+     * @return Do not use bool, only Result.
      */
-    bool isRetriableError(Result result);
-    /*
-     * connectionOpened will be implemented by derived class to receive notification
-     */
-
-    virtual void connectionOpened(const ClientConnectionPtr& connection) = 0;
+    virtual Future<Result, bool> connectionOpened(const ClientConnectionPtr& connection) = 0;
 
     virtual void connectionFailed(Result result) = 0;
 
-    virtual HandlerBaseWeakPtr get_weak_from_this() = 0;
-
     virtual const std::string& getName() const = 0;
 
-   private:
-    static void handleNewConnection(Result result, ClientConnectionWeakPtr connection, HandlerBaseWeakPtr wp);
-    static void handleDisconnection(Result result, ClientConnectionWeakPtr connection, HandlerBaseWeakPtr wp);
+    const std::string& topic() const { return *topic_; }
+    const std::shared_ptr<std::string>& getTopicPtr() const { return topic_; }
 
-    static void handleTimeout(const boost::system::error_code& ec, HandlerBasePtr handler);
+   private:
+    const std::shared_ptr<std::string> topic_;
+
+    Future<Result, ClientConnectionPtr> getConnection(const ClientImplPtr& client,
+                                                      const boost::optional<std::string>& assignedBrokerUrl);
+
+    void handleDisconnection(Result result, const ClientConnectionPtr& cnx);
+
+    void handleTimeout(const ASIO_ERROR& ec, const boost::optional<std::string>& assignedBrokerUrl);
 
    protected:
     ClientImplWeakPtr client_;
-    const std::string topic_;
-    ClientConnectionWeakPtr connection_;
+    const size_t connectionKeySuffix_;
     ExecutorServicePtr executor_;
     mutable std::mutex mutex_;
     std::mutex pendingReceiveMutex_;
+    std::mutex batchPendingReceiveMutex_;
     ptime creationTimestamp_;
 
     const TimeDuration operationTimeut_;
@@ -97,20 +122,28 @@ class HandlerBase {
 
     enum State
     {
-        NotStarted,
-        Pending,
-        Ready,
-        Closing,
-        Closed,
-        Failed
+        NotStarted,       // Not initialized, in Java client: HandlerState.State.Uninitialized
+        Pending,          // Client connecting to broker, in Java client: HandlerState.State.Connecting
+        Ready,            // Handler is being used, in Java client: HandlerState.State.Ready
+        Closing,          // Close cmd has been sent to broker, in Java client: HandlerState.State.Closing
+        Closed,           // Broker acked the close, in Java client: HandlerState.State.Closed
+        Failed,           // Handler is failed, in Java client: HandlerState.State.Failed
+        Producer_Fenced,  // The producer has been fenced by the broker
+                          // in Java client: HandlerState.State.ProducerFenced
     };
 
     std::atomic<State> state_;
     Backoff backoff_;
     uint64_t epoch_;
 
+    Result convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const;
+
    private:
     DeadlineTimerPtr timer_;
+
+    mutable std::mutex connectionMutex_;
+    std::atomic<bool> reconnectionPending_;
+    ClientConnectionWeakPtr connection_;
     friend class ClientConnection;
     friend class PulsarFriend;
 };

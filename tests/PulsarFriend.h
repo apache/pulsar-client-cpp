@@ -16,28 +16,30 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#ifndef PULSAR_FRIEND_HPP_
+#define PULSAR_FRIEND_HPP_
 
 #include <string>
 
+#include "WaitUtils.h"
+#include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
-#include "lib/ProducerImpl.h"
-#include "lib/PartitionedProducerImpl.h"
+#include "lib/ConsumerConfigurationImpl.h"
 #include "lib/ConsumerImpl.h"
+#include "lib/MessageImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
+#include "lib/NamespaceName.h"
+#include "lib/PartitionedProducerImpl.h"
+#include "lib/ProducerImpl.h"
 #include "lib/ReaderImpl.h"
-#include "lib/RetryableLookupService.h"
+#include "lib/stats/ConsumerStatsImpl.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 using std::string;
 
 namespace pulsar {
 class PulsarFriend {
    public:
-    static MessageId getMessageId(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex) {
-        return MessageId(partition, ledgerId, entryId, batchIndex);
-    }
-
-    static int getBatchIndex(const MessageId& mId) { return mId.batchIndex(); }
-
     static ProducerStatsImplPtr getProducerStatsPtr(Producer producer) {
         ProducerImpl* producerImpl = static_cast<ProducerImpl*>(producer.impl_.get());
         return std::static_pointer_cast<ProducerStatsImpl>(producerImpl->producerStatsBasePtr_);
@@ -57,9 +59,31 @@ class PulsarFriend {
         return std::static_pointer_cast<ConsumerStatsImpl>(consumerImpl->consumerStatsBasePtr_);
     }
 
+    static std::vector<ConsumerStatsImplPtr> getConsumerStatsPtrList(Consumer consumer) {
+        if (MultiTopicsConsumerImpl* multiTopicsConsumer =
+                dynamic_cast<MultiTopicsConsumerImpl*>(consumer.impl_.get())) {
+            std::vector<ConsumerStatsImplPtr> consumerStatsList;
+            for (const auto& kv : multiTopicsConsumer->consumers_.toPairVector()) {
+                auto consumerStats =
+                    std::static_pointer_cast<ConsumerStatsImpl>(kv.second->consumerStatsBasePtr_);
+                consumerStatsList.emplace_back(consumerStats);
+            }
+            return consumerStatsList;
+
+        } else {
+            throw std::runtime_error("Consumer must is MultiTopicConsumer.");
+        }
+    }
+
     static ProducerImpl& getProducerImpl(Producer producer) {
         ProducerImpl* producerImpl = static_cast<ProducerImpl*>(producer.impl_.get());
         return *producerImpl;
+    }
+
+    static int getPartitionProducerSize(Producer producer) {
+        PartitionedProducerImpl* partitionedProducerImpl =
+            static_cast<PartitionedProducerImpl*>(producer.impl_.get());
+        return partitionedProducerImpl->producers_.size();
     }
 
     static ProducerImpl& getInternalProducerImpl(Producer producer, int index) {
@@ -81,7 +105,7 @@ class PulsarFriend {
     }
 
     static ConsumerImplPtr getConsumer(Reader reader) {
-        return std::static_pointer_cast<ConsumerImpl>(reader.impl_->getConsumer().lock());
+        return std::static_pointer_cast<ConsumerImpl>(reader.impl_->getConsumer());
     }
 
     static ReaderImplWeakPtr getReaderImplWeakPtr(Reader reader) { return reader.impl_; }
@@ -98,12 +122,42 @@ class PulsarFriend {
 
     static std::shared_ptr<ClientImpl> getClientImplPtr(Client client) { return client.impl_; }
 
-    static ClientImpl::ProducersList& getProducers(const Client& client) {
+    static auto getProducers(const Client& client) -> decltype(ClientImpl::producers_)& {
         return getClientImplPtr(client)->producers_;
     }
 
-    static ClientImpl::ConsumersList& getConsumers(const Client& client) {
+    static auto getConsumers(const Client& client) -> decltype(ClientImpl::consumers_)& {
         return getClientImplPtr(client)->consumers_;
+    }
+
+    static std::vector<ClientConnectionPtr> getConnections(const Client& client) {
+        auto& pool = client.impl_->pool_;
+        std::vector<ClientConnectionPtr> connections;
+        std::lock_guard<std::recursive_mutex> lock(pool.mutex_);
+        for (const auto& kv : pool.pool_) {
+            connections.emplace_back(kv.second);
+        }
+        return connections;
+    }
+
+    static ExecutorServicePtr getExecutor(const ClientConnection& cnx) { return cnx.executor_; }
+
+    static std::vector<ProducerImplPtr> getProducers(const ClientConnection& cnx) {
+        std::vector<ProducerImplPtr> producers;
+        std::lock_guard<std::mutex> lock(cnx.mutex_);
+        for (const auto& kv : cnx.producers_) {
+            producers.emplace_back(kv.second.lock());
+        }
+        return producers;
+    }
+
+    static std::vector<ConsumerImplPtr> getConsumers(const ClientConnection& cnx) {
+        std::vector<ConsumerImplPtr> consumers;
+        std::lock_guard<std::mutex> lock(cnx.mutex_);
+        for (const auto& kv : cnx.consumers_) {
+            consumers.emplace_back(kv.second.lock());
+        }
+        return consumers;
     }
 
     static void setNegativeAckEnabled(Consumer consumer, bool enabled) {
@@ -116,7 +170,7 @@ class PulsarFriend {
         handler.connection_ = conn;
     }
 
-    static boost::posix_time::ptime& getFirstBackoffTime(Backoff& backoff) {
+    static auto getFirstBackoffTime(Backoff& backoff) -> decltype(backoff.firstBackoffTime_)& {
         return backoff.firstBackoffTime_;
     }
 
@@ -126,8 +180,34 @@ class PulsarFriend {
         setServiceUrlIndex(client.impl_->serviceNameResolver_, index);
     }
 
-    static size_t getNumberOfPendingTasks(const RetryableLookupService& lookupService) {
-        return lookupService.backoffTimers_.size();
+    static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }
+
+    static std::shared_ptr<MessageIdImpl> getMessageIdImpl(MessageId& msgId) { return msgId.impl_; }
+
+    static void setConsumerUnAckMessagesTimeoutMs(const ConsumerConfiguration& consumerConfiguration,
+                                                  long unAckedMessagesTimeoutMs) {
+        consumerConfiguration.impl_->unAckedMessagesTimeoutMs = unAckedMessagesTimeoutMs;
+    }
+
+    static PartitionedProducerImpl& getPartitionedProducerImpl(Producer producer) {
+        PartitionedProducerImpl* partitionedProducer =
+            static_cast<PartitionedProducerImpl*>(producer.impl_.get());
+        return *partitionedProducer;
+    }
+
+    static void updatePartitions(PartitionedProducerImpl& partitionedProducer, int newPartitions) {
+        LookupDataResultPtr lookupData = std::make_shared<LookupDataResult>();
+        lookupData->setPartitions(newPartitions);
+        partitionedProducer.handleGetPartitions(ResultOk, lookupData);
+    }
+
+    static bool reconnect(Producer producer) {
+        auto producerImpl = std::dynamic_pointer_cast<ProducerImpl>(producer.impl_);
+        producerImpl->disconnectProducer();
+        return waitUntil(std::chrono::seconds(3),
+                         [producerImpl] { return !producerImpl->getCnx().expired(); });
     }
 };
 }  // namespace pulsar
+
+#endif /* PULSAR_FRIEND_HPP_ */

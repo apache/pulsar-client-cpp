@@ -19,9 +19,7 @@
 #include "CompressionCodecZLib.h"
 
 #include <zlib.h>
-#include <cstring>
-#include <cstdlib>
-#include <cmath>
+
 #include "LogUtils.h"
 
 DECLARE_LOG_OBJECT()

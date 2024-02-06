@@ -16,11 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/MessageBuilder.h>
-#include <pulsar/Client.h>
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
+#include <pulsar/MessageBuilder.h>
+
 #include <string>
-#include <lib/LogUtils.h>
+
+#include "lib/MessageImpl.h"
 
 using namespace pulsar;
 TEST(MessageTest, testMessageContents) {
@@ -97,5 +99,51 @@ TEST(MessageTest, testMessageBuilder) {
     {
         auto msg = MessageBuilder().setContent(std::move(value)).build();
         ASSERT_EQ(msg.getData(), originalAddress);
+    }
+}
+
+TEST(MessageTest, testMessageImplKeyValuePayloadCovert) {
+    const char* keyContent = "keyContent";
+    const char* valueContent = "valueContent";
+
+    std::string jsonSchema =
+        R"({"type":"record","name":"cpx","fields":[{"name":"re","type":"double"},{"name":"im","type":"double"}]})";
+    SchemaInfo keySchema(JSON, "key-json", jsonSchema);
+    SchemaInfo valueSchema(JSON, "value-json", jsonSchema);
+
+    // test inline encoding type.
+    {
+        SchemaInfo keyValueSchema(keySchema, valueSchema, KeyValueEncodingType::INLINE);
+        MessageImpl msgImpl;
+        std::shared_ptr<KeyValueImpl> keyValuePtr = std::make_shared<KeyValueImpl>(keyContent, valueContent);
+        msgImpl.keyValuePtr = keyValuePtr;
+        msgImpl.convertKeyValueToPayload(keyValueSchema);
+        ASSERT_EQ(msgImpl.payload.readableBytes(), 30);
+        ASSERT_EQ(msgImpl.getPartitionKey(), "");
+
+        MessageImpl deMsgImpl;
+        deMsgImpl.payload = msgImpl.payload;
+        deMsgImpl.convertPayloadToKeyValue(keyValueSchema);
+
+        ASSERT_EQ(deMsgImpl.keyValuePtr->getKey(), keyContent);
+        ASSERT_EQ(deMsgImpl.keyValuePtr->getValueAsString(), valueContent);
+    }
+
+    // test separated encoding type.
+    {
+        SchemaInfo keyValueSchema(keySchema, valueSchema, KeyValueEncodingType::SEPARATED);
+        MessageImpl msgImpl;
+        std::shared_ptr<KeyValueImpl> keyValuePtr = std::make_shared<KeyValueImpl>(keyContent, valueContent);
+        msgImpl.keyValuePtr = keyValuePtr;
+        msgImpl.convertKeyValueToPayload(keyValueSchema);
+        ASSERT_EQ(msgImpl.payload.readableBytes(), 12);
+        ASSERT_EQ(msgImpl.getPartitionKey(), keyContent);
+
+        MessageImpl deMsgImpl;
+        deMsgImpl.payload = msgImpl.payload;
+        deMsgImpl.convertPayloadToKeyValue(keyValueSchema);
+
+        ASSERT_EQ(deMsgImpl.keyValuePtr->getKey(), "");
+        ASSERT_EQ(deMsgImpl.keyValuePtr->getValueAsString(), valueContent);
     }
 }

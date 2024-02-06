@@ -16,10 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/MultiTopicsBrokerConsumerStatsImpl.h>
-#include <boost/date_time/local_time/local_time.hpp>
+#include "MultiTopicsBrokerConsumerStatsImpl.h"
+
 #include <algorithm>
 #include <numeric>
+#include <sstream>
 
 using namespace pulsar;
 

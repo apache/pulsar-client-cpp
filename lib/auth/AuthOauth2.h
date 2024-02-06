@@ -20,9 +20,9 @@
 #pragma once
 
 #include <pulsar/Authentication.h>
+
 #include <chrono>
 #include <mutex>
-#include <string>
 
 namespace pulsar {
 
@@ -48,6 +48,7 @@ class KeyFile {
     KeyFile() : valid_(false) {}
 
     static KeyFile fromFile(const std::string& filename);
+    static KeyFile fromBase64(const std::string& encoded);
 };
 
 class ClientCredentialFlow : public Oauth2Flow {
@@ -60,12 +61,17 @@ class ClientCredentialFlow : public Oauth2Flow {
     ParamMap generateParamMap() const;
     std::string getTokenEndPoint() const;
 
+    void setTlsTrustCertsFilePath(const std::string& tlsTrustCertsFilePath) {
+        tlsTrustCertsFilePath_ = tlsTrustCertsFilePath;
+    }
+
    private:
     std::string tokenEndPoint_;
     const std::string issuerUrl_;
     const KeyFile keyFile_;
     const std::string audience_;
     const std::string scope_;
+    std::string tlsTrustCertsFilePath_;
     std::once_flag initializeOnce_;
 };
 

@@ -17,28 +17,32 @@
  * under the License.
  */
 #include "HandlerBase.h"
-#include "TimeUtils.h"
 
-#include <cassert>
-
+#include "Backoff.h"
+#include "ClientConnection.h"
+#include "ClientImpl.h"
+#include "ExecutorService.h"
 #include "LogUtils.h"
+#include "ResultUtils.h"
+#include "TimeUtils.h"
 
 DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
 HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, const Backoff& backoff)
-    : client_(client),
-      topic_(topic),
-      connection_(),
+    : topic_(std::make_shared<std::string>(topic)),
+      client_(client),
+      connectionKeySuffix_(client->getConnectionPool().generateRandomIndex()),
       executor_(client->getIOExecutorProvider()->get()),
       mutex_(),
       creationTimestamp_(TimeUtils::now()),
-      operationTimeut_(seconds(client->conf().getOperationTimeoutSeconds())),
+      operationTimeut_(std::chrono::seconds(client->conf().getOperationTimeoutSeconds())),
       state_(NotStarted),
       backoff_(backoff),
       epoch_(0),
-      timer_(executor_->createDeadlineTimer()) {}
+      timer_(executor_->createDeadlineTimer()),
+      reconnectionPending_(false) {}
 
 HandlerBase::~HandlerBase() { timer_->cancel(); }
 
@@ -50,105 +54,143 @@ void HandlerBase::start() {
     }
 }
 
-void HandlerBase::grabCnx() {
-    Lock lock(mutex_);
-    if (connection_.lock()) {
-        lock.unlock();
-        LOG_INFO(getName() << "Ignoring reconnection request since we're already connected");
+ClientConnectionWeakPtr HandlerBase::getCnx() const {
+    Lock lock(connectionMutex_);
+    return connection_;
+}
+
+void HandlerBase::setCnx(const ClientConnectionPtr& cnx) {
+    Lock lock(connectionMutex_);
+    auto previousCnx = connection_.lock();
+    if (previousCnx) {
+        beforeConnectionChange(*previousCnx);
+    }
+    connection_ = cnx;
+}
+
+void HandlerBase::grabCnx() { grabCnx(boost::none); }
+
+Future<Result, ClientConnectionPtr> HandlerBase::getConnection(
+    const ClientImplPtr& client, const boost::optional<std::string>& assignedBrokerUrl) {
+    if (assignedBrokerUrl && client->getLookupCount() > 0) {
+        return client->connect(assignedBrokerUrl.get(), connectionKeySuffix_);
+    } else {
+        return client->getConnection(topic(), connectionKeySuffix_);
+    }
+}
+
+void HandlerBase::grabCnx(const boost::optional<std::string>& assignedBrokerUrl) {
+    bool expectedState = false;
+    if (!reconnectionPending_.compare_exchange_strong(expectedState, true)) {
+        LOG_INFO(getName() << "Ignoring reconnection attempt since there's already a pending reconnection");
         return;
     }
-    lock.unlock();
+
+    if (getCnx().lock()) {
+        LOG_INFO(getName() << "Ignoring reconnection request since we're already connected");
+        reconnectionPending_ = false;
+        return;
+    }
+
     LOG_INFO(getName() << "Getting connection from pool");
     ClientImplPtr client = client_.lock();
-    Future<Result, ClientConnectionWeakPtr> future = client->getConnection(topic_);
-    future.addListener(std::bind(&HandlerBase::handleNewConnection, std::placeholders::_1,
-                                 std::placeholders::_2, get_weak_from_this()));
-}
-
-void HandlerBase::handleNewConnection(Result result, ClientConnectionWeakPtr connection,
-                                      HandlerBaseWeakPtr weakHandler) {
-    HandlerBasePtr handler = weakHandler.lock();
-    if (!handler) {
-        LOG_DEBUG("HandlerBase Weak reference is not valid anymore");
+    if (!client) {
+        LOG_WARN(getName() << "Client is invalid when calling grabCnx()");
+        connectionFailed(ResultConnectError);
+        reconnectionPending_ = false;
         return;
     }
-    if (result == ResultOk) {
-        ClientConnectionPtr conn = connection.lock();
-        if (conn) {
-            LOG_DEBUG(handler->getName() << "Connected to broker: " << conn->cnxString());
-            handler->connectionOpened(conn);
-            return;
+    auto self = shared_from_this();
+    auto cnxFuture = getConnection(client, assignedBrokerUrl);
+    cnxFuture.addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
+        if (result == ResultOk) {
+            LOG_DEBUG(getName() << "Connected to broker: " << cnx->cnxString());
+            connectionOpened(cnx).addListener([this, self](Result result, bool) {
+                // Do not use bool, only Result.
+                reconnectionPending_ = false;
+                if (isResultRetryable(result)) {
+                    scheduleReconnection();
+                }
+            });
+        } else {
+            connectionFailed(result);
+            reconnectionPending_ = false;
+            scheduleReconnection();
         }
-        // TODO - look deeper into why the connection is null while the result is ResultOk
-        LOG_INFO(handler->getName() << "ClientConnectionPtr is no longer valid");
-    }
-    handler->connectionFailed(result);
-    scheduleReconnection(handler);
+    });
 }
 
-void HandlerBase::handleDisconnection(Result result, ClientConnectionWeakPtr connection,
-                                      HandlerBaseWeakPtr weakHandler) {
-    HandlerBasePtr handler = weakHandler.lock();
-    if (!handler) {
-        LOG_DEBUG("HandlerBase Weak reference is not valid anymore");
+void HandlerBase::handleDisconnection(Result result, const ClientConnectionPtr& cnx) {
+    State state = state_;
+
+    ClientConnectionPtr currentConnection = getCnx().lock();
+    if (currentConnection && cnx.get() != currentConnection.get()) {
+        LOG_WARN(
+            getName() << "Ignoring connection closed since we are already attached to a newer connection");
         return;
     }
 
-    State state = handler->state_;
+    resetCnx();
 
-    ClientConnectionPtr currentConnection = handler->connection_.lock();
-    if (currentConnection && connection.lock().get() != currentConnection.get()) {
-        LOG_WARN(handler->getName()
-                 << "Ignoring connection closed since we are already attached to a newer connection");
-        return;
-    }
-
-    handler->connection_.reset();
-
-    if (result == ResultRetryable) {
-        scheduleReconnection(handler);
+    if (isResultRetryable(result)) {
+        scheduleReconnection();
         return;
     }
 
     switch (state) {
         case Pending:
         case Ready:
-            scheduleReconnection(handler);
+            scheduleReconnection();
             break;
 
         case NotStarted:
         case Closing:
         case Closed:
+        case Producer_Fenced:
         case Failed:
-            LOG_DEBUG(handler->getName()
-                      << "Ignoring connection closed event since the handler is not used anymore");
+            LOG_DEBUG(getName() << "Ignoring connection closed event since the handler is not used anymore");
             break;
     }
 }
+void HandlerBase::scheduleReconnection() { scheduleReconnection(boost::none); }
+void HandlerBase::scheduleReconnection(const boost::optional<std::string>& assignedBrokerUrl) {
+    const auto state = state_.load();
 
-bool HandlerBase::isRetriableError(Result result) { return result == ResultRetryable; }
-
-void HandlerBase::scheduleReconnection(HandlerBasePtr handler) {
-    const auto state = handler->state_.load();
     if (state == Pending || state == Ready) {
-        TimeDuration delay = handler->backoff_.next();
+        TimeDuration delay = assignedBrokerUrl ? std::chrono::milliseconds(0) : backoff_.next();
 
-        LOG_INFO(handler->getName() << "Schedule reconnection in " << (delay.total_milliseconds() / 1000.0)
-                                    << " s");
-        handler->timer_->expires_from_now(delay);
+        LOG_INFO(getName() << "Schedule reconnection in " << (toMillis(delay) / 1000.0) << " s");
+        timer_->expires_from_now(delay);
         // passing shared_ptr here since time_ will get destroyed, so tasks will be cancelled
         // so we will not run into the case where grabCnx is invoked on out of scope handler
-        handler->timer_->async_wait(std::bind(&HandlerBase::handleTimeout, std::placeholders::_1, handler));
+        auto name = getName();
+        std::weak_ptr<HandlerBase> weakSelf{shared_from_this()};
+        timer_->async_wait([name, weakSelf, assignedBrokerUrl](const ASIO_ERROR& ec) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleTimeout(ec, assignedBrokerUrl);
+            } else {
+                LOG_WARN(name << "Cancel the reconnection since the handler is destroyed");
+            }
+        });
     }
 }
 
-void HandlerBase::handleTimeout(const boost::system::error_code& ec, HandlerBasePtr handler) {
+void HandlerBase::handleTimeout(const ASIO_ERROR& ec, const boost::optional<std::string>& assignedBrokerUrl) {
     if (ec) {
-        LOG_DEBUG(handler->getName() << "Ignoring timer cancelled event, code[" << ec << "]");
+        LOG_DEBUG(getName() << "Ignoring timer cancelled event, code[" << ec << "]");
         return;
     } else {
-        handler->epoch_++;
-        handler->grabCnx();
+        epoch_++;
+        grabCnx(assignedBrokerUrl);
+    }
+}
+
+Result HandlerBase::convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const {
+    if (isResultRetryable(result) && (TimeUtils::now() - startTimestamp >= operationTimeut_)) {
+        return ResultTimeout;
+    } else {
+        return result;
     }
 }
 

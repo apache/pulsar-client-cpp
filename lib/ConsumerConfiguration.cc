@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/ConsumerConfigurationImpl.h>
+#include <pulsar/ConsumerConfiguration.h>
 
 #include <stdexcept>
+
+#include "ConsumerConfigurationImpl.h"
 
 namespace pulsar {
 
@@ -260,11 +262,69 @@ bool ConsumerConfiguration::isAutoAckOldestChunkedMessageOnQueueFull() const {
     return impl_->autoAckOldestChunkedMessageOnQueueFull;
 }
 
+ConsumerConfiguration& ConsumerConfiguration::setExpireTimeOfIncompleteChunkedMessageMs(
+    long expireTimeOfIncompleteChunkedMessageMs) {
+    impl_->expireTimeOfIncompleteChunkedMessageMs = expireTimeOfIncompleteChunkedMessageMs;
+    return *this;
+}
+
+long ConsumerConfiguration::getExpireTimeOfIncompleteChunkedMessageMs() const {
+    return impl_->expireTimeOfIncompleteChunkedMessageMs;
+}
+
 ConsumerConfiguration& ConsumerConfiguration::setStartMessageIdInclusive(bool startMessageIdInclusive) {
     impl_->startMessageIdInclusive = startMessageIdInclusive;
     return *this;
 }
 
 bool ConsumerConfiguration::isStartMessageIdInclusive() const { return impl_->startMessageIdInclusive; }
+
+void ConsumerConfiguration::setBatchReceivePolicy(const BatchReceivePolicy& batchReceivePolicy) {
+    impl_->batchReceivePolicy = batchReceivePolicy;
+}
+
+const BatchReceivePolicy& ConsumerConfiguration::getBatchReceivePolicy() const {
+    return impl_->batchReceivePolicy;
+}
+
+ConsumerConfiguration& ConsumerConfiguration::setBatchIndexAckEnabled(bool enabled) {
+    impl_->batchIndexAckEnabled = enabled;
+    return *this;
+}
+
+bool ConsumerConfiguration::isBatchIndexAckEnabled() const { return impl_->batchIndexAckEnabled; }
+
+void ConsumerConfiguration::setDeadLetterPolicy(const DeadLetterPolicy& deadLetterPolicy) {
+    impl_->deadLetterPolicy = deadLetterPolicy;
+}
+
+const DeadLetterPolicy& ConsumerConfiguration::getDeadLetterPolicy() const { return impl_->deadLetterPolicy; }
+
+ConsumerConfiguration& ConsumerConfiguration::intercept(
+    const std::vector<ConsumerInterceptorPtr>& interceptors) {
+    impl_->interceptors.insert(impl_->interceptors.end(), interceptors.begin(), interceptors.end());
+    return *this;
+}
+
+const std::vector<ConsumerInterceptorPtr>& ConsumerConfiguration::getInterceptors() const {
+    return impl_->interceptors;
+}
+
+ConsumerConfiguration& ConsumerConfiguration::setAckReceiptEnabled(bool ackReceiptEnabled) {
+    impl_->ackReceiptEnabled = ackReceiptEnabled;
+    return *this;
+}
+
+bool ConsumerConfiguration::isAckReceiptEnabled() const { return impl_->ackReceiptEnabled; }
+
+ConsumerConfiguration& ConsumerConfiguration::setRegexSubscriptionMode(
+    RegexSubscriptionMode regexSubscriptionMode) {
+    impl_->regexSubscriptionMode = regexSubscriptionMode;
+    return *this;
+}
+
+RegexSubscriptionMode ConsumerConfiguration::getRegexSubscriptionMode() const {
+    return impl_->regexSubscriptionMode;
+}
 
 }  // namespace pulsar

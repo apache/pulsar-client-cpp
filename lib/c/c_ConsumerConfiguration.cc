@@ -17,8 +17,11 @@
  * under the License.
  */
 
+#include <pulsar/DeadLetterPolicyBuilder.h>
 #include <pulsar/c/consumer.h>
 #include <pulsar/c/consumer_configuration.h>
+
+#include <climits>
 
 #include "c_structs.h"
 
@@ -216,4 +219,94 @@ void pulsar_consumer_configuration_set_auto_ack_oldest_chunked_message_on_queue_
 int pulsar_consumer_configuration_is_auto_ack_oldest_chunked_message_on_queue_full(
     pulsar_consumer_configuration_t *consumer_configuration) {
     return consumer_configuration->consumerConfiguration.isAutoAckOldestChunkedMessageOnQueueFull();
+}
+
+void pulsar_consumer_configuration_set_start_message_id_inclusive(
+    pulsar_consumer_configuration_t *consumer_configuration, int start_message_id_inclusive) {
+    consumer_configuration->consumerConfiguration.setStartMessageIdInclusive(start_message_id_inclusive);
+}
+
+int pulsar_consumer_configuration_is_start_message_id_inclusive(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    return consumer_configuration->consumerConfiguration.isStartMessageIdInclusive();
+}
+
+void pulsar_consumer_configuration_set_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration, int enabled) {
+    consumer_configuration->consumerConfiguration.setBatchIndexAckEnabled(enabled);
+}
+
+int pulsar_consumer_configuration_is_batch_index_ack_enabled(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    return consumer_configuration->consumerConfiguration.isBatchIndexAckEnabled();
+}
+
+void pulsar_consumer_configuration_set_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    pulsar_consumer_regex_subscription_mode regex_sub_mode) {
+    consumer_configuration->consumerConfiguration.setRegexSubscriptionMode(
+        (pulsar::RegexSubscriptionMode)regex_sub_mode);
+}
+
+pulsar_consumer_regex_subscription_mode pulsar_consumer_configuration_get_regex_subscription_mode(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    return (pulsar_consumer_regex_subscription_mode)
+        consumer_configuration->consumerConfiguration.getRegexSubscriptionMode();
+}
+
+int pulsar_consumer_configuration_set_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_batch_receive_policy_t *batch_receive_policy_t) {
+    if (!batch_receive_policy_t) {
+        return -1;
+    }
+    if (batch_receive_policy_t->maxNumMessages <= 0 && batch_receive_policy_t->maxNumBytes <= 0 &&
+        batch_receive_policy_t->timeoutMs <= 0) {
+        return -1;
+    }
+    pulsar::BatchReceivePolicy batchReceivePolicy(batch_receive_policy_t->maxNumMessages,
+                                                  batch_receive_policy_t->maxNumBytes,
+                                                  batch_receive_policy_t->timeoutMs);
+    consumer_configuration->consumerConfiguration.setBatchReceivePolicy(batchReceivePolicy);
+    return 0;
+}
+
+void pulsar_consumer_configuration_get_batch_receive_policy(
+    pulsar_consumer_configuration_t *consumer_configuration, pulsar_consumer_batch_receive_policy_t *policy) {
+    if (!policy) {
+        return;
+    }
+    pulsar::BatchReceivePolicy batchReceivePolicy =
+        consumer_configuration->consumerConfiguration.getBatchReceivePolicy();
+    policy->maxNumMessages = batchReceivePolicy.getMaxNumMessages();
+    policy->maxNumBytes = batchReceivePolicy.getMaxNumBytes();
+    policy->timeoutMs = batchReceivePolicy.getTimeoutMs();
+}
+
+void pulsar_consumer_configuration_set_dlq_policy(
+    pulsar_consumer_configuration_t *consumer_configuration,
+    const pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
+    auto dlqPolicyBuilder =
+        pulsar::DeadLetterPolicyBuilder().maxRedeliverCount(dlq_policy->max_redeliver_count);
+    if (dlq_policy->dead_letter_topic != nullptr) {
+        dlqPolicyBuilder.deadLetterTopic(dlq_policy->dead_letter_topic);
+    }
+    if (dlq_policy->initial_subscription_name != nullptr) {
+        dlqPolicyBuilder.initialSubscriptionName(dlq_policy->initial_subscription_name);
+    }
+    if (dlq_policy->max_redeliver_count <= 0) {
+        dlqPolicyBuilder.maxRedeliverCount(INT_MAX);
+    }
+    consumer_configuration->consumerConfiguration.setDeadLetterPolicy(dlqPolicyBuilder.build());
+}
+
+void pulsar_consumer_configuration_get_dlq_policy(pulsar_consumer_configuration_t *consumer_configuration,
+                                                  pulsar_consumer_config_dead_letter_policy_t *dlq_policy) {
+    if (!dlq_policy) {
+        return;
+    }
+    auto deadLetterPolicy = consumer_configuration->consumerConfiguration.getDeadLetterPolicy();
+    dlq_policy->dead_letter_topic = deadLetterPolicy.getDeadLetterTopic().c_str();
+    dlq_policy->max_redeliver_count = deadLetterPolicy.getMaxRedeliverCount();
+    dlq_policy->initial_subscription_name = deadLetterPolicy.getInitialSubscriptionName().c_str();
 }

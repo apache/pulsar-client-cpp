@@ -19,8 +19,9 @@
 #ifndef ERROR_HPP_
 #define ERROR_HPP_
 
-#include <iosfwd>
 #include <pulsar/defines.h>
+
+#include <iosfwd>
 
 namespace pulsar {
 
@@ -91,6 +92,8 @@ enum Result
     ResultMemoryBufferIsFull,  /// Client-wide memory limit has been reached
 
     ResultInterrupted,  /// Interrupted while waiting to dequeue
+
+    ResultDisconnected,  /// Client connection has been disconnected
 };
 
 // Return string representation of result code

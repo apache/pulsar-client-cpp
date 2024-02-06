@@ -20,14 +20,14 @@
 #ifndef PULSAR_CONSUMER_STATS_DISABLED_H_
 #define PULSAR_CONSUMER_STATS_DISABLED_H_
 
-#include <lib/stats/ConsumerStatsBase.h>
+#include "ConsumerStatsBase.h"
 
 namespace pulsar {
 
 class ConsumerStatsDisabled : public ConsumerStatsBase {
    public:
     virtual void receivedMessage(Message&, Result) {}
-    virtual void messageAcknowledged(Result, proto::CommandAck_AckType) {}
+    virtual void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums) {}
 };
 
 } /* namespace pulsar */

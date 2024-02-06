@@ -21,11 +21,11 @@
 
 #include <cstdint>
 
-#include "HandlerBase.h"
-#include <pulsar/MessageId.h>
 #include "AckGroupingTracker.h"
 
 namespace pulsar {
+
+class HandlerBase;
 
 /**
  * @class AckGroupingTrackerDisabled
@@ -34,24 +34,12 @@ namespace pulsar {
  */
 class AckGroupingTrackerDisabled : public AckGroupingTracker {
    public:
+    using AckGroupingTracker::AckGroupingTracker;
     virtual ~AckGroupingTrackerDisabled() = default;
 
-    /**
-     * Constructing ACK grouping tracker for peresistent topics that disabled ACK grouping.
-     * @param[in] handler the connection handler.
-     * @param[in] consumerId consumer ID that this tracker belongs to.
-     */
-    AckGroupingTrackerDisabled(HandlerBase& handler, uint64_t consumerId);
-
-    void addAcknowledge(const MessageId& msgId) override;
-    void addAcknowledgeCumulative(const MessageId& msgId) override;
-
-   private:
-    //! The connection handler.
-    HandlerBase& handler_;
-
-    //! ID of the consumer that this tracker belongs to.
-    uint64_t consumerId_;
+    void addAcknowledge(const MessageId& msgId, ResultCallback callback) override;
+    void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) override;
+    void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) override;
 };  // class AckGroupingTrackerDisabled
 
 }  // namespace pulsar

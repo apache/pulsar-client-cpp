@@ -18,9 +18,9 @@
  */
 #pragma once
 
-#include <pulsar/defines.h>
-#include <pulsar/c/result.h>
 #include <pulsar/c/message.h>
+#include <pulsar/c/result.h>
+#include <pulsar/defines.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -58,6 +58,50 @@ PULSAR_PUBLIC pulsar_result pulsar_reader_read_next(pulsar_reader_t *reader, pul
  */
 PULSAR_PUBLIC pulsar_result pulsar_reader_read_next_with_timeout(pulsar_reader_t *reader,
                                                                  pulsar_message_t **msg, int timeoutMs);
+
+/**
+ * Reset the subscription associated with this reader to a specific message id.
+ *
+ * @param reader The reader
+ * @param messageId The message id can either be a specific message or represent the first or last messages in
+ * the topic.
+ * @param callback The callback for this async operation
+ * @param ctx The context for the callback
+ */
+PULSAR_PUBLIC void pulsar_reader_seek_async(pulsar_reader_t *reader, pulsar_message_id_t *messageId,
+                                            pulsar_result_callback callback, void *ctx);
+
+/**
+ * Reset the subscription asynchronously associated with this reader to a specific message id.
+ *
+ * @param reader The reader
+ * @param messageId The message id can either be a specific message or represent the first or last messages in
+ * the topic.
+ * @return Operation result
+ */
+PULSAR_PUBLIC pulsar_result pulsar_reader_seek(pulsar_reader_t *reader, pulsar_message_id_t *messageId);
+
+/**
+ * Reset the subscription associated with this reader to a specific message publish time.
+ *
+ * @param reader The reader
+ * @param timestamp The message publish time where to reposition the subscription. The timestamp format should
+ * be Unix time in milliseconds.
+ * @param callback The callback for this async operation
+ * @param ctx The context for the callback
+ */
+PULSAR_PUBLIC void pulsar_reader_seek_by_timestamp_async(pulsar_reader_t *reader, uint64_t timestamp,
+                                                         pulsar_result_callback callback, void *ctx);
+
+/**
+ * Reset the subscription asynchronously associated with this reader to a specific message publish time.
+ *
+ * @param reader The reader
+ * @param timestamp The message publish time where to reposition the subscription. The timestamp format should
+ * be Unix time in milliseconds.
+ * @return Operation result
+ */
+PULSAR_PUBLIC pulsar_result pulsar_reader_seek_by_timestamp(pulsar_reader_t *reader, uint64_t timestamp);
 
 PULSAR_PUBLIC pulsar_result pulsar_reader_close(pulsar_reader_t *reader);
 

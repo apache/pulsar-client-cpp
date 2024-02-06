@@ -18,17 +18,18 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
-#include <lib/LogUtils.h>
-#include <lib/Commands.h>
-#include "lib/Future.h"
-#include "lib/Utils.h"
-#include "PulsarFriend.h"
-#include "ConsumerTest.h"
-#include "HttpHelper.h"
-#include <lib/Latch.h>
 
 #include <functional>
 #include <thread>
+
+#include "ConsumerTest.h"
+#include "HttpHelper.h"
+#include "PulsarFriend.h"
+#include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
+#include "lib/MultiTopicsBrokerConsumerStatsImpl.h"
+#include "lib/Utils.h"
 DECLARE_LOG_OBJECT();
 
 using namespace pulsar;

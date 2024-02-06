@@ -19,12 +19,14 @@
 
 #include "NegativeAcksTracker.h"
 
-#include "ConsumerImpl.h"
-
-#include <set>
 #include <functional>
+#include <set>
 
+#include "ClientImpl.h"
+#include "ConsumerImpl.h"
+#include "ExecutorService.h"
 #include "LogUtils.h"
+#include "MessageIdUtil.h"
 DECLARE_LOG_OBJECT()
 
 namespace pulsar {
@@ -33,31 +35,36 @@ NegativeAcksTracker::NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &con
                                          const ConsumerConfiguration &conf)
     : consumer_(consumer),
       timerInterval_(0),
-      executor_(client->getIOExecutorProvider()->get()),
-      enabledForTesting_(true) {
+      timer_(client->getIOExecutorProvider()->get()->createDeadlineTimer()) {
     static const long MIN_NACK_DELAY_MILLIS = 100;
 
     nackDelay_ =
         std::chrono::milliseconds(std::max(conf.getNegativeAckRedeliveryDelayMs(), MIN_NACK_DELAY_MILLIS));
-    timerInterval_ = boost::posix_time::milliseconds((long)(nackDelay_.count() / 3));
-    LOG_DEBUG("Created negative ack tracker with delay: " << nackDelay_.count()
-                                                          << " ms - Timer interval: " << timerInterval_);
+    timerInterval_ = std::chrono::milliseconds((long)(nackDelay_.count() / 3));
+    LOG_DEBUG("Created negative ack tracker with delay: " << nackDelay_.count() << " ms - Timer interval: "
+                                                          << timerInterval_.count());
 }
 
 void NegativeAcksTracker::scheduleTimer() {
-    timer_ = executor_->createDeadlineTimer();
+    if (closed_) {
+        return;
+    }
+    std::weak_ptr<NegativeAcksTracker> weakSelf{shared_from_this()};
     timer_->expires_from_now(timerInterval_);
-    timer_->async_wait(std::bind(&NegativeAcksTracker::handleTimer, this, std::placeholders::_1));
+    timer_->async_wait([weakSelf](const ASIO_ERROR &ec) {
+        if (auto self = weakSelf.lock()) {
+            self->handleTimer(ec);
+        }
+    });
 }
 
-void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
+void NegativeAcksTracker::handleTimer(const ASIO_ERROR &ec) {
     if (ec) {
         // Ignore cancelled events
         return;
     }
 
-    std::lock_guard<std::mutex> lock(mutex_);
-    timer_ = nullptr;
+    std::unique_lock<std::mutex> lock(mutex_);
 
     if (nackedMessages_.empty() || !enabledForTesting_) {
         return;
@@ -76,41 +83,40 @@ void NegativeAcksTracker::handleTimer(const boost::system::error_code &ec) {
             ++it;
         }
     }
+    lock.unlock();
 
     if (!messagesToRedeliver.empty()) {
-        consumer_.redeliverMessages(messagesToRedeliver);
+        consumer_.onNegativeAcksSend(messagesToRedeliver);
+        consumer_.redeliverUnacknowledgedMessages(messagesToRedeliver);
     }
     scheduleTimer();
 }
 
 void NegativeAcksTracker::add(const MessageId &m) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
+    auto msgId = discardBatch(m);
     auto now = Clock::now();
 
-    // Erase batch id to group all nacks from same batch
-    MessageId batchMessageId = MessageId(m.partition(), m.ledgerId(), m.entryId(), -1);
-    nackedMessages_[batchMessageId] = now + nackDelay_;
-
-    if (!timer_) {
-        scheduleTimer();
+    {
+        std::lock_guard<std::mutex> lock{mutex_};
+        // Erase batch id to group all nacks from same batch
+        nackedMessages_[msgId] = now + nackDelay_;
     }
+
+    scheduleTimer();
 }
 
 void NegativeAcksTracker::close() {
+    closed_ = true;
+    ASIO_ERROR ec;
+    timer_->cancel(ec);
     std::lock_guard<std::mutex> lock(mutex_);
-
-    if (timer_) {
-        boost::system::error_code ec;
-        timer_->cancel(ec);
-    }
+    nackedMessages_.clear();
 }
 
 void NegativeAcksTracker::setEnabledForTesting(bool enabled) {
-    std::lock_guard<std::mutex> lock(mutex_);
     enabledForTesting_ = enabled;
 
-    if (enabledForTesting_ && !timer_) {
+    if (enabledForTesting_) {
         scheduleTimer();
     }
 }

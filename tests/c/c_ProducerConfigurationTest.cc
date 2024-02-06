@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/c/producer_configuration.h>
 #include <gtest/gtest.h>
+#include <pulsar/c/producer_configuration.h>
 
 TEST(C_ProducerConfigurationTest, testCApiConfig) {
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
@@ -25,4 +25,8 @@ TEST(C_ProducerConfigurationTest, testCApiConfig) {
     ASSERT_EQ(pulsar_producer_configuration_is_chunking_enabled(producer_conf), 0);
     pulsar_producer_configuration_set_chunking_enabled(producer_conf, 1);
     ASSERT_EQ(pulsar_producer_configuration_is_chunking_enabled(producer_conf), 1);
+
+    pulsar_producer_configuration_set_access_mode(producer_conf, pulsar_ProducerAccessModeExclusive);
+    ASSERT_EQ(pulsar_producer_configuration_get_access_mode(producer_conf),
+              pulsar_ProducerAccessModeExclusive);
 }

@@ -17,11 +17,12 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/UnboundedBlockingQueue.h>
-#include <lib/Latch.h>
 
 #include <future>
 #include <thread>
+
+#include "lib/Latch.h"
+#include "lib/UnboundedBlockingQueue.h"
 
 class UnboundedProducerWorker {
    private:
@@ -109,6 +110,22 @@ TEST(UnboundedBlockingQueueTest, testQueueOperations) {
     }
 
     ASSERT_FALSE(queue.peek(poppedElement));
+}
+
+TEST(UnboundedBlockingQueueTest, testPopIf) {
+    size_t size = 5;
+    UnboundedBlockingQueue<int> queue(size);
+
+    for (int i = 1; i <= size * 2; ++i) {
+        queue.push(i);
+    }
+
+    int value;
+    for (int i = 1; i <= size; ++i) {
+        ASSERT_TRUE(queue.popIf(value, [&i](const int& peekValue) { return peekValue == i; }));
+    }
+
+    ASSERT_EQ(size, queue.size());
 }
 
 TEST(UnboundedBlockingQueueTest, testBlockingProducer) {

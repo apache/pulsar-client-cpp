@@ -18,12 +18,12 @@
  */
 #pragma once
 
+#include <boost/optional.hpp>
 #include <functional>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-#include "Utils.h"
 
 namespace pulsar {
 
@@ -34,7 +34,7 @@ class SynchronizedHashMap {
     using Lock = std::lock_guard<MutexType>;
 
    public:
-    using OptValue = Optional<V>;
+    using OptValue = boost::optional<V>;
     using PairVector = std::vector<std::pair<K, V>>;
     using MapType = std::unordered_map<K, V>;
     using Iterator = typename MapType::iterator;
@@ -74,12 +74,9 @@ class SynchronizedHashMap {
 
     // clear the map and apply `f` on each removed value
     void clear(std::function<void(const K&, const V&)> f) {
-        Lock lock(mutex_);
-        auto it = data_.begin();
-        while (it != data_.end()) {
-            f(it->first, it->second);
-            auto next = data_.erase(it);
-            it = next;
+        MapType data = move();
+        for (auto&& kv : data) {
+            f(kv.first, kv.second);
         }
     }
 
@@ -87,9 +84,9 @@ class SynchronizedHashMap {
         Lock lock(mutex_);
         auto it = data_.find(key);
         if (it != data_.end()) {
-            return OptValue::of(it->second);
+            return it->second;
         } else {
-            return OptValue::empty();
+            return boost::none;
         }
     }
 
@@ -97,21 +94,21 @@ class SynchronizedHashMap {
         Lock lock(mutex_);
         for (const auto& kv : data_) {
             if (f(kv.second)) {
-                return OptValue::of(kv.second);
+                return kv.second;
             }
         }
-        return OptValue::empty();
+        return boost::none;
     }
 
     OptValue remove(const K& key) {
         Lock lock(mutex_);
         auto it = data_.find(key);
         if (it != data_.end()) {
-            auto result = OptValue::of(std::move(it->second));
+            auto result = boost::make_optional(std::move(it->second));
             data_.erase(it);
             return result;
         } else {
-            return OptValue::empty();
+            return boost::none;
         }
     }
 
@@ -125,14 +122,20 @@ class SynchronizedHashMap {
         return pairs;
     }
 
-    // This method is only used for test
     size_t size() const noexcept {
         Lock lock(mutex_);
         return data_.size();
     }
 
+    MapType move() noexcept {
+        Lock lock(mutex_);
+        MapType data;
+        data_.swap(data);
+        return data;
+    }
+
    private:
-    std::unordered_map<K, V> data_;
+    MapType data_;
     // Use recursive_mutex to allow methods being called in `forEach`
     mutable MutexType mutex_;
 };

@@ -17,45 +17,8 @@
 # under the License.
 #
 
-if (NOT PROTOC_PATH)
-    set(PROTOC_PATH protoc)
-endif()
-
-set(LIB_AUTOGEN_DIR ${AUTOGEN_DIR}/tests)
-file(MAKE_DIRECTORY ${LIB_AUTOGEN_DIR})
-include_directories(${LIB_AUTOGEN_DIR})
-
-set(PROTO_DIR ${CMAKE_CURRENT_SOURCE_DIR}/proto)
-set(PROTO_SOURCES ${LIB_AUTOGEN_DIR}/Test.pb.cc ${LIB_AUTOGEN_DIR}/ExternalTest.pb.cc)
-add_custom_command(
-    OUTPUT ${PROTO_SOURCES}
-    COMMAND ${PROTOC_PATH} -I ${PROTO_DIR} ${PROTO_DIR}/Test.proto ${PROTO_DIR}/ExternalTest.proto --cpp_out=${LIB_AUTOGEN_DIR})
-
-set(PROTO_SOURCE_PADDING ${LIB_AUTOGEN_DIR}/PaddingDemo.pb.cc)
-add_custom_command(
-    OUTPUT ${PROTO_SOURCE_PADDING}
-    COMMAND ${PROTOC_PATH} -I . ./PaddingDemo.proto --cpp_out=${LIB_AUTOGEN_DIR}
-    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-
-set(PROTO_SOURCES ${PROTO_SOURCES} ${PROTO_SOURCE_PADDING})
-
-include_directories(${LIB_AUTOGEN_DIR})
-
-find_library(GMOCK_LIBRARY_PATH gmock)
-find_library(GTEST_LIBRARY_PATH gtest)
-find_library(GMOCKD_LIBRARY_PATH gmockd)
-find_library(GTESTD_LIBRARY_PATH gtestd)
-if (NOT GMOCKD_LIBRARY_PATH)
-    set(GMOCKD_LIBRARY_PATH ${GMOCK_LIBRARY_PATH})
-endif()
-if (NOT GTESTD_LIBRARY_PATH)
-    set(GTESTD_LIBRARY_PATH ${GTEST_LIBRARY_PATH})
-endif()
-
-file(GLOB TEST_SOURCES *.cc c/*.cc)
-
-add_executable(pulsar-tests ${TEST_SOURCES} ${PROTO_SOURCES})
-
-target_include_directories(pulsar-tests PRIVATE ${CMAKE_SOURCE_DIR}/lib ${AUTOGEN_DIR}/lib)
-
-target_link_libraries(pulsar-tests ${CLIENT_LIBS} pulsarStatic $<$<CONFIG:Debug>:${GMOCKD_LIBRARY_PATH}> $<$<CONFIG:Debug>:${GTESTD_LIBRARY_PATH}> $<$<NOT:$<CONFIG:Debug>>:${GMOCK_LIBRARY_PATH}> $<$<NOT:$<CONFIG:Debug>>:${GTEST_LIBRARY_PATH}>)
+if (INTEGRATE_VCPKG)
+    include(BuildTests.cmake)
+else ()
+    include(LegacyBuildTests.cmake)
+endif ()

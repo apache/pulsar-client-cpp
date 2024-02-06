@@ -16,16 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/defines.h>
 #include <pulsar/Message.h>
 #include <pulsar/MessageBuilder.h>
-
-#include "PulsarApi.pb.h"
-
-#include "MessageImpl.h"
-#include "SharedBuffer.h"
+#include <pulsar/MessageIdBuilder.h>
+#include <pulsar/defines.h>
 
 #include <iostream>
+
+#include "Int64SerDes.h"
+#include "KeyValueImpl.h"
+#include "MessageImpl.h"
+#include "PulsarApi.pb.h"
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 
@@ -54,30 +56,39 @@ const void* Message::getData() const { return impl_->payload.data(); }
 
 std::size_t Message::getLength() const { return impl_->payload.readableBytes(); }
 
+#if defined(_MSC_VER) && !defined(NDEBUG)
+const std::string& Message::getDataAsString() const {
+    thread_local std::string value;
+    value = std::string{static_cast<const char*>(getData()), getLength()};
+    return value;
+}
+#else
 std::string Message::getDataAsString() const { return std::string((const char*)getData(), getLength()); }
+#endif
 
 Message::Message() : impl_() {}
 
 Message::Message(MessageImplPtr& impl) : impl_(impl) {}
 
-Message::Message(const proto::CommandMessage& msg, proto::MessageMetadata& metadata, SharedBuffer& payload,
-                 int32_t partition)
+Message::Message(const MessageId& messageId, proto::BrokerEntryMetadata& brokerEntryMetadata,
+                 proto::MessageMetadata& metadata, SharedBuffer& payload)
     : impl_(std::make_shared<MessageImpl>()) {
-    impl_->messageId =
-        MessageId(partition, msg.message_id().ledgerid(), msg.message_id().entryid(), /* batchId */
-                  -1);
+    impl_->messageId = messageId;
+    impl_->brokerEntryMetadata = brokerEntryMetadata;
     impl_->metadata = metadata;
     impl_->payload = payload;
 }
 
-Message::Message(const MessageId& messageID, proto::MessageMetadata& metadata, SharedBuffer& payload,
-                 proto::SingleMessageMetadata& singleMetadata, const std::string& topicName)
+Message::Message(const MessageId& messageID, proto::BrokerEntryMetadata& brokerEntryMetadata,
+                 proto::MessageMetadata& metadata, SharedBuffer& payload,
+                 proto::SingleMessageMetadata& singleMetadata, const std::shared_ptr<std::string>& topicName)
     : impl_(std::make_shared<MessageImpl>()) {
     impl_->messageId = messageID;
+    impl_->brokerEntryMetadata = brokerEntryMetadata;
     impl_->metadata = metadata;
     impl_->payload = payload;
     impl_->metadata.mutable_properties()->CopyFrom(singleMetadata.properties());
-    impl_->topicName_ = &topicName;
+    impl_->topicName_ = topicName;
 
     impl_->metadata.clear_properties();
     if (singleMetadata.properties_size() > 0) {
@@ -129,6 +140,15 @@ void Message::setMessageId(const MessageId& messageID) const {
     return;
 }
 
+int64_t Message::getIndex() const {
+    if (!impl_ || !impl_->brokerEntryMetadata.has_index()) {
+        return -1;
+    } else {
+        // casting uint64_t to int64_t, server definition ensures that's safe
+        return static_cast<int64_t>(impl_->brokerEntryMetadata.index());
+    }
+}
+
 bool Message::hasPartitionKey() const {
     if (impl_) {
         return impl_->hasPartitionKey();
@@ -178,6 +198,10 @@ bool Message::hasSchemaVersion() const {
     return false;
 }
 
+int64_t Message::getLongSchemaVersion() const {
+    return (impl_ && impl_->hasSchemaVersion()) ? fromBigEndianBytes(impl_->getSchemaVersion()) : -1L;
+}
+
 const std::string& Message::getSchemaVersion() const {
     if (!impl_) {
         return emptyString;
@@ -190,6 +214,8 @@ uint64_t Message::getPublishTimestamp() const { return impl_ ? impl_->getPublish
 uint64_t Message::getEventTimestamp() const { return impl_ ? impl_->getEventTimestamp() : 0ull; }
 
 bool Message::operator==(const Message& msg) const { return getMessageId() == msg.getMessageId(); }
+
+KeyValue Message::getKeyValueData() const { return KeyValue(impl_->keyValuePtr); }
 
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const Message::StringMap& map) {
     // Output at most 10 elements -- appropriate if used for logging.

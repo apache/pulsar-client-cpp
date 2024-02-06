@@ -16,28 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
+#include <pulsar/Client.h>
+#include <pulsar/MessageBatch.h>
+#include <pulsar/MessageIdBuilder.h>
+
 #include <atomic>
 #include <ctime>
 #include <functional>
-#include <gtest/gtest.h>
 #include <sstream>
 #include <thread>
-#include <unistd.h>
-
-#include <lib/Commands.h>
-#include <lib/Future.h>
-#include <lib/Latch.h>
-#include <lib/LogUtils.h>
-#include <lib/TopicName.h>
-#include <lib/Utils.h>
-#include <pulsar/Client.h>
-#include <pulsar/MessageBatch.h>
-#include <pulsar/MessageBuilder.h>
 
 #include "ConsumerTest.h"
 #include "CustomRoutingPolicy.h"
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
+#include "lib/Commands.h"
+#include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
+#include "lib/ProtoApiEnums.h"
+#include "lib/Utils.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 DECLARE_LOG_OBJECT();
 
@@ -238,7 +238,8 @@ TEST(BatchMessageTest, testBatchSizeInBytes) {
         std::string expectedMessageContent = prefix + std::to_string(i);
         LOG_DEBUG("Received Message with [ content - " << receivedMsg.getDataAsString() << "] [ messageID = "
                                                        << receivedMsg.getMessageId() << "]");
-        ASSERT_LT(pulsar::PulsarFriend::getBatchIndex(receivedMsg.getMessageId()), 2);
+        ASSERT_LT(receivedMsg.getMessageId().batchIndex(), 2);
+        ASSERT_EQ(receivedMsg.getMessageId().batchSize(), 2);
         ASSERT_EQ(receivedMsg.getProperty("msgIndex"), std::to_string(i++));
         ASSERT_EQ(expectedMessageContent, receivedMsg.getDataAsString());
         ASSERT_EQ(ResultOk, consumer.acknowledge(receivedMsg));
@@ -330,8 +331,8 @@ TEST(BatchMessageTest, testSmallReceiverQueueSize) {
     }
 
     ConsumerStatsImplPtr consumerStatsImplPtr = PulsarFriend::getConsumerStatsPtr(consumer);
-    unsigned long t = consumerStatsImplPtr->getAckedMsgMap().at(
-        std::make_pair<Result, proto::CommandAck_AckType>(ResultOk, proto::CommandAck_AckType_Individual));
+    unsigned long t =
+        consumerStatsImplPtr->getAckedMsgMap().at(std::make_pair(ResultOk, CommandAck_AckType_Individual));
     ASSERT_EQ(t, numOfMessages);
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), numOfMessages);
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getTotalAckedMsgMap()), numOfMessages);
@@ -581,8 +582,8 @@ TEST(BatchMessageTest, testCumulativeAck) {
     ASSERT_EQ(consumerStatsImplPtr->getReceivedMsgMap().at(ResultTimeout), 1);
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), 1);
     ASSERT_EQ(producerStatsImplPtr->getNumBytesSent(), consumerStatsImplPtr->getNumBytesRecieved());
-    unsigned long t = consumerStatsImplPtr->getAckedMsgMap().at(
-        std::make_pair<Result, proto::CommandAck_AckType>(ResultOk, proto::CommandAck_AckType_Cumulative));
+    unsigned long t =
+        consumerStatsImplPtr->getAckedMsgMap().at(std::make_pair(ResultOk, CommandAck_AckType_Cumulative));
     ASSERT_EQ(t, 1);
 
     // Number of messages produced
@@ -612,8 +613,7 @@ TEST(BatchMessageTest, testCumulativeAck) {
     }
 
     ASSERT_EQ(PulsarFriend::sum(consumerStatsImplPtr->getAckedMsgMap()), 1);
-    t = consumerStatsImplPtr->getAckedMsgMap().at(
-        std::make_pair<Result, proto::CommandAck_AckType>(ResultOk, proto::CommandAck_AckType_Cumulative));
+    t = consumerStatsImplPtr->getAckedMsgMap().at(std::make_pair(ResultOk, CommandAck_AckType_Cumulative));
     ASSERT_EQ(t, 1);
 
     // Number of messages consumed
@@ -953,7 +953,7 @@ TEST(BatchMessageTest, producerFailureResult) {
     PulsarFriend::producerFailMessages(producer, res);
 }
 
-TEST(BatchMessageTest, testPraseMessageBatchEntry) {
+TEST(BatchMessageTest, testParseMessageBatchEntry) {
     struct Case {
         std::string content;
         std::string propKey;
@@ -963,16 +963,17 @@ TEST(BatchMessageTest, testPraseMessageBatchEntry) {
     cases.push_back(Case{"example1", "prop1", "value1"});
     cases.push_back(Case{"example2", "prop2", "value2"});
 
-    SharedBuffer payload = SharedBuffer::allocate(128);
-    for (auto it = cases.begin(); it != cases.end(); ++it) {
+    std::vector<Message> msgs;
+    for (const auto& x : cases) {
         MessageBuilder msgBuilder;
-        const Message& message =
-            msgBuilder.setContent(it->content).setProperty(it->propKey, it->propValue).build();
-        Commands::serializeSingleMessageInBatchWithPayload(message, payload, 1024);
+        msgs.emplace_back(msgBuilder.setContent(x.content).setProperty(x.propKey, x.propValue).build());
     }
+    SharedBuffer payload;
+    Commands::serializeSingleMessagesToBatchPayload(payload, msgs);
+    ASSERT_EQ(payload.writableBytes(), 0);
 
     MessageBatch messageBatch;
-    MessageId fakeId(0, 5000, 10, -1);
+    auto fakeId = MessageIdBuilder().ledgerId(5000L).entryId(10L).partition(0).build();
     messageBatch.withMessageId(fakeId).parseFrom(payload, static_cast<uint32_t>(cases.size()));
     const std::vector<Message>& messages = messageBatch.messages();
 

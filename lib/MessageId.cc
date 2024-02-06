@@ -17,18 +17,17 @@
  * under the License.
  */
 
-#include <pulsar/defines.h>
 #include <pulsar/MessageId.h>
-
-#include "PulsarApi.pb.h"
-#include "MessageIdImpl.h"
+#include <pulsar/MessageIdBuilder.h>
 
 #include <iostream>
 #include <limits>
-#include <stdexcept>
-#include <tuple>
-#include <math.h>
 #include <memory>
+#include <stdexcept>
+
+#include "ChunkMessageIdImpl.h"
+#include "MessageIdImpl.h"
+#include "PulsarApi.pb.h"
 
 namespace pulsar {
 
@@ -45,14 +44,16 @@ MessageId& MessageId::operator=(const MessageId& m) {
 MessageId::MessageId(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex)
     : impl_(std::make_shared<MessageIdImpl>(partition, ledgerId, entryId, batchIndex)) {}
 
+MessageId::MessageId(const MessageIdImplPtr& impl) : impl_(impl) {}
+
 const MessageId& MessageId::earliest() {
-    static const MessageId _earliest(-1, -1, -1, -1);
+    static const auto _earliest = MessageIdBuilder().build();
     return _earliest;
 }
 
 const MessageId& MessageId::latest() {
     static const int64_t long_max = std::numeric_limits<int64_t>::max();
-    static const MessageId _latest(-1, long_max, long_max, -1);
+    static const auto _latest = MessageIdBuilder().ledgerId(long_max).entryId(long_max).build();
     return _latest;
 }
 
@@ -68,6 +69,21 @@ void MessageId::serialize(std::string& result) const {
         idData.set_batch_index(impl_->batchIndex_);
     }
 
+    if (impl_->batchSize_ != 0) {
+        idData.set_batch_size(impl_->batchSize_);
+    }
+
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(impl_);
+    if (chunkMsgId) {
+        proto::MessageIdData& firstChunkIdData = *idData.mutable_first_chunk_message_id();
+        const auto& firstChunkId = chunkMsgId->getChunkedMessageIds().front();
+        firstChunkIdData.set_ledgerid(firstChunkId.ledgerId());
+        firstChunkIdData.set_entryid(firstChunkId.entryId());
+        if (chunkMsgId->partition_ != -1) {
+            firstChunkIdData.set_partition(firstChunkId.partition());
+        }
+    }
+
     idData.SerializeToString(&result);
 }
 
@@ -80,7 +96,15 @@ MessageId MessageId::deserialize(const std::string& serializedMessageId) {
         throw std::invalid_argument("Failed to parse serialized message id");
     }
 
-    return MessageId(idData.partition(), idData.ledgerid(), idData.entryid(), idData.batch_index());
+    MessageId msgId = MessageIdBuilder::from(idData).build();
+
+    if (idData.has_first_chunk_message_id()) {
+        ChunkMessageIdImplPtr chunkMsgId = std::make_shared<ChunkMessageIdImpl>(
+            std::vector<MessageId>({MessageIdBuilder::from(idData.first_chunk_message_id()).build(), msgId}));
+        return chunkMsgId->build();
+    }
+
+    return msgId;
 }
 
 int64_t MessageId::ledgerId() const { return impl_->ledgerId_; }
@@ -91,7 +115,15 @@ int32_t MessageId::batchIndex() const { return impl_->batchIndex_; }
 
 int32_t MessageId::partition() const { return impl_->partition_; }
 
+int32_t MessageId::batchSize() const { return impl_->batchSize_; }
+
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const pulsar::MessageId& messageId) {
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageId.impl_);
+    if (chunkMsgId) {
+        const auto& firstId = chunkMsgId->getChunkedMessageIds().front();
+        s << '(' << firstId.ledgerId() << ',' << firstId.entryId() << ',' << firstId.partition() << ','
+          << firstId.batchIndex() << ");";
+    }
     s << '(' << messageId.impl_->ledgerId_ << ',' << messageId.impl_->entryId_ << ','
       << messageId.impl_->partition_ << ',' << messageId.impl_->batchIndex_ << ')';
     return s;
@@ -135,7 +167,9 @@ PULSAR_PUBLIC bool MessageId::operator!=(const MessageId& other) const { return 
 PULSAR_PUBLIC const std::string& MessageId::getTopicName() const { return impl_->getTopicName(); }
 
 PULSAR_PUBLIC void MessageId::setTopicName(const std::string& topicName) {
-    return impl_->setTopicName(topicName);
+    return setTopicName(std::make_shared<std::string>(topicName));
 }
+
+void MessageId::setTopicName(const std::shared_ptr<std::string>& topic) { return impl_->setTopicName(topic); }
 
 }  // namespace pulsar

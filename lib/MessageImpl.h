@@ -21,8 +21,10 @@
 
 #include <pulsar/Message.h>
 #include <pulsar/MessageId.h>
-#include "SharedBuffer.h"
+
+#include "KeyValueImpl.h"
 #include "PulsarApi.pb.h"
+#include "SharedBuffer.h"
 
 using namespace pulsar;
 namespace pulsar {
@@ -33,18 +35,19 @@ class BatchMessageContainer;
 
 class MessageImpl {
    public:
-    MessageImpl();
-
     const Message::StringMap& properties();
 
+    proto::BrokerEntryMetadata brokerEntryMetadata;
     proto::MessageMetadata metadata;
     SharedBuffer payload;
+    std::shared_ptr<KeyValueImpl> keyValuePtr;
     MessageId messageId;
     ClientConnection* cnx_;
-    const std::string* topicName_;
+    std::shared_ptr<std::string> topicName_;
     int redeliveryCount_;
     bool hasSchemaVersion_;
     const std::string* schemaVersion_;
+    std::weak_ptr<class ConsumerImpl> consumerPtr_;
 
     const std::string& getPartitionKey() const;
     bool hasPartitionKey() const;
@@ -63,7 +66,7 @@ class MessageImpl {
     /**
      * Set a valid topicName
      */
-    void setTopicName(const std::string& topicName);
+    void setTopicName(const std::shared_ptr<std::string>& topicName);
 
     int getRedeliveryCount();
     void setRedeliveryCount(int count);
@@ -71,6 +74,9 @@ class MessageImpl {
     bool hasSchemaVersion() const;
     const std::string& getSchemaVersion() const;
     void setSchemaVersion(const std::string& value);
+    void convertKeyValueToPayload(const SchemaInfo& schemaInfo);
+    void convertPayloadToKeyValue(const SchemaInfo& schemaInfo);
+    KeyValueEncodingType getKeyValueEncodingType(SchemaInfo schemaInfo);
 
     friend class PulsarWrapper;
     friend class MessageBuilder;

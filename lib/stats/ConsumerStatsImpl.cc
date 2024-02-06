@@ -17,23 +17,24 @@
  * under the License.
  */
 
-#include <lib/stats/ConsumerStatsImpl.h>
-#include <lib/LogUtils.h>
+#include "ConsumerStatsImpl.h"
 
 #include <functional>
+
+#include "lib/ExecutorService.h"
+#include "lib/LogUtils.h"
+#include "lib/Utils.h"
 
 namespace pulsar {
 DECLARE_LOG_OBJECT();
 
+using Lock = std::unique_lock<std::mutex>;
+
 ConsumerStatsImpl::ConsumerStatsImpl(std::string consumerStr, ExecutorServicePtr executor,
                                      unsigned int statsIntervalInSeconds)
     : consumerStr_(consumerStr),
-      executor_(executor),
-      timer_(executor_->createDeadlineTimer()),
-      statsIntervalInSeconds_(statsIntervalInSeconds) {
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
-    timer_->async_wait(std::bind(&pulsar::ConsumerStatsImpl::flushAndReset, this, std::placeholders::_1));
-}
+      timer_(executor->createDeadlineTimer()),
+      statsIntervalInSeconds_(statsIntervalInSeconds) {}
 
 ConsumerStatsImpl::ConsumerStatsImpl(const ConsumerStatsImpl& stats)
     : consumerStr_(stats.consumerStr_),
@@ -45,30 +46,27 @@ ConsumerStatsImpl::ConsumerStatsImpl(const ConsumerStatsImpl& stats)
       totalAckedMsgMap_(stats.totalAckedMsgMap_),
       statsIntervalInSeconds_(stats.statsIntervalInSeconds_) {}
 
-void ConsumerStatsImpl::flushAndReset(const boost::system::error_code& ec) {
+void ConsumerStatsImpl::flushAndReset(const ASIO_ERROR& ec) {
     if (ec) {
         LOG_DEBUG("Ignoring timer cancelled event, code[" << ec << "]");
         return;
     }
 
     Lock lock(mutex_);
-    ConsumerStatsImpl tmp = *this;
+    std::ostringstream oss;
+    oss << *this;
     numBytesRecieved_ = 0;
     receivedMsgMap_.clear();
     ackedMsgMap_.clear();
     lock.unlock();
 
-    timer_->expires_from_now(boost::posix_time::seconds(statsIntervalInSeconds_));
-    timer_->async_wait(std::bind(&pulsar::ConsumerStatsImpl::flushAndReset, this, std::placeholders::_1));
-    LOG_INFO(tmp);
+    scheduleTimer();
+    LOG_INFO(oss.str());
 }
 
-ConsumerStatsImpl::~ConsumerStatsImpl() {
-    Lock lock(mutex_);
-    if (timer_) {
-        timer_->cancel();
-    }
-}
+ConsumerStatsImpl::~ConsumerStatsImpl() { timer_->cancel(); }
+
+void ConsumerStatsImpl::start() { scheduleTimer(); }
 
 void ConsumerStatsImpl::receivedMessage(Message& msg, Result res) {
     Lock lock(mutex_);
@@ -80,16 +78,28 @@ void ConsumerStatsImpl::receivedMessage(Message& msg, Result res) {
     totalReceivedMsgMap_[res] += 1;
 }
 
-void ConsumerStatsImpl::messageAcknowledged(Result res, proto::CommandAck_AckType ackType) {
+void ConsumerStatsImpl::messageAcknowledged(Result res, CommandAck_AckType ackType, uint32_t ackNums) {
     Lock lock(mutex_);
-    ackedMsgMap_[std::make_pair(res, ackType)] += 1;
-    totalAckedMsgMap_[std::make_pair(res, ackType)] += 1;
+    ackedMsgMap_[std::make_pair(res, ackType)] += ackNums;
+    totalAckedMsgMap_[std::make_pair(res, ackType)] += ackNums;
+}
+
+void ConsumerStatsImpl::scheduleTimer() {
+    timer_->expires_from_now(std::chrono::seconds(statsIntervalInSeconds_));
+    std::weak_ptr<ConsumerStatsImpl> weakSelf{shared_from_this()};
+    timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
+        flushAndReset(ec);
+    });
 }
 
 std::ostream& operator<<(std::ostream& os,
-                         const std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long>& m) {
+                         const std::map<std::pair<Result, CommandAck_AckType>, unsigned long>& m) {
     os << "{";
-    for (std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long>::const_iterator it = m.begin();
+    for (std::map<std::pair<Result, CommandAck_AckType>, unsigned long>::const_iterator it = m.begin();
          it != m.end(); it++) {
         os << "[Key: {"
            << "Result: " << strResult((it->first).first) << ", ackType: " << (it->first).second

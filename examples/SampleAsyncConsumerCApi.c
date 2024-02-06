@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <stdio.h>
 #include <pulsar/c/client.h>
+#include <stdio.h>
 
 static void receive_callback(pulsar_result result, pulsar_message_t *message, void *ctx) {
     pulsar_consumer_t *consumer = (pulsar_consumer_t *)ctx;

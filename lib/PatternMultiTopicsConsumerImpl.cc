@@ -18,21 +18,28 @@
  */
 #include "PatternMultiTopicsConsumerImpl.h"
 
+#include "ClientImpl.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "LookupService.h"
+
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
-PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(ClientImplPtr client,
-                                                               const std::string pattern,
-                                                               const std::vector<std::string>& topics,
-                                                               const std::string& subscriptionName,
-                                                               const ConsumerConfiguration& conf,
-                                                               const LookupServicePtr lookupServicePtr_)
+using std::chrono::seconds;
+
+PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(
+    ClientImplPtr client, const std::string pattern, CommandGetTopicsOfNamespace_Mode getTopicsMode,
+    const std::vector<std::string>& topics, const std::string& subscriptionName,
+    const ConsumerConfiguration& conf, const LookupServicePtr lookupServicePtr_,
+    const ConsumerInterceptorsPtr interceptors)
     : MultiTopicsConsumerImpl(client, topics, subscriptionName, TopicName::get(pattern), conf,
-                              lookupServicePtr_),
+                              lookupServicePtr_, interceptors),
       patternString_(pattern),
-      pattern_(PULSAR_REGEX_NAMESPACE::regex(pattern)),
-      autoDiscoveryTimer_(),
+      pattern_(PULSAR_REGEX_NAMESPACE::regex(TopicName::removeDomain(pattern))),
+      getTopicsMode_(getTopicsMode),
+      autoDiscoveryTimer_(client->getIOExecutorProvider()->get()->createDeadlineTimer()),
       autoDiscoveryRunning_(false) {
     namespaceName_ = TopicName::get(pattern)->getNamespaceName();
 }
@@ -42,12 +49,17 @@ const PULSAR_REGEX_NAMESPACE::regex PatternMultiTopicsConsumerImpl::getPattern()
 void PatternMultiTopicsConsumerImpl::resetAutoDiscoveryTimer() {
     autoDiscoveryRunning_ = false;
     autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
-    autoDiscoveryTimer_->async_wait(
-        std::bind(&PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask, this, std::placeholders::_1));
+
+    auto weakSelf = weak_from_this();
+    autoDiscoveryTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
+        if (auto self = weakSelf.lock()) {
+            self->autoDiscoveryTimerTask(err);
+        }
+    });
 }
 
-void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const boost::system::error_code& err) {
-    if (err == boost::asio::error::operation_aborted) {
+void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const ASIO_ERROR& err) {
+    if (err == ASIO::error::operation_aborted) {
         LOG_DEBUG(getName() << "Timer cancelled: " << err.message());
         return;
     } else if (err) {
@@ -72,7 +84,7 @@ void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const boost::system:
     // already get namespace from pattern.
     assert(namespaceName_);
 
-    lookupServicePtr_->getTopicsOfNamespaceAsync(namespaceName_)
+    lookupServicePtr_->getTopicsOfNamespaceAsync(namespaceName_, getTopicsMode_)
         .addListener(std::bind(&PatternMultiTopicsConsumerImpl::timerGetTopicsOfNamespace, this,
                                std::placeholders::_1, std::placeholders::_2));
 }
@@ -190,10 +202,10 @@ void PatternMultiTopicsConsumerImpl::onTopicsRemoved(NamespaceTopicsPtr removedT
 NamespaceTopicsPtr PatternMultiTopicsConsumerImpl::topicsPatternFilter(
     const std::vector<std::string>& topics, const PULSAR_REGEX_NAMESPACE::regex& pattern) {
     NamespaceTopicsPtr topicsResultPtr = std::make_shared<std::vector<std::string>>();
-
-    for (std::vector<std::string>::const_iterator itr = topics.begin(); itr != topics.end(); itr++) {
-        if (PULSAR_REGEX_NAMESPACE::regex_match(*itr, pattern)) {
-            topicsResultPtr->push_back(*itr);
+    for (const auto& topicStr : topics) {
+        auto topic = TopicName::removeDomain(topicStr);
+        if (PULSAR_REGEX_NAMESPACE::regex_match(topic, pattern)) {
+            topicsResultPtr->push_back(std::move(topicStr));
         }
     }
     return topicsResultPtr;
@@ -215,23 +227,28 @@ void PatternMultiTopicsConsumerImpl::start() {
 
     LOG_DEBUG("PatternMultiTopicsConsumerImpl start autoDiscoveryTimer_.");
 
-    // Init autoDiscoveryTimer task only once, wait for the timeout to happen
-    if (!autoDiscoveryTimer_ && conf_.getPatternAutoDiscoveryPeriod() > 0) {
-        autoDiscoveryTimer_ = client_->getIOExecutorProvider()->get()->createDeadlineTimer();
+    if (conf_.getPatternAutoDiscoveryPeriod() > 0) {
         autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
-        autoDiscoveryTimer_->async_wait(
-            std::bind(&PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask, this, std::placeholders::_1));
+        auto weakSelf = weak_from_this();
+        autoDiscoveryTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
+            if (auto self = weakSelf.lock()) {
+                self->autoDiscoveryTimerTask(err);
+            }
+        });
     }
 }
 
 void PatternMultiTopicsConsumerImpl::shutdown() {
-    Lock lock(mutex_);
-    state_ = Closed;
-    autoDiscoveryTimer_->cancel();
-    multiTopicsConsumerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    cancelTimers();
+    MultiTopicsConsumerImpl::shutdown();
 }
 
 void PatternMultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
+    cancelTimers();
     MultiTopicsConsumerImpl::closeAsync(callback);
-    autoDiscoveryTimer_->cancel();
+}
+
+void PatternMultiTopicsConsumerImpl::cancelTimers() noexcept {
+    ASIO_ERROR ec;
+    autoDiscoveryTimer_->cancel(ec);
 }

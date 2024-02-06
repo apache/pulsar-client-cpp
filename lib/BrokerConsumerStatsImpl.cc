@@ -16,7 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/BrokerConsumerStatsImpl.h>
+#include "BrokerConsumerStatsImpl.h"
+
 #include <boost/date_time/local_time/local_time.hpp>
 
 namespace pulsar {

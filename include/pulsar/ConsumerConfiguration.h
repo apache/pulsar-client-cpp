@@ -19,31 +19,41 @@
 #ifndef PULSAR_CONSUMERCONFIGURATION_H_
 #define PULSAR_CONSUMERCONFIGURATION_H_
 
-#include <functional>
-#include <memory>
-#include <pulsar/defines.h>
-#include <pulsar/Result.h>
-#include <pulsar/ConsumerType.h>
-#include <pulsar/Message.h>
-#include <pulsar/Schema.h>
 #include <pulsar/ConsumerCryptoFailureAction.h>
+#include <pulsar/ConsumerEventListener.h>
+#include <pulsar/ConsumerInterceptor.h>
+#include <pulsar/ConsumerType.h>
 #include <pulsar/CryptoKeyReader.h>
 #include <pulsar/InitialPosition.h>
 #include <pulsar/KeySharedPolicy.h>
-#include <pulsar/ConsumerEventListener.h>
+#include <pulsar/Message.h>
+#include <pulsar/RegexSubscriptionMode.h>
+#include <pulsar/Result.h>
+#include <pulsar/Schema.h>
+#include <pulsar/TypedMessage.h>
+#include <pulsar/defines.h>
+
+#include <functional>
+#include <memory>
+
+#include "BatchReceivePolicy.h"
+#include "DeadLetterPolicy.h"
 
 namespace pulsar {
 
 class Consumer;
 class PulsarWrapper;
+class PulsarFriend;
 
 /// Callback definition for non-data operation
+typedef std::vector<Message> Messages;
 typedef std::function<void(Result result)> ResultCallback;
 typedef std::function<void(Result, const Message& msg)> ReceiveCallback;
+typedef std::function<void(Result, const Messages& msgs)> BatchReceiveCallback;
 typedef std::function<void(Result result, MessageId messageId)> GetLastMessageIdCallback;
 
 /// Callback definition for MessageListener
-typedef std::function<void(Consumer consumer, const Message& msg)> MessageListener;
+typedef std::function<void(Consumer& consumer, const Message& msg)> MessageListener;
 
 typedef std::shared_ptr<ConsumerEventListener> ConsumerEventListenerPtr;
 
@@ -120,6 +130,15 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * for every message received.
      */
     ConsumerConfiguration& setMessageListener(MessageListener messageListener);
+
+    template <typename T>
+    ConsumerConfiguration& setTypedMessageListener(
+        std::function<void(Consumer&, const TypedMessage<T>&)> listener,
+        typename TypedMessage<T>::Decoder decoder) {
+        return setMessageListener([listener, decoder](Consumer& consumer, const Message& msg) {
+            listener(consumer, TypedMessage<T>{msg, decoder});
+        });
+    }
 
     /**
      * @return the message listener
@@ -366,6 +385,19 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     int getPatternAutoDiscoveryPeriod() const;
 
     /**
+     * Determines which topics this consumer should be subscribed to - Persistent, Non-Persistent, or
+     * AllTopics. Only used with pattern subscriptions.
+     *
+     * @param regexSubscriptionMode The default value is `PersistentOnly`.
+     */
+    ConsumerConfiguration& setRegexSubscriptionMode(RegexSubscriptionMode regexSubscriptionMode);
+
+    /**
+     * @return the regex subscription mode for the pattern consumer.
+     */
+    RegexSubscriptionMode getRegexSubscriptionMode() const;
+
+    /**
      * The default value is `InitialPositionLatest`.
      *
      * @param subscriptionInitialPosition the initial position at which to set
@@ -377,6 +409,57 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      * @return the configured `InitialPosition` for the consumer
      */
     InitialPosition getSubscriptionInitialPosition() const;
+
+    /**
+     * Set batch receive policy.
+     *
+     * @param batchReceivePolicy the default is
+     * {maxNumMessage: -1, maxNumBytes: 10 * 1024 * 1024, timeoutMs: 100}
+     */
+    void setBatchReceivePolicy(const BatchReceivePolicy& batchReceivePolicy);
+
+    /**
+     * Get batch receive policy.
+     *
+     * @return batch receive policy
+     */
+    const BatchReceivePolicy& getBatchReceivePolicy() const;
+
+    /**
+     * Set dead letter policy for consumer
+     *
+     * By default, some messages are redelivered many times, even to the extent that they can never be
+     * stopped. By using the dead letter mechanism, messages have the max redelivery count, when they
+     * exceeding the maximum number of redeliveries. Messages are sent to dead letter topics and acknowledged
+     * automatically.
+     *
+     * You can enable the dead letter mechanism by setting the dead letter policy.
+     * Example:
+     *
+     * <pre>
+     * * DeadLetterPolicy dlqPolicy = DeadLetterPolicyBuilder()
+     *                       .maxRedeliverCount(10)
+     *                       .build();
+     * </pre>
+     * Default dead letter topic name is {TopicName}-{Subscription}-DLQ.
+     * To set a custom dead letter topic name
+     * <pre>
+     * DeadLetterPolicy dlqPolicy = DeadLetterPolicyBuilder()
+     *                       .deadLetterTopic("dlq-topic")
+     *                       .maxRedeliverCount(10)
+     *                       .initialSubscriptionName("init-sub-name")
+     *                       .build();
+     * </pre>
+     * @param deadLetterPolicy Default value is empty
+     */
+    void setDeadLetterPolicy(const DeadLetterPolicy& deadLetterPolicy);
+
+    /**
+     * Get dead letter policy.
+     *
+     * @return dead letter policy
+     */
+    const DeadLetterPolicy& getDeadLetterPolicy() const;
 
     /**
      * Set whether the subscription status should be replicated.
@@ -500,6 +583,26 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     bool isAutoAckOldestChunkedMessageOnQueueFull() const;
 
     /**
+     * If producer fails to publish all the chunks of a message then consumer can expire incomplete chunks if
+     * consumer won't be able to receive all chunks in expire times. Use value 0 to disable this feature.
+     *
+     * Default: 60000, which means 1 minutes
+     *
+     * @param expireTimeOfIncompleteChunkedMessageMs expire time in milliseconds
+     * @return Consumer Configuration
+     */
+    ConsumerConfiguration& setExpireTimeOfIncompleteChunkedMessageMs(
+        long expireTimeOfIncompleteChunkedMessageMs);
+
+    /**
+     *
+     * Get the expire time of incomplete chunked message in milliseconds
+     *
+     * @return the expire time of incomplete chunked message in milliseconds
+     */
+    long getExpireTimeOfIncompleteChunkedMessageMs() const;
+
+    /**
      * Set the consumer to include the given position of any reset operation like Consumer::seek.
      *
      * Default: false
@@ -513,7 +616,51 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      */
     bool isStartMessageIdInclusive() const;
 
+    /**
+     * Enable the batch index acknowledgment.
+     *
+     * It should be noted that this option can only work when the broker side also enables the batch index
+     * acknowledgment. See the `acknowledgmentAtBatchIndexLevelEnabled` config in `broker.conf`.
+     *
+     * Default: false
+     *
+     * @param enabled whether to enable the batch index acknowledgment
+     */
+    ConsumerConfiguration& setBatchIndexAckEnabled(bool enabled);
+
+    /**
+     * The associated getter of setBatchingEnabled
+     */
+    bool isBatchIndexAckEnabled() const;
+
+    /**
+     * Intercept the consumer
+     *
+     * @param interceptors the list of interceptors to intercept the consumer
+     * @return Consumer Configuration
+     */
+    ConsumerConfiguration& intercept(const std::vector<ConsumerInterceptorPtr>& interceptors);
+
+    const std::vector<ConsumerInterceptorPtr>& getInterceptors() const;
+
+    /**
+     * Whether to receive the ACK receipt from broker.
+     *
+     * By default, when Consumer::acknowledge is called, it won't wait until the corresponding response from
+     * broker. After it's enabled, the `acknowledge` method will return a Result that indicates if the
+     * acknowledgment succeeded.
+     *
+     * Default: false
+     */
+    ConsumerConfiguration& setAckReceiptEnabled(bool ackReceiptEnabled);
+
+    /**
+     * The associated getter of setAckReceiptEnabled.
+     */
+    bool isAckReceiptEnabled() const;
+
     friend class PulsarWrapper;
+    friend class PulsarFriend;
 
    private:
     std::shared_ptr<ConsumerConfigurationImpl> impl_;

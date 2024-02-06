@@ -17,21 +17,8 @@
 # under the License.
 #
 
-# Test tools
-add_definitions(-D_GLIBCXX_USE_NANOSLEEP)
-
-set(PERF_PRODUCER_SOURCES
-  PerfProducer.cc
-)
-
-set(PERF_CONSUMER_SOURCES
-  PerfConsumer.cc
-)
-
-add_executable(perfProducer ${PERF_PRODUCER_SOURCES})
-add_executable(perfConsumer ${PERF_CONSUMER_SOURCES})
-
-set(TOOL_LIBS ${CLIENT_LIBS} ${Boost_PROGRAM_OPTIONS_LIBRARY} ${Boost_THREAD_LIBRARY})
-
-target_link_libraries(perfProducer pulsarShared ${TOOL_LIBS})
-target_link_libraries(perfConsumer pulsarShared ${TOOL_LIBS})
+if (INTEGRATE_VCPKG)
+    include(BuildPerf.cmake)
+else ()
+    include(LegacyBuildPerf.cmake)
+endif ()

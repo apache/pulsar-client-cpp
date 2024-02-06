@@ -18,26 +18,14 @@
  */
 #include "LogUtils.h"
 
-#include <atomic>
-#include <iostream>
 #include <pulsar/ConsoleLoggerFactory.h>
 
-#include "Log4CxxLogger.h"
+#include <atomic>
+#include <iostream>
 
 namespace pulsar {
 
-void LogUtils::init(const std::string& logfilePath) {
-    // If this is called explicitely, we fallback to Log4cxx config, if enabled
-
-#ifdef USE_LOG4CXX
-    if (!logfilePath.empty()) {
-        setLoggerFactory(Log4CxxLoggerFactory::create(logfilePath));
-    } else {
-        setLoggerFactory(Log4CxxLoggerFactory::create());
-    }
-#endif  // USE_LOG4CXX
-}
-
+static std::atomic<LoggerFactory*> s_defaultLoggerFactory(new ConsoleLoggerFactory());
 static std::atomic<LoggerFactory*> s_loggerFactory(nullptr);
 
 void LogUtils::setLoggerFactory(std::unique_ptr<LoggerFactory> loggerFactory) {
@@ -50,10 +38,10 @@ void LogUtils::setLoggerFactory(std::unique_ptr<LoggerFactory> loggerFactory) {
 
 LoggerFactory* LogUtils::getLoggerFactory() {
     if (s_loggerFactory.load() == nullptr) {
-        std::unique_ptr<LoggerFactory> newFactory(new ConsoleLoggerFactory());
-        setLoggerFactory(std::move(newFactory));
+        return s_defaultLoggerFactory.load();
+    } else {
+        return s_loggerFactory.load();
     }
-    return s_loggerFactory.load();
 }
 
 std::string LogUtils::getLoggerName(const std::string& path) {

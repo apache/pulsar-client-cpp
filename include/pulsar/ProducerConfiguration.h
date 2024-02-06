@@ -18,16 +18,17 @@
  */
 #ifndef PULSAR_PRODUCERCONFIGURATION_H_
 #define PULSAR_PRODUCERCONFIGURATION_H_
-#include <pulsar/defines.h>
 #include <pulsar/CompressionType.h>
-#include <pulsar/MessageRoutingPolicy.h>
-#include <pulsar/Result.h>
-#include <pulsar/Message.h>
-#include <functional>
-#include <pulsar/ProducerCryptoFailureAction.h>
 #include <pulsar/CryptoKeyReader.h>
+#include <pulsar/Message.h>
+#include <pulsar/MessageRoutingPolicy.h>
+#include <pulsar/ProducerCryptoFailureAction.h>
+#include <pulsar/ProducerInterceptor.h>
+#include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/defines.h>
 
+#include <functional>
 #include <set>
 
 namespace pulsar {
@@ -89,7 +90,18 @@ class PULSAR_PUBLIC ProducerConfiguration {
         /**
          * Require exclusive access for producer. Fail immediately if there's already a producer connected.
          */
-        Exclusive = 1
+        Exclusive = 1,
+
+        /**
+         * Producer creation is pending until it can acquire exclusive access.
+         */
+        WaitForExclusive = 2,
+
+        /**
+         * Acquire exclusive access for the producer. Any existing producer will be removed and
+         * invalidated immediately.
+         */
+        ExclusiveWithFencing = 3
     };
 
     ProducerConfiguration();
@@ -527,11 +539,16 @@ class PULSAR_PUBLIC ProducerConfiguration {
      */
     ProducerAccessMode getAccessMode() const;
 
-    friend class PulsarWrapper;
+    ProducerConfiguration& intercept(const std::vector<ProducerInterceptorPtr>& interceptors);
+
+    const std::vector<ProducerInterceptorPtr>& getInterceptors() const;
 
    private:
-    struct Impl;
     std::shared_ptr<ProducerConfigurationImpl> impl_;
+
+    friend class PulsarWrapper;
+    friend class ConsumerImpl;
+    friend class ProducerImpl;
 };
 }  // namespace pulsar
 #endif /* PULSAR_PRODUCERCONFIGURATION_H_ */

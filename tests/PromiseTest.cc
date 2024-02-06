@@ -17,11 +17,19 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/Future.h>
+
 #include <chrono>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
+
+#include "WaitUtils.h"
+#include "lib/Future.h"
+#include "lib/LogUtils.h"
+
+DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
@@ -81,4 +89,40 @@ TEST(PromiseTest, testListeners) {
     ASSERT_FALSE(resultSetValue);
     ASSERT_EQ(results, (std::vector<int>(2, 0)));
     ASSERT_EQ(values, (std::vector<std::string>(2, "hello")));
+}
+
+TEST(PromiseTest, testListenerDeadlock) {
+    Promise<int, int> promise;
+    auto future = promise.getFuture();
+    auto mutex = std::make_shared<std::mutex>();
+    auto done = std::make_shared<std::atomic_bool>(false);
+
+    future.addListener([mutex, done](int, int) {
+        LOG_INFO("Listener-1 before acquiring the lock");
+        std::lock_guard<std::mutex> lock{*mutex};
+        LOG_INFO("Listener-1 after acquiring the lock");
+        done->store(true);
+    });
+
+    std::thread t1{[mutex, &future] {
+        std::lock_guard<std::mutex> lock{*mutex};
+        // Make it a great chance that `t2` executes `promise.setValue` first
+        std::this_thread::sleep_for(std::chrono::seconds(2));
+
+        // Since the future is completed, `Future::get` will be called in `addListener` to get the result
+        LOG_INFO("Before adding Listener-2 (acquired the mutex)")
+        future.addListener([](int, int) { LOG_INFO("Listener-2 is triggered"); });
+        LOG_INFO("After adding Listener-2 (releasing the mutex)");
+    }};
+    t1.detach();
+    std::thread t2{[mutex, promise] {
+        // Make there a great chance that `t1` acquires `mutex` first
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+        LOG_INFO("Before setting value");
+        promise.setValue(0);  // the 1st listener is called, which is blocked at acquiring `mutex`
+        LOG_INFO("After setting value");
+    }};
+    t2.detach();
+
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(5000), [done] { return done->load(); }));
 }

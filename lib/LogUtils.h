@@ -19,12 +19,12 @@
 
 #pragma once
 
-#include <string>
-#include <sstream>
-#include <memory>
-
-#include <pulsar/defines.h>
 #include <pulsar/Logger.h>
+#include <pulsar/defines.h>
+
+#include <memory>
+#include <sstream>
+#include <string>
 
 namespace pulsar {
 
@@ -34,16 +34,19 @@ namespace pulsar {
 #define PULSAR_UNLIKELY(expr) (expr)
 #endif
 
-#define DECLARE_LOG_OBJECT()                                                                     \
-    static pulsar::Logger* logger() {                                                            \
-        static thread_local std::unique_ptr<pulsar::Logger> threadSpecificLogPtr;                \
-        pulsar::Logger* ptr = threadSpecificLogPtr.get();                                        \
-        if (PULSAR_UNLIKELY(!ptr)) {                                                             \
-            std::string logger = pulsar::LogUtils::getLoggerName(__FILE__);                      \
-            threadSpecificLogPtr.reset(pulsar::LogUtils::getLoggerFactory()->getLogger(logger)); \
-            ptr = threadSpecificLogPtr.get();                                                    \
-        }                                                                                        \
-        return ptr;                                                                              \
+#define DECLARE_LOG_OBJECT()                                                                        \
+    static pulsar::Logger* logger() {                                                               \
+        static thread_local uintptr_t loggerFactoryPtr = 0;                                         \
+        static thread_local std::unique_ptr<pulsar::Logger> threadSpecificLogPtr;                   \
+        pulsar::Logger* ptr = threadSpecificLogPtr.get();                                           \
+        if (PULSAR_UNLIKELY(loggerFactoryPtr != (uintptr_t)pulsar::LogUtils::getLoggerFactory()) || \
+            PULSAR_UNLIKELY(!ptr)) {                                                                \
+            std::string logger = pulsar::LogUtils::getLoggerName(__FILE__);                         \
+            threadSpecificLogPtr.reset(pulsar::LogUtils::getLoggerFactory()->getLogger(logger));    \
+            ptr = threadSpecificLogPtr.get();                                                       \
+            loggerFactoryPtr = (uintptr_t)pulsar::LogUtils::getLoggerFactory();                     \
+        }                                                                                           \
+        return ptr;                                                                                 \
     }
 
 #define LOG_DEBUG(message)                                                       \
@@ -84,8 +87,6 @@ namespace pulsar {
 
 class PULSAR_PUBLIC LogUtils {
    public:
-    static void init(const std::string& logConfFilePath);
-
     static void setLoggerFactory(std::unique_ptr<LoggerFactory> loggerFactory);
 
     static void resetLoggerFactory();

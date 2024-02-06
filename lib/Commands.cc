@@ -17,24 +17,53 @@
  * under the License.
  */
 #include "Commands.h"
-#include "MessageImpl.h"
-#include "pulsar/Version.h"
-#include "pulsar/MessageBuilder.h"
-#include "LogUtils.h"
-#include "PulsarApi.pb.h"
-#include "Utils.h"
-#include "Url.h"
+
+#include <pulsar/MessageBuilder.h>
+#include <pulsar/MessageIdBuilder.h>
 #include <pulsar/Schema.h>
-#include "checksum/ChecksumProvider.h"
+#include <pulsar/Version.h>
+
 #include <algorithm>
 #include <mutex>
+
+#include "BatchMessageAcker.h"
+#include "BatchedMessageIdImpl.h"
+#include "BitSet.h"
+#include "ChunkMessageIdImpl.h"
+#include "MessageImpl.h"
+#include "OpSendMsg.h"
+#include "PulsarApi.pb.h"
+#include "Url.h"
+#include "checksum/ChecksumProvider.h"
 
 using namespace pulsar;
 namespace pulsar {
 
-using namespace pulsar::proto;
-
-DECLARE_LOG_OBJECT();
+using proto::AuthData;
+using proto::BaseCommand;
+using proto::CommandAck;
+using proto::CommandAuthResponse;
+using proto::CommandCloseConsumer;
+using proto::CommandCloseProducer;
+using proto::CommandConnect;
+using proto::CommandConsumerStats;
+using proto::CommandFlow;
+using proto::CommandGetLastMessageId;
+using proto::CommandGetTopicsOfNamespace;
+using proto::CommandLookupTopic;
+using proto::CommandPartitionedTopicMetadata;
+using proto::CommandProducer;
+using proto::CommandRedeliverUnacknowledgedMessages;
+using proto::CommandSeek;
+using proto::CommandSend;
+using proto::CommandSubscribe;
+using proto::CommandUnsubscribe;
+using proto::FeatureFlags;
+using proto::IntRange;
+using proto::KeySharedMeta;
+using proto::MessageIdData;
+using proto::ProtocolVersion_MAX;
+using proto::SingleMessageMetadata;
 
 static inline bool isBuiltInSchema(SchemaType schemaType) {
     switch (schemaType) {
@@ -43,6 +72,7 @@ static inline bool isBuiltInSchema(SchemaType schemaType) {
         case AVRO:
         case PROTOBUF:
         case PROTOBUF_NATIVE:
+        case KEY_VALUE:
             return true;
 
         default:
@@ -53,19 +83,21 @@ static inline bool isBuiltInSchema(SchemaType schemaType) {
 static inline proto::Schema_Type getSchemaType(SchemaType type) {
     switch (type) {
         case SchemaType::NONE:
-            return Schema_Type_None;
+            return proto::Schema_Type_None;
         case STRING:
-            return Schema_Type_String;
+            return proto::Schema_Type_String;
         case JSON:
-            return Schema_Type_Json;
+            return proto::Schema_Type_Json;
         case PROTOBUF:
-            return Schema_Type_Protobuf;
+            return proto::Schema_Type_Protobuf;
         case AVRO:
-            return Schema_Type_Avro;
+            return proto::Schema_Type_Avro;
         case PROTOBUF_NATIVE:
-            return Schema_Type_ProtobufNative;
+            return proto::Schema_Type_ProtobufNative;
+        case KEY_VALUE:
+            return proto::Schema_Type_KeyValue;
         default:
-            return Schema_Type_None;
+            return proto::Schema_Type_None;
     }
 }
 
@@ -127,6 +159,25 @@ SharedBuffer Commands::newLookup(const std::string& topic, const bool authoritat
     return buffer;
 }
 
+SharedBuffer Commands::newGetSchema(const std::string& topic, const std::string& version,
+                                    uint64_t requestId) {
+    static BaseCommand cmd;
+    static std::mutex mutex;
+    std::lock_guard<std::mutex> lock(mutex);
+    cmd.set_type(BaseCommand::GET_SCHEMA);
+
+    auto getSchema = cmd.mutable_getschema();
+    getSchema->set_topic(topic);
+    getSchema->set_request_id(requestId);
+    if (!version.empty()) {
+        getSchema->set_schema_version(version);
+    }
+
+    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    cmd.clear_getschema();
+    return buffer;
+}
+
 SharedBuffer Commands::newConsumerStats(uint64_t consumerId, uint64_t requestId) {
     static BaseCommand cmd;
     static std::mutex mutex;
@@ -140,13 +191,13 @@ SharedBuffer Commands::newConsumerStats(uint64_t consumerId, uint64_t requestId)
     return buffer;
 }
 
-PairSharedBuffer Commands::newSend(SharedBuffer& headers, BaseCommand& cmd, uint64_t producerId,
-                                   uint64_t sequenceId, ChecksumType checksumType,
-                                   const proto::MessageMetadata& metadata, const SharedBuffer& payload) {
+PairSharedBuffer Commands::newSend(SharedBuffer& headers, BaseCommand& cmd, ChecksumType checksumType,
+                                   const SendArguments& args) {
     cmd.set_type(BaseCommand::SEND);
     CommandSend* send = cmd.mutable_send();
-    send->set_producer_id(producerId);
-    send->set_sequence_id(sequenceId);
+    send->set_producer_id(args.producerId);
+    send->set_sequence_id(args.sequenceId);
+    const auto& metadata = args.metadata;
     if (metadata.has_num_messages_in_batch()) {
         send->set_num_messages(metadata.num_messages_in_batch());
     }
@@ -157,8 +208,9 @@ PairSharedBuffer Commands::newSend(SharedBuffer& headers, BaseCommand& cmd, uint
     // / Wire format
     // [TOTAL_SIZE] [CMD_SIZE][CMD] [MAGIC_NUMBER][CHECKSUM] [METADATA_SIZE][METADATA] [PAYLOAD]
 
-    int cmdSize = cmd.ByteSize();
-    int msgMetadataSize = metadata.ByteSize();
+    int cmdSize = cmd.ByteSizeLong();
+    int msgMetadataSize = metadata.ByteSizeLong();
+    const auto& payload = args.payload;
     int payloadSize = payload.readableBytes();
 
     int magicAndChecksumLength = (Crc32c == (checksumType)) ? (2 + 4 /* magic + checksumLength*/) : 0;
@@ -213,16 +265,18 @@ PairSharedBuffer Commands::newSend(SharedBuffer& headers, BaseCommand& cmd, uint
 }
 
 SharedBuffer Commands::newConnect(const AuthenticationPtr& authentication, const std::string& logicalAddress,
-                                  bool connectingThroughProxy, Result& result) {
+                                  bool connectingThroughProxy, const std::string& clientVersion,
+                                  Result& result) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::CONNECT);
     CommandConnect* connect = cmd.mutable_connect();
-    connect->set_client_version(PULSAR_VERSION_STR);
+    connect->set_client_version(clientVersion);
     connect->set_auth_method_name(authentication->getAuthMethodName());
     connect->set_protocol_version(ProtocolVersion_MAX);
 
     FeatureFlags* flags = connect->mutable_feature_flags();
     flags->set_supports_auth_refresh(true);
+    flags->set_supports_broker_entry_metadata(true);
     if (connectingThroughProxy) {
         Url logicalAddressUrl;
         Url::parse(logicalAddress, logicalAddressUrl);
@@ -245,7 +299,7 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
     BaseCommand cmd;
     cmd.set_type(BaseCommand::AUTH_RESPONSE);
     CommandAuthResponse* authResponse = cmd.mutable_authresponse();
-    authResponse->set_client_version(PULSAR_VERSION_STR);
+    authResponse->set_client_version(std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR);
 
     AuthData* authData = authResponse->mutable_response();
     authData->set_auth_method_name(authentication->getAuthMethodName());
@@ -258,6 +312,8 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
 
     if (authDataContent->hasDataFromCommand()) {
         authData->set_auth_data(authDataContent->getCommandData());
+    } else {
+        authData->set_auth_data("");
     }
 
     return writeMessageWithSize(cmd);
@@ -266,7 +322,7 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
 SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string& subscription,
                                     uint64_t consumerId, uint64_t requestId, CommandSubscribe_SubType subType,
                                     const std::string& consumerName, SubscriptionMode subscriptionMode,
-                                    Optional<MessageId> startMessageId, bool readCompacted,
+                                    boost::optional<MessageId> startMessageId, bool readCompacted,
                                     const std::map<std::string, std::string>& metadata,
                                     const std::map<std::string, std::string>& subscriptionProperties,
                                     const SchemaInfo& schemaInfo,
@@ -278,13 +334,14 @@ SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string&
     CommandSubscribe* subscribe = cmd.mutable_subscribe();
     subscribe->set_topic(topic);
     subscribe->set_subscription(subscription);
-    subscribe->set_subtype(subType);
+    subscribe->set_subtype(static_cast<proto::CommandSubscribe_SubType>(subType));
     subscribe->set_consumer_id(consumerId);
     subscribe->set_request_id(requestId);
     subscribe->set_consumer_name(consumerName);
     subscribe->set_durable(subscriptionMode == SubscriptionModeDurable);
     subscribe->set_read_compacted(readCompacted);
-    subscribe->set_initialposition(subscriptionInitialPosition);
+    subscribe->set_initialposition(
+        static_cast<proto::CommandSubscribe_InitialPosition>(subscriptionInitialPosition));
     subscribe->set_replicate_subscription_state(replicateSubscriptionState);
     subscribe->set_priority_level(priorityLevel);
 
@@ -292,7 +349,7 @@ SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string&
         subscribe->set_allocated_schema(getSchema(schemaInfo));
     }
 
-    if (startMessageId.is_present()) {
+    if (startMessageId) {
         MessageIdData& messageIdData = *subscribe->mutable_start_message_id();
         messageIdData.set_ledgerid(startMessageId.value().ledgerId());
         messageIdData.set_entryid(startMessageId.value().entryId());
@@ -352,7 +409,8 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
                                    const std::map<std::string, std::string>& metadata,
                                    const SchemaInfo& schemaInfo, uint64_t epoch,
                                    bool userProvidedProducerName, bool encrypted,
-                                   ProducerAccessMode accessMode, Optional<uint64_t> topicEpoch) {
+                                   ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                   const std::string& initialSubscriptionName) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::PRODUCER);
     CommandProducer* producer = cmd.mutable_producer();
@@ -362,9 +420,12 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     producer->set_epoch(epoch);
     producer->set_user_provided_producer_name(userProvidedProducerName);
     producer->set_encrypted(encrypted);
-    producer->set_producer_access_mode(accessMode);
-    if (topicEpoch.is_present()) {
+    producer->set_producer_access_mode(static_cast<proto::ProducerAccessMode>(accessMode));
+    if (topicEpoch) {
         producer->set_topic_epoch(topicEpoch.value());
+    }
+    if (!initialSubscriptionName.empty()) {
+        producer->set_initial_subscription_name(initialSubscriptionName);
     }
 
     for (std::map<std::string, std::string>::const_iterator it = metadata.begin(); it != metadata.end();
@@ -386,31 +447,73 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
     return writeMessageWithSize(cmd);
 }
 
-SharedBuffer Commands::newAck(uint64_t consumerId, const MessageIdData& messageId, CommandAck_AckType ackType,
-                              int validationError) {
+static void configureCommandAck(CommandAck* ack, uint64_t consumerId, int64_t ledgerId, int64_t entryId,
+                                const BitSet& ackSet, CommandAck_AckType ackType) {
+    ack->set_consumer_id(consumerId);
+    ack->set_ack_type(static_cast<proto::CommandAck_AckType>(ackType));
+    auto* msgId = ack->add_message_id();
+    msgId->set_ledgerid(ledgerId);
+    msgId->set_entryid(entryId);
+    for (auto x : ackSet) {
+        msgId->add_ack_set(x);
+    }
+}
+
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
+                              CommandAck_AckType ackType) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
+    configureCommandAck(cmd.mutable_ack(), consumerId, ledgerId, entryId, ackSet, ackType);
+    return writeMessageWithSize(cmd);
+}
+
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
+                              CommandAck_AckType ackType, CommandAck_ValidationError validationError) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
-    ack->set_consumer_id(consumerId);
-    ack->set_ack_type(ackType);
-    if (CommandAck_AckType_IsValid(validationError)) {
-        ack->set_validation_error((CommandAck_ValidationError)validationError);
-    }
-    *(ack->add_message_id()) = messageId;
+    ack->set_validation_error((proto::CommandAck_ValidationError)validationError);
+    configureCommandAck(ack, consumerId, ledgerId, entryId, ackSet, ackType);
     return writeMessageWithSize(cmd);
+}
+
+SharedBuffer Commands::newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,
+                              CommandAck_AckType ackType, uint64_t requestId) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
+    CommandAck* ack = cmd.mutable_ack();
+    ack->set_request_id(requestId);
+    configureCommandAck(ack, consumerId, ledgerId, entryId, ackSet, ackType);
+    return writeMessageWithSize(cmd);
+}
+
+static void configureCommandAck(CommandAck* ack, uint64_t consumerId, const std::set<MessageId>& msgIds) {
+    ack->set_consumer_id(consumerId);
+    ack->set_ack_type(proto::CommandAck_AckType_Individual);
+    for (const auto& msgId : msgIds) {
+        auto newMsgId = ack->add_message_id();
+        newMsgId->set_ledgerid(msgId.ledgerId());
+        newMsgId->set_entryid(msgId.entryId());
+        for (auto x : Commands::getMessageIdImpl(msgId)->getBitSet()) {
+            newMsgId->add_ack_set(x);
+        }
+    }
 }
 
 SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::ACK);
+    configureCommandAck(cmd.mutable_ack(), consumerId, msgIds);
+    return writeMessageWithSize(cmd);
+}
+
+SharedBuffer Commands::newMultiMessageAck(uint64_t consumerId, const std::set<MessageId>& msgIds,
+                                          uint64_t requestId) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::ACK);
     CommandAck* ack = cmd.mutable_ack();
-    ack->set_consumer_id(consumerId);
-    ack->set_ack_type(CommandAck_AckType_Individual);
-    for (const auto& msgId : msgIds) {
-        auto newMsgId = ack->add_message_id();
-        newMsgId->set_ledgerid(msgId.ledgerId());
-        newMsgId->set_entryid(msgId.entryId());
-    }
+    ack->set_request_id(requestId);
+    configureCommandAck(ack, consumerId, msgIds);
     return writeMessageWithSize(cmd);
 }
 
@@ -477,8 +580,17 @@ SharedBuffer Commands::newSeek(uint64_t consumerId, uint64_t requestId, const Me
     commandSeek->set_request_id(requestId);
 
     MessageIdData& messageIdData = *commandSeek->mutable_message_id();
-    messageIdData.set_ledgerid(messageId.ledgerId());
-    messageIdData.set_entryid(messageId.entryId());
+
+    auto chunkMsgId = std::dynamic_pointer_cast<ChunkMessageIdImpl>(messageId.impl_);
+    if (chunkMsgId) {
+        const auto& firstId = chunkMsgId->getChunkedMessageIds().front();
+        messageIdData.set_ledgerid(firstId.ledgerId());
+        messageIdData.set_entryid(firstId.entryId());
+    } else {
+        messageIdData.set_ledgerid(messageId.ledgerId());
+        messageIdData.set_entryid(messageId.entryId());
+    }
+
     return writeMessageWithSize(cmd);
 }
 
@@ -504,12 +616,14 @@ SharedBuffer Commands::newGetLastMessageId(uint64_t consumerId, uint64_t request
     return buffer;
 }
 
-SharedBuffer Commands::newGetTopicsOfNamespace(const std::string& nsName, uint64_t requestId) {
+SharedBuffer Commands::newGetTopicsOfNamespace(const std::string& nsName,
+                                               CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::GET_TOPICS_OF_NAMESPACE);
     CommandGetTopicsOfNamespace* getTopics = cmd.mutable_gettopicsofnamespace();
     getTopics->set_request_id(requestId);
     getTopics->set_namespace_(nsName);
+    getTopics->set_mode(static_cast<proto::CommandGetTopicsOfNamespace_Mode>(mode));
 
     const SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_gettopicsofnamespace();
@@ -719,10 +833,14 @@ void Commands::initBatchMessageMetadata(const Message& msg, pulsar::proto::Messa
     }
 }
 
-uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, SharedBuffer& batchPayLoad,
-                                                            unsigned long maxMessageSizeInBytes) {
-    const auto& msgMetadata = msg.impl_->metadata;
-    SingleMessageMetadata metadata;
+// The overhead of constructing and destructing a SingleMessageMetadata is higher than allocating and
+// deallocating memory for a byte array, so use a thread local SingleMessageMetadata and serialize it to a
+// byte array.
+static std::pair<std::unique_ptr<char[]>, size_t> serializeSingleMessageMetadata(
+    const proto::MessageMetadata& msgMetadata, size_t payloadSize) {
+    thread_local SingleMessageMetadata metadata;
+    metadata.Clear();
+    metadata.set_payload_size(payloadSize);
     if (msgMetadata.has_partition_key()) {
         metadata.set_partition_key(msgMetadata.partition_key());
     }
@@ -745,37 +863,42 @@ uint64_t Commands::serializeSingleMessageInBatchWithPayload(const Message& msg, 
         metadata.set_sequence_id(msgMetadata.sequence_id());
     }
 
-    // Format of batch message
-    // Each Message = [METADATA_SIZE][METADATA] [PAYLOAD]
-
-    int payloadSize = msg.impl_->payload.readableBytes();
-    metadata.set_payload_size(payloadSize);
-
-    int msgMetadataSize = metadata.ByteSize();
-
-    unsigned long requiredSpace = sizeof(uint32_t) + msgMetadataSize + payloadSize;
-    if (batchPayLoad.writableBytes() <= sizeof(uint32_t) + msgMetadataSize + payloadSize) {
-        LOG_DEBUG("remaining size of batchPayLoad buffer ["
-                  << batchPayLoad.writableBytes() << "] can't accomodate new payload [" << requiredSpace
-                  << "] - expanding the batchPayload buffer");
-        uint32_t new_size =
-            std::min(batchPayLoad.readableBytes() * 2, static_cast<uint32_t>(maxMessageSizeInBytes));
-        new_size = std::max(new_size, batchPayLoad.readableBytes() + static_cast<uint32_t>(requiredSpace));
-        SharedBuffer buffer = SharedBuffer::allocate(new_size);
-        // Adding batch created so far
-        buffer.write(batchPayLoad.data(), batchPayLoad.readableBytes());
-        batchPayLoad = buffer;
-    }
-    // Adding the new message
-    batchPayLoad.writeUnsignedInt(msgMetadataSize);
-    metadata.SerializeToArray(batchPayLoad.mutableData(), msgMetadataSize);
-    batchPayLoad.bytesWritten(msgMetadataSize);
-    batchPayLoad.write(msg.impl_->payload.data(), payloadSize);
-
-    return msgMetadata.sequence_id();
+    size_t size = metadata.ByteSizeLong();
+    std::unique_ptr<char[]> data{new char[size]};
+    metadata.SerializeToArray(data.get(), size);
+    return std::make_pair(std::move(data), size);
 }
 
-Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex) {
+uint64_t Commands::serializeSingleMessagesToBatchPayload(SharedBuffer& batchPayload,
+                                                         const std::vector<Message>& messages) {
+    assert(!messages.empty());
+    size_t size = sizeof(uint32_t) * messages.size();
+
+    std::vector<std::pair<std::unique_ptr<char[]>, size_t>> singleMetadataBuffers(messages.size());
+    for (size_t i = 0; i < messages.size(); i++) {
+        const auto& impl = messages[i].impl_;
+        singleMetadataBuffers[i] =
+            serializeSingleMessageMetadata(impl->metadata, impl->payload.readableBytes());
+        size += singleMetadataBuffers[i].second;
+        size += messages[i].getLength();
+    }
+
+    // Format of batch message
+    // Each Message = [METADATA_SIZE][METADATA] [PAYLOAD]
+    batchPayload = SharedBuffer::allocate(size);
+    for (size_t i = 0; i < messages.size(); i++) {
+        auto msgMetadataSize = singleMetadataBuffers[i].second;
+        batchPayload.writeUnsignedInt(msgMetadataSize);
+        batchPayload.write(singleMetadataBuffers[i].first.get(), msgMetadataSize);
+        const auto& payload = messages[i].impl_->payload;
+        batchPayload.write(payload.data(), payload.readableBytes());
+    }
+
+    return messages.back().impl_->metadata.sequence_id();
+}
+
+Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
+                                                  int32_t batchSize, const BatchMessageAckerPtr& acker) {
     SharedBuffer& uncompressedPayload = batchedMessage.impl_->payload;
 
     // Format of batch message
@@ -793,13 +916,17 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
     uncompressedPayload.consume(payloadSize);
 
     const MessageId& m = batchedMessage.impl_->messageId;
-    MessageId singleMessageId(m.partition(), m.ledgerId(), m.entryId(), batchIndex);
-    Message singleMessage(singleMessageId, batchedMessage.impl_->metadata, payload, metadata,
-                          batchedMessage.impl_->getTopicName());
+    auto messageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
+    auto batchedMessageId = std::make_shared<BatchedMessageIdImpl>(*(messageId.impl_), acker);
+    Message singleMessage(MessageId{batchedMessageId}, batchedMessage.impl_->brokerEntryMetadata,
+                          batchedMessage.impl_->metadata, payload, metadata,
+                          batchedMessage.impl_->topicName_);
     singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;
 
     return singleMessage;
 }
+
+MessageIdImplPtr Commands::getMessageIdImpl(const MessageId& messageId) { return messageId.impl_; }
 
 bool Commands::peerSupportsGetLastMessageId(int32_t peerVersion) { return peerVersion >= proto::v12; }
 
@@ -812,5 +939,6 @@ bool Commands::peerSupportsMultiMessageAcknowledgement(int32_t peerVersion) {
 bool Commands::peerSupportsJsonSchemaAvroFormat(int32_t peerVersion) { return peerVersion >= proto::v13; }
 
 bool Commands::peerSupportsGetOrCreateSchema(int32_t peerVersion) { return peerVersion >= proto::v15; }
+
 }  // namespace pulsar
 /* namespace pulsar */

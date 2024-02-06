@@ -19,21 +19,18 @@
 #ifndef PULSAR_CPP_HTTPLOOKUPSERVICE_H
 #define PULSAR_CPP_HTTPLOOKUPSERVICE_H
 
-#include <lib/LookupService.h>
-#include <lib/ClientImpl.h>
-#include <lib/Url.h>
-#include <pulsar/Version.h>
-#include <lib/ServiceNameResolver.h>
+#include "ClientImpl.h"
+#include "LookupService.h"
+#include "Url.h"
 
 namespace pulsar {
-class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
-    class CurlInitializer {
-       public:
-        CurlInitializer();
-        ~CurlInitializer();
-    };
-    static CurlInitializer curlInitializer;
 
+class ServiceNameResolver;
+using NamespaceTopicsPromise = Promise<Result, NamespaceTopicsPtr>;
+using NamespaceTopicsPromisePtr = std::shared_ptr<NamespaceTopicsPromise>;
+using GetSchemaPromise = Promise<Result, SchemaInfo>;
+
+class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
     enum RequestType
     {
         Lookup,
@@ -46,6 +43,7 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     ServiceNameResolver& serviceNameResolver_;
     AuthenticationPtr authenticationPtr_;
     int lookupTimeoutInSeconds_;
+    const int maxLookupRedirects_;
     std::string tlsPrivateFilePath_;
     std::string tlsCertificateFilePath_;
     std::string tlsTrustCertsFilePath_;
@@ -59,8 +57,11 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
 
     void handleLookupHTTPRequest(LookupPromise, const std::string, RequestType);
     void handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise promise, const std::string completeUrl);
+    void handleGetSchemaHTTPRequest(GetSchemaPromise promise, const std::string completeUrl);
 
     Result sendHTTPRequest(std::string completeUrl, std::string& responseData);
+
+    Result sendHTTPRequest(std::string completeUrl, std::string& responseData, long& responseCode);
 
    public:
     HTTPLookupService(ServiceNameResolver&, const ClientConfiguration&, const AuthenticationPtr&);
@@ -69,7 +70,10 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
 
     Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr&) override;
 
-    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) override;
+    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override;
+
+    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+        const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override;
 };
 }  // namespace pulsar
 

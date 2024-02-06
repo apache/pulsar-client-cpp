@@ -20,16 +20,16 @@
 #define LIB_PRODUCERCONFIGURATIONIMPL_H_
 
 #include <pulsar/ProducerConfiguration.h>
-#include <memory>
 
-#include "Utils.h"
+#include <boost/optional.hpp>
+#include <memory>
 
 namespace pulsar {
 
 struct ProducerConfigurationImpl {
     SchemaInfo schemaInfo;
-    Optional<std::string> producerName;
-    Optional<int64_t> initialSequenceId;
+    boost::optional<std::string> producerName;
+    boost::optional<int64_t> initialSequenceId;
     int sendTimeoutMs{30000};
     CompressionType compressionType{CompressionNone};
     int maxPendingMessages{1000};
@@ -50,6 +50,8 @@ struct ProducerConfigurationImpl {
     std::map<std::string, std::string> properties;
     bool chunkingEnabled{false};
     ProducerConfiguration::ProducerAccessMode accessMode{ProducerConfiguration::Shared};
+    std::string initialSubscriptionName;
+    std::vector<ProducerInterceptorPtr> interceptors;
 };
 }  // namespace pulsar
 

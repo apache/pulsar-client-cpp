@@ -17,9 +17,13 @@
  * under the License.
  */
 #include "Backoff.h"
-#include <boost/random/uniform_int_distribution.hpp>
-#include <algorithm>
+
 #include <time.h> /* time */
+
+#include <algorithm>
+#include <chrono>
+
+#include "TimeUtils.h"
 
 namespace pulsar {
 
@@ -32,8 +36,8 @@ TimeDuration Backoff::next() {
 
     // Check for mandatory stop
     if (!mandatoryStopMade_) {
-        const boost::posix_time::ptime& now = boost::posix_time::microsec_clock::universal_time();
-        TimeDuration timeElapsedSinceFirstBackoff = boost::posix_time::milliseconds(0);
+        auto now = TimeUtils::now();
+        TimeDuration timeElapsedSinceFirstBackoff = std::chrono::nanoseconds(0);
         if (initial_ == current) {
             firstBackoffTime_ = now;
         } else {
@@ -45,7 +49,7 @@ TimeDuration Backoff::next() {
         }
     }
     // Add Randomness
-    boost::random::uniform_int_distribution<int> dist;
+    std::uniform_int_distribution<int> dist;
     int randomNumber = dist(rng_);
 
     current = current - (current * (randomNumber % 10) / 100);

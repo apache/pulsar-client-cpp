@@ -19,22 +19,20 @@
 
 #pragma once
 
-#include <pulsar/defines.h>
-#include <pulsar/MessageRoutingPolicy.h>
 #include <pulsar/ProducerConfiguration.h>
 #include <pulsar/TopicMetadata.h>
-#include "Hash.h"
-#include "MessageRouterBase.h"
 
 #include <atomic>
-#include <boost/date_time/local_time/local_time.hpp>
+
+#include "MessageRouterBase.h"
+#include "TimeUtils.h"
 
 namespace pulsar {
 class PULSAR_PUBLIC RoundRobinMessageRouter : public MessageRouterBase {
    public:
     RoundRobinMessageRouter(ProducerConfiguration::HashingScheme hashingScheme, bool batchingEnabled,
                             uint32_t maxBatchingMessages, uint32_t maxBatchingSize,
-                            boost::posix_time::time_duration maxBatchingDelay);
+                            TimeDuration maxBatchingDelay);
     virtual ~RoundRobinMessageRouter();
     virtual int getPartition(const Message& msg, const TopicMetadata& topicMetadata);
 
@@ -42,7 +40,7 @@ class PULSAR_PUBLIC RoundRobinMessageRouter : public MessageRouterBase {
     const bool batchingEnabled_;
     const uint32_t maxBatchingMessages_;
     const uint32_t maxBatchingSize_;
-    const boost::posix_time::time_duration maxBatchingDelay_;
+    const TimeDuration maxBatchingDelay_;
 
     std::atomic<uint32_t> currentPartitionCursor_;
     std::atomic<int64_t> lastPartitionChange_;

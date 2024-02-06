@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <NamespaceName.h>
-
 #include <gtest/gtest.h>
+
+#include "lib/NamespaceName.h"
 using namespace pulsar;
 
 TEST(NamespaceNameTest, testNamespaceName) {
@@ -41,4 +41,13 @@ TEST(NamespaceNameTest, testNamespaceNameV2) {
 
     std::shared_ptr<NamespaceName> nn2 = NamespaceName::get("property", "namespace");
     ASSERT_TRUE(*nn1 == *nn2);
+}
+
+TEST(NamespaceNameTest, testNamespaceNameLegalCharacters) {
+    std::shared_ptr<NamespaceName> nn1 = NamespaceName::get("cluster-1:=._", "namespace-1:=._");
+    ASSERT_TRUE(nn1);
+    ASSERT_EQ("cluster-1:=._", nn1->getProperty());
+    ASSERT_TRUE(nn1->getCluster().empty());
+    ASSERT_EQ("namespace-1:=._", nn1->getLocalName());
+    ASSERT_TRUE(nn1->isV2());
 }

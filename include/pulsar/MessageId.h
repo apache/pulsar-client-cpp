@@ -19,11 +19,13 @@
 #ifndef MESSAGE_ID_H
 #define MESSAGE_ID_H
 
-#include <iosfwd>
+#include <pulsar/defines.h>
 #include <stdint.h>
+
+#include <iosfwd>
 #include <memory>
 #include <string>
-#include <pulsar/defines.h>
+#include <vector>
 
 namespace pulsar {
 
@@ -35,7 +37,11 @@ class PULSAR_PUBLIC MessageId {
     MessageId();
 
     /**
+     * @deprecated
+     *
      * Construct the MessageId
+     *
+     * NOTE: This API still exists for backward compatibility, use MessageIdBuilder instead.
      *
      * @param partition the partition number of a topic
      * @param ledgerId the ledger id
@@ -61,11 +67,14 @@ class PULSAR_PUBLIC MessageId {
 
     /**
      * Get the topic Name from which this message originated from
+     *
+     * @return the topic name or an empty string if there is no topic name
      */
     const std::string& getTopicName() const;
 
     /**
      * Set the topicName
+     * @deprecated This method will be eventually removed
      */
     void setTopicName(const std::string& topicName);
 
@@ -86,6 +95,7 @@ class PULSAR_PUBLIC MessageId {
     int64_t entryId() const;
     int32_t batchIndex() const;
     int32_t partition() const;
+    int32_t batchSize() const;
 
    private:
     friend class ConsumerImpl;
@@ -100,12 +110,20 @@ class PULSAR_PUBLIC MessageId {
     friend class PulsarWrapper;
     friend class PulsarFriend;
     friend class NegativeAcksTracker;
+    friend class MessageIdBuilder;
+    friend class ChunkMessageIdImpl;
+
+    void setTopicName(const std::shared_ptr<std::string>& topic);
 
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const MessageId& messageId);
 
     typedef std::shared_ptr<MessageIdImpl> MessageIdImplPtr;
     MessageIdImplPtr impl_;
+
+    explicit MessageId(const MessageIdImplPtr& impl);
 };
+
+typedef std::vector<MessageId> MessageIdList;
 }  // namespace pulsar
 
 #endif  // MESSAGE_ID_H

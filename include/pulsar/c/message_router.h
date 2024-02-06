@@ -19,8 +19,8 @@
 
 #pragma once
 
-#include <pulsar/defines.h>
 #include <pulsar/c/message.h>
+#include <pulsar/defines.h>
 
 #ifdef __cplusplus
 extern "C" {

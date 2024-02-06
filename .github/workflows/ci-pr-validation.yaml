@@ -17,7 +17,7 @@
 # under the License.
 #
 
-name: CI - C++ Build - PR validation
+name: PR validation
 on:
   pull_request:
     branches:
@@ -29,65 +29,99 @@ concurrency:
 
 jobs:
 
+  wireshark-dissector-build:
+    name: Build the Wireshark dissector
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        os: [ubuntu-20.04, macos-12]
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+
+      - name: Install deps (Ubuntu)
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y protobuf-compiler libprotobuf-dev wireshark-dev
+
+      - name: Install deps (macOS)
+        if: ${{ startsWith(matrix.os, 'macos') }}
+        run: |
+          # See https://github.com/Homebrew/homebrew-core/issues/157142
+          export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+          brew update
+          brew install pkg-config wireshark protobuf
+      - name: Build wireshark plugin
+        run: |
+          cmake -S wireshark -B build-wireshark
+          cmake --build build-wireshark
+
   unit-tests:
     name: Run unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     timeout-minutes: 120
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
-      - name: Install deps
+      - name: Build core libraries
         run: |
-            sudo apt-get install -y             \
-                libcurl4-openssl-dev            \
-                protobuf-compiler               \
-                libprotobuf-dev                 \
-                libboost-dev                    \
-                libboost-program-options-dev    \
-                libzstd-dev                     \
-                libsnappy-dev                   \
-                libgmock-dev                    \
-                libgtest-dev
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
+          cmake --build . -j8
+
+      - name: Check formatting
+        run: |
+          ./vcpkg/vcpkg format-manifest vcpkg.json
+          if [[ $(git diff | wc -l) -gt 0 ]]; then
+              echo "Please run `./vcpkg/vcpkg format-manifest vcpkg.json` to reformat vcpkg.json"
+          fi
+          make check-format
+
+      - name: Build tests
+        run: |
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON
+          cmake --build . -j8
 
       - name: Install gtest-parallel
         run: |
           sudo curl -o /gtest-parallel https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py 
 
-      - name: CMake
-        run: cmake . -DBUILD_PERF_TOOLS=ON
-
-      - name: Check formatting
-        run: make check-format
-
-      - name: Build
-        run: make -j8
-
-      - name: Start Pulsar service
-        run: ./pulsar-test-service-start.sh
-
       - name: Run unit tests
-        run: ./run-unit-tests.sh
+        run: RETRY_FAILED=3 ./run-unit-tests.sh
 
-      - name: Stop Pulsar service
-        run: ./pulsar-test-service-stop.sh
+      - name: Build perf tools
+        run: |
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
+          cmake --build . -j8
 
-
-  cpp-build-centos7:
-    name: Build CPP Client on CentOS7
-    needs: unit-tests
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
+  cpp20-build:
+    name: Build with the C++20 standard
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
-
-      - name: build cpp client on centos 7
+        uses: actions/checkout@v3
+      - name: Install deps
         run: |
-          echo "Build C++ client library on CentOS 7"
-          ./docker-build-centos7.sh
+          sudo apt-get update -y
+          sudo apt-get install -y libcurl4-openssl-dev libssl-dev \
+            protobuf-compiler libprotobuf-dev libboost-dev \
+            libboost-dev libboost-program-options-dev \
+            libzstd-dev libsnappy-dev libgmock-dev libgtest-dev
+      - name: CMake
+        run: cmake -B build -DBUILD_PERF_TOOLS=ON -DCMAKE_CXX_STANDARD=20
+      - name: Build
+        run: |
+          cmake --build build -j8 --target pulsarShared pulsarStatic
+          cmake --build build -j8
 
   cpp-build-windows:
     timeout-minutes: 120
@@ -96,31 +130,30 @@ jobs:
     runs-on: ${{ matrix.os }}
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+      INSTALL_DIR: 'C:\\pulsar-cpp'
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: 'Windows x64'
-            os: windows-2022
-            triplet: x64-windows
-            vcpkg_dir: 'C:\vcpkg'
+            os: windows-2019
+            triplet: x64-windows-static
             suffix: 'windows-win64'
-            generator: 'Visual Studio 17 2022'
+            generator: 'Visual Studio 16 2019'
             arch: '-A x64'
           - name: 'Windows x86'
-            os: windows-2022
-            triplet: x86-windows
-            vcpkg_dir: 'C:\vcpkg'
+            os: windows-2019
+            triplet: x86-windows-static
             suffix: 'windows-win32'
-            generator: 'Visual Studio 17 2022'
+            generator: 'Visual Studio 16 2019'
             arch: '-A Win32'
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Restore vcpkg and its artifacts.
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         id: vcpkg-cache
         with:
           path: |
@@ -131,7 +164,7 @@ jobs:
             !${{ env.VCPKG_ROOT }}/packages
             !${{ env.VCPKG_ROOT }}/downloads
           key: |
-            ${{ runner.os }}-${{ matrix.triplet}}-${{ hashFiles( 'pulsar-client-cpp/vcpkg.json' ) }}
+            ${{ runner.os }}-${{ matrix.triplet}}-${{ hashFiles( 'vcpkg.json' ) }}
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
@@ -151,57 +184,86 @@ jobs:
         run: |
           ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }}
 
-      - name: Configure (default)
-
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            cmake \
-              -B ./build-0 \
-              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
-              -DBUILD_TESTS=OFF \
-              -DVCPKG_TRIPLET=${{ matrix.triplet }} \
-              -DCMAKE_BUILD_TYPE=Release \
-              -S .
-          fi
-
-      - name: Compile
-        shell: bash
-        run: |
-          if [ "$RUNNER_OS" == "Windows" ]; then
-            cmake --build ./build-0 --parallel --config Release
-          fi
-
-      - name: Configure (dynamic library only)
+      - name: Configure
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
             cmake \
               -B ./build-1 \
               -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DUSE_ASIO=ON \
               -DBUILD_TESTS=OFF \
-              -DVCPKG_TRIPLET=${{ matrix.triplet }} \
-              -DCMAKE_BUILD_TYPE=Release \
-              -DBUILD_STATIC_LIB=OFF \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
+              -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
               -S .
           fi
 
-      - name: Compile
+      - name: Install
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
             cmake --build ./build-1 --parallel --config Release
+            cmake --install ./build-1
           fi
 
-  deb-packaging:
-    name: Build Debian Package
-    runs-on: ubuntu-20.04
+      - name: Test examples
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cd win-examples
+            cmake \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DLINK_STATIC=OFF \
+              -DCMAKE_PREFIX_PATH=${{ env.INSTALL_DIR }} \
+              -B build-dynamic
+            cmake --build build-dynamic --config Release
+            cmake \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DLINK_STATIC=ON \
+              -DCMAKE_PREFIX_PATH=${{ env.INSTALL_DIR }} \
+              -B build-static
+            cmake --build build-static --config Release
+            ./build-static/Release/win-example.exe
+          fi
+
+      - name: Build (Debug)
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            cmake \
+              -B ./build-2 \
+              -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+              -DUSE_ASIO=ON \
+              -DBUILD_TESTS=OFF \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
+              -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
+              -DCMAKE_BUILD_TYPE=Debug \
+              -S .
+            cmake --build ./build-2 --parallel --config Debug
+          fi
+
+  package:
+    name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
+    runs-on: ubuntu-22.04
     needs: unit-tests
-    timeout-minutes: 120
+    timeout-minutes: 500
+
+    strategy:
+      fail-fast: true
+      matrix:
+        pkg:
+          - { name: 'RPM', type: 'rpm', path: 'pkg/rpm/RPMS' }
+          - { name: 'Deb', type: 'deb', path: 'pkg/deb/BUILD/DEB' }
+          - { name: 'Alpine', type: 'apk', path: 'pkg/apk/build' }
+        cpu:
+          - { arch: 'x86_64', platform: 'x86_64' }
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
@@ -212,72 +274,65 @@ jobs:
       - name: Build dependencies Docker image
         uses: docker/build-push-action@v3
         with:
-          context: ./pkg/deb
+          context: ./pkg/${{matrix.pkg.type}}
           load: true
-          tags: build-deb-x86_64:latest
-          build-args: PLATFORM=x86_64
+          tags: build:latest
+          platforms: linux/${{matrix.cpu.platform}}
+          build-args: PLATFORM=${{matrix.cpu.arch}}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-x86_64.sh build-deb-x86_64:latest
+      - name: Build packages
+        run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
 
-
-  rpm-packaging:
-    name: Build RPM Package
-    runs-on: ubuntu-20.04
-    needs: unit-tests
+  cpp-build-macos:
     timeout-minutes: 120
-
+    name: Build CPP Client on macOS
+    runs-on: macos-12
+    needs: unit-tests
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
+      - name: Install dependencies
+        run: brew install openssl protobuf boost zstd snappy googletest
 
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
+      - name: Configure (default)
+        shell: bash
+        run: cmake -B ./build-macos -S .
 
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/rpm
-          load: true
-          tags: build-rpm-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Compile
+        shell: bash
+        run: |
+          cmake --build ./build-macos --parallel --config Release
 
-      - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-x86_64.sh build-rpm-x86_64:latest
-
-
-  apk-packaging:
-    name: Build Alpine Linux APK Package
-    runs-on: ubuntu-20.04
-    needs: unit-tests
+  cpp-build-macos-static:
     timeout-minutes: 120
-
+    name: Build CPP Client on macOS with static dependencies
+    runs-on: macos-12
+    needs: unit-tests
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
+      - name: Build libraries
+        run: ./pkg/mac/build-static-library.sh
 
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
+      - name: Test static libraries
+        run: |
+          export PULSAR_DIR=$PWD/pkg/mac/.install
+          echo "Build with static library"
+          clang++ win-examples/example.cc -o static.out -std=c++11 -I $PULSAR_DIR/include $PULSAR_DIR/lib/libpulsarwithdeps.a
+          ./static.out
+          echo "Build with dynamic library"
+          clang++ win-examples/example.cc -o dynamic.out -std=c++11 -I $PULSAR_DIR/include -L $PULSAR_DIR/lib -Wl,-rpath $PULSAR_DIR/lib -lpulsar
+          ./dynamic.out
 
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/apk
-          load: true
-          tags: build-apk-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+  # Job that will be required to complete and depends on all the other jobs
+  check-completion:
+    name: Check Completion
+    runs-on: ubuntu-latest
+    needs: [wireshark-dissector-build, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
 
-      - name: Build APK packages
-        run: pkg/apk/docker-build-apk-x86_64.sh build-apk-x86_64:latest
+    steps:
+      - run: true

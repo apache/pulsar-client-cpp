@@ -17,11 +17,11 @@
 # under the License.
 #
 
-boost : 1.80.0
+boost : 1.83.0
 cmake: 3.24.2
 protobuf: 3.20.0
 zlib: 1.2.12
 zstd: 1.5.2
 snappy: 1.1.9
-openssl: 1.1.1q
-curl: 7.85.0
+openssl: 1.1.1v
+curl: 8.4.0

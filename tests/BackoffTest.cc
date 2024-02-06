@@ -17,47 +17,59 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <time.h>
+
 #include <thread>
-#include "Backoff.h"
+
 #include "PulsarFriend.h"
+#include "lib/Backoff.h"
+#include "lib/ClientConnection.h"
+#include "lib/TimeUtils.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 using namespace pulsar;
-using boost::posix_time::milliseconds;
-using boost::posix_time::seconds;
+using std::chrono::milliseconds;
+using std::chrono::seconds;
 
 static bool checkExactAndDecrementTimer(Backoff& backoff, const unsigned int& t2) {
-    const unsigned int& t1 = backoff.next().total_milliseconds();
-    boost::posix_time::ptime& firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
+    auto t1 = toMillis(backoff.next());
+    auto& firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
     firstBackOffTime -= milliseconds(t2);
     return t1 == t2;
 }
 
 static bool withinTenPercentAndDecrementTimer(Backoff& backoff, const unsigned int& t2) {
-    const unsigned int& t1 = backoff.next().total_milliseconds();
-    boost::posix_time::ptime& firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
+    auto t1 = toMillis(backoff.next());
+    auto& firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
     firstBackOffTime -= milliseconds(t2);
     return (t1 >= t2 * 0.9 && t1 <= t2);
 }
 
+TEST(BackoffTest, testCurrentTimeMillis) {
+    auto t1 = TimeUtils::currentTimeMillis();
+    auto t2 = 1000L * time(nullptr);
+    ASSERT_TRUE(t1 - t2 < 1000L) << "t1: " << t1 << ", t2: " << t2;
+}
+
 TEST(BackoffTest, mandatoryStopTestNegativeTest) {
     Backoff backoff(milliseconds(100), seconds(60), milliseconds(1900));
-    ASSERT_EQ(backoff.next().total_milliseconds(), 100);
-    backoff.next().total_milliseconds();  // 200
-    backoff.next().total_milliseconds();  // 400
-    backoff.next().total_milliseconds();  // 800
+    ASSERT_EQ(toMillis(backoff.next()), 100);
+    backoff.next();  // 200
+    backoff.next();  // 400
+    backoff.next();  // 800
     ASSERT_FALSE(withinTenPercentAndDecrementTimer(backoff, 400));
 }
 
 TEST(BackoffTest, firstBackoffTimerTest) {
     Backoff backoff(milliseconds(100), seconds(60), milliseconds(1900));
-    ASSERT_EQ(backoff.next().total_milliseconds(), 100);
-    boost::posix_time::ptime firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
+    ASSERT_EQ(toMillis(backoff.next()), 100);
+    auto firstBackOffTime = PulsarFriend::getFirstBackoffTime(backoff);
     std::this_thread::sleep_for(std::chrono::milliseconds(300));
     TimeDuration diffBackOffTime = PulsarFriend::getFirstBackoffTime(backoff) - firstBackOffTime;
     ASSERT_EQ(diffBackOffTime, milliseconds(0));  // no change since reset not called
 
     backoff.reset();
-    ASSERT_EQ(backoff.next().total_milliseconds(), 100);
+    ASSERT_EQ(toMillis(backoff.next()), 100);
     diffBackOffTime = PulsarFriend::getFirstBackoffTime(backoff) - firstBackOffTime;
     ASSERT_TRUE(diffBackOffTime >= milliseconds(300) && diffBackOffTime < seconds(1));
 }

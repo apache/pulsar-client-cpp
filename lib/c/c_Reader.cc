@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <pulsar/c/reader.h>
 #include <pulsar/Reader.h>
+#include <pulsar/c/reader.h>
 
 #include "c_structs.h"
 
@@ -43,6 +43,26 @@ pulsar_result pulsar_reader_read_next_with_timeout(pulsar_reader_t *reader, puls
         (*msg)->message = message;
     }
     return (pulsar_result)res;
+}
+
+void pulsar_reader_seek_async(pulsar_reader_t *reader, pulsar_message_id_t *messageId,
+                              pulsar_result_callback callback, void *ctx) {
+    reader->reader.seekAsync(messageId->messageId,
+                             std::bind(handle_result_callback, std::placeholders::_1, callback, ctx));
+}
+
+pulsar_result pulsar_reader_seek(pulsar_reader_t *reader, pulsar_message_id_t *messageId) {
+    return (pulsar_result)reader->reader.seek(messageId->messageId);
+}
+
+void pulsar_reader_seek_by_timestamp_async(pulsar_reader_t *reader, uint64_t timestamp,
+                                           pulsar_result_callback callback, void *ctx) {
+    reader->reader.seekAsync(timestamp,
+                             std::bind(handle_result_callback, std::placeholders::_1, callback, ctx));
+}
+
+pulsar_result pulsar_reader_seek_by_timestamp(pulsar_reader_t *reader, uint64_t timestamp) {
+    return (pulsar_result)reader->reader.seek(timestamp);
 }
 
 pulsar_result pulsar_reader_close(pulsar_reader_t *reader) { return (pulsar_result)reader->reader.close(); }

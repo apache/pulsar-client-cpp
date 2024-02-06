@@ -39,25 +39,22 @@ class BatchMessageContainer : public BatchMessageContainerBase {
 
     ~BatchMessageContainer();
 
-    size_t getNumBatches() const override { return 1; }
+    bool hasMultiOpSendMsgs() const override { return false; }
 
     bool isFirstMessageToAdd(const Message& msg) const override { return batch_.empty(); }
 
     bool add(const Message& msg, const SendCallback& callback) override;
 
-    void clear() override;
-
-    Result createOpSendMsg(OpSendMsg& opSendMsg, const FlushCallback& flushCallback) const override;
-
-    std::vector<Result> createOpSendMsgs(std::vector<OpSendMsg>& opSendMsgs,
-                                         const FlushCallback& flushCallback) const override;
-
     void serialize(std::ostream& os) const override;
+
+    std::unique_ptr<OpSendMsg> createOpSendMsg(const FlushCallback& flushCallback) override;
 
    private:
     MessageAndCallbackBatch batch_;
     size_t numberOfBatchesSent_ = 0;
     double averageBatchSize_ = 0;
+
+    void clear() override;
 };
 
 }  // namespace pulsar

@@ -19,7 +19,7 @@
 BasedOnStyle: Google
 IndentWidth: 4
 ColumnLimit: 110
-SortIncludes: false
+SortIncludes: true
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterEnum: true

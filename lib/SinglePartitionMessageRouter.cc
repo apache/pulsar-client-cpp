@@ -21,6 +21,8 @@
 #include <chrono>
 #include <random>
 
+#include "Hash.h"
+
 namespace pulsar {
 SinglePartitionMessageRouter::~SinglePartitionMessageRouter() {}
 

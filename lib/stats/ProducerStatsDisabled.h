@@ -19,13 +19,13 @@
 
 #ifndef PULSAR_PRODUCER_STATS_DISABLED_HEADER
 #define PULSAR_PRODUCER_STATS_DISABLED_HEADER
-#include <lib/stats/ProducerStatsBase.h>
+#include "ProducerStatsBase.h"
 
 namespace pulsar {
 class ProducerStatsDisabled : public ProducerStatsBase {
    public:
     virtual void messageSent(const Message& msg){};
-    virtual void messageReceived(Result, const boost::posix_time::ptime&){};
+    virtual void messageReceived(Result, const ptime&){};
 };
 }  // namespace pulsar
 #endif  // PULSAR_PRODUCER_STATS_DISABLED_HEADER

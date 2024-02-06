@@ -19,10 +19,9 @@
 
 #pragma once
 
-#include <stdint.h>
-
-#include <pulsar/defines.h>
 #include <pulsar/c/message_router.h>
+#include <pulsar/defines.h>
+#include <stdint.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -78,6 +77,21 @@ typedef enum
     // Ignore crypto failure and proceed with sending unencrypted messages
     pulsar_ProducerSend
 } pulsar_producer_crypto_failure_action;
+
+typedef enum
+{
+    // By default multiple producers can publish on a topic.
+    pulsar_ProducerAccessModeShared = 0,
+    // Require exclusive access for producer.
+    // Fail immediately if there's already a producer connected.
+    pulsar_ProducerAccessModeExclusive = 1,
+    // Producer creation is pending until it can acquire exclusive access.
+    pulsar_ProducerAccessModeWaitForExclusive = 2,
+    // Acquire exclusive access for the producer.
+    // Any existing producer will be removed and invalidated immediately.
+    pulsar_ProducerAccessModeExclusiveWithFencing = 3
+
+} pulsar_producer_access_mode;
 
 typedef struct _pulsar_producer_configuration pulsar_producer_configuration_t;
 
@@ -210,6 +224,12 @@ PULSAR_PUBLIC void pulsar_producer_configuration_set_chunking_enabled(pulsar_pro
                                                                       int chunkingEnabled);
 
 PULSAR_PUBLIC int pulsar_producer_configuration_is_chunking_enabled(pulsar_producer_configuration_t *conf);
+
+PULSAR_PUBLIC pulsar_producer_access_mode
+pulsar_producer_configuration_get_access_mode(pulsar_producer_configuration_t *conf);
+
+PULSAR_PUBLIC void pulsar_producer_configuration_set_access_mode(pulsar_producer_configuration_t *conf,
+                                                                 pulsar_producer_access_mode accessMode);
 
 // const CryptoKeyReaderPtr getCryptoKeyReader() const;
 // ProducerConfiguration &setCryptoKeyReader(CryptoKeyReaderPtr cryptoKeyReader);

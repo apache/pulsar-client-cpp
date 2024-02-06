@@ -20,29 +20,36 @@
 #ifndef PULSAR_CONSUMER_STATS_IMPL_H_
 #define PULSAR_CONSUMER_STATS_IMPL_H_
 
-#include <lib/stats/ConsumerStatsBase.h>
-#include <lib/ExecutorService.h>
-#include <lib/Utils.h>
+#include <map>
+#include <memory>
+#include <mutex>
 #include <utility>
+
+#include "ConsumerStatsBase.h"
+#include "lib/AsioTimer.h"
+#include "lib/ExecutorService.h"
 namespace pulsar {
 
-class ConsumerStatsImpl : public ConsumerStatsBase {
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+
+class ConsumerStatsImpl : public std::enable_shared_from_this<ConsumerStatsImpl>, public ConsumerStatsBase {
    private:
     std::string consumerStr_;
 
     unsigned long numBytesRecieved_ = 0;
     std::map<Result, unsigned long> receivedMsgMap_;
-    std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long> ackedMsgMap_;
+    std::map<std::pair<Result, CommandAck_AckType>, unsigned long> ackedMsgMap_;
 
     unsigned long totalNumBytesRecieved_ = 0;
     std::map<Result, unsigned long> totalReceivedMsgMap_;
-    std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long> totalAckedMsgMap_;
+    std::map<std::pair<Result, CommandAck_AckType>, unsigned long> totalAckedMsgMap_;
 
-    ExecutorServicePtr executor_;
-    DeadlineTimerPtr timer_;
+    const DeadlineTimerPtr timer_;
     std::mutex mutex_;
     unsigned int statsIntervalInSeconds_;
 
+    void scheduleTimer();
     friend std::ostream& operator<<(std::ostream&, const ConsumerStatsImpl&);
     friend std::ostream& operator<<(std::ostream&, const std::map<Result, unsigned long>&);
     friend class PulsarFriend;
@@ -50,13 +57,13 @@ class ConsumerStatsImpl : public ConsumerStatsBase {
    public:
     ConsumerStatsImpl(std::string, ExecutorServicePtr, unsigned int);
     ConsumerStatsImpl(const ConsumerStatsImpl& stats);
-    void flushAndReset(const boost::system::error_code&);
-    virtual void receivedMessage(Message&, Result);
-    virtual void messageAcknowledged(Result, proto::CommandAck_AckType);
+    void flushAndReset(const ASIO_ERROR&);
+    void start() override;
+    void receivedMessage(Message&, Result) override;
+    void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums) override;
     virtual ~ConsumerStatsImpl();
 
-    const inline std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long>& getAckedMsgMap()
-        const {
+    const inline std::map<std::pair<Result, CommandAck_AckType>, unsigned long>& getAckedMsgMap() const {
         return ackedMsgMap_;
     }
 
@@ -64,8 +71,7 @@ class ConsumerStatsImpl : public ConsumerStatsBase {
 
     const inline std::map<Result, unsigned long>& getReceivedMsgMap() const { return receivedMsgMap_; }
 
-    inline const std::map<std::pair<Result, proto::CommandAck_AckType>, unsigned long>& getTotalAckedMsgMap()
-        const {
+    inline const std::map<std::pair<Result, CommandAck_AckType>, unsigned long>& getTotalAckedMsgMap() const {
         return totalAckedMsgMap_;
     }
 

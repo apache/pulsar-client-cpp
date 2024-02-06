@@ -16,12 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/Client.h>
 #include <gtest/gtest.h>
 #include <lib/LogUtils.h>
+#include <pulsar/Client.h>
+
+#include <climits>
+
 #include "NoOpsCryptoKeyReader.h"
 
 DECLARE_LOG_OBJECT()
+
+#include <pulsar/DeadLetterPolicyBuilder.h>
 
 #include "../lib/Future.h"
 #include "../lib/Utils.h"
@@ -61,6 +66,11 @@ TEST(ConsumerConfigurationTest, testDefaultConfig) {
     ASSERT_EQ(conf.getPriorityLevel(), 0);
     ASSERT_EQ(conf.getMaxPendingChunkedMessage(), 10);
     ASSERT_EQ(conf.isAutoAckOldestChunkedMessageOnQueueFull(), false);
+    ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumMessages(), -1);
+    ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumBytes(), 10 * 1024 * 1024);
+    ASSERT_EQ(conf.getBatchReceivePolicy().getTimeoutMs(), 100);
+    ASSERT_EQ(conf.isBatchIndexAckEnabled(), false);
+    ASSERT_EQ(conf.isAckReceiptEnabled(), false);
 }
 
 TEST(ConsumerConfigurationTest, testCustomConfig) {
@@ -151,6 +161,17 @@ TEST(ConsumerConfigurationTest, testCustomConfig) {
 
     conf.setAutoAckOldestChunkedMessageOnQueueFull(true);
     ASSERT_TRUE(conf.isAutoAckOldestChunkedMessageOnQueueFull());
+
+    conf.setBatchReceivePolicy(BatchReceivePolicy(10, 10, 100));
+    ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumMessages(), 10);
+    ASSERT_EQ(conf.getBatchReceivePolicy().getMaxNumBytes(), 10);
+    ASSERT_EQ(conf.getBatchReceivePolicy().getTimeoutMs(), 100);
+
+    conf.setBatchIndexAckEnabled(true);
+    ASSERT_EQ(conf.isBatchIndexAckEnabled(), true);
+
+    conf.setAckReceiptEnabled(true);
+    ASSERT_TRUE(conf.isAckReceiptEnabled());
 }
 
 TEST(ConsumerConfigurationTest, testReadCompactPersistentExclusive) {
@@ -293,7 +314,7 @@ TEST(ConsumerConfigurationTest, testSubscriptionInitialPosition) {
     ASSERT_EQ(content1, receivedMsg.getDataAsString());
 
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
-    ASSERT_EQ(ResultAlreadyClosed, consumer.close());
+    ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
@@ -307,4 +328,16 @@ TEST(ConsumerConfigurationTest, testResetAckTimeOut) {
     // should be able to set it back to 0.
     config.setUnAckedMessagesTimeoutMs(0);
     ASSERT_EQ(0, config.getUnAckedMessagesTimeoutMs());
+}
+
+TEST(ConsumerConfigurationTest, testDeadLetterPolicy) {
+    ConsumerConfiguration config;
+    auto dlqPolicy = config.getDeadLetterPolicy();
+    ASSERT_TRUE(dlqPolicy.getDeadLetterTopic().empty());
+    ASSERT_EQ(dlqPolicy.getMaxRedeliverCount(), INT_MAX);
+    ASSERT_TRUE(dlqPolicy.getInitialSubscriptionName().empty());
+
+    config.setDeadLetterPolicy(DeadLetterPolicyBuilder().maxRedeliverCount(10).build());
+    auto dlqPolicy2 = config.getDeadLetterPolicy();
+    ASSERT_EQ(dlqPolicy2.getMaxRedeliverCount(), 10);
 }

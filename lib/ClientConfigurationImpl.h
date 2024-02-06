@@ -21,16 +21,21 @@
 
 #include <pulsar/ClientConfiguration.h>
 
+#include <chrono>
+
 namespace pulsar {
 
 struct ClientConfigurationImpl {
     AuthenticationPtr authenticationPtr{AuthFactory::Disabled()};
     uint64_t memoryLimit{0ull};
     int ioThreads{1};
-    int operationTimeoutSeconds{30};
+    int connectionsPerBroker{1};
+    std::chrono::nanoseconds operationTimeout{30L * 1000 * 1000 * 1000};
     int messageListenerThreads{1};
     int concurrentLookupRequest{50000};
-    std::string logConfFilePath;
+    int maxLookupRedirects{20};
+    int initialBackoffIntervalMs{100};
+    int maxBackoffIntervalMs{60000};
     bool useTls{false};
     std::string tlsPrivateKeyFilePath;
     std::string tlsCertificateFilePath;
@@ -42,6 +47,9 @@ struct ClientConfigurationImpl {
     unsigned int partitionsUpdateInterval{60};  // 1 minute
     std::string listenerName;
     int connectionTimeoutMs{10000};  // 10 seconds
+    std::string description;
+    std::string proxyServiceUrl;
+    ClientConfiguration::ProxyProtocol proxyProtocol;
 
     std::unique_ptr<LoggerFactory> takeLogger() { return std::move(loggerFactory); }
 };

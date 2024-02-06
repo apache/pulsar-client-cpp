@@ -19,15 +19,20 @@
 #ifndef _PULSAR_TOPIC_NAME_HEADER_
 #define _PULSAR_TOPIC_NAME_HEADER_
 
+#include <curl/curl.h>
 #include <pulsar/defines.h>
-#include "NamespaceName.h"
+
+#include <memory>
+#include <mutex>
+#include <string>
+
 #include "ServiceUnitId.h"
 
-#include <string>
-#include <curl/curl.h>
-#include <mutex>
-
 namespace pulsar {
+
+class NamespaceName;
+using NamespaceNamePtr = std::shared_ptr<NamespaceName>;
+
 class PULSAR_PUBLIC TopicDomain {
    public:
     static const std::string Persistent;
@@ -62,6 +67,8 @@ class PULSAR_PUBLIC TopicName : public ServiceUnitId {
     static std::shared_ptr<TopicName> get(const std::string& topicName);
     bool operator==(const TopicName& other);
     static std::string getEncodedName(const std::string& nameBeforeEncoding);
+    static std::string removeDomain(const std::string& topicName);
+    static bool containsDomain(const std::string& topicName);
     std::string getTopicPartitionName(unsigned int partition) const;
     static int getPartitionIndex(const std::string& topic);
 

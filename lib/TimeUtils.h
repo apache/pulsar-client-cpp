@@ -18,22 +18,27 @@
  */
 #pragma once
 
-#include <boost/date_time/local_time/local_time.hpp>
+#include <pulsar/defines.h>
+
 #include <atomic>
 #include <chrono>
 
-#include <pulsar/defines.h>
-
 namespace pulsar {
 
-using namespace boost::posix_time;
-using boost::posix_time::milliseconds;
-using boost::posix_time::seconds;
+using ptime = decltype(std::chrono::high_resolution_clock::now());
+using TimeDuration = std::chrono::nanoseconds;
+
+inline decltype(std::chrono::milliseconds(0).count()) toMillis(TimeDuration duration) {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+}
 
 class PULSAR_PUBLIC TimeUtils {
    public:
-    static ptime now();
-    static int64_t currentTimeMillis();
+    static ptime now() { return std::chrono::high_resolution_clock::now(); }
+
+    static int64_t currentTimeMillis() {
+        return toMillis(std::chrono::system_clock::now().time_since_epoch());
+    }
 };
 
 // This class processes a timeout with the following semantics:

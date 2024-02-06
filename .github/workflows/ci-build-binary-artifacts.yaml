@@ -29,51 +29,28 @@ concurrency:
 
 jobs:
 
-  deb-packaging-x86_64:
-    name: Build Debian Package - x86_64
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
+  package-linux:
+    name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
+    runs-on: ubuntu-22.04
+    timeout-minutes: 500
+
+    strategy:
+      fail-fast: false
+      matrix:
+        pkg:
+          - { name: 'RPM', type: 'rpm', path: 'pkg/rpm/RPMS' }
+          - { name: 'Deb', type: 'deb', path: 'pkg/deb/BUILD/DEB' }
+          - { name: 'Alpine', type: 'apk', path: 'pkg/apk/build' }
+        cpu:
+          - { arch: 'x86_64', platform: 'x86_64' }
+          - { arch: 'aarch64', platform: 'arm64' }
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/deb
-          load: true
-          tags: build-deb-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-x86_64.sh build-deb-x86_64:latest
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: deb-x86_64
-          path: pkg/deb/BUILD/DEB
-
-  deb-packaging-arm64:
-    name: Build Debian Package - Arm64
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+        uses: docker/setup-qemu-action@v2
 
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
@@ -84,163 +61,167 @@ jobs:
       - name: Build dependencies Docker image
         uses: docker/build-push-action@v3
         with:
-          context: ./pkg/deb
+          context: ./pkg/${{matrix.pkg.type}}
           load: true
-          tags: build-deb-arm64:latest
-          build-args: PLATFORM=aarch64
-          platforms: linux/arm64
+          tags: build:latest
+          platforms: linux/${{matrix.cpu.platform}}
+          build-args: PLATFORM=${{matrix.cpu.arch}}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Build Debian packages
-        run: pkg/deb/docker-build-deb-arm64.sh build-deb-arm64:latest
+      - name: Build packages
+        run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
+
+      - name: Zip artifact
+        run: zip -r ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip ${{matrix.pkg.path}}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: deb-arm64
-          path: pkg/deb/BUILD/DEB
+          name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
+          path: ${{matrix.pkg.path}}
 
-  rpm-packaging-x86_64:
-    name: Build RPM Package - x86_64
-    runs-on: ubuntu-20.04
+  package-windows:
     timeout-minutes: 120
+    name: Build CPP Client on ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    env:
+      VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
+      INSTALL_DIR: 'C:\\pulsar-cpp'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: 'Windows x64'
+            os: windows-2019
+            triplet: x64-windows-static
+            suffix: 'windows-win64'
+            generator: 'Visual Studio 16 2019'
+            arch: '-A x64'
+          - name: 'Windows x86'
+            os: windows-2019
+            triplet: x86-windows-static
+            suffix: 'windows-win32'
+            generator: 'Visual Studio 16 2019'
+            arch: '-A Win32'
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
+      - name: Restore vcpkg and its artifacts.
+        uses: actions/cache@v3
+        id: vcpkg-cache
         with:
-          context: ./pkg/rpm
-          load: true
-          tags: build-rpm-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          path: |
+            ${{ env.VCPKG_ROOT }}
+            vcpkg_installed
+            !${{ env.VCPKG_ROOT }}/.git
+            !${{ env.VCPKG_ROOT }}/buildtrees
+            !${{ env.VCPKG_ROOT }}/packages
+            !${{ env.VCPKG_ROOT }}/downloads
+          key: |
+            ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles( 'vcpkg.json' ) }}
 
-      - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-x86_64.sh build-rpm-x86_64:latest
+      - name: Get vcpkg(windows)
+        if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        run: |
+          cd ${{ github.workspace }}
+          mkdir build -force
+          git clone https://github.com/Microsoft/vcpkg.git
+          cd vcpkg
+          .\bootstrap-vcpkg.bat
+
+      - name: remove system vcpkg(windows)
+        if: runner.os == 'Windows'
+        run: rm -rf "$VCPKG_INSTALLATION_ROOT"
+        shell: bash
+
+      - name: Install vcpkg packages
+        run: |
+          ${{ env.VCPKG_ROOT }}\vcpkg.exe install --triplet ${{ matrix.triplet }} > dependencies.txt
+
+      - name: Build and package
+        shell: bash
+        run: |
+          BUILD_DIR=./build
+          mkdir -p $BUILD_DIR
+          cmake -B $BUILD_DIR \
+            -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DUSE_ASIO=ON \
+            -DBUILD_TESTS=OFF \
+            -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_DIR }} \
+            -S .
+          cmake --build $BUILD_DIR --parallel --config Release
+          cmake --install $BUILD_DIR
+          cp dependencies.txt ${{ env.INSTALL_DIR }}
+
+      - name: Zip artifact
+        shell: bash
+        run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}.zip ${{ env.INSTALL_DIR }}/*
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: rpm-x86_64
-          path: pkg/rpm/RPMS
+          name: ${{ matrix.triplet }}
+          path: ${{ env.INSTALL_DIR }}
 
-  rpm-packaging-arm64:
-    name: Build RPM Package - arm64
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
+      - name: Build and package (Debug)
+        shell: bash
+        run: |
+          BUILD_DIR=./build-debug
+          INSTALL_DIR_DEBUG=${{ env.INSTALL_DIR }}-Debug
+          mkdir -p $BUILD_DIR
+          cmake -B $BUILD_DIR \
+            -G "${{ matrix.generator }}" ${{ matrix.arch }} \
+            -DUSE_ASIO=ON \
+            -DBUILD_TESTS=OFF \
+            -DVCPKG_TRIPLET=${{ matrix.triplet }} \
+            -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR_DEBUG \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -S .
+          cmake --build $BUILD_DIR --parallel --config Debug
+          cmake --install $BUILD_DIR --config Debug
+          cp dependencies.txt $INSTALL_DIR_DEBUG
+
+      - name: Zip artifact (Debug)
+        shell: bash
+        run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}-Debug.zip ${{ env.INSTALL_DIR }}-Debug/*
+
+      - name: Upload artifacts (Debug)
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.triplet }}-Debug
+          path: ${{ env.INSTALL_DIR }}-Debug
+
+  package-macos:
+    name: Build macOS libraries
+    runs-on: macos-latest
+    timeout-minutes: 500
+
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, arm64]
 
     steps:
       - name: checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
+      - name: Install dependencies
+        run: |
+          export ARCH=${{ matrix.arch }}
+          ./pkg/mac/build-static-library.sh
 
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/rpm
-          load: true
-          tags: build-rpm-arm64:latest
-          build-args: PLATFORM=aarch64
-          platforms: linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build RPM packages
-        run: pkg/rpm/docker-build-rpm-arm64.sh build-rpm-arm64:latest
+      - name: Zip artifact
+        run: |
+          cd ./pkg/mac/.install
+          zip -r macos-${{ matrix.arch }}.zip ./include/pulsar/* ./lib/*
+          cp macos-${{ matrix.arch }}.zip ../../../
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: rpm-arm64
-          path: pkg/rpm/RPMS
-
-  apk-packaging-x86_64:
-    name: Build Alpine Linux APK Package - x86_64
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/apk
-          load: true
-          tags: build-apk-x86_64:latest
-          build-args: PLATFORM=x86_64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build APK packages
-        run: pkg/apk/docker-build-apk-x86_64.sh build-apk-x86_64:latest
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: apk-x86_64
-          path: pkg/apk/build/x86_64
-
-  apk-packaging-arm64:
-    name: Build Alpine Linux APK Package - arm64
-    runs-on: ubuntu-20.04
-    timeout-minutes: 120
-
-    steps:
-      - name: checkout
-        uses: actions/checkout@v2
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v1
-
-      - name: Package Pulsar source
-        run: build-support/generate-source-archive.sh
-
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
-      - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
-        with:
-          context: ./pkg/apk
-          load: true
-          tags: build-apk-arm64:latest
-          build-args: PLATFORM=aarch64
-          platforms: linux/arm64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build APK packages
-        run: pkg/apk/docker-build-apk-arm64.sh build-apk-arm64:latest
-
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: apk-arm64
-          path: pkg/apk/build/aarch64
+          name: macos-${{ matrix.arch }}.zip
+          path: macos-${{ matrix.arch }}.zip

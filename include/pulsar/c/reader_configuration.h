@@ -19,9 +19,11 @@
 
 #pragma once
 
-#include <pulsar/defines.h>
 #include <pulsar/c/message.h>
 #include <pulsar/c/reader.h>
+#include <pulsar/defines.h>
+
+#include "consumer_configuration.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -88,6 +90,16 @@ PULSAR_PUBLIC void pulsar_reader_configuration_set_read_compacted(
     pulsar_reader_configuration_t *configuration, int readCompacted);
 
 PULSAR_PUBLIC int pulsar_reader_configuration_is_read_compacted(pulsar_reader_configuration_t *configuration);
+
+PULSAR_PUBLIC void pulsar_reader_configuration_set_default_crypto_key_reader(
+    pulsar_reader_configuration_t *configuration, const char *public_key_path, const char *private_key_path);
+
+PULSAR_PUBLIC pulsar_consumer_crypto_failure_action
+pulsar_reader_configuration_get_crypto_failure_action(pulsar_reader_configuration_t *configuration);
+
+PULSAR_PUBLIC void pulsar_reader_configuration_set_crypto_failure_action(
+    pulsar_reader_configuration_t *configuration,
+    pulsar_consumer_crypto_failure_action crypto_failure_action);
 
 #ifdef __cplusplus
 }

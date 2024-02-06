@@ -20,27 +20,26 @@
 DECLARE_LOG_OBJECT()
 
 #include <chrono>
-#include <thread>
-#include <iostream>
 #include <fstream>
-#include <mutex>
 #include <functional>
+#include <iostream>
+#include <mutex>
+#include <thread>
 
 using namespace std::chrono;
 
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/program_options.hpp>
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/p_square_quantile.hpp>
+#include <boost/accumulators/statistics/stats.hpp>
+#include <boost/date_time/posix_time/posix_time.hpp>
+#include <boost/program_options.hpp>
 namespace po = boost::program_options;
 using namespace boost::accumulators;
 
 #include <lib/Latch.h>
-
-#include <pulsar/Client.h>
 #include <pulsar/Authentication.h>
+#include <pulsar/Client.h>
 using namespace pulsar;
 
 static int64_t currentTimeMillis() {
@@ -68,19 +67,11 @@ struct Arguments {
     int receiverQueueSize;
     int ioThreads;
     int listenerThreads;
-    bool poolConnections;
+    int connectionsPerBroker;
+
     std::string encKeyName;
     std::string encKeyValueFile;
 };
-
-namespace pulsar {
-class PulsarFriend {
-   public:
-    static Client getClient(const std::string& url, const ClientConfiguration conf, bool poolConnections) {
-        return Client(url, conf, poolConnections);
-    }
-};
-}  // namespace pulsar
 
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 4
 // Used for gcc-4.4.7 with boost-1.41
@@ -168,6 +159,7 @@ void startPerfConsumer(const Arguments& args) {
         std::string tlsTrustCertsFilePath(args.tlsTrustCertsFilePath);
         conf.setTlsTrustCertsFilePath(tlsTrustCertsFilePath);
     }
+    conf.setConnectionsPerBroker(args.connectionsPerBroker);
     conf.setIOThreads(args.ioThreads);
     conf.setMessageListenerThreads(args.listenerThreads);
     if (!args.authPlugin.empty()) {
@@ -175,7 +167,7 @@ void startPerfConsumer(const Arguments& args) {
         conf.setAuth(auth);
     }
 
-    Client client(pulsar::PulsarFriend::getClient(args.serviceURL, conf, args.poolConnections));
+    Client client(args.serviceURL, conf);
 
     ConsumerConfiguration consumerConf;
     consumerConf.setMessageListener(messageListener);
@@ -300,8 +292,8 @@ int main(int argc, char** argv) {
         ("listener-threads,l", po::value<int>(&args.listenerThreads)->default_value(1),
          "Number of listener threads")  //
 
-        ("pool-connections", po::value<bool>(&args.poolConnections)->default_value(false),
-         "whether pool connections used")  //
+        ("connections-per-broker", po::value<int>(&args.connectionsPerBroker)->default_value(1),
+         "Number of connections per each broker")  //
 
         ("encryption-key-name,k", po::value<std::string>(&args.encKeyName)->default_value(""),
          "The private key name to decrypt payload")  //

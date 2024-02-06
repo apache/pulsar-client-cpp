@@ -19,10 +19,11 @@
 #ifndef PRODUCER_HPP_
 #define PRODUCER_HPP_
 
-#include <pulsar/defines.h>
 #include <pulsar/ProducerConfiguration.h>
-#include <memory>
+#include <pulsar/defines.h>
 #include <stdint.h>
+
+#include <memory>
 
 namespace pulsar {
 class ProducerImplBase;
@@ -165,6 +166,7 @@ class PULSAR_PUBLIC Producer {
     friend class ClientImpl;
     friend class PulsarFriend;
     friend class PulsarWrapper;
+    friend class ProducerImpl;
 
     ProducerImplBasePtr impl_;
 

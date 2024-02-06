@@ -17,11 +17,11 @@
  * under the License.
  */
 
-#include <pulsar/c/reader.h>
-#include <pulsar/c/message.h>
-#include <pulsar/c/reader_configuration.h>
-#include <pulsar/ReaderConfiguration.h>
 #include <pulsar/Reader.h>
+#include <pulsar/ReaderConfiguration.h>
+#include <pulsar/c/message.h>
+#include <pulsar/c/reader.h>
+#include <pulsar/c/reader_configuration.h>
 
 #include "c_structs.h"
 
@@ -85,4 +85,23 @@ void pulsar_reader_configuration_set_read_compacted(pulsar_reader_configuration_
 
 int pulsar_reader_configuration_is_read_compacted(pulsar_reader_configuration_t *configuration) {
     return configuration->conf.isReadCompacted();
+}
+
+void pulsar_reader_configuration_set_default_crypto_key_reader(pulsar_reader_configuration_t *configuration,
+                                                               const char *public_key_path,
+                                                               const char *private_key_path) {
+    std::shared_ptr<pulsar::DefaultCryptoKeyReader> keyReader =
+        std::make_shared<pulsar::DefaultCryptoKeyReader>(public_key_path, private_key_path);
+    configuration->conf.setCryptoKeyReader(keyReader);
+}
+
+pulsar_consumer_crypto_failure_action pulsar_reader_configuration_get_crypto_failure_action(
+    pulsar_reader_configuration_t *configuration) {
+    return (pulsar_consumer_crypto_failure_action)configuration->conf.getCryptoFailureAction();
+}
+
+void pulsar_reader_configuration_set_crypto_failure_action(
+    pulsar_reader_configuration_t *configuration,
+    pulsar_consumer_crypto_failure_action crypto_failure_action) {
+    configuration->conf.setCryptoFailureAction((pulsar::ConsumerCryptoFailureAction)crypto_failure_action);
 }

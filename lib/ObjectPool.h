@@ -19,9 +19,8 @@
 #ifndef LIB_OBJECTPOOL_H_
 #define LIB_OBJECTPOOL_H_
 
-#include <algorithm>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
 namespace pulsar {
 
@@ -224,8 +223,8 @@ class ObjectPool {
     }
 
    private:
-    ObjectPool<Type, MaxSize>(const ObjectPool<Type, MaxSize>&);
-    ObjectPool<Type, MaxSize>& operator=(const ObjectPool<Type, MaxSize>&);
+    ObjectPool(const ObjectPool<Type, MaxSize>&);
+    ObjectPool& operator=(const ObjectPool<Type, MaxSize>&);
 };
 }  // namespace pulsar
 #endif /* LIB_OBJECTPOOL_H_ */

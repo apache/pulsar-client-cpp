@@ -17,19 +17,17 @@
  * under the License.
  */
 
-#include <pulsar/Authentication.h>
-
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
-#include <boost/asio.hpp>
-#include <boost/algorithm/string.hpp>
-#include <lib/LogUtils.h>
 
-#include <string>
+#include <boost/algorithm/string.hpp>
 #include <fstream>
 #include <streambuf>
+#include <string>
 
 #include "lib/Future.h"
+#include "lib/LogUtils.h"
 #include "lib/Utils.h"
 DECLARE_LOG_OBJECT()
 
@@ -38,7 +36,11 @@ using namespace pulsar;
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string serviceUrlHttp = "http://localhost:8080";
 
-static const std::string tokenPath = "../.test-token.txt";
+#ifndef TOKEN_PATH
+#error "TOKEN_PATH is not specified"
+#endif
+
+static const std::string tokenPath = TOKEN_PATH;
 
 static std::string getToken() {
     std::ifstream file(tokenPath);

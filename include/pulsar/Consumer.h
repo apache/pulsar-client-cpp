@@ -19,10 +19,12 @@
 #ifndef CONSUMER_HPP_
 #define CONSUMER_HPP_
 
-#include <iostream>
-#include <pulsar/defines.h>
 #include <pulsar/BrokerConsumerStats.h>
 #include <pulsar/ConsumerConfiguration.h>
+#include <pulsar/TypedMessage.h>
+#include <pulsar/defines.h>
+
+#include <iostream>
 
 namespace pulsar {
 class PulsarWrapper;
@@ -46,9 +48,14 @@ class PULSAR_PUBLIC Consumer {
     const std::string& getTopic() const;
 
     /**
-     * @return the consumer name
+     * @return the subscription name
      */
     const std::string& getSubscriptionName() const;
+
+    /**
+     * @return the consumer name
+     */
+    const std::string& getConsumerName() const;
 
     /**
      * Unsubscribe the current consumer from the topic.
@@ -90,6 +97,14 @@ class PULSAR_PUBLIC Consumer {
      */
     Result receive(Message& msg);
 
+    template <typename T>
+    Result receive(TypedMessage<T>& msg, typename TypedMessage<T>::Decoder decoder) {
+        Message rawMsg;
+        auto result = receive(rawMsg);
+        msg = TypedMessage<T>{rawMsg, decoder};
+        return result;
+    }
+
     /**
      *
      * @param msg a non-const reference where the received message will be copied
@@ -99,6 +114,14 @@ class PULSAR_PUBLIC Consumer {
      * @return ResultInvalidConfiguration if a message listener had been set in the configuration
      */
     Result receive(Message& msg, int timeoutMs);
+
+    template <typename T>
+    Result receive(TypedMessage<T>& msg, int timeoutMs, typename TypedMessage<T>::Decoder decoder) {
+        Message rawMsg;
+        auto result = receive(rawMsg, timeoutMs);
+        msg = TypedMessage<T>{rawMsg, decoder};
+        return result;
+    }
 
     /**
      * Receive a single message
@@ -112,6 +135,39 @@ class PULSAR_PUBLIC Consumer {
      * @param ReceiveCallback will be completed when message is available
      */
     void receiveAsync(ReceiveCallback callback);
+
+    template <typename T>
+    void receiveAsync(std::function<void(Result result, const TypedMessage<T>&)> callback,
+                      typename TypedMessage<T>::Decoder decoder) {
+        receiveAsync([callback, decoder](Result result, const Message& msg) {
+            callback(result, TypedMessage<T>{msg, decoder});
+        });
+    }
+
+    /**
+     * Batch receiving messages.
+     *
+     * <p>This calls blocks until has enough messages or wait timeout, more details to see {@link
+     * BatchReceivePolicy}.
+     *
+     * @param msgs a non-const reference where the received messages will be copied
+     * @return ResultOk when a message is received
+     * @return ResultInvalidConfiguration if a message listener had been set in the configuration
+     */
+    Result batchReceive(Messages& msgs);
+
+    /**
+     * Async Batch receiving messages.
+     * <p>
+     * Retrieves a message when it will be available and completes callback with received message.
+     * </p>
+     * <p>
+     * batchReceiveAsync() should be called subsequently once callback gets completed with received message.
+     * Else it creates <i> backlog of receive requests </i> in the application.
+     * </p>
+     * @param BatchReceiveCallback will be completed when messages are available.
+     */
+    void batchReceiveAsync(BatchReceiveCallback callback);
 
     /**
      * Acknowledge the reception of a single message.
@@ -139,6 +195,12 @@ class PULSAR_PUBLIC Consumer {
     Result acknowledge(const MessageId& messageId);
 
     /**
+     * Acknowledge the consumption of a list of message.
+     * @param messageIdList
+     */
+    Result acknowledge(const MessageIdList& messageIdList);
+
+    /**
      * Asynchronously acknowledge the reception of a single message.
      *
      * This method will initiate the operation and return immediately. The provided callback
@@ -159,6 +221,14 @@ class PULSAR_PUBLIC Consumer {
      * @param callback the callback that is triggered when the message has been acknowledged or not
      */
     void acknowledgeAsync(const MessageId& messageId, ResultCallback callback);
+
+    /**
+     * Asynchronously acknowledge the consumption of a list of message.
+     * @param messageIdList
+     * @param callback the callback that is triggered when the message has been acknowledged or not
+     * @return
+     */
+    void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback);
 
     /**
      * Acknowledge the reception of all the messages in the stream up to (and including)

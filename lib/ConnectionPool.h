@@ -19,23 +19,30 @@
 #ifndef _PULSAR_CONNECTION_POOL_HEADER_
 #define _PULSAR_CONNECTION_POOL_HEADER_
 
-#include <pulsar/defines.h>
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/Result.h>
-
-#include "ClientConnection.h"
+#include <pulsar/defines.h>
 
 #include <atomic>
-#include <string>
 #include <map>
+#include <memory>
 #include <mutex>
+#include <random>
+#include <string>
+
+#include "Future.h"
 namespace pulsar {
 
+class ClientConnection;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
 class ExecutorService;
+class ExecutorServiceProvider;
+using ExecutorServiceProviderPtr = std::shared_ptr<ExecutorServiceProvider>;
 
 class PULSAR_PUBLIC ConnectionPool {
    public:
     ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
-                   const AuthenticationPtr& authentication, bool poolConnections = true);
+                   const AuthenticationPtr& authentication, const std::string& clientVersion);
 
     /**
      * Close the connection pool.
@@ -43,6 +50,8 @@ class PULSAR_PUBLIC ConnectionPool {
      * @return false if it has already been closed.
      */
     bool close();
+
+    void remove(const std::string& key, ClientConnection* value);
 
     /**
      * Get a connection from the pool.
@@ -56,28 +65,43 @@ class PULSAR_PUBLIC ConnectionPool {
      * a proxy layer. Essentially, the pool is using the logical address as a way to
      * decide whether to reuse a particular connection.
      *
+     * There could be many connections to the same broker, so this pool uses an integer key as the suffix of
+     * the key that represents the connection.
+     *
      * @param logicalAddress the address to use as the broker tag
      * @param physicalAddress the real address where the TCP connection should be made
+     * @param keySuffix the key suffix to choose which connection on the same broker
      * @return a future that will produce the ClientCnx object
      */
     Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
-                                                               const std::string& physicalAddress);
+                                                               const std::string& physicalAddress,
+                                                               size_t keySuffix);
+
+    Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
+                                                               const std::string& physicalAddress) {
+        return getConnectionAsync(logicalAddress, physicalAddress, generateRandomIndex());
+    }
 
     Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& address) {
         return getConnectionAsync(address, address);
     }
 
+    size_t generateRandomIndex() { return randomDistribution_(randomEngine_); }
+
    private:
     ClientConfiguration clientConfiguration_;
     ExecutorServiceProviderPtr executorProvider_;
     AuthenticationPtr authentication_;
-    typedef std::map<std::string, ClientConnectionWeakPtr> PoolMap;
+    typedef std::map<std::string, std::shared_ptr<ClientConnection>> PoolMap;
     PoolMap pool_;
-    bool poolConnections_;
-    std::mutex mutex_;
+    const std::string clientVersion_;
+    mutable std::recursive_mutex mutex_;
     std::atomic_bool closed_{false};
 
-    friend class ConnectionPoolTest;
+    std::uniform_int_distribution<> randomDistribution_;
+    std::mt19937 randomEngine_;
+
+    friend class PulsarFriend;
 };
 }  // namespace pulsar
 #endif  //_PULSAR_CONNECTION_POOL_HEADER_

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/ReaderConfigurationImpl.h>
+#include "ReaderConfigurationImpl.h"
 
 namespace pulsar {
 
@@ -119,6 +119,13 @@ ReaderConfiguration& ReaderConfiguration::setCryptoFailureAction(ConsumerCryptoF
     impl_->cryptoFailureAction = action;
     return *this;
 }
+
+ReaderConfiguration& ReaderConfiguration::setStartMessageIdInclusive(bool startMessageIdInclusive) {
+    impl_->startMessageIdInclusive = startMessageIdInclusive;
+    return *this;
+}
+
+bool ReaderConfiguration::isStartMessageIdInclusive() const { return impl_->startMessageIdInclusive; }
 
 bool ReaderConfiguration::hasProperty(const std::string& name) const {
     const auto& properties = impl_->properties;

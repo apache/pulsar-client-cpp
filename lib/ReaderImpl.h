@@ -20,7 +20,15 @@
 #ifndef LIB_READERIMPL_H_
 #define LIB_READERIMPL_H_
 
-#include "ConsumerImpl.h"
+#include <pulsar/Client.h>
+#include <pulsar/ConsumerConfiguration.h>
+#include <pulsar/ReaderConfiguration.h>
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+
+#include "Future.h"
 
 namespace pulsar {
 
@@ -28,6 +36,17 @@ class ReaderImpl;
 
 typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
 typedef std::weak_ptr<ReaderImpl> ReaderImplWeakPtr;
+
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
+class ConsumerImplBase;
+using ConsumerImplBaseWeakPtr = std::weak_ptr<ConsumerImplBase>;
+class ConsumerImpl;
+using ConsumerImplPtr = std::shared_ptr<ConsumerImpl>;
+using ConsumerImplWeakPtr = std::weak_ptr<ConsumerImpl>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 namespace test {
 
@@ -39,8 +58,9 @@ extern PULSAR_PUBLIC ConsumerConfiguration consumerConfigOfReader;
 
 class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl> {
    public:
-    ReaderImpl(const ClientImplPtr client, const std::string& topic, const ReaderConfiguration& conf,
-               const ExecutorServicePtr listenerExecutor, ReaderCallback readerCreatedCallback);
+    ReaderImpl(const ClientImplPtr client, const std::string& topic, int partitions,
+               const ReaderConfiguration& conf, const ExecutorServicePtr listenerExecutor,
+               ReaderCallback readerCreatedCallback);
 
     void start(const MessageId& startMessageId, std::function<void(const ConsumerImplBaseWeakPtr&)> callback);
 
@@ -48,12 +68,13 @@ class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl>
 
     Result readNext(Message& msg);
     Result readNext(Message& msg, int timeoutMs);
+    void readNextAsync(ReceiveCallback callback);
 
     void closeAsync(ResultCallback callback);
 
     Future<Result, ReaderImplWeakPtr> getReaderCreatedFuture();
 
-    ConsumerImplBaseWeakPtr getConsumer() const noexcept { return consumer_; }
+    ConsumerImplBasePtr getConsumer() const noexcept { return consumer_; }
 
     void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
 
@@ -70,9 +91,10 @@ class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl>
     void acknowledgeIfNecessary(Result result, const Message& msg);
 
     std::string topic_;
+    int partitions_;
     ClientImplWeakPtr client_;
     ReaderConfiguration readerConf_;
-    ConsumerImplPtr consumer_;
+    ConsumerImplBasePtr consumer_;
     ReaderCallback readerCreatedCallback_;
     ReaderListener readerListener_;
 };

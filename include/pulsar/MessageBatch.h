@@ -19,10 +19,10 @@
 
 #ifndef LIB_MESSAGE_BATCH_H
 #define LIB_MESSAGE_BATCH_H
-#include <vector>
-
-#include <pulsar/defines.h>
 #include <pulsar/Message.h>
+#include <pulsar/defines.h>
+
+#include <vector>
 
 namespace pulsar {
 

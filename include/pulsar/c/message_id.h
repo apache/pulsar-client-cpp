@@ -23,9 +23,9 @@
 extern "C" {
 #endif
 
+#include <pulsar/defines.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <pulsar/defines.h>
 
 typedef struct _pulsar_message_id pulsar_message_id_t;
 

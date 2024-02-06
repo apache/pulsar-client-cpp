@@ -23,7 +23,55 @@ set -e
 ROOT_DIR=$(git rev-parse --show-toplevel)
 cd $ROOT_DIR
 
-pushd tests
+if [[ ! $CMAKE_BUILD_DIRECTORY ]]; then
+    CMAKE_BUILD_DIRECTORY=.
+fi
+
+export http_proxy=
+export https_proxy=
+
+
+# Run ExtensibleLoadManager tests
+docker compose -f tests/extensibleLM/docker-compose.yml up -d
+until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
+sleep 5
+$CMAKE_BUILD_DIRECTORY/tests/ExtensibleLoadManagerTest
+docker compose -f tests/extensibleLM/docker-compose.yml down
+
+# Run OAuth2 tests
+docker compose -f tests/oauth2/docker-compose.yml up -d
+# Wait until the namespace is created, currently there is no good way to check it
+# because it's hard to configure OAuth2 authentication via CLI.
+sleep 15
+$CMAKE_BUILD_DIRECTORY/tests/Oauth2Test --gtest_filter='-*testTlsTrustFilePath'
+if [[ -f /etc/ssl/certs/ca-certificates.crt ]]; then
+    sudo mv /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/my-cert.crt
+fi
+$CMAKE_BUILD_DIRECTORY/tests/Oauth2Test --gtest_filter='*testTlsTrustFilePath'
+if [[ -f /etc/ssl/certs/my-cert.crt ]]; then
+    sudo mv /etc/ssl/certs/my-cert.crt /etc/ssl/certs/ca-certificates.crt
+fi
+docker compose -f tests/oauth2/docker-compose.yml down
+
+# Run BrokerMetadata tests
+docker compose -f tests/brokermetadata/docker-compose.yml up -d
+until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
+sleep 5
+$CMAKE_BUILD_DIRECTORY/tests/BrokerMetadataTest
+docker compose -f tests/brokermetadata/docker-compose.yml down
+
+docker compose -f tests/chunkdedup/docker-compose.yml up -d
+until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
+sleep 5
+$CMAKE_BUILD_DIRECTORY/tests/ChunkDedupTest --gtest_repeat=10
+docker compose -f tests/chunkdedup/docker-compose.yml down
+
+./pulsar-test-service-start.sh
+
+pushd $CMAKE_BUILD_DIRECTORY/tests
+
+# Avoid this test is still flaky, see https://github.com/apache/pulsar-client-cpp/pull/217
+./ConnectionFailTest --gtest_repeat=20
 
 export RETRY_FAILED="${RETRY_FAILED:-1}"
 
@@ -53,5 +101,7 @@ else
 fi
 
 popd
+
+./pulsar-test-service-stop.sh
 
 exit $RES

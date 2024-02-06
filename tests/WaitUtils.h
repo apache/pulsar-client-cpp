@@ -25,19 +25,21 @@
 namespace pulsar {
 
 template <typename Rep, typename Period>
-inline void waitUntil(std::chrono::duration<Rep, Period> timeout, std::function<bool()> condition) {
+inline bool waitUntil(std::chrono::duration<Rep, Period> timeout, const std::function<bool()>& condition,
+                      long durationMs = 10) {
     auto timeoutMs = std::chrono::duration_cast<std::chrono::milliseconds>(timeout).count();
     while (timeoutMs > 0) {
         auto now = std::chrono::high_resolution_clock::now();
         if (condition()) {
-            break;
+            return true;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(durationMs));
         auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
                            std::chrono::high_resolution_clock::now() - now)
                            .count();
         timeoutMs -= elapsed;
     }
+    return false;
 }
 
 }  // namespace pulsar

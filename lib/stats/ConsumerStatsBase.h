@@ -20,15 +20,16 @@
 #ifndef PULSAR_CONSUMER_STATS_BASE_HEADER
 #define PULSAR_CONSUMER_STATS_BASE_HEADER
 #include <pulsar/Message.h>
-#include <lib/PulsarApi.pb.h>
 #include <pulsar/Result.h>
-#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include "lib/ProtoApiEnums.h"
 
 namespace pulsar {
 class ConsumerStatsBase {
    public:
+    virtual void start() {}
     virtual void receivedMessage(Message&, Result) = 0;
-    virtual void messageAcknowledged(Result, proto::CommandAck_AckType) = 0;
+    virtual void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums = 1) = 0;
     virtual ~ConsumerStatsBase() {}
 };
 

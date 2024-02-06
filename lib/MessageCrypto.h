@@ -19,32 +19,37 @@
 #ifndef LIB_MESSAGECRYPTO_H_
 #define LIB_MESSAGECRYPTO_H_
 
+#include <openssl/bio.h>
+#include <openssl/engine.h>
+#include <openssl/evp.h>
+#include <openssl/rand.h>
+#include <openssl/rsa.h>
+#include <openssl/ssl.h>
+#include <pulsar/CryptoKeyReader.h>
+
+#include <boost/date_time/posix_time/ptime.hpp>
+#include <boost/scoped_array.hpp>
 #include <iostream>
 #include <map>
-#include <set>
 #include <mutex>
-#include <boost/scoped_array.hpp>
-
-#include <openssl/ssl.h>
-#include <openssl/rand.h>
-#include <openssl/bio.h>
-#include <openssl/evp.h>
-#include <openssl/rsa.h>
-#include <openssl/engine.h>
+#include <set>
 
 #include "SharedBuffer.h"
-#include "ExecutorService.h"
-#include "pulsar/CryptoKeyReader.h"
-#include "PulsarApi.pb.h"
 
 namespace pulsar {
+
+namespace proto {
+class EncryptionKeys;
+class MessageMetadata;
+class KeyValue;
+}  // namespace proto
 
 class MessageCrypto {
    public:
     typedef std::map<std::string, std::string> StringMap;
     typedef std::map<std::string, std::pair<std::string, boost::posix_time::ptime>> DataKeyCacheMap;
 
-    MessageCrypto(std::string& logCtx, bool keyGenNeeded);
+    MessageCrypto(const std::string& logCtx, bool keyGenNeeded);
     ~MessageCrypto();
 
     /*
@@ -128,9 +133,7 @@ class MessageCrypto {
 
     Result addPublicKeyCipher(const std::string& keyName, const CryptoKeyReaderPtr keyReader);
 
-    bool decryptDataKey(const std::string& keyName, const std::string& encryptedDataKey,
-                        const google::protobuf::RepeatedPtrField<proto::KeyValue>& encKeyMeta,
-                        const CryptoKeyReaderPtr keyReader);
+    bool decryptDataKey(const proto::EncryptionKeys& encKeys, const CryptoKeyReader& keyReader);
     bool decryptData(const std::string& dataKeySecret, const proto::MessageMetadata& msgMetadata,
                      SharedBuffer& payload, SharedBuffer& decPayload);
     bool getKeyAndDecryptData(const proto::MessageMetadata& msgMetadata, SharedBuffer& payload,

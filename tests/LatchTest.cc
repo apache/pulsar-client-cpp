@@ -17,9 +17,11 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/Latch.h>
+
 #include <thread>
-#include "LogUtils.h"
+
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 

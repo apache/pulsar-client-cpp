@@ -18,13 +18,14 @@
  */
 #ifndef LIB_UNACKEDMESSAGETRACKERDISABLED_H_
 #define LIB_UNACKEDMESSAGETRACKERDISABLED_H_
-#include "lib/UnAckedMessageTrackerInterface.h"
+#include "UnAckedMessageTrackerInterface.h"
 namespace pulsar {
 
 class UnAckedMessageTrackerDisabled : public UnAckedMessageTrackerInterface {
    public:
     bool add(const MessageId& m) { return false; }
     bool remove(const MessageId& m) { return false; }
+    void remove(const MessageIdList& msgIds) {}
     void removeMessagesTill(const MessageId& msgId) {}
     void removeTopicMessage(const std::string& topic) {}
 

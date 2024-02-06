@@ -20,19 +20,17 @@
 
 set -e
 
-SRC_DIR=$(git rev-parse --show-toplevel)
-cd $SRC_DIR
+cd `dirname $0`
+SRC_DIR=$PWD
 
 ./pulsar-test-service-stop.sh
 
-CONTAINER_ID=$(docker run -i -p 8080:8080 -p 6650:6650 -p 8443:8443 -p 6651:6651 --rm --detach apachepulsar/pulsar:latest sleep 3600)
-echo $CONTAINER_ID > .tests-container-id.txt
-
-docker cp test-conf $CONTAINER_ID:/pulsar/test-conf
-docker cp build-support/start-test-service-inside-container.sh $CONTAINER_ID:start-test-service-inside-container.sh
-
-docker exec -i $CONTAINER_ID /start-test-service-inside-container.sh
+CONTAINER_ID=$(docker run -i --user $(id -u) -p 8080:8080 -p 6650:6650 -p 8443:8443 -p 6651:6651 --rm --detach apachepulsar/pulsar:latest sleep 3600)
+build-support/setup-test-service-container.sh $CONTAINER_ID start-test-service-inside-container.sh
 
 docker cp $CONTAINER_ID:/pulsar/data/tokens/token.txt .test-token.txt
+
+CONTAINER_ID=$(docker run -i --user $(id -u) -p 8081:8081 -p 6652:6652 -p 8444:8444 -p 6653:6653 --rm --detach apachepulsar/pulsar:latest sleep 3600)
+build-support/setup-test-service-container.sh $CONTAINER_ID start-mim-test-service-inside-container.sh
 
 echo "-- Ready to start tests"

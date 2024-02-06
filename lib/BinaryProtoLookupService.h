@@ -19,29 +19,45 @@
 #ifndef _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 #define _PULSAR_BINARY_LOOKUP_SERVICE_HEADER_
 
-#include <iostream>
-#include <pulsar/defines.h>
 #include <pulsar/Authentication.h>
-#include "ConnectionPool.h"
-#include "Backoff.h"
-#include <lib/LookupService.h>
+#include <pulsar/ClientConfiguration.h>
+#include <pulsar/Schema.h>
+
 #include <mutex>
-#include "ServiceNameResolver.h"
+
+#include "LookupService.h"
 
 namespace pulsar {
+class ClientConnection;
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
+class ConnectionPool;
 class LookupDataResult;
+class ServiceNameResolver;
+using NamespaceTopicsPromisePtr = std::shared_ptr<Promise<Result, NamespaceTopicsPtr>>;
+using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, SchemaInfo>>;
 
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
     BinaryProtoLookupService(ServiceNameResolver& serviceNameResolver, ConnectionPool& pool,
-                             const std::string& listenerName)
-        : serviceNameResolver_(serviceNameResolver), cnxPool_(pool), listenerName_(listenerName) {}
+                             const ClientConfiguration& clientConfiguration)
+        : serviceNameResolver_(serviceNameResolver),
+          cnxPool_(pool),
+          listenerName_(clientConfiguration.getListenerName()),
+          maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()) {}
 
     LookupResultFuture getBroker(const TopicName& topicName) override;
 
     Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override;
 
-    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) override;
+    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+        const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override;
+
+    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override;
+
+   protected:
+    // Mark findBroker as protected to make it accessible from test.
+    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
+                                  size_t redirectCount);
 
    private:
     std::mutex mutex_;
@@ -50,9 +66,7 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     ServiceNameResolver& serviceNameResolver_;
     ConnectionPool& cnxPool_;
     std::string listenerName_;
-
-    // TODO: limit the redirect count, see https://github.com/apache/pulsar/pull/7096
-    LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic);
+    const int32_t maxLookupRedirects_;
 
     void sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
                                             const ClientConnectionWeakPtr& clientCnx,
@@ -62,9 +76,12 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
                                        const ClientConnectionWeakPtr& clientCnx,
                                        LookupDataResultPromisePtr promise);
 
-    void sendGetTopicsOfNamespaceRequest(const std::string& nsName, Result result,
-                                         const ClientConnectionWeakPtr& clientCnx,
+    void sendGetTopicsOfNamespaceRequest(const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode,
+                                         Result result, const ClientConnectionWeakPtr& clientCnx,
                                          NamespaceTopicsPromisePtr promise);
+
+    void sendGetSchemaRequest(const std::string& topicName, const std::string& version, Result result,
+                              const ClientConnectionWeakPtr& clientCnx, GetSchemaPromisePtr promise);
 
     void getTopicsOfNamespaceListener(Result result, NamespaceTopicsPtr topicsPtr,
                                       NamespaceTopicsPromisePtr promise);

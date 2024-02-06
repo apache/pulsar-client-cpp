@@ -19,43 +19,62 @@
 #ifndef LIB_PRODUCERIMPL_H_
 #define LIB_PRODUCERIMPL_H_
 
-#include <mutex>
-#include <boost/date_time/posix_time/ptime.hpp>
+#include "TimeUtils.h"
+#ifdef USE_ASIO
+#include <asio/steady_timer.hpp>
+#else
+#include <boost/asio/steady_timer.hpp>
+#endif
+#include <atomic>
+#include <boost/optional.hpp>
+#include <list>
+#include <memory>
 
-#include "ClientImpl.h"
-#include "BlockingQueue.h"
+#include "Future.h"
 #include "HandlerBase.h"
-#include "SharedBuffer.h"
-#include "CompressionCodec.h"
-#include "MessageCrypto.h"
-#include "stats/ProducerStatsDisabled.h"
-#include "stats/ProducerStatsImpl.h"
-#include "PulsarApi.pb.h"
+// In MSVC and macOS, the value type of STL container cannot be forward declared
+#if defined(_MSC_VER) || defined(__APPLE__)
 #include "OpSendMsg.h"
-#include "BatchMessageContainerBase.h"
+#endif
+#include "AsioDefines.h"
 #include "PendingFailures.h"
-#include "Semaphore.h"
 #include "PeriodicTask.h"
-
-using namespace pulsar;
+#include "ProducerImplBase.h"
 
 namespace pulsar {
-typedef bool bool_type;
 
-typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
+class BatchMessageContainerBase;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using DeadlineTimerPtr = std::shared_ptr<ASIO::steady_timer>;
+class MessageCrypto;
+using MessageCryptoPtr = std::shared_ptr<MessageCrypto>;
+class ProducerImpl;
+using ProducerImplWeakPtr = std::weak_ptr<ProducerImpl>;
+class ProducerStatsBase;
+using ProducerStatsBasePtr = std::shared_ptr<ProducerStatsBase>;
+struct ResponseData;
+class ProducerImpl;
+using ProducerImplPtr = std::shared_ptr<ProducerImpl>;
 
 class PulsarFriend;
 
 class Producer;
 class MemoryLimitController;
+class Semaphore;
 class TopicName;
+struct OpSendMsg;
 
-class ProducerImpl : public HandlerBase,
-                     public std::enable_shared_from_this<ProducerImpl>,
-                     public ProducerImplBase {
+namespace proto {
+class MessageMetadata;
+}  // namespace proto
+
+class ProducerImpl : public HandlerBase, public ProducerImplBase {
    public:
     ProducerImpl(ClientImplPtr client, const TopicName& topic,
-                 const ProducerConfiguration& producerConfiguration, int32_t partition = -1);
+                 const ProducerConfiguration& producerConfiguration,
+                 const ProducerInterceptorsPtr& interceptors, int32_t partition = -1,
+                 bool retryOnCreationError = false);
     ~ProducerImpl();
 
     // overrided methods from ProducerImplBase
@@ -79,6 +98,7 @@ class ProducerImpl : public HandlerBase,
 
     bool ackReceived(uint64_t sequenceId, MessageId& messageId);
 
+    virtual void disconnectProducer(const boost::optional<std::string>& assignedBrokerUrl);
     virtual void disconnectProducer();
 
     uint64_t getProducerId() const;
@@ -87,17 +107,20 @@ class ProducerImpl : public HandlerBase,
 
     static int getNumOfChunks(uint32_t size, uint32_t maxMessageSize);
 
-    // NOTE: this method is introduced into `enable_shared_from_this` since C++17
-    ProducerImplWeakPtr weak_from_this() noexcept;
+    ProducerImplPtr shared_from_this() noexcept {
+        return std::dynamic_pointer_cast<ProducerImpl>(HandlerBase::shared_from_this());
+    }
+
+    ProducerImplWeakPtr weak_from_this() noexcept { return shared_from_this(); }
+
+    bool ready() const { return producerCreatedPromise_.isComplete(); }
 
    protected:
     ProducerStatsBasePtr producerStatsBasePtr_;
 
-    typedef std::deque<OpSendMsg> MessageQueue;
-
     void setMessageMetadata(const Message& msg, const uint64_t& sequenceId, const uint32_t& uncompressedSize);
 
-    void sendMessage(const OpSendMsg& opSendMsg);
+    void sendMessage(std::unique_ptr<OpSendMsg> opSendMsg);
 
     void startSendTimeoutTimer();
 
@@ -109,26 +132,24 @@ class ProducerImpl : public HandlerBase,
     friend class BatchMessageContainer;
 
     // overrided methods from HandlerBase
-    void connectionOpened(const ClientConnectionPtr& connection) override;
+    void beforeConnectionChange(ClientConnection& connection) override;
+    Future<Result, bool> connectionOpened(const ClientConnectionPtr& connection) override;
     void connectionFailed(Result result) override;
-    HandlerBaseWeakPtr get_weak_from_this() override { return shared_from_this(); }
     const std::string& getName() const override { return producerStr_; }
 
    private:
     void printStats();
 
-    void handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
-                              const ResponseData& responseData);
-
-    void handleClose(Result result, ResultCallback callback, ProducerImplPtr producer);
+    Result handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
+                                const ResponseData& responseData);
 
     void resendMessages(ClientConnectionPtr cnx);
 
-    void refreshEncryptionKey(const boost::system::error_code& ec);
+    void refreshEncryptionKey(const ASIO_ERROR& ec);
     bool encryptMessage(proto::MessageMetadata& metadata, SharedBuffer& payload,
                         SharedBuffer& encryptedPayload);
 
-    void sendAsyncWithStatsUpdate(const Message& msg, const SendCallback& callback);
+    void sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& callback);
 
     /**
      * Reserve a spot in the messages queue before acquiring the ProducerImpl mutex. When the queue is full,
@@ -143,7 +164,7 @@ class ProducerImpl : public HandlerBase,
     void releaseSemaphore(uint32_t payloadSize);
     void releaseSemaphoreForSendOp(const OpSendMsg& op);
 
-    void cancelTimers();
+    void cancelTimers() noexcept;
 
     bool isValidProducerState(const SendCallback& callback) const;
     bool canAddToBatch(const Message& msg) const;
@@ -153,33 +174,32 @@ class ProducerImpl : public HandlerBase,
     ProducerConfiguration conf_;
 
     std::unique_ptr<Semaphore> semaphore_;
-    MessageQueue pendingMessagesQueue_;
+    std::list<std::unique_ptr<OpSendMsg>> pendingMessagesQueue_;
 
     const int32_t partition_;  // -1 if topic is non-partitioned
     std::string producerName_;
     bool userProvidedProducerName_;
     std::string producerStr_;
     uint64_t producerId_;
-    int64_t msgSequenceGenerator_;
-    proto::BaseCommand cmd_;
 
     std::unique_ptr<BatchMessageContainerBase> batchMessageContainer_;
-    boost::asio::deadline_timer batchTimer_;
+    DeadlineTimerPtr batchTimer_;
     PendingFailures batchMessageAndSend(const FlushCallback& flushCallback = nullptr);
 
-    volatile int64_t lastSequenceIdPublished_;
+    std::atomic<int64_t> lastSequenceIdPublished_;
+    std::atomic<int64_t> msgSequenceGenerator_;
     std::string schemaVersion_;
 
-    boost::asio::deadline_timer sendTimer_;
-    void handleSendTimeout(const boost::system::error_code& err);
-    using DurationType = typename boost::asio::deadline_timer::duration_type;
+    DeadlineTimerPtr sendTimer_;
+    void handleSendTimeout(const ASIO_ERROR& err);
+    using DurationType = TimeDuration;
     void asyncWaitSendTimeout(DurationType expiryTime);
 
     Promise<Result, ProducerImplBaseWeakPtr> producerCreatedPromise_;
 
     struct PendingCallbacks;
-    std::shared_ptr<PendingCallbacks> getPendingCallbacksWhenFailed();
-    std::shared_ptr<PendingCallbacks> getPendingCallbacksWhenFailedWithLock();
+    decltype(pendingMessagesQueue_) getPendingCallbacksWhenFailed();
+    decltype(pendingMessagesQueue_) getPendingCallbacksWhenFailedWithLock();
 
     void failPendingMessages(Result result, bool withLock);
 
@@ -188,7 +208,11 @@ class ProducerImpl : public HandlerBase,
 
     MemoryLimitController& memoryLimitController_;
     const bool chunkingEnabled_;
-    Optional<uint64_t> topicEpoch{Optional<uint64_t>::empty()};
+    boost::optional<uint64_t> topicEpoch;
+
+    ProducerInterceptorsPtr interceptors_;
+
+    bool retryOnCreationError_;
 };
 
 struct ProducerImplCmp {

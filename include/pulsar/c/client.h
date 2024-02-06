@@ -19,18 +19,20 @@
 
 #pragma once
 
-#include <pulsar/defines.h>
 #include <pulsar/c/client_configuration.h>
+#include <pulsar/c/consumer.h>
+#include <pulsar/c/consumer_configuration.h>
 #include <pulsar/c/message.h>
 #include <pulsar/c/message_id.h>
 #include <pulsar/c/producer.h>
-#include <pulsar/c/consumer.h>
-#include <pulsar/c/reader.h>
-#include <pulsar/c/consumer_configuration.h>
 #include <pulsar/c/producer_configuration.h>
+#include <pulsar/c/reader.h>
 #include <pulsar/c/reader_configuration.h>
 #include <pulsar/c/result.h>
 #include <pulsar/c/string_list.h>
+#include <pulsar/c/table_view.h>
+#include <pulsar/c/table_view_configuration.h>
+#include <pulsar/defines.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,6 +49,7 @@ typedef void (*pulsar_create_producer_callback)(pulsar_result result, pulsar_pro
 
 typedef void (*pulsar_subscribe_callback)(pulsar_result result, pulsar_consumer_t *consumer, void *ctx);
 typedef void (*pulsar_reader_callback)(pulsar_result result, pulsar_reader_t *reader, void *ctx);
+typedef void (*pulsar_table_view_callback)(pulsar_result result, pulsar_table_view_t *tableView, void *ctx);
 typedef void (*pulsar_get_partitions_callback)(pulsar_result result, pulsar_string_list_t *partitions,
                                                void *ctx);
 
@@ -172,6 +175,54 @@ PULSAR_PUBLIC void pulsar_client_create_reader_async(pulsar_client_t *client, co
                                                      const pulsar_message_id_t *startMessageId,
                                                      pulsar_reader_configuration_t *conf,
                                                      pulsar_reader_callback callback, void *ctx);
+/**
+ * Create a table view with given {@code table_view_configuration} for specified topic.
+ *
+ * The TableView provides a key-value map view of a compacted topic. Messages without keys will
+ * be ignored.
+ *
+ * NOTE:
+ * When the result in the callback is `ResultOk`, `*c_tableView` will point to the memory that
+ * is allocated internally. You have to call `pulsar_table_view_free` to free it.
+ *
+ * Example:
+ * ```c
+ * pulsar_table_view_configuration_t *table_view_conf = pulsar_table_view_configuration_create();
+ * pulsar_table_view_configuration_set_subscription_name(table_view_conf, sub_name);
+ * pulsar_table_view_t *table_view;
+ * pulsar_result result = pulsar_client_create_table_view(client, topic_name, table_view_conf, &table_view);
+ *
+ * // do something...
+ *
+ * pulsar_table_view_close(table_view);
+ * pulsar_table_view_free(table_view);
+ * pulsar_table_view_configuration_free(table_view_conf);
+ *
+ * ```
+ *
+ * @param topic The name of the topic.
+ * @param conf The {@code table_view_configuration} pointer.
+ * @param c_tableView The pointer of the table_view pointer
+ * @return Returned when the table_view is successfully linked to the topic and the map is built from a
+ * message that already exists.
+ */
+PULSAR_PUBLIC pulsar_result pulsar_client_create_table_view(pulsar_client_t *client, const char *topic,
+                                                            pulsar_table_view_configuration_t *conf,
+                                                            pulsar_table_view_t **c_tableView);
+
+/**
+ * Async Create a table view with given {@code table_view_configuration} for specified topic.
+ * @param topic The name of the topic.
+ * @param conf The {@code table_view_configuration} pointer.
+ * @param callback
+ * 1. When the result in the callback is `ResultOk`, `tableView` in the callback will point to the memory that
+ * is allocated internally. You have to call `pulsar_table_view_free` to free it.
+ * 2. If the result in the callback is not `ResultOk`, `tableView` in the callback will be nullptr.
+ * @param ctx
+ */
+PULSAR_PUBLIC void pulsar_client_create_table_view_async(pulsar_client_t *client, const char *topic,
+                                                         pulsar_table_view_configuration_t *conf,
+                                                         pulsar_table_view_callback callback, void *ctx);
 
 PULSAR_PUBLIC pulsar_result pulsar_client_get_topic_partitions(pulsar_client_t *client, const char *topic,
                                                                pulsar_string_list_t **partitions);

@@ -24,9 +24,9 @@
 extern "C" {
 #endif
 
-#include <pulsar/c/result.h>
 #include <pulsar/c/message.h>
-
+#include <pulsar/c/messages.h>
+#include <pulsar/c/result.h>
 #include <stdint.h>
 
 typedef struct _pulsar_consumer pulsar_consumer_t;
@@ -34,6 +34,8 @@ typedef struct _pulsar_consumer pulsar_consumer_t;
 typedef void (*pulsar_result_callback)(pulsar_result, void *);
 
 typedef void (*pulsar_receive_callback)(pulsar_result result, pulsar_message_t *msg, void *ctx);
+
+typedef void (*pulsar_batch_receive_callback)(pulsar_result result, pulsar_messages_t *msgs, void *ctx);
 
 /**
  * @return the topic this consumer is subscribed to
@@ -107,6 +109,28 @@ PULSAR_PUBLIC pulsar_result pulsar_consumer_receive_with_timeout(pulsar_consumer
  */
 PULSAR_PUBLIC void pulsar_consumer_receive_async(pulsar_consumer_t *consumer,
                                                  pulsar_receive_callback callback, void *ctx);
+
+/**
+ * Batch receiving messages.
+ *
+ * NOTE:
+ * 1. When it's received successfully, `*msg` will point to the memory that is allocated internally. You
+ * have to call `pulsar_messages_free` to free it.
+ * 2. Undefined behavior will happen if `msgs` is NULL.
+ */
+PULSAR_PUBLIC pulsar_result pulsar_consumer_batch_receive(pulsar_consumer_t *consumer,
+                                                          pulsar_messages_t **msgs);
+
+/**
+ * Async batch receiving messages.
+ *
+ * @param callback
+ * 1. When the result in the callback is `ResultOk`, `msgs` in the callback will point to the memory that
+ * is allocated internally. You have to call `pulsar_messages_free` to free it.
+ * 2. If the result in the callback is not `ResultOk`, `msgs` in the callback will be nullptr.
+ */
+PULSAR_PUBLIC void pulsar_consumer_batch_receive_async(pulsar_consumer_t *consumer,
+                                                       pulsar_batch_receive_callback callback, void *ctx);
 
 /**
  * Acknowledge the reception of a single message.
@@ -242,10 +266,50 @@ PULSAR_PUBLIC pulsar_result resume_message_listener(pulsar_consumer_t *consumer)
  */
 PULSAR_PUBLIC void pulsar_consumer_redeliver_unacknowledged_messages(pulsar_consumer_t *consumer);
 
+/**
+ * Reset the subscription associated with this consumer to a specific message id.
+ *
+ * @param consumer The consumer
+ * @param messageId The message id can either be a specific message or represent the first or last messages in
+ * the topic.
+ * @param callback The callback for this async operation
+ * @param ctx The context for the callback
+ */
 PULSAR_PUBLIC void pulsar_consumer_seek_async(pulsar_consumer_t *consumer, pulsar_message_id_t *messageId,
                                               pulsar_result_callback callback, void *ctx);
 
+/**
+ * Reset the subscription asynchronously associated with this consumer to a specific message id.
+ *
+ * @param consumer The consumer
+ * @param messageId The message id can either be a specific message or represent the first or last messages in
+ * the topic.
+ * @return Operation result
+ */
 PULSAR_PUBLIC pulsar_result pulsar_consumer_seek(pulsar_consumer_t *consumer, pulsar_message_id_t *messageId);
+
+/**
+ * Reset the subscription associated with this consumer to a specific message publish time.
+ *
+ * @param consumer The consumer
+ * @param timestamp The message publish time where to reposition the subscription. The timestamp format should
+ * be Unix time in milliseconds.
+ * @param callback The callback for this async operation
+ * @param ctx The context for the callback
+ */
+PULSAR_PUBLIC void pulsar_consumer_seek_by_timestamp_async(pulsar_consumer_t *consumer, uint64_t timestamp,
+                                                           pulsar_result_callback callback, void *ctx);
+
+/**
+ * Reset the subscription asynchronously associated with this consumer to a specific message publish time.
+ *
+ * @param consumer The consumer
+ * @param timestamp The message publish time where to reposition the subscription. The timestamp format should
+ * be Unix time in milliseconds.
+ * @return Operation result
+ */
+PULSAR_PUBLIC pulsar_result pulsar_consumer_seek_by_timestamp(pulsar_consumer_t *consumer,
+                                                              uint64_t timestamp);
 
 PULSAR_PUBLIC int pulsar_consumer_is_connected(pulsar_consumer_t *consumer);
 

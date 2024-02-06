@@ -18,9 +18,15 @@
  */
 
 #include <pulsar/c/message.h>
+
 #include "c_structs.h"
 
 pulsar_message_t *pulsar_message_create() { return new pulsar_message_t; }
+
+void pulsar_message_copy(const pulsar_message_t *from, pulsar_message_t *to) {
+    to->builder = from->builder;
+    to->message = from->message;
+}
 
 void pulsar_message_free(pulsar_message_t *message) { delete message; }
 
@@ -125,4 +131,12 @@ const char *pulsar_message_get_topic_name(pulsar_message_t *message) {
 
 int pulsar_message_get_redelivery_count(pulsar_message_t *message) {
     return message->message.getRedeliveryCount();
+}
+
+const char *pulsar_message_get_schemaVersion(pulsar_message_t *message) {
+    return message->message.getSchemaVersion().c_str();
+}
+
+int pulsar_message_has_schema_version(pulsar_message_t *message) {
+    return message->message.hasSchemaVersion();
 }

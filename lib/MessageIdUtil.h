@@ -16,15 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#pragma once
+
 #include <pulsar/MessageId.h>
-#include "PulsarApi.pb.h"
+#include <pulsar/MessageIdBuilder.h>
 
 namespace pulsar {
-
-inline MessageId toMessageId(const proto::MessageIdData& messageIdData) {
-    return MessageId{messageIdData.partition(), static_cast<int64_t>(messageIdData.ledgerid()),
-                     static_cast<int64_t>(messageIdData.entryid()), messageIdData.batch_index()};
-}
 
 namespace internal {
 template <typename T>
@@ -39,6 +36,10 @@ inline int compareLedgerAndEntryId(const MessageId& lhs, const MessageId& rhs) {
         return result;
     }
     return internal::compare(lhs.entryId(), rhs.entryId());
+}
+
+inline MessageId discardBatch(const MessageId& messageId) {
+    return MessageIdBuilder::from(messageId).batchIndex(-1).batchSize(0).build();
 }
 
 }  // namespace pulsar

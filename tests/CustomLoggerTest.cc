@@ -16,12 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/ConsoleLoggerFactory.h>
-#include <LogUtils.h>
-#include <gtest/gtest.h>
+
 #include <atomic>
 #include <thread>
+
+#include "lib/LogUtils.h"
 
 using namespace pulsar;
 
@@ -104,4 +106,14 @@ TEST(CustomLoggerTest, testConsoleLoggerFactory) {
     ASSERT_FALSE(logger->isEnabled(Logger::LEVEL_INFO));
     ASSERT_FALSE(logger->isEnabled(Logger::LEVEL_WARN));
     ASSERT_TRUE(logger->isEnabled(Logger::LEVEL_ERROR));
+}
+
+TEST(CustomLoggerTest, testSetAndGetLoggerFactory) {
+    LoggerFactory *oldFactory = LogUtils::getLoggerFactory();
+    LoggerFactory *newFactory = new ConsoleLoggerFactory(Logger::LEVEL_ERROR);
+    std::unique_ptr<LoggerFactory> newFactoryPtr(newFactory);
+    LogUtils::setLoggerFactory(std::move(newFactoryPtr));
+    ASSERT_NE(oldFactory, LogUtils::getLoggerFactory());
+    ASSERT_EQ(newFactory, LogUtils::getLoggerFactory());
+    LogUtils::resetLoggerFactory();
 }

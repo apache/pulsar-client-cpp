@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <stdio.h>
 #include <pulsar/c/client.h>
+#include <stdio.h>
 
 int main() {
     pulsar_client_configuration_t *conf = pulsar_client_configuration_create();
@@ -28,7 +28,8 @@ int main() {
     pulsar_consumer_configuration_set_consumer_type(consumer_conf, pulsar_ConsumerShared);
 
     pulsar_consumer_t *consumer;
-    pulsar_result res = pulsar_client_subscribe(client, "my-topic", "my-subscrition", consumer_conf, &consumer);
+    pulsar_result res =
+        pulsar_client_subscribe(client, "my-topic", "my-subscrition", consumer_conf, &consumer);
     if (res != pulsar_result_Ok) {
         printf("Failed to create subscribe to topic: %s\n", pulsar_result_str(res));
         return 1;
@@ -43,7 +44,7 @@ int main() {
         }
 
         printf("Received message with payload: '%.*s'\n", pulsar_message_get_length(message),
-               (const char*)pulsar_message_get_data(message));
+               (const char *)pulsar_message_get_data(message));
 
         pulsar_consumer_acknowledge(consumer, message);
         pulsar_message_free(message);

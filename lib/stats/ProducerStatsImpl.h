@@ -20,29 +20,29 @@
 #ifndef PULSAR_PRODUCER_STATS_IMPL_HEADER
 #define PULSAR_PRODUCER_STATS_IMPL_HEADER
 
-#include <pulsar/Message.h>
 #include <map>
-#include <lib/ExecutorService.h>
 
 #if BOOST_VERSION >= 106400
 #include <boost/serialization/array_wrapper.hpp>
 #endif
-#include <boost/accumulators/framework/features.hpp>
-
 #include <boost/accumulators/accumulators.hpp>
-#include <boost/accumulators/statistics.hpp>
 #include <boost/accumulators/framework/accumulator_set.hpp>
+#include <boost/accumulators/framework/features.hpp>
+#include <boost/accumulators/statistics.hpp>
 #include <boost/accumulators/statistics/extended_p_square.hpp>
-
-#include <boost/date_time/local_time/local_time.hpp>
+#include <iostream>
 #include <memory>
 #include <mutex>
-#include <iostream>
 #include <vector>
-#include <lib/Utils.h>
-#include <lib/stats/ProducerStatsBase.h>
+
+#include "ProducerStatsBase.h"
+#include "lib/AsioTimer.h"
 
 namespace pulsar {
+
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+
 typedef boost::accumulators::accumulator_set<
     double,
     boost::accumulators::stats<boost::accumulators::tag::mean, boost::accumulators::tag::extended_p_square> >
@@ -62,8 +62,7 @@ class ProducerStatsImpl : public std::enable_shared_from_this<ProducerStatsImpl>
     std::map<Result, unsigned long> totalSendMap_;
     LatencyAccumulator totalLatencyAccumulator_;
 
-    ExecutorServicePtr executor_;
-    DeadlineTimerPtr timer_;
+    const DeadlineTimerPtr timer_;
     std::mutex mutex_;
     unsigned int statsIntervalInSeconds_;
 
@@ -73,16 +72,20 @@ class ProducerStatsImpl : public std::enable_shared_from_this<ProducerStatsImpl>
 
     static std::string latencyToString(const LatencyAccumulator&);
 
+    void scheduleTimer();
+
    public:
     ProducerStatsImpl(std::string, ExecutorServicePtr, unsigned int);
 
     ProducerStatsImpl(const ProducerStatsImpl& stats);
 
-    void flushAndReset(const boost::system::error_code&);
+    void start() override;
 
-    void messageSent(const Message&);
+    void flushAndReset(const ASIO_ERROR&);
 
-    void messageReceived(Result, const boost::posix_time::ptime&);
+    void messageSent(const Message&) override;
+
+    void messageReceived(Result, const ptime&) override;
 
     ~ProducerStatsImpl();
 

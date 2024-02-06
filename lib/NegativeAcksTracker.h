@@ -19,17 +19,28 @@
 
 #pragma once
 
+#include <pulsar/ConsumerConfiguration.h>
 #include <pulsar/MessageId.h>
 
-#include "ExecutorService.h"
-#include "ClientImpl.h"
-
-#include <mutex>
+#include <atomic>
+#include <chrono>
 #include <map>
+#include <memory>
+#include <mutex>
+
+#include "AsioDefines.h"
+#include "AsioTimer.h"
+#include "TestUtil.h"
 
 namespace pulsar {
 
-class NegativeAcksTracker {
+class ConsumerImpl;
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+
+class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTracker> {
    public:
     NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &consumer, const ConsumerConfiguration &conf);
 
@@ -45,19 +56,21 @@ class NegativeAcksTracker {
 
    private:
     void scheduleTimer();
-    void handleTimer(const boost::system::error_code &ec);
+    void handleTimer(const ASIO_ERROR &ec);
 
     ConsumerImpl &consumer_;
     std::mutex mutex_;
 
     std::chrono::milliseconds nackDelay_;
-    boost::posix_time::milliseconds timerInterval_;
+    std::chrono::milliseconds timerInterval_;
     typedef typename std::chrono::steady_clock Clock;
     std::map<MessageId, Clock::time_point> nackedMessages_;
 
-    ExecutorServicePtr executor_;
-    DeadlineTimerPtr timer_;
-    bool enabledForTesting_;  // to be able to test deterministically
+    const DeadlineTimerPtr timer_;
+    std::atomic_bool closed_{false};
+    std::atomic_bool enabledForTesting_{true};  // to be able to test deterministically
+
+    FRIEND_TEST(ConsumerTest, testNegativeAcksTrackerClose);
 };
 
 }  // namespace pulsar

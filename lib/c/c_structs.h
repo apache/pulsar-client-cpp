@@ -18,11 +18,11 @@
  */
 #pragma once
 
-#include <pulsar/c/result.h>
 #include <pulsar/Client.h>
+#include <pulsar/c/result.h>
 
-#include <memory>
 #include <functional>
+#include <memory>
 
 struct _pulsar_client {
     std::unique_ptr<pulsar::Client> client;
@@ -48,6 +48,14 @@ struct _pulsar_consumer_configuration {
     pulsar::ConsumerConfiguration consumerConfiguration;
 };
 
+struct _pulsar_table_view {
+    pulsar::TableView tableView;
+};
+
+struct _pulsar_table_view_configuration {
+    pulsar::TableViewConfiguration tableViewConfiguration;
+};
+
 struct _pulsar_reader {
     pulsar::Reader reader;
 };
@@ -63,6 +71,10 @@ struct _pulsar_message {
 
 struct _pulsar_message_id {
     pulsar::MessageId messageId;
+};
+
+struct _pulsar_messages {
+    std::vector<_pulsar_message> messages;
 };
 
 struct _pulsar_authentication {

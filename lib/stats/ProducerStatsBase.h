@@ -21,13 +21,15 @@
 #define PULSAR_PRODUCER_STATS_BASE_HEADER
 #include <pulsar/Message.h>
 #include <pulsar/Result.h>
-#include <boost/date_time/posix_time/posix_time.hpp>
+
+#include "lib/TimeUtils.h"
 
 namespace pulsar {
 class ProducerStatsBase {
    public:
+    virtual void start() {}
     virtual void messageSent(const Message& msg) = 0;
-    virtual void messageReceived(Result, const boost::posix_time::ptime&) = 0;
+    virtual void messageReceived(Result, const ptime&) = 0;
     virtual ~ProducerStatsBase(){};
 };
 

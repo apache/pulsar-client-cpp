@@ -19,17 +19,19 @@
 #ifndef MESSAGE_HPP_
 #define MESSAGE_HPP_
 
+#include <pulsar/defines.h>
+
 #include <map>
+#include <memory>
 #include <string>
 
-#include <memory>
-
-#include <pulsar/defines.h>
+#include "KeyValue.h"
 #include "MessageId.h"
 
 namespace pulsar {
 namespace proto {
 class CommandMessage;
+class BrokerEntryMetadata;
 class MessageMetadata;
 class SingleMessageMetadata;
 }  // namespace proto
@@ -89,8 +91,22 @@ class PULSAR_PUBLIC Message {
      * Get string representation of the message
      *
      * @return the string representation of the message payload
+     *
+     * NOTE: For MSVC with debug mode, return a thread local std::string object to avoid memory allocation
+     * across DLLs and applications, which could lead to a crash.
      */
+#if defined(_MSC_VER) && !defined(NDEBUG)
+    const std::string& getDataAsString() const;
+#else
     std::string getDataAsString() const;
+#endif
+
+    /**
+     * Get key value message.
+     *
+     * @return key value message.
+     */
+    KeyValue getKeyValueData() const;
 
     /**
      * Get the unique message ID associated with this message.
@@ -108,6 +124,12 @@ class PULSAR_PUBLIC Message {
      *
      */
     void setMessageId(const MessageId& messageId) const;
+
+    /**
+     * Get the index of this message, if it doesn't exist, return -1
+     * @return
+     */
+    int64_t getIndex() const;
 
     /**
      * Get the partition key for this message
@@ -162,22 +184,30 @@ class PULSAR_PUBLIC Message {
     bool hasSchemaVersion() const;
 
     /**
-     * Get the schema version
+     * Get the schema version.
+     *
+     * @return the the schema version on success or -1 if the message does not have the schema version
+     */
+    int64_t getLongSchemaVersion() const;
+
+    /**
+     * Get the schema version of the raw bytes.
      */
     const std::string& getSchemaVersion() const;
 
     bool operator==(const Message& msg) const;
 
-   private:
+   protected:
     typedef std::shared_ptr<MessageImpl> MessageImplPtr;
     MessageImplPtr impl_;
 
     Message(MessageImplPtr& impl);
-    Message(const proto::CommandMessage& msg, proto::MessageMetadata& data, SharedBuffer& payload,
-            int32_t partition);
+    Message(const MessageId& messageId, proto::BrokerEntryMetadata& brokerEntryMetadata,
+            proto::MessageMetadata& metadata, SharedBuffer& payload);
     /// Used for Batch Messages
-    Message(const MessageId& messageId, proto::MessageMetadata& metadata, SharedBuffer& payload,
-            proto::SingleMessageMetadata& singleMetadata, const std::string& topicName);
+    Message(const MessageId& messageId, proto::BrokerEntryMetadata& brokerEntryMetadata,
+            proto::MessageMetadata& metadata, SharedBuffer& payload,
+            proto::SingleMessageMetadata& singleMetadata, const std::shared_ptr<std::string>& topicName);
     friend class PartitionedProducerImpl;
     friend class MultiTopicsConsumerImpl;
     friend class MessageBuilder;
@@ -192,6 +222,7 @@ class PULSAR_PUBLIC Message {
 
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const StringMap& map);
     friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const Message& msg);
+    friend class PulsarFriend;
 };
 }  // namespace pulsar
 

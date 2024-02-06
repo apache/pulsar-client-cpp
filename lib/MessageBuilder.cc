@@ -16,22 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <assert.h>
 #include <pulsar/MessageBuilder.h>
 
 #include <memory>
 #include <stdexcept>
-#include <string>
 #include <utility>
 
+#include "KeyValueImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
+#include "ObjectPool.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
+#include "TimeUtils.h"
 
 DECLARE_LOG_OBJECT()
-
-#include "ObjectPool.h"
-#include "TimeUtils.h"
 
 using namespace pulsar;
 
@@ -78,6 +78,11 @@ MessageBuilder& MessageBuilder::setContent(const std::string& data) {
 MessageBuilder& MessageBuilder::setContent(std::string&& data) {
     checkMetadata();
     impl_->payload = SharedBuffer::take(std::move(data));
+    return *this;
+}
+
+MessageBuilder& MessageBuilder::setContent(const KeyValue& data) {
+    impl_->keyValuePtr = data.impl_;
     return *this;
 }
 
@@ -151,4 +156,15 @@ MessageBuilder& MessageBuilder::disableReplication(bool flag) {
     r.Swap(impl_->metadata.mutable_replicate_to());
     return *this;
 }
+
+const char* MessageBuilder::data() const {
+    assert(impl_->payload.data());
+    return impl_->payload.data();
+}
+
+size_t MessageBuilder::size() const {
+    assert(impl_->payload.data());
+    return impl_->payload.readableBytes();
+}
+
 }  // namespace pulsar

@@ -16,16 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <iostream>
 #include <pulsar/Client.h>
+
+#include <iostream>
+#include <memory>
 #include <utility>
 
-#include <memory>
-
 #include "ClientImpl.h"
-#include "Utils.h"
-#include "ExecutorService.h"
+#include "Int64SerDes.h"
 #include "LogUtils.h"
+#include "LookupService.h"
+#include "TopicName.h"
+#include "Utils.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -34,14 +36,10 @@ namespace pulsar {
 Client::Client(const std::shared_ptr<ClientImpl> impl) : impl_(impl) {}
 
 Client::Client(const std::string& serviceUrl)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, ClientConfiguration(), true)) {}
+    : impl_(std::make_shared<ClientImpl>(serviceUrl, ClientConfiguration())) {}
 
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration, true)) {}
-
-Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
-               bool poolConnections)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration, poolConnections)) {}
+    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {}
 
 Result Client::createProducer(const std::string& topic, Producer& producer) {
     return createProducer(topic, ProducerConfiguration(), producer);
@@ -151,6 +149,20 @@ void Client::createReaderAsync(const std::string& topic, const MessageId& startM
     impl_->createReaderAsync(topic, startMessageId, conf, callback);
 }
 
+Result Client::createTableView(const std::string& topic, const TableViewConfiguration& conf,
+                               TableView& tableView) {
+    Promise<Result, TableView> promise;
+    createTableViewAsync(topic, conf, WaitForCallbackValue<TableView>(promise));
+    Future<Result, TableView> future = promise.getFuture();
+
+    return future.get(tableView);
+}
+
+void Client::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
+                                  TableViewCallback callBack) {
+    impl_->createTableViewAsync(topic, conf, callBack);
+}
+
 Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::string>& partitions) {
     Promise<Result, std::vector<std::string> > promise;
     getPartitionsForTopicAsync(topic, WaitForCallbackValue<std::vector<std::string> >(promise));
@@ -178,4 +190,11 @@ void Client::shutdown() { impl_->shutdown(); }
 
 uint64_t Client::getNumberOfProducers() { return impl_->getNumberOfProducers(); }
 uint64_t Client::getNumberOfConsumers() { return impl_->getNumberOfConsumers(); }
+
+void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
+                                std::function<void(Result, const SchemaInfo&)> callback) {
+    impl_->getLookup()
+        ->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
+        .addListener(callback);
+}
 }  // namespace pulsar

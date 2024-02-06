@@ -19,29 +19,68 @@
 
 #pragma once
 
+#include <boost/functional/hash.hpp>
 #include <cstdint>
+#include <string>
+
+#include "BitSet.h"
+
+namespace std {
+
+template <>
+struct hash<pulsar::MessageId> {
+    std::size_t operator()(const pulsar::MessageId& msgId) const {
+        using boost::hash_combine;
+        using boost::hash_value;
+
+        // Start with a hash value of 0    .
+        std::size_t seed = 0;
+
+        // Modify 'seed' by XORing and bit-shifting in
+        // one member of 'Key' after the other:
+        hash_combine(seed, hash_value(msgId.ledgerId()));
+        hash_combine(seed, hash_value(msgId.entryId()));
+        hash_combine(seed, hash_value(msgId.batchIndex()));
+        hash_combine(seed, hash_value(msgId.partition()));
+
+        // Return the result.
+        return seed;
+    }
+};
+}  // namespace std
 
 namespace pulsar {
 
 class MessageIdImpl {
    public:
-    MessageIdImpl() : ledgerId_(-1), entryId_(-1), partition_(-1), batchIndex_(-1), topicName_() {}
+    MessageIdImpl() = default;
     MessageIdImpl(int32_t partition, int64_t ledgerId, int64_t entryId, int32_t batchIndex)
         : ledgerId_(ledgerId),
           entryId_(entryId),
           partition_(partition),
           batchIndex_(batchIndex),
           topicName_() {}
-    const int64_t ledgerId_;
-    const int64_t entryId_;
-    const int32_t partition_;
-    const int32_t batchIndex_;
+    virtual ~MessageIdImpl() {}
 
-    const std::string& getTopicName() { return *topicName_; }
-    void setTopicName(const std::string& topicName) { topicName_ = &topicName; }
+    int64_t ledgerId_ = -1;
+    int64_t entryId_ = -1;
+    int32_t partition_ = -1;
+    int32_t batchIndex_ = -1;
+    int32_t batchSize_ = 0;
+
+    const std::string& getTopicName() {
+        static const std::string EMPTY_TOPIC = "";
+        return topicName_ ? *topicName_ : EMPTY_TOPIC;
+    }
+    void setTopicName(const std::shared_ptr<std::string>& topicName) { topicName_ = topicName; }
+
+    virtual const BitSet& getBitSet() const noexcept {
+        static const BitSet emptyBitSet;
+        return emptyBitSet;
+    }
 
    private:
-    const std::string* topicName_;
+    std::shared_ptr<std::string> topicName_;
     friend class MessageImpl;
     friend class MultiTopicsConsumerImpl;
     friend class UnAckedMessageTrackerEnabled;

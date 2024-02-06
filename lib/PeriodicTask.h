@@ -18,12 +18,7 @@
  */
 #pragma once
 
-#include <atomic>
-#include <cstdint>
-#include <functional>
-#include <memory>
-
-#include <boost/asio.hpp>
+#include "ExecutorService.h"
 
 namespace pulsar {
 
@@ -41,7 +36,7 @@ namespace pulsar {
  */
 class PeriodicTask : public std::enable_shared_from_this<PeriodicTask> {
    public:
-    using ErrorCode = boost::system::error_code;
+    using ErrorCode = ASIO_ERROR;
     using CallbackType = std::function<void(const ErrorCode&)>;
 
     enum State : std::uint8_t
@@ -51,11 +46,12 @@ class PeriodicTask : public std::enable_shared_from_this<PeriodicTask> {
         Closing
     };
 
-    PeriodicTask(boost::asio::io_service& ioService, int periodMs) : timer_(ioService), periodMs_(periodMs) {}
+    PeriodicTask(ExecutorService& executor, int periodMs)
+        : timer_(executor.createDeadlineTimer()), periodMs_(periodMs) {}
 
     void start();
 
-    void stop();
+    void stop() noexcept;
 
     void setCallback(CallbackType callback) noexcept { callback_ = callback; }
 
@@ -64,7 +60,7 @@ class PeriodicTask : public std::enable_shared_from_this<PeriodicTask> {
 
    private:
     std::atomic<State> state_{Pending};
-    boost::asio::deadline_timer timer_;
+    DeadlineTimerPtr timer_;
     const int periodMs_;
     CallbackType callback_{trivialCallback};
 

@@ -17,8 +17,10 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <lib/TopicName.h>
+
 #include <map>
+
+#include "lib/TopicName.h"
 
 using namespace pulsar;
 
@@ -140,6 +142,16 @@ TEST(TopicNameTest, testIllegalCharacters) {
     ASSERT_FALSE(topicName);
 }
 
+TEST(TopicNameTest, testLegalNonAlphaCharacters) {
+    std::shared_ptr<TopicName> topicName =
+        TopicName::get("persistent://cluster-1:=._/namespace-1:=._/topic_");
+    ASSERT_TRUE(topicName);
+    ASSERT_EQ("cluster-1:=._", topicName->getProperty());
+    ASSERT_EQ("namespace-1:=._", topicName->getNamespacePortion());
+    ASSERT_EQ("persistent", topicName->getDomain());
+    ASSERT_EQ("topic_", topicName->getLocalName());
+}
+
 TEST(TopicNameTest, testIllegalUrl) {
     std::shared_ptr<TopicName> topicName = TopicName::get("persistent:::/property/cluster/namespace/topic");
     ASSERT_FALSE(topicName);
@@ -178,4 +190,21 @@ TEST(TopicNameTest, testPartitionIndex) {
         ASSERT_EQ(topicName->getPartitionIndex(), TopicName::getPartitionIndex(name));
         ASSERT_EQ(topicName->getPartitionIndex(), partition);
     }
+}
+
+TEST(TopicNameTest, testRemoveDomain) {
+    auto topicName1 = "persistent://public/default/test-topic";
+    ASSERT_EQ("public/default/test-topic", TopicName::removeDomain(topicName1));
+
+    auto topicName2 = "non-persistent://public/default/test-topic";
+    ASSERT_EQ("public/default/test-topic", TopicName::removeDomain(topicName2));
+
+    auto topicName3 = "public/default/test-topic";
+    ASSERT_EQ(topicName3, TopicName::removeDomain(topicName2));
+}
+
+TEST(TopicNameTest, testContainsDomain) {
+    ASSERT_TRUE(TopicName::containsDomain("persistent://public/default/test-topic"));
+    ASSERT_TRUE(TopicName::containsDomain("non-persistent://public/default/test-topic"));
+    ASSERT_FALSE(TopicName::containsDomain("public/default/test-topic"));
 }

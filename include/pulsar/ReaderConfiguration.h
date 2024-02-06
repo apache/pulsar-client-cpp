@@ -19,14 +19,15 @@
 #ifndef PULSAR_READER_CONFIGURATION_H_
 #define PULSAR_READER_CONFIGURATION_H_
 
+#include <pulsar/ConsumerCryptoFailureAction.h>
+#include <pulsar/CryptoKeyReader.h>
+#include <pulsar/Message.h>
+#include <pulsar/Result.h>
+#include <pulsar/Schema.h>
+#include <pulsar/defines.h>
+
 #include <functional>
 #include <memory>
-#include <pulsar/defines.h>
-#include <pulsar/Result.h>
-#include <pulsar/Message.h>
-#include <pulsar/Schema.h>
-#include <pulsar/CryptoKeyReader.h>
-#include <pulsar/ConsumerCryptoFailureAction.h>
 
 namespace pulsar {
 
@@ -161,6 +162,7 @@ class PULSAR_PUBLIC ReaderConfiguration {
      * Set the internal subscription name.
      *
      * @param internal subscriptionName
+     * Default value is reader-{random string}.
      */
     void setInternalSubscriptionName(std::string internalSubscriptionName);
 
@@ -260,6 +262,21 @@ class PULSAR_PUBLIC ReaderConfiguration {
      * Set the CryptoFailureAction for the reader.
      */
     ReaderConfiguration& setCryptoFailureAction(ConsumerCryptoFailureAction action);
+
+    /**
+     * Set the reader to include the startMessageId or given position of any reset operation like
+     * Reader::seek.
+     *
+     * Default: false
+     *
+     * @param startMessageIdInclusive whether to include the reset position
+     */
+    ReaderConfiguration& setStartMessageIdInclusive(bool startMessageIdInclusive);
+
+    /**
+     * The associated getter of setStartMessageIdInclusive
+     */
+    bool isStartMessageIdInclusive() const;
 
     /**
      * Check whether the message has a specific property attached.

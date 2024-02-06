@@ -18,10 +18,11 @@
  */
 
 #include <gtest/gtest.h>
+
 #include <thread>
 
-#include "../lib/Semaphore.h"
-#include "../lib/Latch.h"
+#include "lib/Latch.h"
+#include "lib/Semaphore.h"
 
 using namespace pulsar;
 

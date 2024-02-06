@@ -42,7 +42,7 @@ export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 chmod +x $(find . -name "*.sh")
 cmake . -DBUILD_TESTS=OFF -DBUILD_PERF_TOOLS=OFF -DLINK_STATIC=ON
-make pulsarShared pulsarSharedNossl pulsarStatic pulsarStaticWithDeps  -j 3
+make -j 3
 popd
 
 DEST_DIR=apache-pulsar-client
@@ -78,7 +78,6 @@ cp -ar $CPP_DIR/include/pulsar $DEVEL_DEST_DIR/usr/include/
 cp $CPP_DIR/lib/libpulsar.a $DEVEL_DEST_DIR/usr/lib
 cp $CPP_DIR/lib/libpulsarwithdeps.a $DEVEL_DEST_DIR/usr/lib
 cp $CPP_DIR/lib/libpulsar.so $DEST_DIR/usr/lib
-cp $CPP_DIR/lib/libpulsarnossl.so $DEST_DIR/usr/lib
 
 cp $ROOT_DIR/NOTICE $DEST_DIR/usr/share/doc/pulsar-client-$VERSION
 cp $CPP_DIR/pkg/licenses/* $DEST_DIR/usr/share/doc/pulsar-client-$VERSION

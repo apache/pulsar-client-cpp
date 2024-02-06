@@ -17,21 +17,28 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <pulsar/Client.h>
+#include <pulsar/Version.h>
 
-#include "HttpHelper.h"
+#include <algorithm>
+#include <chrono>
+#include <future>
+#include <sstream>
+
+#include "PulsarAdminHelper.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
-
-#include <future>
-#include <pulsar/Client.h>
-#include "../lib/checksum/ChecksumProvider.h"
+#include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
+#include "lib/checksum/ChecksumProvider.h"
+#include "lib/stats/ProducerStatsImpl.h"
 
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
+static std::string adminUrl = "http://localhost:8080/";
 
 TEST(ClientTest, testChecksumComputation) {
     std::string data = "test";
@@ -124,7 +131,7 @@ TEST(ClientTest, testConnectTimeout) {
     clientDefault.close();
 
     ASSERT_EQ(futureDefault.wait_for(std::chrono::milliseconds(10)), std::future_status::ready);
-    ASSERT_EQ(futureDefault.get(), ResultConnectError);
+    ASSERT_EQ(futureDefault.get(), ResultDisconnected);
 }
 
 TEST(ClientTest, testGetNumberOfReferences) {
@@ -198,37 +205,37 @@ TEST(ClientTest, testReferenceCount) {
         Producer producer;
         ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
         ASSERT_EQ(producers.size(), 1);
-        ASSERT_TRUE(producers[0].use_count() > 0);
-        LOG_INFO("Reference count of the producer: " << producers[0].use_count());
+
+        producers.forEachValue([](const ProducerImplBaseWeakPtr &weakProducer) {
+            LOG_INFO("Reference count of producer: " << weakProducer.use_count());
+            ASSERT_FALSE(weakProducer.expired());
+        });
 
         Consumer consumer;
         ASSERT_EQ(ResultOk, client.subscribe(topic, "my-sub", consumer));
         ASSERT_EQ(consumers.size(), 1);
-        ASSERT_TRUE(consumers[0].use_count() > 0);
-        LOG_INFO("Reference count of the consumer: " << consumers[0].use_count());
 
         ReaderConfiguration readerConf;
         Reader reader;
         ASSERT_EQ(ResultOk,
                   client.createReader(topic + "-reader", MessageId::earliest(), readerConf, reader));
         ASSERT_EQ(consumers.size(), 2);
-        ASSERT_TRUE(consumers[1].use_count() > 0);
-        LOG_INFO("Reference count of the reader's underlying consumer: " << consumers[1].use_count());
+
+        consumers.forEachValue([](const ConsumerImplBaseWeakPtr &weakConsumer) {
+            LOG_INFO("Reference count of consumer: " << weakConsumer.use_count());
+            ASSERT_FALSE(weakConsumer.expired());
+        });
 
         readerWeakPtr = PulsarFriend::getReaderImplWeakPtr(reader);
         ASSERT_TRUE(readerWeakPtr.use_count() > 0);
         LOG_INFO("Reference count of the reader: " << readerWeakPtr.use_count());
     }
 
-    ASSERT_EQ(producers.size(), 1);
-    ASSERT_EQ(producers[0].use_count(), 0);
-    ASSERT_EQ(consumers.size(), 2);
-
-    waitUntil(std::chrono::seconds(1), [&consumers, &readerWeakPtr] {
-        return consumers[0].use_count() == 0 && consumers[1].use_count() == 0 && readerWeakPtr.expired();
+    waitUntil(std::chrono::seconds(3), [&] {
+        return producers.size() == 0 && consumers.size() == 0 && readerWeakPtr.use_count() == 0;
     });
-    EXPECT_EQ(consumers[0].use_count(), 0);
-    EXPECT_EQ(consumers[1].use_count(), 0);
+    EXPECT_EQ(producers.size(), 0);
+    EXPECT_EQ(consumers.size(), 0);
     EXPECT_EQ(readerWeakPtr.use_count(), 0);
     client.close();
 }
@@ -294,4 +301,136 @@ TEST(ClientTest, testMultiBrokerUrl) {
     PulsarFriend::setServiceUrlIndex(client, 0);
     ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
     client.close();
+}
+
+TEST(ClientTest, testCloseClient) {
+    const std::string topic = "client-test-close-client-" + std::to_string(time(nullptr));
+
+    for (int i = 0; i < 1000; ++i) {
+        Client client(lookupUrl);
+        client.createProducerAsync(topic, [](Result result, Producer producer) { producer.close(); });
+        // simulate different time interval before close
+        auto t0 = std::chrono::steady_clock::now();
+        while ((std::chrono::steady_clock::now() - t0) < std::chrono::microseconds(i)) {
+        }
+        client.close();
+    }
+}
+
+namespace pulsar {
+
+class PulsarWrapper {
+   public:
+    static ClientConfiguration createConfig(const std::string &description) {
+        ClientConfiguration conf;
+        conf.setDescription(description);
+        return conf;
+    }
+};
+
+}  // namespace pulsar
+
+// When `subscription` is empty, get client versions of the producers.
+// Otherwise, get client versions of the consumers under the subscribe.
+static std::vector<std::string> getClientVersions(const std::string &topic, std::string subscription = "") {
+    boost::property_tree::ptree root;
+    const auto error = getTopicStats(topic, root);
+    if (!error.empty()) {
+        LOG_ERROR(error);
+        return {};
+    }
+
+    std::vector<std::string> versions;
+    if (subscription.empty()) {
+        for (auto &child : root.get_child("publishers")) {
+            versions.emplace_back(child.second.get<std::string>("clientVersion"));
+        }
+    } else {
+        auto consumers = root.get_child("subscriptions").get_child_optional(subscription);
+        if (consumers) {
+            for (auto &child : consumers.value().get_child("consumers")) {
+                versions.emplace_back(child.second.get<std::string>("clientVersion"));
+            }
+        }
+    }
+    std::sort(versions.begin(), versions.end());
+    return versions;
+}
+
+TEST(ClientTest, testClientVersion) {
+    const std::string topic = "testClientVersion" + std::to_string(time(nullptr));
+    const std::string expectedVersion = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
+
+    Client client(lookupUrl);
+    Client client2(lookupUrl, PulsarWrapper::createConfig("forked"));
+
+    std::string responseData;
+
+    ASSERT_TRUE(getClientVersions(topic).empty());
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ASSERT_EQ(getClientVersions(topic), (std::vector<std::string>{expectedVersion}));
+
+    Producer producer2;
+    ASSERT_EQ(ResultOk, client2.createProducer(topic, producer2));
+    ASSERT_EQ(getClientVersions(topic),
+              (std::vector<std::string>{expectedVersion, expectedVersion + "-forked"}));
+
+    producer.close();
+
+    ASSERT_TRUE(getClientVersions(topic, "consumer-1").empty());
+    auto consumerConf = ConsumerConfiguration{}.setConsumerType(ConsumerType::ConsumerFailover);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "consumer-1", consumerConf, consumer));
+    ASSERT_EQ(getClientVersions(topic, "consumer-1"), (std::vector<std::string>{expectedVersion}));
+
+    Consumer consumer2;
+    ASSERT_EQ(ResultOk, client2.subscribe(topic, "consumer-1", consumerConf, consumer2));
+    ASSERT_EQ(getClientVersions(topic, "consumer-1"),
+              (std::vector<std::string>{expectedVersion, expectedVersion + "-forked"}));
+
+    consumer.close();
+
+    client.close();
+}
+
+TEST(ClientTest, testConnectionClose) {
+    std::vector<Client> clients;
+    clients.emplace_back(lookupUrl);
+    clients.emplace_back(lookupUrl, ClientConfiguration().setConnectionsPerBroker(5));
+
+    const auto topic = "client-test-connection-close";
+    for (auto &client : clients) {
+        auto testClose = [&client](ClientConnectionWeakPtr weakCnx) {
+            auto cnx = weakCnx.lock();
+            ASSERT_TRUE(cnx);
+
+            auto numConnections = PulsarFriend::getConnections(client).size();
+            LOG_INFO("Connection refcnt: " << cnx.use_count() << " before close");
+            auto executor = PulsarFriend::getExecutor(*cnx);
+            // Simulate the close() happens in the event loop
+            executor->postWork([cnx, &client, numConnections] {
+                cnx->close();
+                ASSERT_EQ(PulsarFriend::getConnections(client).size(), numConnections - 1);
+                LOG_INFO("Connection refcnt: " << cnx.use_count() << " after close");
+            });
+            cnx.reset();
+
+            // The ClientConnection could still be referred in a socket callback, wait until all these
+            // callbacks being cancelled due to the socket close.
+            ASSERT_TRUE(waitUntil(
+                std::chrono::seconds(1), [weakCnx] { return weakCnx.expired(); }, 1));
+        };
+        Producer producer;
+        ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+        testClose(PulsarFriend::getProducerImpl(producer).getCnx());
+        producer.close();
+
+        Consumer consumer;
+        ASSERT_EQ(ResultOk, client.subscribe("client-test-connection-close", "sub", consumer));
+        testClose(PulsarFriend::getConsumerImpl(consumer).getCnx());
+        consumer.close();
+
+        client.close();
+    }
 }

@@ -16,16 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "ProducerImpl.h"
-#include "ClientImpl.h"
-#include <vector>
-
-#include <mutex>
 #include <pulsar/MessageRoutingPolicy.h>
 #include <pulsar/TopicMetadata.h>
-#include <lib/TopicName.h>
+
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <vector>
+
+#include "AsioTimer.h"
+#include "LookupDataResult.h"
+#include "ProducerImplBase.h"
+#include "ProducerInterceptors.h"
+#include "TimeUtils.h"
 
 namespace pulsar {
+
+class ClientImpl;
+using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
+class ExecutorService;
+using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+class LookupService;
+using LookupServicePtr = std::shared_ptr<LookupService>;
+class ProducerImpl;
+using ProducerImplPtr = std::shared_ptr<ProducerImpl>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
 
 class PartitionedProducerImpl : public ProducerImplBase,
                                 public std::enable_shared_from_this<PartitionedProducerImpl> {
@@ -43,7 +60,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     typedef std::unique_lock<std::mutex> Lock;
 
     PartitionedProducerImpl(ClientImplPtr ptr, const TopicNamePtr topicName, const unsigned int numPartitions,
-                            const ProducerConfiguration& config);
+                            const ProducerConfiguration& config, const ProducerInterceptorsPtr& interceptors);
     virtual ~PartitionedProducerImpl();
 
     // overrided methods from ProducerImplBase
@@ -73,10 +90,12 @@ class PartitionedProducerImpl : public ProducerImplBase,
 
     void notifyResult(CloseCallback closeCallback);
 
+    std::weak_ptr<PartitionedProducerImpl> weak_from_this() noexcept { return shared_from_this(); }
+
     friend class PulsarFriend;
 
    private:
-    const ClientImplPtr client_;
+    ClientImplWeakPtr client_;
 
     const TopicNamePtr topicName_;
     const std::string topic_;
@@ -105,20 +124,23 @@ class PartitionedProducerImpl : public ProducerImplBase,
     std::unique_ptr<TopicMetadata> topicMetadata_;
 
     std::atomic<int> flushedPartitions_;
-    std::shared_ptr<Promise<Result, bool_type>> flushPromise_;
+    std::shared_ptr<Promise<Result, bool>> flushPromise_;
 
     ExecutorServicePtr listenerExecutor_;
     DeadlineTimerPtr partitionsUpdateTimer_;
-    boost::posix_time::time_duration partitionsUpdateInterval_;
+    TimeDuration partitionsUpdateInterval_;
     LookupServicePtr lookupServicePtr_;
+
+    ProducerInterceptorsPtr interceptors_;
 
     unsigned int getNumPartitions() const;
     unsigned int getNumPartitionsWithLock() const;
-    ProducerImplPtr newInternalProducer(unsigned int partition, bool lazy);
+    ProducerImplPtr newInternalProducer(unsigned int partition, bool lazy, bool retryOnCreationError);
     MessageRoutingPolicyPtr getMessageRouter();
     void runPartitionUpdateTask();
     void getPartitionMetadata();
     void handleGetPartitions(const Result result, const LookupDataResultPtr& partitionMetadata);
+    void cancelTimers() noexcept;
 };
 
 }  // namespace pulsar

@@ -16,18 +16,24 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "pulsar/Authentication.h"
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
-#include <boost/asio.hpp>
-#include <boost/algorithm/string.hpp>
-#include <thread>
-#include <lib/LogUtils.h>
-#include <lib/auth/AuthOauth2.h>
 
-#include <lib/Latch.h>
+#include <boost/algorithm/string.hpp>
+#ifdef USE_ASIO
+#include <asio.hpp>
+#else
+#include <boost/asio.hpp>
+#endif
+#include <thread>
+
+#include "lib/AsioDefines.h"
 #include "lib/Future.h"
+#include "lib/Latch.h"
+#include "lib/LogUtils.h"
 #include "lib/Utils.h"
+#include "lib/auth/AuthOauth2.h"
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
@@ -36,9 +42,19 @@ int globalTestTlsMessagesCounter = 0;
 static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
 static const std::string serviceUrlHttps = "https://localhost:8443";
 
-static const std::string caPath = "../test-conf/cacert.pem";
-static const std::string clientPublicKeyPath = "../test-conf/client-cert.pem";
-static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
+#endif
+
+static const std::string caPath = TEST_CONF_DIR "/cacert.pem";
+static const std::string clientPublicKeyPath = TEST_CONF_DIR "/client-cert.pem";
+static const std::string clientPrivateKeyPath = TEST_CONF_DIR "/client-key.pem";
+
+// Man in middle certificate which tries to act as a broker by sending its own valid certificate
+static const std::string mimServiceUrlTls = "pulsar+ssl://localhost:6653";
+static const std::string mimServiceUrlHttps = "https://localhost:8444";
+
+static const std::string mimCaPath = TEST_CONF_DIR "/hn-verification/cacert.pem";
 
 static void sendCallBackTls(Result r, const MessageId& msgId) {
     ASSERT_EQ(r, ResultOk);
@@ -148,12 +164,54 @@ TEST(AuthPluginTest, testTlsDetectPulsarSslWithHostNameValidation) {
 
     Producer producer;
     Result res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectPulsarSslWithHostNameValidationMissingCertsFile) {
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsAllowInsecureConnection(false);
+    config.setValidateHostName(true);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    Client client(serviceUrlTls, config);
+    std::string topicName =
+        "persistent://private/auth/testTlsDetectPulsarSslWithHostNameValidationMissingCertsFile";
+
+    Producer producer;
+    Result res = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultConnectError, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectPulsarSslWithInvalidBroker) {
+    ClientConfiguration configWithValidateHostname = ClientConfiguration();
+    configWithValidateHostname.setTlsTrustCertsFilePath(mimCaPath);
+    configWithValidateHostname.setTlsAllowInsecureConnection(false);
+    configWithValidateHostname.setValidateHostName(true);
+    configWithValidateHostname.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsTrustCertsFilePath(mimCaPath);
+    config.setTlsAllowInsecureConnection(false);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    Client clientWithValidateHostname(mimServiceUrlTls, configWithValidateHostname);
+    Client client(mimServiceUrlTls, config);
+
+    std::string topicName = "persistent://private/auth/testTlsDetectPulsarSslWithInvalidBroker";
+
+    // 1. Client tries to connect to broker with hostname="localhost"
+    // 2. Broker sends x509 certificates with CN = "pulsar"
+    // 3. Client verifies the host-name and closes the connection
+    Producer producer;
+    Result res = clientWithValidateHostname.createProducer(topicName, producer);
+    ASSERT_EQ(ResultConnectError, res);
+
+    res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
 }
 
 TEST(AuthPluginTest, testTlsDetectHttps) {
     ClientConfiguration config = ClientConfiguration();
-    config.setUseTls(true);  // shouldn't be needed soon
     config.setTlsTrustCertsFilePath(caPath);
     config.setTlsAllowInsecureConnection(false);
     config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
@@ -172,7 +230,6 @@ TEST(AuthPluginTest, testTlsDetectHttps) {
 
 TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidation) {
     ClientConfiguration config = ClientConfiguration();
-    config.setUseTls(true);  // shouldn't be needed soon
     config.setTlsTrustCertsFilePath(caPath);
     config.setTlsAllowInsecureConnection(false);
     config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
@@ -184,17 +241,60 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidation) {
 
     Producer producer;
     Result res = client.createProducer(topicName, producer);
-    ASSERT_NE(ResultOk, res);
+    ASSERT_EQ(ResultOk, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectHttpsWithHostNameValidationMissingCertsFile) {
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsAllowInsecureConnection(false);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+    config.setValidateHostName(true);
+
+    Client client(serviceUrlHttps, config);
+
+    std::string topicName =
+        "persistent://private/auth/test-tls-detect-https-with-hostname-validation-missing-certs-file";
+
+    Producer producer;
+    Result res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultLookupError, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectHttpsWithInvalidBroker) {
+    ClientConfiguration configWithValidateHostname = ClientConfiguration();
+    configWithValidateHostname.setTlsTrustCertsFilePath(mimCaPath);
+    configWithValidateHostname.setTlsAllowInsecureConnection(false);
+    configWithValidateHostname.setValidateHostName(true);
+    configWithValidateHostname.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsTrustCertsFilePath(mimCaPath);
+    config.setTlsAllowInsecureConnection(false);
+    config.setAuth(pulsar::AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath));
+
+    Client clientWithValidateHostname(mimServiceUrlHttps, configWithValidateHostname);
+    Client client(mimServiceUrlHttps, config);
+
+    std::string topicName = "persistent://private/auth/test-tls-detect-https-with-invalid-broker";
+
+    // 1. Client tries to connect to broker with hostname="localhost"
+    // 2. Broker sends x509 certificates with CN = "pulsar"
+    // 3. Client verifies the host-name and closes the connection
+    Producer producer;
+    Result res = clientWithValidateHostname.createProducer(topicName, producer);
+    ASSERT_EQ(ResultLookupError, res);
+
+    res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
 }
 
 namespace testAthenz {
 std::string principalToken;
 void mockZTS(Latch& latch, int port) {
     LOG_INFO("-- MockZTS started");
-    boost::asio::io_service io;
-    boost::asio::ip::tcp::iostream stream;
-    boost::asio::ip::tcp::acceptor acceptor(io,
-                                            boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), port));
+    ASIO::io_service io;
+    ASIO::ip::tcp::iostream stream;
+    ASIO::ip::tcp::acceptor acceptor(io, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), port));
 
     LOG_INFO("-- MockZTS waiting for connnection");
     latch.countdown();
@@ -376,11 +476,15 @@ TEST(AuthPluginTest, testOauth2WrongSecret) {
 TEST(AuthPluginTest, testOauth2CredentialFile) {
     // test success get token from oauth2 server.
     pulsar::AuthenticationDataPtr data;
-    std::string params = R"({
+    const char* paramsTemplate = R"({
         "type": "client_credentials",
         "issuer_url": "https://dev-kt-aa9ne.us.auth0.com",
-        "private_key": "../test-conf/cpp_credentials_file.json",
+        "private_key": "%s/cpp_credentials_file.json",
         "audience": "https://dev-kt-aa9ne.us.auth0.com/api/v2/"})";
+
+    char params[4096];
+    int numWritten = snprintf(params, sizeof(params), paramsTemplate, TEST_CONF_DIR);
+    ASSERT_TRUE(numWritten < sizeof(params));
 
     int expectedTokenLength = 3379;
     LOG_INFO("PARAMS: " << params);
@@ -480,4 +584,20 @@ TEST(AuthPluginTest, testOauth2Failure) {
     auto client5 = createClient();
     ASSERT_EQ(client5.createProducer(topic, producer), ResultAuthenticationError);
     client5.close();
+}
+
+TEST(AuthPluginTest, testInvalidPlugin) {
+    Client client("pulsar://localhost:6650", ClientConfiguration{}.setAuth(AuthFactory::create("invalid")));
+    Producer producer;
+    ASSERT_EQ(ResultAuthenticationError, client.createProducer("my-topic", producer));
+    client.close();
+}
+
+TEST(AuthPluginTest, testTlsConfigError) {
+    Client client(serviceUrlTls, ClientConfiguration{}
+                                     .setAuth(AuthTls::create(clientPublicKeyPath, clientPrivateKeyPath))
+                                     .setTlsTrustCertsFilePath("invalid"));
+    Producer producer;
+    ASSERT_EQ(ResultAuthenticationError, client.createProducer("my-topic", producer));
+    client.close();
 }

@@ -19,9 +19,7 @@
 #ifndef LIB_COMPRESSIONCODECZLIB_H_
 #define LIB_COMPRESSIONCODECZLIB_H_
 
-#include <pulsar/defines.h>
 #include "CompressionCodec.h"
-#include <zlib.h>
 
 // Make symbol visible to unit tests
 

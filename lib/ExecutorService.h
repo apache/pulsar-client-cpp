@@ -19,25 +19,34 @@
 #ifndef _PULSAR_EXECUTOR_SERVICE_HEADER_
 #define _PULSAR_EXECUTOR_SERVICE_HEADER_
 
-#include <atomic>
-#include <condition_variable>
-#include <chrono>
-#include <memory>
-#include <boost/asio.hpp>
-#include <boost/asio/ssl.hpp>
-#include <functional>
-#include <thread>
-#include <mutex>
 #include <pulsar/defines.h>
 
+#include <atomic>
+#ifdef USE_ASIO
+#include <asio/io_service.hpp>
+#include <asio/ip/tcp.hpp>
+#include <asio/ssl.hpp>
+#else
+#include <boost/asio/io_service.hpp>
+#include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/ssl.hpp>
+#endif
+#include <chrono>
+#include <condition_variable>
+#include <functional>
+#include <memory>
+#include <mutex>
+#include <thread>
+
+#include "AsioTimer.h"
+
 namespace pulsar {
-typedef std::shared_ptr<boost::asio::ip::tcp::socket> SocketPtr;
-typedef std::shared_ptr<boost::asio::ssl::stream<boost::asio::ip::tcp::socket &> > TlsSocketPtr;
-typedef std::shared_ptr<boost::asio::ip::tcp::resolver> TcpResolverPtr;
-typedef std::shared_ptr<boost::asio::deadline_timer> DeadlineTimerPtr;
+typedef std::shared_ptr<ASIO::ip::tcp::socket> SocketPtr;
+typedef std::shared_ptr<ASIO::ssl::stream<ASIO::ip::tcp::socket &> > TlsSocketPtr;
+typedef std::shared_ptr<ASIO::ip::tcp::resolver> TcpResolverPtr;
 class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<ExecutorService> {
    public:
-    using IOService = boost::asio::io_service;
+    using IOService = ASIO::io_service;
     using SharedPtr = std::shared_ptr<ExecutorService>;
 
     static SharedPtr create();
@@ -46,9 +55,12 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
     ExecutorService(const ExecutorService &) = delete;
     ExecutorService &operator=(const ExecutorService &) = delete;
 
+    // throws std::runtime_error if failed
     SocketPtr createSocket();
-    static TlsSocketPtr createTlsSocket(SocketPtr &socket, boost::asio::ssl::context &ctx);
+    static TlsSocketPtr createTlsSocket(SocketPtr &socket, ASIO::ssl::context &ctx);
+    // throws std::runtime_error if failed
     TcpResolverPtr createTcpResolver();
+    // throws std::runtime_error if failed
     DeadlineTimerPtr createDeadlineTimer();
     void postWork(std::function<void(void)> task);
 
@@ -64,20 +76,16 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
      */
     IOService io_service_;
 
-    /*
-     * work will not let io_service.run() return even after it has finished work
-     * it will keep it running in the background so we don't have to take care of it
-     */
-    IOService::work work_{io_service_};
-
     std::atomic_bool closed_{false};
     std::mutex mutex_;
     std::condition_variable cond_;
-    std::atomic_bool ioServiceDone_{false};
+    bool ioServiceDone_{false};
 
     ExecutorService();
 
     void start();
+
+    void restart();
 };
 
 using ExecutorServicePtr = ExecutorService::SharedPtr;
@@ -86,7 +94,9 @@ class PULSAR_PUBLIC ExecutorServiceProvider {
    public:
     explicit ExecutorServiceProvider(int nthreads);
 
-    ExecutorServicePtr get();
+    ExecutorServicePtr get() { return get(executorIdx_++); }
+
+    ExecutorServicePtr get(size_t index);
 
     // See TimeoutProcessor for the semantics of the parameter.
     void close(long timeoutMs = 3000);
@@ -94,7 +104,7 @@ class PULSAR_PUBLIC ExecutorServiceProvider {
    private:
     typedef std::vector<ExecutorServicePtr> ExecutorList;
     ExecutorList executors_;
-    int executorIdx_;
+    std::atomic_size_t executorIdx_;
     std::mutex mutex_;
     typedef std::unique_lock<std::mutex> Lock;
 };

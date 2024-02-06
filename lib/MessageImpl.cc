@@ -20,8 +20,6 @@
 
 namespace pulsar {
 
-MessageImpl::MessageImpl() : metadata(), payload(), messageId(), cnx_(0), topicName_(), redeliveryCount_() {}
-
 const Message::StringMap& MessageImpl::properties() {
     if (properties_.size() == 0) {
         for (int i = 0; i < metadata.properties_size(); i++) {
@@ -85,8 +83,8 @@ void MessageImpl::setOrderingKey(const std::string& orderingKey) { metadata.set_
 
 void MessageImpl::setEventTimestamp(uint64_t eventTimestamp) { metadata.set_event_time(eventTimestamp); }
 
-void MessageImpl::setTopicName(const std::string& topicName) {
-    topicName_ = &topicName;
+void MessageImpl::setTopicName(const std::shared_ptr<std::string>& topicName) {
+    topicName_ = topicName;
     messageId.setTopicName(topicName);
 }
 
@@ -101,5 +99,40 @@ bool MessageImpl::hasSchemaVersion() const { return metadata.has_schema_version(
 void MessageImpl::setSchemaVersion(const std::string& schemaVersion) { schemaVersion_ = &schemaVersion; }
 
 const std::string& MessageImpl::getSchemaVersion() const { return metadata.schema_version(); }
+
+void MessageImpl::convertKeyValueToPayload(const pulsar::SchemaInfo& schemaInfo) {
+    if (schemaInfo.getSchemaType() != KEY_VALUE) {
+        // ignore not key_value schema.
+        return;
+    }
+    KeyValueEncodingType keyValueEncodingType = getKeyValueEncodingType(schemaInfo);
+    payload = keyValuePtr->getContent(keyValueEncodingType);
+    if (keyValueEncodingType == KeyValueEncodingType::SEPARATED) {
+        setPartitionKey(keyValuePtr->getKey());
+    }
+}
+
+void MessageImpl::convertPayloadToKeyValue(const pulsar::SchemaInfo& schemaInfo) {
+    if (schemaInfo.getSchemaType() != KEY_VALUE) {
+        // ignore not key_value schema.
+        return;
+    }
+    keyValuePtr =
+        std::make_shared<KeyValueImpl>(static_cast<const char*>(payload.data()), payload.readableBytes(),
+                                       getKeyValueEncodingType(schemaInfo));
+}
+
+KeyValueEncodingType MessageImpl::getKeyValueEncodingType(SchemaInfo schemaInfo) {
+    if (schemaInfo.getSchemaType() != KEY_VALUE) {
+        throw std::invalid_argument("Schema not key value type.");
+    }
+    const StringMap& properties = schemaInfo.getProperties();
+    auto data = properties.find("kv.encoding.type");
+    if (data == properties.end()) {
+        throw std::invalid_argument("Not found kv.encoding.type by properties");
+    } else {
+        return enumEncodingType(data->second);
+    }
+}
 
 }  // namespace pulsar

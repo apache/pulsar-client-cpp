@@ -19,25 +19,30 @@
 #ifndef PULSAR_CPP_LOOKUPSERVICE_H
 #define PULSAR_CPP_LOOKUPSERVICE_H
 
-#include <lib/LookupDataResult.h>
 #include <pulsar/Result.h>
-#include <lib/Future.h>
-#include <lib/LogUtils.h>
-#include <lib/TopicName.h>
+#include <pulsar/Schema.h>
 
-#include <iostream>
+#include <memory>
+#include <ostream>
 #include <vector>
 
+#include "Future.h"
+#include "LookupDataResult.h"
+#include "ProtoApiEnums.h"
+
 namespace pulsar {
-typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;
-typedef Promise<Result, NamespaceTopicsPtr> NamespaceTopicsPromise;
-typedef std::shared_ptr<Promise<Result, NamespaceTopicsPtr>> NamespaceTopicsPromisePtr;
+using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
+class TopicName;
+using TopicNamePtr = std::shared_ptr<TopicName>;
+class NamespaceName;
+using NamespaceNamePtr = std::shared_ptr<NamespaceName>;
 
 class LookupService {
    public:
     struct LookupResult {
         std::string logicalAddress;
         std::string physicalAddress;
+        bool proxyThroughServiceUrl;
 
         friend std::ostream& operator<<(std::ostream& os, const LookupResult& lookupResult) {
             return os << "logical address: " << lookupResult.logicalAddress
@@ -68,9 +73,22 @@ class LookupService {
      *
      * Returns all the topics name for a given namespace.
      */
-    virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName) = 0;
+    virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+        const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) = 0;
+
+    /**
+     * Get the SchemaInfo for a given topic and a specific schema version.
+     *
+     * @param topicName topic-name
+     * @param version the schema version byte array, if it's empty, use the latest version
+     * @return SchemaInfo
+     */
+    virtual Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName,
+                                                 const std::string& version = "") = 0;
 
     virtual ~LookupService() {}
+
+    virtual void close() {}
 };
 
 typedef std::shared_ptr<LookupService> LookupServicePtr;

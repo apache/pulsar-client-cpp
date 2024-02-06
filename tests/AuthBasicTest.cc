@@ -17,22 +17,25 @@
  * under the License.
  */
 
-#include <pulsar/Authentication.h>
-
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
 
 #include <string>
 
 using namespace pulsar;
 
+#ifndef TEST_CONF_DIR
+#error "TEST_CONF_DIR is not specified"
+#endif
+
 static const std::string serviceUrl = "pulsar://localhost:6650";
 static const std::string serviceUrlHttp = "http://localhost:8080";
 static const std::string serviceUrlTls = "pulsar+ssl://localhost:6651";
 static const std::string serviceUrlHttps = "https://localhost:8443";
-static const std::string caPath = "../test-conf/cacert.pem";
-static const std::string clientCertificatePath = "../test-conf/client-cert.pem";
-static const std::string clientPrivateKeyPath = "../test-conf/client-key.pem";
+static const std::string caPath = TEST_CONF_DIR "/cacert.pem";
+static const std::string clientCertificatePath = TEST_CONF_DIR "/client-cert.pem";
+static const std::string clientPrivateKeyPath = TEST_CONF_DIR "/client-key.pem";
 
 TEST(AuthPluginBasic, testBasic) {
     ClientConfiguration config = ClientConfiguration();
@@ -131,12 +134,35 @@ TEST(AuthPluginBasic, testLoadAuth) {
     ASSERT_EQ(data->hasDataForTls(), false);
     ASSERT_EQ(data->hasDataForHttp(), true);
 
+    auth = pulsar::AuthBasic::create(
+        "{\"username\":\"super-user\",\"password\":\"123789\",\"method\":\"my-method\"}");
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "my-method");
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "super-user:123789");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
     ParamMap p = ParamMap();
     p["username"] = "super-user-2";
     p["password"] = "456789";
     auth = pulsar::AuthBasic::create(p);
     ASSERT_TRUE(auth != NULL);
     ASSERT_EQ(auth->getAuthMethodName(), "basic");
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
+
+    p = ParamMap();
+    p["username"] = "super-user-2";
+    p["password"] = "456789";
+    p["method"] = "my-method-2";
+    auth = pulsar::AuthBasic::create(p);
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "my-method-2");
     ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
     ASSERT_EQ(data->hasDataFromCommand(), true);
     ASSERT_EQ(data->getCommandData(), "super-user-2:456789");
@@ -252,4 +278,20 @@ TEST(AuthPluginBasic, testAuthBasicWithServiceUrlHttpsNoTlsTransport) {
     Producer producer;
     Result result = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultLookupError, result);
+}
+
+TEST(AuthPluginBasic, testAuthBasicWithCustomMethodName) {
+    ClientConfiguration config = ClientConfiguration();
+
+    AuthenticationPtr auth = pulsar::AuthBasic::create("admin", "123456", "method-1");
+
+    ASSERT_TRUE(auth != NULL);
+    ASSERT_EQ(auth->getAuthMethodName(), "method-1");
+
+    pulsar::AuthenticationDataPtr data;
+    ASSERT_EQ(auth->getAuthData(data), pulsar::ResultOk);
+    ASSERT_EQ(data->hasDataFromCommand(), true);
+    ASSERT_EQ(data->getCommandData(), "admin:123456");
+    ASSERT_EQ(data->hasDataForTls(), false);
+    ASSERT_EQ(data->hasDataForHttp(), true);
 }

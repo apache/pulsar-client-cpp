@@ -18,37 +18,43 @@
  */
 #include "ClientConnection.h"
 
-#include "PulsarApi.pb.h"
+#include <pulsar/MessageIdBuilder.h>
 
-#include <iostream>
-#include <algorithm>
-#include <boost/date_time/posix_time/posix_time.hpp>
-#include <boost/date_time/gregorian/gregorian.hpp>
-#include <climits>
+#include <boost/optional.hpp>
+#include <fstream>
 
-#include "ExecutorService.h"
+#include "AsioDefines.h"
+#include "ClientConnectionAdaptor.h"
+#include "ClientImpl.h"
 #include "Commands.h"
-#include "LogUtils.h"
-#include "Url.h"
-
-#include <functional>
-#include <string>
-
-#include "ProducerImpl.h"
+#include "ConnectionPool.h"
 #include "ConsumerImpl.h"
+#include "ExecutorService.h"
+#include "LogUtils.h"
+#include "OpSendMsg.h"
+#include "ProducerImpl.h"
+#include "PulsarApi.pb.h"
+#include "ResultUtils.h"
+#include "Url.h"
+#include "auth/AuthOauth2.h"
+#include "auth/InitialAuthData.h"
 #include "checksum/ChecksumProvider.h"
-#include "MessageIdUtil.h"
 
 DECLARE_LOG_OBJECT()
 
-using namespace pulsar::proto;
-using namespace boost::asio::ip;
+using namespace ASIO::ip;
 
 namespace pulsar {
+
+using proto::BaseCommand;
 
 static const uint32_t DefaultBufferSize = 64 * 1024;
 
 static const int KeepAliveIntervalInSeconds = 30;
+
+static MessageId toMessageId(const proto::MessageIdData& messageIdData) {
+    return MessageIdBuilder::from(messageIdData).build();
+}
 
 // Convert error codes from protobuf to client API Result
 static Result getResult(ServerError serverError, const std::string& message) {
@@ -75,9 +81,9 @@ static Result getResult(ServerError serverError, const std::string& message) {
             return ResultConsumerBusy;
 
         case ServiceNotReady:
-            // If the error is not caused by a PulsarServerException, treat it as retryable.
-            return (message.find("PulsarServerException") == std::string::npos) ? ResultRetryable
-                                                                                : ResultServiceUnitNotReady;
+            return (message.find("the broker do not have test listener") == std::string::npos)
+                       ? ResultRetryable
+                       : ResultServiceUnitNotReady;
 
         case ProducerBlockedQuotaExceededError:
             return ResultProducerBlockedQuotaExceededError;
@@ -139,7 +145,7 @@ static Result getResult(ServerError serverError, const std::string& message) {
     return ResultUnknownError;
 }
 
-inline std::ostream& operator<<(std::ostream& os, ServerError error) {
+inline std::ostream& operator<<(std::ostream& os, proto::ServerError error) {
     os << getResult(error, "");
     return os;
 }
@@ -157,56 +163,59 @@ std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessa
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                                    ExecutorServicePtr executor,
                                    const ClientConfiguration& clientConfiguration,
-                                   const AuthenticationPtr& authentication)
-    : operationsTimeout_(seconds(clientConfiguration.getOperationTimeoutSeconds())),
+                                   const AuthenticationPtr& authentication, const std::string& clientVersion,
+                                   ConnectionPool& pool, size_t poolIndex)
+    : operationsTimeout_(ClientImpl::getOperationTimeout(clientConfiguration)),
       authentication_(authentication),
-      serverProtocolVersion_(ProtocolVersion_MIN),
+      serverProtocolVersion_(proto::ProtocolVersion_MIN),
       executor_(executor),
       resolver_(executor_->createTcpResolver()),
-#if BOOST_VERSION >= 107000
-      strand_(boost::asio::make_strand(executor_->getIOService().get_executor())),
-#elif BOOST_VERSION >= 106600
-      strand_(executor_->getIOService().get_executor()),
-#else
-      strand_(executor_->getIOService()),
-#endif
+      socket_(executor_->createSocket()),
+      strand_(ASIO::make_strand(executor_->getIOService().get_executor())),
       logicalAddress_(logicalAddress),
       physicalAddress_(physicalAddress),
       cnxString_("[<none> -> " + physicalAddress + "] "),
       incomingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
+      connectTimeoutTask_(
+          std::make_shared<PeriodicTask>(*executor_, clientConfiguration.getConnectionTimeout())),
       outgoingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
-      maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()) {
-
-    try {
-        socket_ = executor_->createSocket();
-        connectTimeoutTask_ = std::make_shared<PeriodicTask>(executor_->getIOService(),
-                                                             clientConfiguration.getConnectionTimeout());
-        consumerStatsRequestTimer_ = executor_->createDeadlineTimer();
-    } catch (const boost::system::system_error& e) {
-        LOG_ERROR("Failed to initialize connection: " << e.what());
-        close(ResultRetryable);
+      consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
+      maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()),
+      clientVersion_(clientVersion),
+      pool_(pool),
+      poolIndex_(poolIndex) {
+    LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
+    if (!authentication_) {
+        LOG_ERROR("Invalid authentication plugin");
+        throw ResultAuthenticationError;
         return;
     }
 
-    LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
+    auto oauth2Auth = std::dynamic_pointer_cast<AuthOauth2>(authentication_);
+    if (oauth2Auth) {
+        // Configure the TLS trust certs file for Oauth2
+        auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
+            std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
+        oauth2Auth->getAuthData(authData);
+    }
+
     if (clientConfiguration.isUseTls()) {
-#if BOOST_VERSION >= 105400
-        boost::asio::ssl::context ctx(boost::asio::ssl::context::tlsv12_client);
-#else
-        boost::asio::ssl::context ctx(executor_->getIOService(), boost::asio::ssl::context::tlsv1_client);
-#endif
+        ASIO::ssl::context ctx(ASIO::ssl::context::tlsv12_client);
         Url serviceUrl;
+        Url proxyUrl;
         Url::parse(physicalAddress, serviceUrl);
+        proxyServiceUrl_ = clientConfiguration.getProxyServiceUrl();
+        proxyProtocol_ = clientConfiguration.getProxyProtocol();
+        if (proxyProtocol_ == ClientConfiguration::SNI && !proxyServiceUrl_.empty()) {
+            Url::parse(proxyServiceUrl_, proxyUrl);
+            isSniProxy_ = true;
+            LOG_INFO("Configuring SNI Proxy-url=" << proxyServiceUrl_);
+        }
         if (clientConfiguration.isTlsAllowInsecureConnection()) {
-            ctx.set_verify_mode(boost::asio::ssl::context::verify_none);
+            ctx.set_verify_mode(ASIO::ssl::context::verify_none);
             isTlsAllowInsecureConnection_ = true;
         } else {
-            ctx.set_verify_mode(boost::asio::ssl::context::verify_peer);
-
-            if (clientConfiguration.isValidateHostName()) {
-                LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
-                ctx.set_verify_callback(boost::asio::ssl::rfc2818_verification(physicalAddress));
-            }
+            ctx.set_verify_mode(ASIO::ssl::context::verify_peer);
 
             std::string trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
             if (!trustCertFilePath.empty()) {
@@ -214,18 +223,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                     ctx.load_verify_file(trustCertFilePath);
                 } else {
                     LOG_ERROR(trustCertFilePath << ": No such trustCertFile");
-                    close();
-                    return;
+                    throw ResultAuthenticationError;
                 }
             } else {
                 ctx.set_default_verify_paths();
             }
-        }
-
-        if (!authentication_) {
-            LOG_ERROR("Invalid authentication plugin");
-            close();
-            return;
         }
 
         std::string tlsCertificates = clientConfiguration.getTlsCertificateFilePath();
@@ -237,38 +239,43 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
             tlsPrivateKey = authData->getTlsPrivateKey();
             if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
-                close();
-                return;
+                throw ResultAuthenticationError;
             }
             if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
-                close();
-                return;
+                throw ResultAuthenticationError;
             }
-            ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
-            ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
+            ctx.use_private_key_file(tlsPrivateKey, ASIO::ssl::context::pem);
+            ctx.use_certificate_file(tlsCertificates, ASIO::ssl::context::pem);
         } else {
             if (file_exists(tlsPrivateKey) && file_exists(tlsCertificates)) {
-                ctx.use_private_key_file(tlsPrivateKey, boost::asio::ssl::context::pem);
-                ctx.use_certificate_file(tlsCertificates, boost::asio::ssl::context::pem);
+                ctx.use_private_key_file(tlsPrivateKey, ASIO::ssl::context::pem);
+                ctx.use_certificate_file(tlsCertificates, ASIO::ssl::context::pem);
             }
         }
 
         tlsSocket_ = ExecutorService::createTlsSocket(socket_, ctx);
 
+        if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
+            LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
+            std::string urlHost = isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
+            tlsSocket_->set_verify_callback(ASIO::ssl::rfc2818_verification(urlHost));
+        }
+
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
         if (!SSL_set_tlsext_host_name(tlsSocket_->native_handle(), serviceUrl.host().c_str())) {
-            boost::system::error_code ec{static_cast<int>(::ERR_get_error()),
-                                         boost::asio::error::get_ssl_category()};
-            LOG_ERROR(boost::system::system_error{ec}.what() << ": Error while setting TLS SNI");
+            ASIO_ERROR ec{static_cast<int>(::ERR_get_error()), ASIO::error::get_ssl_category()};
+            LOG_ERROR(ec.message() << ": Error while setting TLS SNI");
             return;
         }
     }
 }
 
-ClientConnection::~ClientConnection() { LOG_INFO(cnxString_ << "Destroyed connection"); }
+ClientConnection::~ClientConnection() {
+    LOG_INFO(cnxString_ << "Destroyed connection to " << logicalAddress_ << "-" << poolIndex_);
+}
 
-void ClientConnection::handlePulsarConnected(const CommandConnected& cmdConnected) {
+void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdConnected) {
     if (!cmdConnected.has_server_version()) {
         LOG_ERROR(cnxString_ << "Server version is not set");
         close();
@@ -281,24 +288,36 @@ void ClientConnection::handlePulsarConnected(const CommandConnected& cmdConnecte
         LOG_DEBUG("Current max message size is: " << maxMessageSize_);
     }
 
+    Lock lock(mutex_);
+
+    if (isClosed()) {
+        LOG_INFO(cnxString_ << "Connection already closed");
+        return;
+    }
     state_ = Ready;
     connectTimeoutTask_->stop();
     serverProtocolVersion_ = cmdConnected.protocol_version();
-    connectPromise_.setValue(shared_from_this());
 
-    if (serverProtocolVersion_ >= v1) {
+    if (serverProtocolVersion_ >= proto::v1) {
         // Only send keep-alive probes if the broker supports it
         keepAliveTimer_ = executor_->createDeadlineTimer();
-        Lock lock(mutex_);
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
-            keepAliveTimer_->async_wait(
-                std::bind(&ClientConnection::handleKeepAliveTimeout, shared_from_this()));
+            keepAliveTimer_->expires_from_now(std::chrono::seconds(KeepAliveIntervalInSeconds));
+            auto weakSelf = weak_from_this();
+            keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleKeepAliveTimeout();
+                }
+            });
         }
-        lock.unlock();
     }
 
-    if (serverProtocolVersion_ >= v8) {
+    lock.unlock();
+
+    connectPromise_.setValue(shared_from_this());
+
+    if (serverProtocolVersion_ >= proto::v8) {
         startConsumerStatsTimer(std::vector<uint64_t>());
     }
 }
@@ -329,9 +348,13 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
     // Check if we have a timer still before we set the request timer to pop again.
     if (consumerStatsRequestTimer_) {
         consumerStatsRequestTimer_->expires_from_now(operationsTimeout_);
-        consumerStatsRequestTimer_->async_wait(std::bind(&ClientConnection::handleConsumerStatsTimeout,
-                                                         shared_from_this(), std::placeholders::_1,
-                                                         consumerStatsRequests));
+        auto weakSelf = weak_from_this();
+        consumerStatsRequestTimer_->async_wait([weakSelf, consumerStatsRequests](const ASIO_ERROR& err) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleConsumerStatsTimeout(err, consumerStatsRequests);
+            }
+        });
     }
     lock.unlock();
     // Complex logic since promises need to be fulfilled outside the lock
@@ -343,19 +366,19 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
 
 /// The number of unacknowledged probes to send before considering the connection dead and notifying the
 /// application layer
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPCNT> tcp_keep_alive_count;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPCNT> tcp_keep_alive_count;
 
 /// The interval between subsequential keepalive probes, regardless of what the connection has exchanged in
 /// the meantime
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPINTVL> tcp_keep_alive_interval;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPINTVL> tcp_keep_alive_interval;
 
 /// The interval between the last data packet sent (simple ACKs are not considered data) and the first
 /// keepalive
 /// probe; after the connection is marked to need keepalive, this counter is not used any further
 #ifdef __APPLE__
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPALIVE> tcp_keep_alive_idle;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPALIVE> tcp_keep_alive_idle;
 #else
-typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> tcp_keep_alive_idle;
+typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> tcp_keep_alive_idle;
 #endif
 
 /*
@@ -364,15 +387,14 @@ typedef boost::asio::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> t
  *  if async_connect without any error, connected_ would be set to true
  *  at this point the connection is deemed valid to be used by clients of this class
  */
-void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
-                                          tcp::resolver::iterator endpointIterator) {
+void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
     if (!err) {
         std::stringstream cnxStringStream;
         try {
             cnxStringStream << "[" << socket_->local_endpoint() << " -> " << socket_->remote_endpoint()
                             << "] ";
             cnxString_ = cnxStringStream.str();
-        } catch (const boost::system::system_error& e) {
+        } catch (const ASIO_SYSTEM_ERROR& e) {
             LOG_ERROR("Failed to get endpoint: " << e.what());
             close(ResultRetryable);
             return;
@@ -380,11 +402,19 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
         if (logicalAddress_ == physicalAddress_) {
             LOG_INFO(cnxString_ << "Connected to broker");
         } else {
-            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_);
+            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_
+                                << ", proxy: " << proxyServiceUrl_);
+        }
+
+        Lock lock(mutex_);
+        if (isClosed()) {
+            LOG_INFO(cnxString_ << "Connection already closed");
+            return;
         }
         state_ = TcpConnected;
+        lock.unlock();
 
-        boost::system::error_code error;
+        ASIO_ERROR error;
         socket_->set_option(tcp::no_delay(true), error);
         if (error) {
             LOG_WARN(cnxString_ << "Socket failed to set tcp::no_delay: " << error.message());
@@ -417,7 +447,7 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
 
         if (tlsSocket_) {
             if (!isTlsAllowInsecureConnection_) {
-                boost::system::error_code err;
+                ASIO_ERROR err;
                 Url service_url;
                 if (!Url::parse(physicalAddress_, service_url)) {
                     LOG_ERROR(cnxString_ << "Invalid Url, unable to parse: " << err << " " << err.message());
@@ -425,23 +455,26 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
                     return;
                 }
             }
-#if BOOST_VERSION >= 106600
-            tlsSocket_->async_handshake(
-                boost::asio::ssl::stream<tcp::socket>::client,
-                boost::asio::bind_executor(strand_, std::bind(&ClientConnection::handleHandshake,
-                                                              shared_from_this(), std::placeholders::_1)));
-#else
-            tlsSocket_->async_handshake(boost::asio::ssl::stream<tcp::socket>::client,
-                                        strand_.wrap(std::bind(&ClientConnection::handleHandshake,
-                                                               shared_from_this(), std::placeholders::_1)));
-#endif
+            auto weakSelf = weak_from_this();
+            auto socket = socket_;
+            auto tlsSocket = tlsSocket_;
+            // socket and ssl::stream objects must exist until async_handshake is done, otherwise segmentation
+            // fault might happen
+            auto callback = [weakSelf, socket, tlsSocket](const ASIO_ERROR& err) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleHandshake(err);
+                }
+            };
+            tlsSocket_->async_handshake(ASIO::ssl::stream<tcp::socket>::client,
+                                        ASIO::bind_executor(strand_, callback));
         } else {
-            handleHandshake(boost::system::errc::make_error_code(boost::system::errc::success));
+            handleHandshake(ASIO_SUCCESS);
         }
     } else if (endpointIterator != tcp::resolver::iterator()) {
         LOG_WARN(cnxString_ << "Failed to establish connection: " << err.message());
         // The connection failed. Try the next endpoint in the list.
-        boost::system::error_code closeError;
+        ASIO_ERROR closeError;
         socket_->close(closeError);  // ignore the error of close
         if (closeError) {
             LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
@@ -452,11 +485,15 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
             LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
             connectTimeoutTask_->start();
             tcp::endpoint endpoint = *endpointIterator;
-            socket_->async_connect(endpoint,
-                                   std::bind(&ClientConnection::handleTcpConnected, shared_from_this(),
-                                             std::placeholders::_1, ++endpointIterator));
+            auto weakSelf = weak_from_this();
+            socket_->async_connect(endpoint, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleTcpConnected(err, endpointIterator);
+                }
+            });
         } else {
-            if (err == boost::asio::error::operation_aborted) {
+            if (err == ASIO::error::operation_aborted) {
                 // TCP connect timeout, which is not retryable
                 close();
             } else {
@@ -469,7 +506,7 @@ void ClientConnection::handleTcpConnected(const boost::system::error_code& err,
     }
 }
 
-void ClientConnection::handleHandshake(const boost::system::error_code& err) {
+void ClientConnection::handleHandshake(const ASIO_ERROR& err) {
     if (err) {
         LOG_ERROR(cnxString_ << "Handshake failed: " << err.message());
         close();
@@ -478,20 +515,25 @@ void ClientConnection::handleHandshake(const boost::system::error_code& err) {
 
     bool connectingThroughProxy = logicalAddress_ != physicalAddress_;
     Result result = ResultOk;
-    SharedBuffer buffer =
-        Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy, result);
+    SharedBuffer buffer = Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy,
+                                               clientVersion_, result);
     if (result != ResultOk) {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << result);
         close(result);
         return;
     }
     // Send CONNECT command to broker
-    asyncWrite(buffer.const_asio_buffer(), std::bind(&ClientConnection::handleSentPulsarConnect,
-                                                     shared_from_this(), std::placeholders::_1, buffer));
+    auto self = shared_from_this();
+    asyncWrite(buffer.const_asio_buffer(),
+               customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
+                   handleSentPulsarConnect(err, buffer);
+               }));
 }
 
-void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& err,
-                                               const SharedBuffer& buffer) {
+void ClientConnection::handleSentPulsarConnect(const ASIO_ERROR& err, const SharedBuffer& buffer) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
         close();
@@ -502,8 +544,10 @@ void ClientConnection::handleSentPulsarConnect(const boost::system::error_code& 
     readNextCommand();
 }
 
-void ClientConnection::handleSentAuthResponse(const boost::system::error_code& err,
-                                              const SharedBuffer& buffer) {
+void ClientConnection::handleSentAuthResponse(const ASIO_ERROR& err, const SharedBuffer& buffer) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_WARN(cnxString_ << "Failed to send auth response: " << err.message());
         close();
@@ -522,9 +566,10 @@ void ClientConnection::tcpConnectAsync() {
         return;
     }
 
-    boost::system::error_code err;
+    ASIO_ERROR err;
     Url service_url;
-    if (!Url::parse(physicalAddress_, service_url)) {
+    std::string hostUrl = isSniProxy_ ? proxyServiceUrl_ : physicalAddress_;
+    if (!Url::parse(hostUrl, service_url)) {
         LOG_ERROR(cnxString_ << "Invalid Url, unable to parse: " << err << " " << err.message());
         close();
         return;
@@ -539,22 +584,26 @@ void ClientConnection::tcpConnectAsync() {
 
     LOG_DEBUG(cnxString_ << "Resolving " << service_url.host() << ":" << service_url.port());
     tcp::resolver::query query(service_url.host(), std::to_string(service_url.port()));
-    resolver_->async_resolve(query, std::bind(&ClientConnection::handleResolve, shared_from_this(),
-                                              std::placeholders::_1, std::placeholders::_2));
+    auto weakSelf = weak_from_this();
+    resolver_->async_resolve(query, [weakSelf](const ASIO_ERROR& err, tcp::resolver::iterator iterator) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleResolve(err, iterator);
+        }
+    });
 }
 
-void ClientConnection::handleResolve(const boost::system::error_code& err,
-                                     tcp::resolver::iterator endpointIterator) {
+void ClientConnection::handleResolve(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
     if (err) {
-        LOG_ERROR(cnxString_ << "Resolve error: " << err << " : " << err.message());
+        std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
+        LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
         close();
         return;
     }
 
-    auto self = ClientConnectionWeakPtr(shared_from_this());
-
-    connectTimeoutTask_->setCallback([self](const PeriodicTask::ErrorCode& ec) {
-        ClientConnectionPtr ptr = self.lock();
+    auto weakSelf = weak_from_this();
+    connectTimeoutTask_->setCallback([weakSelf](const PeriodicTask::ErrorCode& ec) {
+        ClientConnectionPtr ptr = weakSelf.lock();
         if (!ptr) {
             // Connection was already destroyed
             return;
@@ -577,9 +626,12 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
     if (endpointIterator != tcp::resolver::iterator()) {
         LOG_DEBUG(cnxString_ << "Resolved hostname " << endpointIterator->host_name()  //
                              << " to " << endpointIterator->endpoint());
-        socket_->async_connect(*endpointIterator,
-                               std::bind(&ClientConnection::handleTcpConnected, shared_from_this(),
-                                         std::placeholders::_1, endpointIterator));
+        socket_->async_connect(*endpointIterator, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleTcpConnected(err, endpointIterator);
+            }
+        });
     } else {
         LOG_WARN(cnxString_ << "No IP address found");
         close();
@@ -589,34 +641,40 @@ void ClientConnection::handleResolve(const boost::system::error_code& err,
 
 void ClientConnection::readNextCommand() {
     const static uint32_t minReadSize = sizeof(uint32_t);
-    asyncReceive(
-        incomingBuffer_.asio_buffer(),
-        customAllocReadHandler(std::bind(&ClientConnection::handleRead, shared_from_this(),
-                                         std::placeholders::_1, std::placeholders::_2, minReadSize)));
+    auto self = shared_from_this();
+    asyncReceive(incomingBuffer_.asio_buffer(),
+                 customAllocReadHandler([this, self](const ASIO_ERROR& err, size_t bytesTransferred) {
+                     handleRead(err, bytesTransferred, minReadSize);
+                 }));
 }
 
-void ClientConnection::handleRead(const boost::system::error_code& err, size_t bytesTransferred,
-                                  uint32_t minReadSize) {
+void ClientConnection::handleRead(const ASIO_ERROR& err, size_t bytesTransferred, uint32_t minReadSize) {
+    if (isClosed()) {
+        return;
+    }
     // Update buffer write idx with new data
     incomingBuffer_.bytesWritten(bytesTransferred);
 
     if (err || bytesTransferred == 0) {
-        if (err) {
-            if (err == boost::asio::error::operation_aborted) {
-                LOG_DEBUG(cnxString_ << "Read operation was canceled: " << err.message());
-            } else {
-                LOG_ERROR(cnxString_ << "Read operation failed: " << err.message());
-            }
-        }  // else: bytesTransferred == 0, which means server has closed the connection
-        close();
+        if (err == ASIO::error::operation_aborted) {
+            LOG_DEBUG(cnxString_ << "Read operation was canceled: " << err.message());
+        } else if (bytesTransferred == 0 || err == ASIO::error::eof) {
+            LOG_DEBUG(cnxString_ << "Server closed the connection: " << err.message());
+        } else {
+            LOG_ERROR(cnxString_ << "Read operation failed: " << err.message());
+        }
+        close(ResultDisconnected);
     } else if (bytesTransferred < minReadSize) {
         // Read the remaining part, use a slice of buffer to write on the next
         // region
         SharedBuffer buffer = incomingBuffer_.slice(bytesTransferred);
+        auto self = shared_from_this();
+        auto nextMinReadSize = minReadSize - bytesTransferred;
         asyncReceive(buffer.asio_buffer(),
-                     customAllocReadHandler(std::bind(&ClientConnection::handleRead, shared_from_this(),
-                                                      std::placeholders::_1, std::placeholders::_2,
-                                                      minReadSize - bytesTransferred)));
+                     customAllocReadHandler(
+                         [this, self, nextMinReadSize](const ASIO_ERROR& err, size_t bytesTransferred) {
+                             handleRead(err, bytesTransferred, nextMinReadSize);
+                         }));
     } else {
         processIncomingBuffer();
     }
@@ -637,52 +695,68 @@ void ClientConnection::processIncomingBuffer() {
             // we'll read it again
             incomingBuffer_.rollback(sizeof(uint32_t));
 
-            if (bytesToReceive <= incomingBuffer_.writableBytes()) {
-                // The rest of the frame still fits in the current buffer
-                asyncReceive(incomingBuffer_.asio_buffer(),
-                             customAllocReadHandler(std::bind(&ClientConnection::handleRead,
-                                                              shared_from_this(), std::placeholders::_1,
-                                                              std::placeholders::_2, bytesToReceive)));
-                return;
-            } else {
+            if (bytesToReceive > incomingBuffer_.writableBytes()) {
                 // Need to allocate a buffer big enough for the frame
                 uint32_t newBufferSize = std::max<uint32_t>(DefaultBufferSize, frameSize + sizeof(uint32_t));
                 incomingBuffer_ = SharedBuffer::copyFrom(incomingBuffer_, newBufferSize);
-
-                asyncReceive(incomingBuffer_.asio_buffer(),
-                             customAllocReadHandler(std::bind(&ClientConnection::handleRead,
-                                                              shared_from_this(), std::placeholders::_1,
-                                                              std::placeholders::_2, bytesToReceive)));
-                return;
             }
+            auto self = shared_from_this();
+            asyncReceive(incomingBuffer_.asio_buffer(),
+                         customAllocReadHandler(
+                             [this, self, bytesToReceive](const ASIO_ERROR& err, size_t bytesTransferred) {
+                                 handleRead(err, bytesTransferred, bytesToReceive);
+                             }));
+            return;
         }
 
         // At this point,  we have at least one complete frame available in the buffer
         uint32_t cmdSize = incomingBuffer_.readUnsignedInt();
-        if (!incomingCmd_.ParseFromArray(incomingBuffer_.data(), cmdSize)) {
+        proto::BaseCommand incomingCmd;
+        if (!incomingCmd.ParseFromArray(incomingBuffer_.data(), cmdSize)) {
             LOG_ERROR(cnxString_ << "Error parsing protocol buffer command");
-            close();
+            close(ResultDisconnected);
             return;
         }
 
         incomingBuffer_.consume(cmdSize);
 
-        if (incomingCmd_.type() == BaseCommand::MESSAGE) {
+        if (incomingCmd.type() == BaseCommand::MESSAGE) {
             // Parse message metadata and extract payload
-            MessageMetadata msgMetadata;
+            proto::MessageMetadata msgMetadata;
+            proto::BrokerEntryMetadata brokerEntryMetadata;
 
             // read checksum
             uint32_t remainingBytes = frameSize - (cmdSize + 4);
-            bool isChecksumValid = verifyChecksum(incomingBuffer_, remainingBytes, incomingCmd_);
+
+            auto readerIndex = incomingBuffer_.readerIndex();
+            if (incomingBuffer_.readUnsignedShort() == Commands::magicBrokerEntryMetadata) {
+                // broker entry metadata is present
+                uint32_t brokerEntryMetadataSize = incomingBuffer_.readUnsignedInt();
+                if (!brokerEntryMetadata.ParseFromArray(incomingBuffer_.data(), brokerEntryMetadataSize)) {
+                    LOG_ERROR(cnxString_ << "[consumer id " << incomingCmd.message().consumer_id()
+                                         << ", message ledger id "
+                                         << incomingCmd.message().message_id().ledgerid() << ", entry id "
+                                         << incomingCmd.message().message_id().entryid()
+                                         << "] Error parsing broker entry metadata");
+                    close(ResultDisconnected);
+                    return;
+                }
+                incomingBuffer_.setReaderIndex(readerIndex + 2 + 4 + brokerEntryMetadataSize);
+                remainingBytes -= (2 + 4 + brokerEntryMetadataSize);
+            } else {
+                incomingBuffer_.setReaderIndex(readerIndex);
+            }
+
+            bool isChecksumValid = verifyChecksum(incomingBuffer_, remainingBytes, incomingCmd);
 
             uint32_t metadataSize = incomingBuffer_.readUnsignedInt();
             if (!msgMetadata.ParseFromArray(incomingBuffer_.data(), metadataSize)) {
-                LOG_ERROR(cnxString_ << "[consumer id " << incomingCmd_.message().consumer_id()  //
+                LOG_ERROR(cnxString_ << "[consumer id " << incomingCmd.message().consumer_id()  //
                                      << ", message ledger id "
-                                     << incomingCmd_.message().message_id().ledgerid()  //
-                                     << ", entry id " << incomingCmd_.message().message_id().entryid()
+                                     << incomingCmd.message().message_id().ledgerid()  //
+                                     << ", entry id " << incomingCmd.message().message_id().entryid()
                                      << "] Error parsing message metadata");
-                close();
+                close(ResultDisconnected);
                 return;
             }
 
@@ -692,25 +766,28 @@ void ClientConnection::processIncomingBuffer() {
             uint32_t payloadSize = remainingBytes;
             SharedBuffer payload = SharedBuffer::copy(incomingBuffer_.data(), payloadSize);
             incomingBuffer_.consume(payloadSize);
-            handleIncomingMessage(incomingCmd_.message(), isChecksumValid, msgMetadata, payload);
+            handleIncomingMessage(incomingCmd.message(), isChecksumValid, brokerEntryMetadata, msgMetadata,
+                                  payload);
         } else {
-            handleIncomingCommand();
+            handleIncomingCommand(incomingCmd);
         }
     }
     if (incomingBuffer_.readableBytes() > 0) {
         // We still have 1 to 3 bytes from the next frame
         assert(incomingBuffer_.readableBytes() < sizeof(uint32_t));
 
-        // Restart with a new buffer and copy the the few bytes at the beginning
+        // Restart with a new buffer and copy the few bytes at the beginning
         incomingBuffer_ = SharedBuffer::copyFrom(incomingBuffer_, DefaultBufferSize);
 
         // At least we need to read 4 bytes to have the complete frame size
         uint32_t minReadSize = sizeof(uint32_t) - incomingBuffer_.readableBytes();
 
+        auto self = shared_from_this();
         asyncReceive(
             incomingBuffer_.asio_buffer(),
-            customAllocReadHandler(std::bind(&ClientConnection::handleRead, shared_from_this(),
-                                             std::placeholders::_1, std::placeholders::_2, minReadSize)));
+            customAllocReadHandler([this, self, minReadSize](const ASIO_ERROR& err, size_t bytesTransferred) {
+                handleRead(err, bytesTransferred, minReadSize);
+            }));
         return;
     }
 
@@ -722,7 +799,7 @@ void ClientConnection::processIncomingBuffer() {
 }
 
 bool ClientConnection::verifyChecksum(SharedBuffer& incomingBuffer_, uint32_t& remainingBytes,
-                                      proto::BaseCommand& incomingCmd_) {
+                                      proto::BaseCommand& incomingCmd) {
     int readerIndex = incomingBuffer_.readerIndex();
     bool isChecksumValid = true;
 
@@ -738,9 +815,9 @@ bool ClientConnection::verifyChecksum(SharedBuffer& incomingBuffer_, uint32_t& r
 
         if (!isChecksumValid) {
             LOG_ERROR("[consumer id "
-                      << incomingCmd_.message().consumer_id()                                           //
-                      << ", message ledger id " << incomingCmd_.message().message_id().ledgerid()       //
-                      << ", entry id " << incomingCmd_.message().message_id().entryid()                 //
+                      << incomingCmd.message().consumer_id()                                            //
+                      << ", message ledger id " << incomingCmd.message().message_id().ledgerid()        //
+                      << ", entry id " << incomingCmd.message().message_id().entryid()                  //
                       << "stored-checksum" << storedChecksum << "computedChecksum" << computedChecksum  //
                       << "] Checksum verification failed");
         }
@@ -751,6 +828,8 @@ bool ClientConnection::verifyChecksum(SharedBuffer& incomingBuffer_, uint32_t& r
 }
 
 void ClientConnection::handleActiveConsumerChange(const proto::CommandActiveConsumerChange& change) {
+    LOG_DEBUG(cnxString_ << "Received notification about active consumer change, consumer_id: "
+                         << change.consumer_id() << " isActive: " << change.is_active());
     Lock lock(mutex_);
     ConsumersMap::iterator it = consumers_.find(change.consumer_id());
     if (it != consumers_.end()) {
@@ -771,6 +850,7 @@ void ClientConnection::handleActiveConsumerChange(const proto::CommandActiveCons
 }
 
 void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, bool isChecksumValid,
+                                             proto::BrokerEntryMetadata& brokerEntryMetadata,
                                              proto::MessageMetadata& msgMetadata, SharedBuffer& payload) {
     LOG_DEBUG(cnxString_ << "Received a message from the server for consumer: " << msg.consumer_id());
 
@@ -783,7 +863,8 @@ void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, b
             // Unlock the mutex before notifying the consumer of the
             // new received message
             lock.unlock();
-            consumer->messageReceived(shared_from_this(), msg, isChecksumValid, msgMetadata, payload);
+            consumer->messageReceived(shared_from_this(), msg, isChecksumValid, brokerEntryMetadata,
+                                      msgMetadata, payload);
         } else {
             consumers_.erase(msg.consumer_id());
             LOG_DEBUG(cnxString_ << "Ignoring incoming message for already destroyed consumer "
@@ -795,10 +876,10 @@ void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, b
     }
 }
 
-void ClientConnection::handleIncomingCommand() {
-    LOG_DEBUG(cnxString_ << "Handling incoming command: " << Commands::messageType(incomingCmd_.type()));
+void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
+    LOG_DEBUG(cnxString_ << "Handling incoming command: " << Commands::messageType(incomingCmd.type()));
 
-    switch (state_) {
+    switch (state_.load()) {
         case Pending: {
             LOG_ERROR(cnxString_ << "Connection is not ready yet");
             break;
@@ -806,11 +887,11 @@ void ClientConnection::handleIncomingCommand() {
 
         case TcpConnected: {
             // Handle Pulsar Connected
-            if (incomingCmd_.type() != BaseCommand::CONNECTED) {
+            if (incomingCmd.type() != BaseCommand::CONNECTED) {
                 // Wrong cmd
                 close();
             } else {
-                handlePulsarConnected(incomingCmd_.connected());
+                handlePulsarConnected(incomingCmd.connected());
             }
             break;
         }
@@ -821,483 +902,90 @@ void ClientConnection::handleIncomingCommand() {
         }
 
         case Ready: {
-            // Since we are receiving data from the connection, we are assuming that for now the connection is
-            // still working well.
+            // Since we are receiving data from the connection, we are assuming that for now the
+            // connection is still working well.
             havePendingPingRequest_ = false;
 
             // Handle normal commands
-            switch (incomingCmd_.type()) {
-                case BaseCommand::SEND_RECEIPT: {
-                    const CommandSendReceipt& sendReceipt = incomingCmd_.send_receipt();
-                    int producerId = sendReceipt.producer_id();
-                    uint64_t sequenceId = sendReceipt.sequence_id();
-                    const proto::MessageIdData& messageIdData = sendReceipt.message_id();
-                    MessageId messageId = MessageId(messageIdData.partition(), messageIdData.ledgerid(),
-                                                    messageIdData.entryid(), messageIdData.batch_index());
-
-                    LOG_DEBUG(cnxString_ << "Got receipt for producer: " << producerId
-                                         << " -- msg: " << sequenceId << "-- message id: " << messageId);
-
-                    Lock lock(mutex_);
-                    ProducersMap::iterator it = producers_.find(producerId);
-                    if (it != producers_.end()) {
-                        ProducerImplPtr producer = it->second.lock();
-                        lock.unlock();
-
-                        if (producer) {
-                            if (!producer->ackReceived(sequenceId, messageId)) {
-                                // If the producer fails to process the ack, we need to close the connection
-                                // to give it a chance to recover from there
-                                close();
-                            }
-                        }
-                    } else {
-                        LOG_ERROR(cnxString_ << "Got invalid producer Id in SendReceipt: "  //
-                                             << producerId << " -- msg: " << sequenceId);
-                    }
-
+            switch (incomingCmd.type()) {
+                case BaseCommand::SEND_RECEIPT:
+                    handleSendReceipt(incomingCmd.send_receipt());
                     break;
-                }
 
-                case BaseCommand::SEND_ERROR: {
-                    const CommandSendError& error = incomingCmd_.send_error();
-                    LOG_WARN(cnxString_ << "Received send error from server: " << error.message());
-                    if (ChecksumError == error.error()) {
-                        long producerId = error.producer_id();
-                        long sequenceId = error.sequence_id();
-                        Lock lock(mutex_);
-                        ProducersMap::iterator it = producers_.find(producerId);
-                        if (it != producers_.end()) {
-                            ProducerImplPtr producer = it->second.lock();
-                            lock.unlock();
-
-                            if (producer) {
-                                if (!producer->removeCorruptMessage(sequenceId)) {
-                                    // If the producer fails to remove corrupt msg, we need to close the
-                                    // connection to give it a chance to recover from there
-                                    close();
-                                }
-                            }
-                        }
-                    } else {
-                        close();
-                    }
+                case BaseCommand::SEND_ERROR:
+                    handleSendError(incomingCmd.send_error());
                     break;
-                }
 
-                case BaseCommand::SUCCESS: {
-                    const CommandSuccess& success = incomingCmd_.success();
-                    LOG_DEBUG(cnxString_ << "Received success response from server. req_id: "
-                                         << success.request_id());
-
-                    Lock lock(mutex_);
-                    PendingRequestsMap::iterator it = pendingRequests_.find(success.request_id());
-                    if (it != pendingRequests_.end()) {
-                        PendingRequestData requestData = it->second;
-                        pendingRequests_.erase(it);
-                        lock.unlock();
-
-                        requestData.promise.setValue({});
-                        requestData.timer->cancel();
-                    }
+                case BaseCommand::SUCCESS:
+                    handleSuccess(incomingCmd.success());
                     break;
-                }
 
-                case BaseCommand::PARTITIONED_METADATA_RESPONSE: {
-                    const CommandPartitionedTopicMetadataResponse& partitionMetadataResponse =
-                        incomingCmd_.partitionmetadataresponse();
-                    LOG_DEBUG(cnxString_ << "Received partition-metadata response from server. req_id: "
-                                         << partitionMetadataResponse.request_id());
-
-                    Lock lock(mutex_);
-                    PendingLookupRequestsMap::iterator it =
-                        pendingLookupRequests_.find(partitionMetadataResponse.request_id());
-                    if (it != pendingLookupRequests_.end()) {
-                        it->second.timer->cancel();
-                        LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
-                        pendingLookupRequests_.erase(it);
-                        numOfPendingLookupRequest_--;
-                        lock.unlock();
-
-                        if (!partitionMetadataResponse.has_response() ||
-                            (partitionMetadataResponse.response() ==
-                             CommandPartitionedTopicMetadataResponse::Failed)) {
-                            if (partitionMetadataResponse.has_error()) {
-                                LOG_ERROR(cnxString_ << "Failed partition-metadata lookup req_id: "
-                                                     << partitionMetadataResponse.request_id()
-                                                     << " error: " << partitionMetadataResponse.error()
-                                                     << " msg: " << partitionMetadataResponse.message());
-                                checkServerError(partitionMetadataResponse.error());
-                                lookupDataPromise->setFailed(getResult(partitionMetadataResponse.error(),
-                                                                       partitionMetadataResponse.message()));
-                            } else {
-                                LOG_ERROR(cnxString_ << "Failed partition-metadata lookup req_id: "
-                                                     << partitionMetadataResponse.request_id()
-                                                     << " with empty response: ");
-                                lookupDataPromise->setFailed(ResultConnectError);
-                            }
-                        } else {
-                            LookupDataResultPtr lookupResultPtr = std::make_shared<LookupDataResult>();
-                            lookupResultPtr->setPartitions(partitionMetadataResponse.partitions());
-                            lookupDataPromise->setValue(lookupResultPtr);
-                        }
-
-                    } else {
-                        LOG_WARN("Received unknown request id from server: "
-                                 << partitionMetadataResponse.request_id());
-                    }
+                case BaseCommand::PARTITIONED_METADATA_RESPONSE:
+                    handlePartitionedMetadataResponse(incomingCmd.partitionmetadataresponse());
                     break;
-                }
 
-                case BaseCommand::CONSUMER_STATS_RESPONSE: {
-                    const CommandConsumerStatsResponse& consumerStatsResponse =
-                        incomingCmd_.consumerstatsresponse();
-                    LOG_DEBUG(cnxString_ << "ConsumerStatsResponse command - Received consumer stats "
-                                            "response from server. req_id: "
-                                         << consumerStatsResponse.request_id());
-                    Lock lock(mutex_);
-                    PendingConsumerStatsMap::iterator it =
-                        pendingConsumerStatsMap_.find(consumerStatsResponse.request_id());
-                    if (it != pendingConsumerStatsMap_.end()) {
-                        Promise<Result, BrokerConsumerStatsImpl> consumerStatsPromise = it->second;
-                        pendingConsumerStatsMap_.erase(it);
-                        lock.unlock();
-
-                        if (consumerStatsResponse.has_error_code()) {
-                            if (consumerStatsResponse.has_error_message()) {
-                                LOG_ERROR(cnxString_ << " Failed to get consumer stats - "
-                                                     << consumerStatsResponse.error_message());
-                            }
-                            consumerStatsPromise.setFailed(getResult(consumerStatsResponse.error_code(),
-                                                                     consumerStatsResponse.error_message()));
-                        } else {
-                            LOG_DEBUG(cnxString_ << "ConsumerStatsResponse command - Received consumer stats "
-                                                    "response from server. req_id: "
-                                                 << consumerStatsResponse.request_id() << " Stats: ");
-                            BrokerConsumerStatsImpl brokerStats(
-                                consumerStatsResponse.msgrateout(), consumerStatsResponse.msgthroughputout(),
-                                consumerStatsResponse.msgrateredeliver(),
-                                consumerStatsResponse.consumername(),
-                                consumerStatsResponse.availablepermits(),
-                                consumerStatsResponse.unackedmessages(),
-                                consumerStatsResponse.blockedconsumeronunackedmsgs(),
-                                consumerStatsResponse.address(), consumerStatsResponse.connectedsince(),
-                                consumerStatsResponse.type(), consumerStatsResponse.msgrateexpired(),
-                                consumerStatsResponse.msgbacklog());
-                            consumerStatsPromise.setValue(brokerStats);
-                        }
-                    } else {
-                        LOG_WARN("ConsumerStatsResponse command - Received unknown request id from server: "
-                                 << consumerStatsResponse.request_id());
-                    }
+                case BaseCommand::CONSUMER_STATS_RESPONSE:
+                    handleConsumerStatsResponse(incomingCmd.consumerstatsresponse());
                     break;
-                }
 
-                case BaseCommand::LOOKUP_RESPONSE: {
-                    const CommandLookupTopicResponse& lookupTopicResponse =
-                        incomingCmd_.lookuptopicresponse();
-                    LOG_DEBUG(cnxString_ << "Received lookup response from server. req_id: "
-                                         << lookupTopicResponse.request_id());
-
-                    Lock lock(mutex_);
-                    PendingLookupRequestsMap::iterator it =
-                        pendingLookupRequests_.find(lookupTopicResponse.request_id());
-                    if (it != pendingLookupRequests_.end()) {
-                        it->second.timer->cancel();
-                        LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
-                        pendingLookupRequests_.erase(it);
-                        numOfPendingLookupRequest_--;
-                        lock.unlock();
-
-                        if (!lookupTopicResponse.has_response() ||
-                            (lookupTopicResponse.response() == CommandLookupTopicResponse::Failed)) {
-                            if (lookupTopicResponse.has_error()) {
-                                LOG_ERROR(cnxString_
-                                          << "Failed lookup req_id: " << lookupTopicResponse.request_id()
-                                          << " error: " << lookupTopicResponse.error()
-                                          << " msg: " << lookupTopicResponse.message());
-                                checkServerError(lookupTopicResponse.error());
-                                lookupDataPromise->setFailed(
-                                    getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
-                            } else {
-                                LOG_ERROR(cnxString_
-                                          << "Failed lookup req_id: " << lookupTopicResponse.request_id()
-                                          << " with empty response: ");
-                                lookupDataPromise->setFailed(ResultConnectError);
-                            }
-                        } else {
-                            LOG_DEBUG(cnxString_
-                                      << "Received lookup response from server. req_id: "
-                                      << lookupTopicResponse.request_id()  //
-                                      << " -- broker-url: " << lookupTopicResponse.brokerserviceurl()
-                                      << " -- broker-tls-url: "  //
-                                      << lookupTopicResponse.brokerserviceurltls()
-                                      << " authoritative: " << lookupTopicResponse.authoritative()  //
-                                      << " redirect: " << lookupTopicResponse.response());
-                            LookupDataResultPtr lookupResultPtr = std::make_shared<LookupDataResult>();
-
-                            if (tlsSocket_) {
-                                lookupResultPtr->setBrokerUrl(lookupTopicResponse.brokerserviceurltls());
-                            } else {
-                                lookupResultPtr->setBrokerUrl(lookupTopicResponse.brokerserviceurl());
-                            }
-
-                            lookupResultPtr->setBrokerUrlTls(lookupTopicResponse.brokerserviceurltls());
-                            lookupResultPtr->setAuthoritative(lookupTopicResponse.authoritative());
-                            lookupResultPtr->setRedirect(lookupTopicResponse.response() ==
-                                                         CommandLookupTopicResponse::Redirect);
-                            lookupResultPtr->setShouldProxyThroughServiceUrl(
-                                lookupTopicResponse.proxy_through_service_url());
-                            lookupDataPromise->setValue(lookupResultPtr);
-                        }
-
-                    } else {
-                        LOG_WARN(
-                            "Received unknown request id from server: " << lookupTopicResponse.request_id());
-                    }
+                case BaseCommand::LOOKUP_RESPONSE:
+                    handleLookupTopicRespose(incomingCmd.lookuptopicresponse());
                     break;
-                }
 
-                case BaseCommand::PRODUCER_SUCCESS: {
-                    const CommandProducerSuccess& producerSuccess = incomingCmd_.producer_success();
-                    LOG_DEBUG(cnxString_ << "Received success producer response from server. req_id: "
-                                         << producerSuccess.request_id()  //
-                                         << " -- producer name: " << producerSuccess.producer_name());
-
-                    Lock lock(mutex_);
-                    PendingRequestsMap::iterator it = pendingRequests_.find(producerSuccess.request_id());
-                    if (it != pendingRequests_.end()) {
-                        PendingRequestData requestData = it->second;
-                        pendingRequests_.erase(it);
-                        lock.unlock();
-
-                        ResponseData data;
-                        data.producerName = producerSuccess.producer_name();
-                        data.lastSequenceId = producerSuccess.last_sequence_id();
-                        if (producerSuccess.has_schema_version()) {
-                            data.schemaVersion = producerSuccess.schema_version();
-                        }
-                        if (producerSuccess.has_topic_epoch()) {
-                            data.topicEpoch = Optional<uint64_t>::of(producerSuccess.topic_epoch());
-                        } else {
-                            data.topicEpoch = Optional<uint64_t>::empty();
-                        }
-                        requestData.promise.setValue(data);
-                        requestData.timer->cancel();
-                    }
+                case BaseCommand::PRODUCER_SUCCESS:
+                    handleProducerSuccess(incomingCmd.producer_success());
                     break;
-                }
 
-                case BaseCommand::ERROR: {
-                    const CommandError& error = incomingCmd_.error();
-                    Result result = getResult(error.error(), error.message());
-                    LOG_WARN(cnxString_ << "Received error response from server: " << result
-                                        << (error.has_message() ? (" (" + error.message() + ")") : "")
-                                        << " -- req_id: " << error.request_id());
-
-                    Lock lock(mutex_);
-
-                    PendingRequestsMap::iterator it = pendingRequests_.find(error.request_id());
-                    if (it != pendingRequests_.end()) {
-                        PendingRequestData requestData = it->second;
-                        pendingRequests_.erase(it);
-                        lock.unlock();
-
-                        requestData.promise.setFailed(result);
-                        requestData.timer->cancel();
-                    } else {
-                        PendingGetLastMessageIdRequestsMap::iterator it =
-                            pendingGetLastMessageIdRequests_.find(error.request_id());
-                        if (it != pendingGetLastMessageIdRequests_.end()) {
-                            auto getLastMessageIdPromise = it->second;
-                            pendingGetLastMessageIdRequests_.erase(it);
-                            lock.unlock();
-
-                            getLastMessageIdPromise.setFailed(result);
-                        } else {
-                            PendingGetNamespaceTopicsMap::iterator it =
-                                pendingGetNamespaceTopicsRequests_.find(error.request_id());
-                            if (it != pendingGetNamespaceTopicsRequests_.end()) {
-                                Promise<Result, NamespaceTopicsPtr> getNamespaceTopicsPromise = it->second;
-                                pendingGetNamespaceTopicsRequests_.erase(it);
-                                lock.unlock();
-
-                                getNamespaceTopicsPromise.setFailed(result);
-                            } else {
-                                lock.unlock();
-                            }
-                        }
-                    }
+                case BaseCommand::ERROR:
+                    handleError(incomingCmd.error());
                     break;
-                }
 
-                case BaseCommand::CLOSE_PRODUCER: {
-                    const CommandCloseProducer& closeProducer = incomingCmd_.close_producer();
-                    int producerId = closeProducer.producer_id();
-
-                    LOG_DEBUG("Broker notification of Closed producer: " << producerId);
-
-                    Lock lock(mutex_);
-                    ProducersMap::iterator it = producers_.find(producerId);
-                    if (it != producers_.end()) {
-                        ProducerImplPtr producer = it->second.lock();
-                        producers_.erase(it);
-                        lock.unlock();
-
-                        if (producer) {
-                            producer->disconnectProducer();
-                        }
-                    } else {
-                        LOG_ERROR(cnxString_ << "Got invalid producer Id in closeProducer command: "
-                                             << producerId);
-                    }
-
+                case BaseCommand::CLOSE_PRODUCER:
+                    handleCloseProducer(incomingCmd.close_producer());
                     break;
-                }
 
-                case BaseCommand::CLOSE_CONSUMER: {
-                    const CommandCloseConsumer& closeconsumer = incomingCmd_.close_consumer();
-                    int consumerId = closeconsumer.consumer_id();
-
-                    LOG_DEBUG("Broker notification of Closed consumer: " << consumerId);
-
-                    Lock lock(mutex_);
-                    ConsumersMap::iterator it = consumers_.find(consumerId);
-                    if (it != consumers_.end()) {
-                        ConsumerImplPtr consumer = it->second.lock();
-                        consumers_.erase(it);
-                        lock.unlock();
-
-                        if (consumer) {
-                            consumer->disconnectConsumer();
-                        }
-                    } else {
-                        LOG_ERROR(cnxString_ << "Got invalid consumer Id in closeConsumer command: "
-                                             << consumerId);
-                    }
-
+                case BaseCommand::CLOSE_CONSUMER:
+                    handleCloseConsumer(incomingCmd.close_consumer());
                     break;
-                }
 
-                case BaseCommand::PING: {
+                case BaseCommand::PING:
                     // Respond to ping request
                     LOG_DEBUG(cnxString_ << "Replying to ping command");
                     sendCommand(Commands::newPong());
                     break;
-                }
 
-                case BaseCommand::PONG: {
+                case BaseCommand::PONG:
                     LOG_DEBUG(cnxString_ << "Received response to ping message");
                     break;
-                }
 
-                case BaseCommand::AUTH_CHALLENGE: {
-                    LOG_DEBUG(cnxString_ << "Received auth challenge from broker");
-
-                    Result result;
-                    SharedBuffer buffer = Commands::newAuthResponse(authentication_, result);
-                    if (result != ResultOk) {
-                        LOG_ERROR(cnxString_ << "Failed to send auth response: " << result);
-                        close(result);
-                        break;
-                    }
-                    asyncWrite(buffer.const_asio_buffer(),
-                               std::bind(&ClientConnection::handleSentAuthResponse, shared_from_this(),
-                                         std::placeholders::_1, buffer));
+                case BaseCommand::AUTH_CHALLENGE:
+                    handleAuthChallenge();
                     break;
-                }
 
-                case BaseCommand::ACTIVE_CONSUMER_CHANGE: {
-                    const CommandActiveConsumerChange& change = incomingCmd_.active_consumer_change();
-                    LOG_DEBUG(cnxString_
-                              << "Received notification about active consumer change, consumer_id: "
-                              << change.consumer_id() << " isActive: " << change.is_active());
-                    handleActiveConsumerChange(change);
+                case BaseCommand::ACTIVE_CONSUMER_CHANGE:
+                    handleActiveConsumerChange(incomingCmd.active_consumer_change());
                     break;
-                }
 
-                case BaseCommand::GET_LAST_MESSAGE_ID_RESPONSE: {
-                    const CommandGetLastMessageIdResponse& getLastMessageIdResponse =
-                        incomingCmd_.getlastmessageidresponse();
-                    LOG_DEBUG(cnxString_ << "Received getLastMessageIdResponse from server. req_id: "
-                                         << getLastMessageIdResponse.request_id());
-
-                    Lock lock(mutex_);
-                    PendingGetLastMessageIdRequestsMap::iterator it =
-                        pendingGetLastMessageIdRequests_.find(getLastMessageIdResponse.request_id());
-
-                    if (it != pendingGetLastMessageIdRequests_.end()) {
-                        auto getLastMessageIdPromise = it->second;
-                        pendingGetLastMessageIdRequests_.erase(it);
-                        lock.unlock();
-
-                        if (getLastMessageIdResponse.has_consumer_mark_delete_position()) {
-                            getLastMessageIdPromise.setValue(
-                                {toMessageId(getLastMessageIdResponse.last_message_id()),
-                                 toMessageId(getLastMessageIdResponse.consumer_mark_delete_position())});
-                        } else {
-                            getLastMessageIdPromise.setValue(
-                                {toMessageId(getLastMessageIdResponse.last_message_id())});
-                        }
-                    } else {
-                        lock.unlock();
-                        LOG_WARN(
-                            "getLastMessageIdResponse command - Received unknown request id from server: "
-                            << getLastMessageIdResponse.request_id());
-                    }
+                case BaseCommand::GET_LAST_MESSAGE_ID_RESPONSE:
+                    handleGetLastMessageIdResponse(incomingCmd.getlastmessageidresponse());
                     break;
-                }
 
-                case BaseCommand::GET_TOPICS_OF_NAMESPACE_RESPONSE: {
-                    const CommandGetTopicsOfNamespaceResponse& response =
-                        incomingCmd_.gettopicsofnamespaceresponse();
-
-                    LOG_DEBUG(cnxString_ << "Received GetTopicsOfNamespaceResponse from server. req_id: "
-                                         << response.request_id() << " topicsSize" << response.topics_size());
-
-                    Lock lock(mutex_);
-                    PendingGetNamespaceTopicsMap::iterator it =
-                        pendingGetNamespaceTopicsRequests_.find(response.request_id());
-
-                    if (it != pendingGetNamespaceTopicsRequests_.end()) {
-                        Promise<Result, NamespaceTopicsPtr> getTopicsPromise = it->second;
-                        pendingGetNamespaceTopicsRequests_.erase(it);
-                        lock.unlock();
-
-                        int numTopics = response.topics_size();
-                        std::set<std::string> topicSet;
-                        // get all topics
-                        for (int i = 0; i < numTopics; i++) {
-                            // remove partition part
-                            const std::string& topicName = response.topics(i);
-                            int pos = topicName.find("-partition-");
-                            std::string filteredName = topicName.substr(0, pos);
-
-                            // filter duped topic name
-                            if (topicSet.find(filteredName) == topicSet.end()) {
-                                topicSet.insert(filteredName);
-                            }
-                        }
-
-                        NamespaceTopicsPtr topicsPtr =
-                            std::make_shared<std::vector<std::string>>(topicSet.begin(), topicSet.end());
-
-                        getTopicsPromise.setValue(topicsPtr);
-                    } else {
-                        lock.unlock();
-                        LOG_WARN(
-                            "GetTopicsOfNamespaceResponse command - Received unknown request id from "
-                            "server: "
-                            << response.request_id());
-                    }
+                case BaseCommand::GET_TOPICS_OF_NAMESPACE_RESPONSE:
+                    handleGetTopicOfNamespaceResponse(incomingCmd.gettopicsofnamespaceresponse());
                     break;
-                }
 
-                default: {
+                case BaseCommand::GET_SCHEMA_RESPONSE:
+                    handleGetSchemaResponse(incomingCmd.getschemaresponse());
+                    break;
+
+                case BaseCommand::ACK_RESPONSE:
+                    handleAckResponse(incomingCmd.ackresponse());
+                    break;
+
+                default:
                     LOG_WARN(cnxString_ << "Received invalid message from server");
-                    close();
+                    close(ResultDisconnected);
                     break;
-                }
             }
         }
     }
@@ -1347,8 +1035,13 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, const uint64_t request
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
-    requestData.timer->async_wait(std::bind(&ClientConnection::handleLookupTimeout, shared_from_this(),
-                                            std::placeholders::_1, requestData));
+    auto weakSelf = weak_from_this();
+    requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleLookupTimeout(ec, requestData);
+        }
+    });
 
     pendingLookupRequests_.insert(std::make_pair(requestId, requestData));
     numOfPendingLookupRequest_++;
@@ -1362,12 +1055,14 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
     if (pendingWriteOperations_++ == 0) {
         // Write immediately to socket
         if (tlsSocket_) {
-#if BOOST_VERSION >= 106600
-            boost::asio::post(strand_,
-                              std::bind(&ClientConnection::sendCommandInternal, shared_from_this(), cmd));
-#else
-            strand_.post(std::bind(&ClientConnection::sendCommandInternal, shared_from_this(), cmd));
-#endif
+            auto weakSelf = weak_from_this();
+            auto callback = [weakSelf, cmd]() {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->sendCommandInternal(cmd);
+                }
+            };
+            ASIO::post(strand_, callback);
         } else {
             sendCommandInternal(cmd);
         }
@@ -1378,54 +1073,56 @@ void ClientConnection::sendCommand(const SharedBuffer& cmd) {
 }
 
 void ClientConnection::sendCommandInternal(const SharedBuffer& cmd) {
+    auto self = shared_from_this();
     asyncWrite(cmd.const_asio_buffer(),
-               customAllocWriteHandler(
-                   std::bind(&ClientConnection::handleSend, shared_from_this(), std::placeholders::_1, cmd)));
+               customAllocWriteHandler([this, self, cmd](const ASIO_ERROR& err, size_t bytesTransferred) {
+                   handleSend(err, cmd);
+               }));
 }
 
-void ClientConnection::sendMessage(const OpSendMsg& opSend) {
+void ClientConnection::sendMessage(const std::shared_ptr<SendArguments>& args) {
     Lock lock(mutex_);
-
-    if (pendingWriteOperations_++ == 0) {
-        // Write immediately to socket
-        if (tlsSocket_) {
-#if BOOST_VERSION >= 106600
-            boost::asio::post(strand_,
-                              std::bind(&ClientConnection::sendMessageInternal, shared_from_this(), opSend));
-#else
-            strand_.post(std::bind(&ClientConnection::sendMessageInternal, shared_from_this(), opSend));
-#endif
-        } else {
-            sendMessageInternal(opSend);
-        }
+    if (pendingWriteOperations_++ > 0) {
+        pendingWriteBuffers_.emplace_back(args);
+        return;
+    }
+    auto self = shared_from_this();
+    auto sendMessageInternal = [this, self, args] {
+        BaseCommand outgoingCmd;
+        auto buffer = Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
+        // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
+        // callback is called, an invalid buffer range might be passed to the underlying socket send.
+        asyncWrite(buffer, customAllocWriteHandler(
+                               [this, self, buffer](const ASIO_ERROR& err, size_t bytesTransferred) {
+                                   handleSendPair(err);
+                               }));
+    };
+    if (tlsSocket_) {
+        ASIO::post(strand_, sendMessageInternal);
     } else {
-        // Queue to send later
-        pendingWriteBuffers_.push_back(opSend);
+        sendMessageInternal();
     }
 }
 
-void ClientConnection::sendMessageInternal(const OpSendMsg& opSend) {
-    PairSharedBuffer buffer =
-        Commands::newSend(outgoingBuffer_, outgoingCmd_, opSend.producerId_, opSend.sequenceId_,
-                          getChecksumType(), opSend.metadata_, opSend.payload_);
-
-    asyncWrite(buffer, customAllocWriteHandler(std::bind(&ClientConnection::handleSendPair,
-                                                         shared_from_this(), std::placeholders::_1)));
-}
-
-void ClientConnection::handleSend(const boost::system::error_code& err, const SharedBuffer&) {
+void ClientConnection::handleSend(const ASIO_ERROR& err, const SharedBuffer&) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_WARN(cnxString_ << "Could not send message on connection: " << err << " " << err.message());
-        close();
+        close(ResultDisconnected);
     } else {
         sendPendingCommands();
     }
 }
 
-void ClientConnection::handleSendPair(const boost::system::error_code& err) {
+void ClientConnection::handleSendPair(const ASIO_ERROR& err) {
+    if (isClosed()) {
+        return;
+    }
     if (err) {
         LOG_WARN(cnxString_ << "Could not send pair message on connection: " << err << " " << err.message());
-        close();
+        close(ResultDisconnected);
     } else {
         sendPendingCommands();
     }
@@ -1439,21 +1136,25 @@ void ClientConnection::sendPendingCommands() {
         boost::any any = pendingWriteBuffers_.front();
         pendingWriteBuffers_.pop_front();
 
+        auto self = shared_from_this();
         if (any.type() == typeid(SharedBuffer)) {
             SharedBuffer buffer = boost::any_cast<SharedBuffer>(any);
             asyncWrite(buffer.const_asio_buffer(),
-                       customAllocWriteHandler(std::bind(&ClientConnection::handleSend, shared_from_this(),
-                                                         std::placeholders::_1, buffer)));
+                       customAllocWriteHandler(
+                           [this, self, buffer](const ASIO_ERROR& err, size_t) { handleSend(err, buffer); }));
         } else {
-            assert(any.type() == typeid(OpSendMsg));
+            assert(any.type() == typeid(std::shared_ptr<SendArguments>));
 
-            const OpSendMsg& op = boost::any_cast<const OpSendMsg&>(any);
+            auto args = boost::any_cast<std::shared_ptr<SendArguments>>(any);
+            BaseCommand outgoingCmd;
             PairSharedBuffer buffer =
-                Commands::newSend(outgoingBuffer_, outgoingCmd_, op.producerId_, op.sequenceId_,
-                                  getChecksumType(), op.metadata_, op.payload_);
+                Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
 
-            asyncWrite(buffer, customAllocWriteHandler(std::bind(&ClientConnection::handleSendPair,
-                                                                 shared_from_this(), std::placeholders::_1)));
+            // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
+            // callback is called, an invalid buffer range might be passed to the underlying socket send.
+            asyncWrite(buffer, customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
+                           handleSendPair(err);
+                       }));
         }
     } else {
         // No more pending writes
@@ -1474,8 +1175,13 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
     PendingRequestData requestData;
     requestData.timer = executor_->createDeadlineTimer();
     requestData.timer->expires_from_now(operationsTimeout_);
-    requestData.timer->async_wait(std::bind(&ClientConnection::handleRequestTimeout, shared_from_this(),
-                                            std::placeholders::_1, requestData));
+    auto weakSelf = weak_from_this();
+    requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleRequestTimeout(ec, requestData);
+        }
+    });
 
     pendingRequests_.insert(std::make_pair(requestId, requestData));
     lock.unlock();
@@ -1484,17 +1190,22 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
     return requestData.promise.getFuture();
 }
 
-void ClientConnection::handleRequestTimeout(const boost::system::error_code& ec,
-                                            PendingRequestData pendingRequestData) {
-    if (!ec) {
+void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec, PendingRequestData pendingRequestData) {
+    if (!ec && !pendingRequestData.hasGotResponse->load()) {
         pendingRequestData.promise.setFailed(ResultTimeout);
     }
 }
 
-void ClientConnection::handleLookupTimeout(const boost::system::error_code& ec,
-                                           LookupRequestData pendingRequestData) {
+void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec, LookupRequestData pendingRequestData) {
     if (!ec) {
         pendingRequestData.promise->setFailed(ResultTimeout);
+    }
+}
+
+void ClientConnection::handleGetLastMessageIdTimeout(const ASIO_ERROR& ec,
+                                                     ClientConnection::LastMessageIdRequestData data) {
+    if (!ec) {
+        data.promise->setFailed(ResultTimeout);
     }
 }
 
@@ -1505,26 +1216,31 @@ void ClientConnection::handleKeepAliveTimeout() {
 
     if (havePendingPingRequest_) {
         LOG_WARN(cnxString_ << "Forcing connection to close after keep-alive timeout");
-        close();
+        close(ResultDisconnected);
     } else {
         // Send keep alive probe to peer
         LOG_DEBUG(cnxString_ << "Sending ping message");
         havePendingPingRequest_ = true;
         sendCommand(Commands::newPing());
 
-        // If the close operation has already called the keepAliveTimer_.reset() then the use_count will be
-        // zero And we do not attempt to dereference the pointer.
+        // If the close operation has already called the keepAliveTimer_.reset() then the use_count will
+        // be zero And we do not attempt to dereference the pointer.
         Lock lock(mutex_);
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(boost::posix_time::seconds(KeepAliveIntervalInSeconds));
-            keepAliveTimer_->async_wait(
-                std::bind(&ClientConnection::handleKeepAliveTimeout, shared_from_this()));
+            keepAliveTimer_->expires_from_now(std::chrono::seconds(KeepAliveIntervalInSeconds));
+            auto weakSelf = weak_from_this();
+            keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleKeepAliveTimeout();
+                }
+            });
         }
         lock.unlock();
     }
 }
 
-void ClientConnection::handleConsumerStatsTimeout(const boost::system::error_code& ec,
+void ClientConnection::handleConsumerStatsTimeout(const ASIO_ERROR& ec,
                                                   std::vector<uint64_t> consumerStatsRequests) {
     if (ec) {
         LOG_DEBUG(cnxString_ << " Ignoring timer cancelled event, code[" << ec << "]");
@@ -1533,16 +1249,23 @@ void ClientConnection::handleConsumerStatsTimeout(const boost::system::error_cod
     startConsumerStatsTimer(consumerStatsRequests);
 }
 
-void ClientConnection::close(Result result) {
+void ClientConnection::close(Result result, bool detach) {
     Lock lock(mutex_);
     if (isClosed()) {
         return;
     }
     state_ = Disconnected;
 
-    closeSocket();
+    if (socket_) {
+        ASIO_ERROR err;
+        socket_->shutdown(ASIO::socket_base::shutdown_both, err);
+        socket_->close(err);
+        if (err) {
+            LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
+        }
+    }
     if (tlsSocket_) {
-        boost::system::error_code err;
+        ASIO_ERROR err;
         tlsSocket_->lowest_layer().close(err);
         if (err) {
             LOG_WARN(cnxString_ << "Failed to close TLS socket: " << err.message());
@@ -1561,6 +1284,7 @@ void ClientConnection::close(Result result) {
     auto pendingConsumerStatsMap = std::move(pendingConsumerStatsMap_);
     auto pendingGetLastMessageIdRequests = std::move(pendingGetLastMessageIdRequests_);
     auto pendingGetNamespaceTopicsRequests = std::move(pendingGetNamespaceTopicsRequests_);
+    auto pendingGetSchemaRequests = std::move(pendingGetSchemaRequests_);
 
     numOfPendingLookupRequest_ = 0;
 
@@ -1579,15 +1303,32 @@ void ClientConnection::close(Result result) {
     }
 
     lock.unlock();
-    LOG_INFO(cnxString_ << "Connection closed with " << result);
+    int refCount = weak_from_this().use_count();
+    if (!isResultRetryable(result)) {
+        LOG_ERROR(cnxString_ << "Connection closed with " << result << " (refCnt: " << refCount << ")");
+    } else {
+        LOG_INFO(cnxString_ << "Connection disconnected (refCnt: " << refCount << ")");
+    }
+    // Remove the connection from the pool before completing any promise
+    if (detach) {
+        pool_.remove(logicalAddress_ + "-" + std::to_string(poolIndex_), this);
+    }
 
+    auto self = shared_from_this();
     for (ProducersMap::iterator it = producers.begin(); it != producers.end(); ++it) {
-        HandlerBase::handleDisconnection(result, shared_from_this(), it->second);
+        auto producer = it->second.lock();
+        if (producer) {
+            producer->handleDisconnection(result, self);
+        }
     }
 
     for (ConsumersMap::iterator it = consumers.begin(); it != consumers.end(); ++it) {
-        HandlerBase::handleDisconnection(result, shared_from_this(), it->second);
+        auto consumer = it->second.lock();
+        if (consumer) {
+            consumer->handleDisconnection(result, self);
+        }
     }
+    self.reset();
 
     connectPromise_.setFailed(result);
 
@@ -1603,10 +1344,13 @@ void ClientConnection::close(Result result) {
         kv.second.setFailed(result);
     }
     for (auto& kv : pendingGetLastMessageIdRequests) {
-        kv.second.setFailed(result);
+        kv.second.promise->setFailed(result);
     }
     for (auto& kv : pendingGetNamespaceTopicsRequests) {
         kv.second.setFailed(result);
+    }
+    for (auto& kv : pendingGetSchemaRequests) {
+        kv.second.promise.setFailed(result);
     }
 }
 
@@ -1651,27 +1395,33 @@ Commands::ChecksumType ClientConnection::getChecksumType() const {
 Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(uint64_t consumerId,
                                                                                uint64_t requestId) {
     Lock lock(mutex_);
-    Promise<Result, GetLastMessageIdResponse> promise;
+    auto promise = std::make_shared<GetLastMessageIdResponsePromisePtr::element_type>();
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString_ << " Client is not connected to the broker");
-        promise.setFailed(ResultNotConnected);
-        return promise.getFuture();
+        promise->setFailed(ResultNotConnected);
+        return promise->getFuture();
     }
 
-    pendingGetLastMessageIdRequests_.insert(std::make_pair(requestId, promise));
+    LastMessageIdRequestData requestData;
+    requestData.promise = promise;
+    requestData.timer = executor_->createDeadlineTimer();
+    requestData.timer->expires_from_now(operationsTimeout_);
+    auto weakSelf = weak_from_this();
+    requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleGetLastMessageIdTimeout(ec, requestData);
+        }
+    });
+    pendingGetLastMessageIdRequests_.insert(std::make_pair(requestId, requestData));
     lock.unlock();
-    sendRequestWithId(Commands::newGetLastMessageId(consumerId, requestId), requestId)
-        .addListener([promise](Result result, const ResponseData& data) {
-            if (result != ResultOk) {
-                promise.setFailed(result);
-            }
-        });
-    return promise.getFuture();
+    sendCommand(Commands::newGetLastMessageId(consumerId, requestId));
+    return promise->getFuture();
 }
 
-Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(const std::string& nsName,
-                                                                             uint64_t requestId) {
+Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
+    const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId) {
     Lock lock(mutex_);
     Promise<Result, NamespaceTopicsPtr> promise;
     if (isClosed()) {
@@ -1683,32 +1433,537 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(con
 
     pendingGetNamespaceTopicsRequests_.insert(std::make_pair(requestId, promise));
     lock.unlock();
-    sendCommand(Commands::newGetTopicsOfNamespace(nsName, requestId));
+    sendCommand(Commands::newGetTopicsOfNamespace(nsName, mode, requestId));
     return promise.getFuture();
 }
 
-void ClientConnection::closeSocket() {
-    boost::system::error_code err;
-    if (socket_) {
-        socket_->close(err);
-        if (err) {
-            LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
+Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
+                                                          const std::string& version, uint64_t requestId) {
+    Lock lock(mutex_);
+
+    Promise<Result, SchemaInfo> promise;
+    if (isClosed()) {
+        lock.unlock();
+        LOG_ERROR(cnxString_ << "Client is not connected to the broker");
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
+    }
+
+    auto timer = executor_->createDeadlineTimer();
+    pendingGetSchemaRequests_.emplace(requestId, GetSchemaRequest{promise, timer});
+    lock.unlock();
+
+    auto weakSelf = weak_from_this();
+    timer->expires_from_now(operationsTimeout_);
+    timer->async_wait([this, weakSelf, requestId](const ASIO_ERROR& ec) {
+        auto self = weakSelf.lock();
+        if (!self) {
+            return;
+        }
+        Lock lock(mutex_);
+        auto it = pendingGetSchemaRequests_.find(requestId);
+        if (it != pendingGetSchemaRequests_.end()) {
+            auto promise = std::move(it->second.promise);
+            pendingGetSchemaRequests_.erase(it);
+            lock.unlock();
+            promise.setFailed(ResultTimeout);
+        }
+    });
+
+    sendCommand(Commands::newGetSchema(topicName, version, requestId));
+    return promise.getFuture();
+}
+
+void ClientConnection::checkServerError(ServerError error, const std::string& message) {
+    pulsar::adaptor::checkServerError(*this, error, message);
+}
+
+void ClientConnection::handleSendReceipt(const proto::CommandSendReceipt& sendReceipt) {
+    int producerId = sendReceipt.producer_id();
+    uint64_t sequenceId = sendReceipt.sequence_id();
+    const proto::MessageIdData& messageIdData = sendReceipt.message_id();
+    auto messageId = toMessageId(messageIdData);
+
+    LOG_DEBUG(cnxString_ << "Got receipt for producer: " << producerId << " -- msg: " << sequenceId
+                         << "-- message id: " << messageId);
+
+    Lock lock(mutex_);
+    auto it = producers_.find(producerId);
+    if (it != producers_.end()) {
+        ProducerImplPtr producer = it->second.lock();
+        lock.unlock();
+
+        if (producer) {
+            if (!producer->ackReceived(sequenceId, messageId)) {
+                // If the producer fails to process the ack, we need to close the connection
+                // to give it a chance to recover from there
+                close(ResultDisconnected);
+            }
+        }
+    } else {
+        LOG_ERROR(cnxString_ << "Got invalid producer Id in SendReceipt: "  //
+                             << producerId << " -- msg: " << sequenceId);
+    }
+}
+
+void ClientConnection::handleSendError(const proto::CommandSendError& error) {
+    LOG_WARN(cnxString_ << "Received send error from server: " << error.message());
+    if (ChecksumError == error.error()) {
+        long producerId = error.producer_id();
+        long sequenceId = error.sequence_id();
+        Lock lock(mutex_);
+        auto it = producers_.find(producerId);
+        if (it != producers_.end()) {
+            ProducerImplPtr producer = it->second.lock();
+            lock.unlock();
+
+            if (producer) {
+                if (!producer->removeCorruptMessage(sequenceId)) {
+                    // If the producer fails to remove corrupt msg, we need to close the
+                    // connection to give it a chance to recover from there
+                    close(ResultDisconnected);
+                }
+            }
+        }
+    } else {
+        close(ResultDisconnected);
+    }
+}
+
+void ClientConnection::handleSuccess(const proto::CommandSuccess& success) {
+    LOG_DEBUG(cnxString_ << "Received success response from server. req_id: " << success.request_id());
+
+    Lock lock(mutex_);
+    auto it = pendingRequests_.find(success.request_id());
+    if (it != pendingRequests_.end()) {
+        PendingRequestData requestData = it->second;
+        pendingRequests_.erase(it);
+        lock.unlock();
+
+        requestData.promise.setValue({});
+        requestData.timer->cancel();
+    }
+}
+
+void ClientConnection::handlePartitionedMetadataResponse(
+    const proto::CommandPartitionedTopicMetadataResponse& partitionMetadataResponse) {
+    LOG_DEBUG(cnxString_ << "Received partition-metadata response from server. req_id: "
+                         << partitionMetadataResponse.request_id());
+
+    Lock lock(mutex_);
+    auto it = pendingLookupRequests_.find(partitionMetadataResponse.request_id());
+    if (it != pendingLookupRequests_.end()) {
+        it->second.timer->cancel();
+        LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
+        pendingLookupRequests_.erase(it);
+        numOfPendingLookupRequest_--;
+        lock.unlock();
+
+        if (!partitionMetadataResponse.has_response() ||
+            (partitionMetadataResponse.response() ==
+             proto::CommandPartitionedTopicMetadataResponse::Failed)) {
+            if (partitionMetadataResponse.has_error()) {
+                LOG_ERROR(cnxString_ << "Failed partition-metadata lookup req_id: "
+                                     << partitionMetadataResponse.request_id()
+                                     << " error: " << partitionMetadataResponse.error()
+                                     << " msg: " << partitionMetadataResponse.message());
+                checkServerError(partitionMetadataResponse.error(), partitionMetadataResponse.message());
+                lookupDataPromise->setFailed(
+                    getResult(partitionMetadataResponse.error(), partitionMetadataResponse.message()));
+            } else {
+                LOG_ERROR(cnxString_ << "Failed partition-metadata lookup req_id: "
+                                     << partitionMetadataResponse.request_id() << " with empty response: ");
+                lookupDataPromise->setFailed(ResultConnectError);
+            }
+        } else {
+            LookupDataResultPtr lookupResultPtr = std::make_shared<LookupDataResult>();
+            lookupResultPtr->setPartitions(partitionMetadataResponse.partitions());
+            lookupDataPromise->setValue(lookupResultPtr);
+        }
+
+    } else {
+        LOG_WARN("Received unknown request id from server: " << partitionMetadataResponse.request_id());
+    }
+}
+
+void ClientConnection::handleConsumerStatsResponse(
+    const proto::CommandConsumerStatsResponse& consumerStatsResponse) {
+    LOG_DEBUG(cnxString_ << "ConsumerStatsResponse command - Received consumer stats "
+                            "response from server. req_id: "
+                         << consumerStatsResponse.request_id());
+    Lock lock(mutex_);
+    auto it = pendingConsumerStatsMap_.find(consumerStatsResponse.request_id());
+    if (it != pendingConsumerStatsMap_.end()) {
+        Promise<Result, BrokerConsumerStatsImpl> consumerStatsPromise = it->second;
+        pendingConsumerStatsMap_.erase(it);
+        lock.unlock();
+
+        if (consumerStatsResponse.has_error_code()) {
+            if (consumerStatsResponse.has_error_message()) {
+                LOG_ERROR(cnxString_ << " Failed to get consumer stats - "
+                                     << consumerStatsResponse.error_message());
+            }
+            consumerStatsPromise.setFailed(
+                getResult(consumerStatsResponse.error_code(), consumerStatsResponse.error_message()));
+        } else {
+            LOG_DEBUG(cnxString_ << "ConsumerStatsResponse command - Received consumer stats "
+                                    "response from server. req_id: "
+                                 << consumerStatsResponse.request_id() << " Stats: ");
+            BrokerConsumerStatsImpl brokerStats(
+                consumerStatsResponse.msgrateout(), consumerStatsResponse.msgthroughputout(),
+                consumerStatsResponse.msgrateredeliver(), consumerStatsResponse.consumername(),
+                consumerStatsResponse.availablepermits(), consumerStatsResponse.unackedmessages(),
+                consumerStatsResponse.blockedconsumeronunackedmsgs(), consumerStatsResponse.address(),
+                consumerStatsResponse.connectedsince(), consumerStatsResponse.type(),
+                consumerStatsResponse.msgrateexpired(), consumerStatsResponse.msgbacklog());
+            consumerStatsPromise.setValue(brokerStats);
+        }
+    } else {
+        LOG_WARN("ConsumerStatsResponse command - Received unknown request id from server: "
+                 << consumerStatsResponse.request_id());
+    }
+}
+
+void ClientConnection::handleLookupTopicRespose(
+    const proto::CommandLookupTopicResponse& lookupTopicResponse) {
+    LOG_DEBUG(cnxString_ << "Received lookup response from server. req_id: "
+                         << lookupTopicResponse.request_id());
+
+    Lock lock(mutex_);
+    auto it = pendingLookupRequests_.find(lookupTopicResponse.request_id());
+    if (it != pendingLookupRequests_.end()) {
+        it->second.timer->cancel();
+        LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
+        pendingLookupRequests_.erase(it);
+        numOfPendingLookupRequest_--;
+        lock.unlock();
+
+        if (!lookupTopicResponse.has_response() ||
+            (lookupTopicResponse.response() == proto::CommandLookupTopicResponse::Failed)) {
+            if (lookupTopicResponse.has_error()) {
+                LOG_ERROR(cnxString_ << "Failed lookup req_id: " << lookupTopicResponse.request_id()
+                                     << " error: " << lookupTopicResponse.error()
+                                     << " msg: " << lookupTopicResponse.message());
+                checkServerError(lookupTopicResponse.error(), lookupTopicResponse.message());
+                lookupDataPromise->setFailed(
+                    getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
+            } else {
+                LOG_ERROR(cnxString_ << "Failed lookup req_id: " << lookupTopicResponse.request_id()
+                                     << " with empty response: ");
+                lookupDataPromise->setFailed(ResultConnectError);
+            }
+        } else {
+            LOG_DEBUG(cnxString_ << "Received lookup response from server. req_id: "
+                                 << lookupTopicResponse.request_id()  //
+                                 << " -- broker-url: " << lookupTopicResponse.brokerserviceurl()
+                                 << " -- broker-tls-url: "  //
+                                 << lookupTopicResponse.brokerserviceurltls()
+                                 << " authoritative: " << lookupTopicResponse.authoritative()  //
+                                 << " redirect: " << lookupTopicResponse.response());
+            LookupDataResultPtr lookupResultPtr = std::make_shared<LookupDataResult>();
+
+            if (tlsSocket_) {
+                lookupResultPtr->setBrokerUrl(lookupTopicResponse.brokerserviceurltls());
+            } else {
+                lookupResultPtr->setBrokerUrl(lookupTopicResponse.brokerserviceurl());
+            }
+
+            lookupResultPtr->setBrokerUrlTls(lookupTopicResponse.brokerserviceurltls());
+            lookupResultPtr->setAuthoritative(lookupTopicResponse.authoritative());
+            lookupResultPtr->setRedirect(lookupTopicResponse.response() ==
+                                         proto::CommandLookupTopicResponse::Redirect);
+            lookupResultPtr->setShouldProxyThroughServiceUrl(lookupTopicResponse.proxy_through_service_url());
+            lookupDataPromise->setValue(lookupResultPtr);
+        }
+
+    } else {
+        LOG_WARN("Received unknown request id from server: " << lookupTopicResponse.request_id());
+    }
+}
+
+void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess& producerSuccess) {
+    LOG_DEBUG(cnxString_ << "Received success producer response from server. req_id: "
+                         << producerSuccess.request_id()  //
+                         << " -- producer name: " << producerSuccess.producer_name());
+
+    Lock lock(mutex_);
+    auto it = pendingRequests_.find(producerSuccess.request_id());
+    if (it != pendingRequests_.end()) {
+        PendingRequestData requestData = it->second;
+        if (!producerSuccess.producer_ready()) {
+            LOG_INFO(cnxString_ << " Producer " << producerSuccess.producer_name()
+                                << " has been queued up at broker. req_id: " << producerSuccess.request_id());
+            requestData.hasGotResponse->store(true);
+            lock.unlock();
+        } else {
+            pendingRequests_.erase(it);
+            lock.unlock();
+            ResponseData data;
+            data.producerName = producerSuccess.producer_name();
+            data.lastSequenceId = producerSuccess.last_sequence_id();
+            if (producerSuccess.has_schema_version()) {
+                data.schemaVersion = producerSuccess.schema_version();
+            }
+            if (producerSuccess.has_topic_epoch()) {
+                data.topicEpoch = boost::make_optional(producerSuccess.topic_epoch());
+            } else {
+                data.topicEpoch = boost::none;
+            }
+            requestData.promise.setValue(data);
+            requestData.timer->cancel();
         }
     }
 }
 
-void ClientConnection::checkServerError(const proto::ServerError& error) {
-    switch (error) {
-        case proto::ServerError::ServiceNotReady:
-            closeSocket();
-            break;
-        case proto::ServerError::TooManyRequests:
-            // TODO: Implement maxNumberOfRejectedRequestPerConnection like
-            // https://github.com/apache/pulsar/pull/274
-            closeSocket();
-            break;
-        default:
-            break;
+void ClientConnection::handleError(const proto::CommandError& error) {
+    Result result = getResult(error.error(), error.message());
+    LOG_WARN(cnxString_ << "Received error response from server: " << result
+                        << (error.has_message() ? (" (" + error.message() + ")") : "")
+                        << " -- req_id: " << error.request_id());
+
+    Lock lock(mutex_);
+
+    auto it = pendingRequests_.find(error.request_id());
+    if (it != pendingRequests_.end()) {
+        PendingRequestData requestData = it->second;
+        pendingRequests_.erase(it);
+        lock.unlock();
+
+        requestData.promise.setFailed(result);
+        requestData.timer->cancel();
+    } else {
+        PendingGetLastMessageIdRequestsMap::iterator it =
+            pendingGetLastMessageIdRequests_.find(error.request_id());
+        if (it != pendingGetLastMessageIdRequests_.end()) {
+            auto getLastMessageIdPromise = it->second.promise;
+            pendingGetLastMessageIdRequests_.erase(it);
+            lock.unlock();
+
+            getLastMessageIdPromise->setFailed(result);
+        } else {
+            PendingGetNamespaceTopicsMap::iterator it =
+                pendingGetNamespaceTopicsRequests_.find(error.request_id());
+            if (it != pendingGetNamespaceTopicsRequests_.end()) {
+                Promise<Result, NamespaceTopicsPtr> getNamespaceTopicsPromise = it->second;
+                pendingGetNamespaceTopicsRequests_.erase(it);
+                lock.unlock();
+
+                getNamespaceTopicsPromise.setFailed(result);
+            } else {
+                lock.unlock();
+            }
+        }
+    }
+}
+
+boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
+    const proto::CommandCloseProducer& closeProducer) {
+    if (tlsSocket_) {
+        if (closeProducer.has_assignedbrokerserviceurltls()) {
+            return closeProducer.assignedbrokerserviceurltls();
+        }
+    } else if (closeProducer.has_assignedbrokerserviceurl()) {
+        return closeProducer.assignedbrokerserviceurl();
+    }
+    return boost::none;
+}
+
+boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
+    const proto::CommandCloseConsumer& closeConsumer) {
+    if (tlsSocket_) {
+        if (closeConsumer.has_assignedbrokerserviceurltls()) {
+            return closeConsumer.assignedbrokerserviceurltls();
+        }
+    } else if (closeConsumer.has_assignedbrokerserviceurl()) {
+        return closeConsumer.assignedbrokerserviceurl();
+    }
+    return boost::none;
+}
+
+void ClientConnection::handleCloseProducer(const proto::CommandCloseProducer& closeProducer) {
+    int producerId = closeProducer.producer_id();
+
+    LOG_DEBUG("Broker notification of Closed producer: " << producerId);
+
+    Lock lock(mutex_);
+    auto it = producers_.find(producerId);
+    if (it != producers_.end()) {
+        ProducerImplPtr producer = it->second.lock();
+        producers_.erase(it);
+        lock.unlock();
+
+        if (producer) {
+            auto assignedBrokerServiceUrl = getAssignedBrokerServiceUrl(closeProducer);
+            producer->disconnectProducer(assignedBrokerServiceUrl);
+        }
+    } else {
+        LOG_ERROR(cnxString_ << "Got invalid producer Id in closeProducer command: " << producerId);
+    }
+}
+
+void ClientConnection::handleCloseConsumer(const proto::CommandCloseConsumer& closeconsumer) {
+    int consumerId = closeconsumer.consumer_id();
+
+    LOG_DEBUG("Broker notification of Closed consumer: " << consumerId);
+
+    Lock lock(mutex_);
+    auto it = consumers_.find(consumerId);
+    if (it != consumers_.end()) {
+        ConsumerImplPtr consumer = it->second.lock();
+        consumers_.erase(it);
+        lock.unlock();
+
+        if (consumer) {
+            auto assignedBrokerServiceUrl = getAssignedBrokerServiceUrl(closeconsumer);
+            consumer->disconnectConsumer(assignedBrokerServiceUrl);
+        }
+    } else {
+        LOG_ERROR(cnxString_ << "Got invalid consumer Id in closeConsumer command: " << consumerId);
+    }
+}
+
+void ClientConnection::handleAuthChallenge() {
+    LOG_DEBUG(cnxString_ << "Received auth challenge from broker");
+
+    Result result;
+    SharedBuffer buffer = Commands::newAuthResponse(authentication_, result);
+    if (result != ResultOk) {
+        LOG_ERROR(cnxString_ << "Failed to send auth response: " << result);
+        close(result);
+        return;
+    }
+    auto self = shared_from_this();
+    asyncWrite(buffer.const_asio_buffer(),
+               customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
+                   handleSentAuthResponse(err, buffer);
+               }));
+}
+
+void ClientConnection::handleGetLastMessageIdResponse(
+    const proto::CommandGetLastMessageIdResponse& getLastMessageIdResponse) {
+    LOG_DEBUG(cnxString_ << "Received getLastMessageIdResponse from server. req_id: "
+                         << getLastMessageIdResponse.request_id());
+
+    Lock lock(mutex_);
+    auto it = pendingGetLastMessageIdRequests_.find(getLastMessageIdResponse.request_id());
+
+    if (it != pendingGetLastMessageIdRequests_.end()) {
+        auto getLastMessageIdPromise = it->second.promise;
+        pendingGetLastMessageIdRequests_.erase(it);
+        lock.unlock();
+
+        if (getLastMessageIdResponse.has_consumer_mark_delete_position()) {
+            getLastMessageIdPromise->setValue(
+                {toMessageId(getLastMessageIdResponse.last_message_id()),
+                 toMessageId(getLastMessageIdResponse.consumer_mark_delete_position())});
+        } else {
+            getLastMessageIdPromise->setValue({toMessageId(getLastMessageIdResponse.last_message_id())});
+        }
+    } else {
+        lock.unlock();
+        LOG_WARN("getLastMessageIdResponse command - Received unknown request id from server: "
+                 << getLastMessageIdResponse.request_id());
+    }
+}
+
+void ClientConnection::handleGetTopicOfNamespaceResponse(
+    const proto::CommandGetTopicsOfNamespaceResponse& response) {
+    LOG_DEBUG(cnxString_ << "Received GetTopicsOfNamespaceResponse from server. req_id: "
+                         << response.request_id() << " topicsSize" << response.topics_size());
+
+    Lock lock(mutex_);
+    auto it = pendingGetNamespaceTopicsRequests_.find(response.request_id());
+
+    if (it != pendingGetNamespaceTopicsRequests_.end()) {
+        Promise<Result, NamespaceTopicsPtr> getTopicsPromise = it->second;
+        pendingGetNamespaceTopicsRequests_.erase(it);
+        lock.unlock();
+
+        int numTopics = response.topics_size();
+        std::set<std::string> topicSet;
+        // get all topics
+        for (int i = 0; i < numTopics; i++) {
+            // remove partition part
+            const std::string& topicName = response.topics(i);
+            int pos = topicName.find("-partition-");
+            std::string filteredName = topicName.substr(0, pos);
+
+            // filter duped topic name
+            if (topicSet.find(filteredName) == topicSet.end()) {
+                topicSet.insert(filteredName);
+            }
+        }
+
+        NamespaceTopicsPtr topicsPtr =
+            std::make_shared<std::vector<std::string>>(topicSet.begin(), topicSet.end());
+
+        getTopicsPromise.setValue(topicsPtr);
+    } else {
+        lock.unlock();
+        LOG_WARN(
+            "GetTopicsOfNamespaceResponse command - Received unknown request id from "
+            "server: "
+            << response.request_id());
+    }
+}
+
+void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResponse& response) {
+    LOG_DEBUG(cnxString_ << "Received GetSchemaResponse from server. req_id: " << response.request_id());
+    Lock lock(mutex_);
+    auto it = pendingGetSchemaRequests_.find(response.request_id());
+    if (it != pendingGetSchemaRequests_.end()) {
+        Promise<Result, SchemaInfo> getSchemaPromise = it->second.promise;
+        pendingGetSchemaRequests_.erase(it);
+        lock.unlock();
+
+        if (response.has_error_code()) {
+            Result result = getResult(response.error_code(), response.error_message());
+            if (response.error_code() != proto::TopicNotFound) {
+                LOG_WARN(cnxString_ << "Received error GetSchemaResponse from server " << result
+                                    << (response.has_error_message() ? (" (" + response.error_message() + ")")
+                                                                     : "")
+                                    << " -- req_id: " << response.request_id());
+            }
+            getSchemaPromise.setFailed(result);
+            return;
+        }
+
+        const auto& schema = response.schema();
+        const auto& properMap = schema.properties();
+        StringMap properties;
+        for (auto kv = properMap.begin(); kv != properMap.end(); ++kv) {
+            properties[kv->key()] = kv->value();
+        }
+        SchemaInfo schemaInfo(static_cast<SchemaType>(schema.type()), "", schema.schema_data(), properties);
+        getSchemaPromise.setValue(schemaInfo);
+    } else {
+        lock.unlock();
+        LOG_WARN(
+            "GetSchemaResponse command - Received unknown request id from "
+            "server: "
+            << response.request_id());
+    }
+}
+
+void ClientConnection::handleAckResponse(const proto::CommandAckResponse& response) {
+    LOG_DEBUG(cnxString_ << "Received AckResponse from server. req_id: " << response.request_id());
+
+    Lock lock(mutex_);
+    auto it = pendingRequests_.find(response.request_id());
+    if (it == pendingRequests_.cend()) {
+        lock.unlock();
+        LOG_WARN("Cannot find the cached AckResponse whose req_id is " << response.request_id());
+        return;
+    }
+
+    auto promise = it->second.promise;
+    pendingRequests_.erase(it);
+    lock.unlock();
+
+    if (response.has_error()) {
+        promise.setFailed(getResult(response.error(), ""));
+    } else {
+        promise.setValue({});
     }
 }
 

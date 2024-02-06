@@ -16,12 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/HTTPLookupService.h>
+#include "HTTPLookupService.h"
 
-#include <curl/curl.h>
+#include <pulsar/Version.h>
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+
+#include "CurlWrapper.h"
+#include "ExecutorService.h"
+#include "Int64SerDes.h"
+#include "LogUtils.h"
+#include "NamespaceName.h"
+#include "SchemaUtils.h"
+#include "ServiceNameResolver.h"
+#include "TopicName.h"
 namespace ptree = boost::property_tree;
 
 DECLARE_LOG_OBJECT()
@@ -34,19 +43,8 @@ const static std::string V2_PATH = "/lookup/v2/topic/";
 const static std::string ADMIN_PATH_V1 = "/admin/";
 const static std::string ADMIN_PATH_V2 = "/admin/v2/";
 
-const static int MAX_HTTP_REDIRECTS = 20;
 const static std::string PARTITION_METHOD_NAME = "partitions";
 const static int NUMBER_OF_LOOKUP_THREADS = 1;
-
-static inline bool needRedirection(long code) { return (code == 307 || code == 302 || code == 301); }
-
-HTTPLookupService::CurlInitializer::CurlInitializer() {
-    // Once per application - https://curl.haxx.se/mail/lib-2015-11/0052.html
-    curl_global_init(CURL_GLOBAL_ALL);
-}
-HTTPLookupService::CurlInitializer::~CurlInitializer() { curl_global_cleanup(); }
-
-HTTPLookupService::CurlInitializer HTTPLookupService::curlInitializer;
 
 HTTPLookupService::HTTPLookupService(ServiceNameResolver &serviceNameResolver,
                                      const ClientConfiguration &clientConfiguration,
@@ -55,6 +53,7 @@ HTTPLookupService::HTTPLookupService(ServiceNameResolver &serviceNameResolver,
       serviceNameResolver_(serviceNameResolver),
       authenticationPtr_(authData),
       lookupTimeoutInSeconds_(clientConfiguration.getOperationTimeoutSeconds()),
+      maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()),
       tlsPrivateFilePath_(clientConfiguration.getTlsPrivateKeyFilePath()),
       tlsCertificateFilePath_(clientConfiguration.getTlsCertificateFilePath()),
       tlsTrustCertsFilePath_(clientConfiguration.getTlsTrustCertsFilePath()),
@@ -118,17 +117,30 @@ Future<Result, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync
 }
 
 Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
-    const NamespaceNamePtr &nsName) {
+    const NamespaceNamePtr &nsName, CommandGetTopicsOfNamespace_Mode mode) {
     NamespaceTopicsPromise promise;
     std::stringstream completeUrlStream;
+
+    auto convertRegexSubMode = [](CommandGetTopicsOfNamespace_Mode mode) {
+        switch (mode) {
+            case CommandGetTopicsOfNamespace_Mode_PERSISTENT:
+                return "PERSISTENT";
+            case CommandGetTopicsOfNamespace_Mode_NON_PERSISTENT:
+                return "NON_PERSISTENT";
+            case CommandGetTopicsOfNamespace_Mode_ALL:
+                return "ALL";
+            default:
+                return "PERSISTENT";
+        }
+    };
 
     const auto &url = serviceNameResolver_.resolveHost();
     if (nsName->isV2()) {
         completeUrlStream << url << ADMIN_PATH_V2 << "namespaces" << '/' << nsName->toString() << '/'
-                          << "topics";
+                          << "topics?mode=" << convertRegexSubMode(mode);
     } else {
         completeUrlStream << url << ADMIN_PATH_V1 << "namespaces" << '/' << nsName->toString() << '/'
-                          << "destinations";
+                          << "destinations?mode=" << convertRegexSubMode(mode);
     }
 
     executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleNamespaceTopicsHTTPRequest,
@@ -136,9 +148,28 @@ Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     return promise.getFuture();
 }
 
-static size_t curlWriteCallback(void *contents, size_t size, size_t nmemb, void *responseDataPtr) {
-    ((std::string *)responseDataPtr)->append((char *)contents, size * nmemb);
-    return size * nmemb;
+Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topicName,
+                                                        const std::string &version) {
+    Promise<Result, SchemaInfo> promise;
+    std::stringstream completeUrlStream;
+
+    const auto &url = serviceNameResolver_.resolveHost();
+    if (topicName->isV2Topic()) {
+        completeUrlStream << url << ADMIN_PATH_V2 << "schemas/" << topicName->getProperty() << '/'
+                          << topicName->getNamespacePortion() << '/' << topicName->getEncodedLocalName()
+                          << "/schema";
+    } else {
+        completeUrlStream << url << ADMIN_PATH_V1 << "schemas/" << topicName->getProperty() << '/'
+                          << topicName->getCluster() << '/' << topicName->getNamespacePortion() << '/'
+                          << topicName->getEncodedLocalName() << "/schema";
+    }
+    if (!version.empty()) {
+        completeUrlStream << "/" << fromBigEndianBytes(version);
+    }
+
+    executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleGetSchemaHTTPRequest,
+                                                 shared_from_this(), promise, completeUrlStream.str()));
+    return promise.getFuture();
 }
 
 void HTTPLookupService::handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise promise,
@@ -154,153 +185,83 @@ void HTTPLookupService::handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise 
 }
 
 Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData) {
-    uint16_t reqCount = 0;
-    Result retResult = ResultOk;
-    while (++reqCount <= MAX_HTTP_REDIRECTS) {
-        CURL *handle;
-        CURLcode res;
-        std::string version = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
-        handle = curl_easy_init();
+    long responseCode = -1;
+    return sendHTTPRequest(completeUrl, responseData, responseCode);
+}
 
-        if (!handle) {
-            LOG_ERROR("Unable to curl_easy_init for url " << completeUrl);
-            // No curl_easy_cleanup required since handle not initialized
-            return ResultLookupError;
-        }
-        // set URL
-        curl_easy_setopt(handle, CURLOPT_URL, completeUrl.c_str());
+Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData,
+                                          long &responseCode) {
+    // Authorization data
+    AuthenticationDataPtr authDataContent;
+    Result authResult = authenticationPtr_->getAuthData(authDataContent);
+    if (authResult != ResultOk) {
+        LOG_ERROR("Failed to getAuthData: " << authResult);
+        return authResult;
+    }
 
-        // Write callback
-        curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, curlWriteCallback);
-        curl_easy_setopt(handle, CURLOPT_WRITEDATA, &responseData);
+    CurlWrapper curl;
+    if (!curl.init()) {
+        LOG_ERROR("Unable to curl_easy_init for url " << completeUrl);
+        return ResultLookupError;
+    }
 
-        // New connection is made for each call
-        curl_easy_setopt(handle, CURLOPT_FRESH_CONNECT, 1L);
-        curl_easy_setopt(handle, CURLOPT_FORBID_REUSE, 1L);
-
-        // Skipping signal handling - results in timeouts not honored during the DNS lookup
-        curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);
-
-        // Timer
-        curl_easy_setopt(handle, CURLOPT_TIMEOUT, lookupTimeoutInSeconds_);
-
-        // Set User Agent
-        curl_easy_setopt(handle, CURLOPT_USERAGENT, version.c_str());
-
-        // Fail if HTTP return code >=400
-        curl_easy_setopt(handle, CURLOPT_FAILONERROR, 1L);
-
-        // Authorization data
-        AuthenticationDataPtr authDataContent;
-        Result authResult = authenticationPtr_->getAuthData(authDataContent);
-        if (authResult != ResultOk) {
-            LOG_ERROR("Failed to getAuthData: " << authResult);
-            curl_easy_cleanup(handle);
-            return authResult;
-        }
-        struct curl_slist *list = NULL;
-        if (authDataContent->hasDataForHttp()) {
-            list = curl_slist_append(list, authDataContent->getHttpHeaders().c_str());
-        }
-        curl_easy_setopt(handle, CURLOPT_HTTPHEADER, list);
-
-        // TLS
-        if (isUseTls_) {
-            if (curl_easy_setopt(handle, CURLOPT_SSLENGINE, NULL) != CURLE_OK) {
-                LOG_ERROR("Unable to load SSL engine for url " << completeUrl);
-                curl_easy_cleanup(handle);
-                return ResultConnectError;
-            }
-            if (curl_easy_setopt(handle, CURLOPT_SSLENGINE_DEFAULT, 1L) != CURLE_OK) {
-                LOG_ERROR("Unable to load SSL engine as default, for url " << completeUrl);
-                curl_easy_cleanup(handle);
-                return ResultConnectError;
-            }
-            curl_easy_setopt(handle, CURLOPT_SSLCERTTYPE, "PEM");
-
-            if (tlsAllowInsecure_) {
-                curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 0L);
-            } else {
-                curl_easy_setopt(handle, CURLOPT_SSL_VERIFYPEER, 1L);
-            }
-
-            if (!tlsTrustCertsFilePath_.empty()) {
-                curl_easy_setopt(handle, CURLOPT_CAINFO, tlsTrustCertsFilePath_.c_str());
-            }
-
-            curl_easy_setopt(handle, CURLOPT_SSL_VERIFYHOST, tlsValidateHostname_ ? 1L : 0L);
-
-            if (authDataContent->hasDataForTls()) {
-                curl_easy_setopt(handle, CURLOPT_SSLCERT, authDataContent->getTlsCertificates().c_str());
-                curl_easy_setopt(handle, CURLOPT_SSLKEY, authDataContent->getTlsPrivateKey().c_str());
-            } else {
-                if (!tlsPrivateFilePath_.empty() && !tlsCertificateFilePath_.empty()) {
-                    curl_easy_setopt(handle, CURLOPT_SSLCERT, tlsCertificateFilePath_.c_str());
-                    curl_easy_setopt(handle, CURLOPT_SSLKEY, tlsPrivateFilePath_.c_str());
-                }
-            }
-        }
-
-        LOG_INFO("Curl [" << reqCount << "] Lookup Request sent for " << completeUrl);
-
-        // Make get call to server
-        res = curl_easy_perform(handle);
-
-        long response_code = -1;
-        curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
-        LOG_INFO("Response received for url " << completeUrl << " response_code " << response_code
-                                              << " curl res " << res);
-
-        // Free header list
-        curl_slist_free_all(list);
-
-        switch (res) {
-            case CURLE_OK:
-                long response_code;
-                curl_easy_getinfo(handle, CURLINFO_RESPONSE_CODE, &response_code);
-                LOG_INFO("Response received for url " << completeUrl << " code " << response_code);
-                if (response_code == 200) {
-                    retResult = ResultOk;
-                } else if (needRedirection(response_code)) {
-                    char *url = NULL;
-                    curl_easy_getinfo(handle, CURLINFO_REDIRECT_URL, &url);
-                    LOG_INFO("Response from url " << completeUrl << " to new url " << url);
-                    completeUrl = url;
-                    retResult = ResultLookupError;
-                } else {
-                    retResult = ResultLookupError;
-                }
-                break;
-            case CURLE_COULDNT_CONNECT:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultRetryable;
-                break;
-            case CURLE_COULDNT_RESOLVE_PROXY:
-            case CURLE_COULDNT_RESOLVE_HOST:
-            case CURLE_HTTP_RETURNED_ERROR:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultConnectError;
-                break;
-            case CURLE_READ_ERROR:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultReadError;
-                break;
-            case CURLE_OPERATION_TIMEDOUT:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultTimeout;
-                break;
-            default:
-                LOG_ERROR("Response failed for url " << completeUrl << ". Error Code " << res);
-                retResult = ResultLookupError;
-                break;
-        }
-        curl_easy_cleanup(handle);
-        if (!needRedirection(response_code)) {
-            break;
+    std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
+    if (isUseTls_) {
+        tlsContext.reset(new CurlWrapper::TlsContext);
+        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
+        tlsContext->validateHostname = tlsValidateHostname_;
+        tlsContext->allowInsecure = tlsAllowInsecure_;
+        if (authDataContent->hasDataForTls()) {
+            tlsContext->certPath = authDataContent->getTlsCertificates();
+            tlsContext->keyPath = authDataContent->getTlsPrivateKey();
+        } else {
+            tlsContext->certPath = tlsCertificateFilePath_;
+            tlsContext->keyPath = tlsPrivateFilePath_;
         }
     }
 
-    return retResult;
+    LOG_INFO("Curl Lookup Request sent for " << completeUrl);
+    CurlWrapper::Options options;
+    options.timeoutInSeconds = lookupTimeoutInSeconds_;
+    options.userAgent = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
+    options.maxLookupRedirects = maxLookupRedirects_;
+    auto result = curl.get(completeUrl, authDataContent->getHttpHeaders(), options, tlsContext.get());
+    const auto &error = result.error;
+    if (!error.empty()) {
+        LOG_ERROR(completeUrl << " failed: " << error);
+        return ResultConnectError;
+    }
+
+    responseData = result.responseData;
+    responseCode = result.responseCode;
+    auto res = result.code;
+    if (res == CURLE_OK) {
+        LOG_INFO("Response received for url " << completeUrl << " responseCode " << responseCode);
+    } else if (res == CURLE_TOO_MANY_REDIRECTS) {
+        LOG_ERROR("Response received for url " << completeUrl << ": " << curl_easy_strerror(res)
+                                               << ", curl error: " << result.serverError
+                                               << ", redirect URL: " << result.redirectUrl);
+    } else {
+        LOG_ERROR("Response failed for url " << completeUrl << ": " << curl_easy_strerror(res)
+                                             << ", curl error: " << result.serverError);
+    }
+
+    switch (res) {
+        case CURLE_OK:
+            return ResultOk;
+        case CURLE_COULDNT_CONNECT:
+            return ResultRetryable;
+        case CURLE_COULDNT_RESOLVE_PROXY:
+        case CURLE_COULDNT_RESOLVE_HOST:
+        case CURLE_HTTP_RETURNED_ERROR:
+            return ResultConnectError;
+        case CURLE_READ_ERROR:
+            return ResultReadError;
+        case CURLE_OPERATION_TIMEDOUT:
+            return ResultTimeout;
+        default:
+            return ResultLookupError;
+    }
 }
 
 LookupDataResultPtr HTTPLookupService::parsePartitionData(const std::string &json) {
@@ -399,6 +360,75 @@ void HTTPLookupService::handleLookupHTTPRequest(LookupPromise promise, const std
     } else {
         promise.setValue((requestType == PartitionMetaData) ? parsePartitionData(responseData)
                                                             : parseLookupData(responseData));
+    }
+}
+
+void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, const std::string completeUrl) {
+    std::string responseData;
+    long responseCode = -1;
+    Result result = sendHTTPRequest(completeUrl, responseData, responseCode);
+
+    if (responseCode == 404) {
+        promise.setFailed(ResultTopicNotFound);
+    } else if (result != ResultOk) {
+        promise.setFailed(result);
+    } else {
+        ptree::ptree root;
+        std::stringstream stream(responseData);
+        try {
+            ptree::read_json(stream, root);
+        } catch (ptree::json_parser_error &e) {
+            LOG_ERROR("Failed to parse json of Partition Metadata: " << e.what()
+                                                                     << "\nInput Json = " << responseData);
+            promise.setFailed(ResultInvalidMessage);
+            return;
+        }
+        const std::string defaultNotFoundString = "Not found";
+        auto schemaTypeStr = root.get<std::string>("type", defaultNotFoundString);
+        if (schemaTypeStr == defaultNotFoundString) {
+            LOG_ERROR("malformed json! - type not present" << responseData);
+            promise.setFailed(ResultInvalidMessage);
+            return;
+        }
+        auto schemaData = root.get<std::string>("data", defaultNotFoundString);
+        if (schemaData == defaultNotFoundString) {
+            LOG_ERROR("malformed json! - data not present" << responseData);
+            promise.setFailed(ResultInvalidMessage);
+            return;
+        }
+
+        auto schemaType = enumSchemaType(schemaTypeStr);
+        if (schemaType == KEY_VALUE) {
+            ptree::ptree kvRoot;
+            std::stringstream kvStream(schemaData);
+            try {
+                ptree::read_json(kvStream, kvRoot);
+            } catch (ptree::json_parser_error &e) {
+                LOG_ERROR("Failed to parse json of Partition Metadata: " << e.what()
+                                                                         << "\nInput Json = " << schemaData);
+                promise.setFailed(ResultInvalidMessage);
+                return;
+            }
+            std::stringstream keyStream;
+            ptree::write_json(keyStream, kvRoot.get_child("key"), false);
+            std::stringstream valueStream;
+            ptree::write_json(valueStream, kvRoot.get_child("value"), false);
+            auto keyData = keyStream.str();
+            auto valueData = valueStream.str();
+            // Remove the last line break.
+            keyData.pop_back();
+            valueData.pop_back();
+            schemaData = mergeKeyValueSchema(keyData, valueData);
+        }
+
+        StringMap properties;
+        auto propertiesTree = root.get_child("properties");
+        for (const auto &item : propertiesTree) {
+            properties[item.first] = item.second.get_value<std::string>();
+        }
+
+        SchemaInfo schemaInfo = SchemaInfo(schemaType, "", schemaData, properties);
+        promise.setValue(schemaInfo);
     }
 }
 

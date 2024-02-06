@@ -18,19 +18,30 @@
  */
 #include "NamedEntity.h"
 
+#include <cctype>
+
+/**
+ * Allowed characters for property, namespace, cluster and topic names are
+ * alphanumeric (a-zA-Z0-9) and these special chars _-=:.
+ * @param name
+ * @return
+ */
 bool NamedEntity::checkName(const std::string& name) {
     for (char c : name) {
+        if (isalnum(c)) {
+            continue;
+        }
+
         switch (c) {
+            case '_':
+            case '-':
             case '=':
             case ':':
-            case ' ':
-            case '!':
-            case '\t':
-            case '\r':
-            case '\n':
-                return false;
+            case '.':
+                continue;
             default:
-                break;
+                // Invalid character was found
+                return false;
         }
     }
 

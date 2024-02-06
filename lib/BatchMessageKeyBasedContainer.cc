@@ -17,15 +17,17 @@
  * under the License.
  */
 #include "BatchMessageKeyBasedContainer.h"
+
+#include <algorithm>
+#include <map>
+
 #include "ClientConnection.h"
 #include "Commands.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
+#include "OpSendMsg.h"
 #include "ProducerImpl.h"
 #include "TimeUtils.h"
-
-#include <algorithm>
-#include <map>
 
 DECLARE_LOG_OBJECT()
 
@@ -70,38 +72,29 @@ void BatchMessageKeyBasedContainer::clear() {
     LOG_DEBUG(*this << " clear() called");
 }
 
-Result BatchMessageKeyBasedContainer::createOpSendMsg(OpSendMsg& opSendMsg,
-                                                      const FlushCallback& flushCallback) const {
-    if (batches_.size() < 1) {
-        return ResultOperationNotSupported;
+std::vector<std::unique_ptr<OpSendMsg>> BatchMessageKeyBasedContainer::createOpSendMsgs(
+    const FlushCallback& flushCallback) {
+    // Store raw pointers to use std::sort
+    std::vector<OpSendMsg*> rawOpSendMsgs;
+    for (auto& kv : batches_) {
+        if (!kv.second.empty()) {
+            rawOpSendMsgs.emplace_back(createOpSendMsgHelper(kv.second).release());
+        }
     }
-    return createOpSendMsgHelper(opSendMsg, flushCallback, batches_.begin()->second);
-}
+    std::sort(rawOpSendMsgs.begin(), rawOpSendMsgs.end(), [](const OpSendMsg* lhs, const OpSendMsg* rhs) {
+        return lhs->sendArgs->sequenceId < rhs->sendArgs->sequenceId;
+    });
+    if (rawOpSendMsgs.empty()) {
+        return {};
+    }
+    rawOpSendMsgs.back()->addTrackerCallback(flushCallback);
 
-std::vector<Result> BatchMessageKeyBasedContainer::createOpSendMsgs(
-    std::vector<OpSendMsg>& opSendMsgs, const FlushCallback& flushCallback) const {
-    // Sorted the batches by sequence id
-    std::vector<const MessageAndCallbackBatch*> sortedBatches;
-    for (const auto& kv : batches_) {
-        sortedBatches.emplace_back(&kv.second);
+    std::vector<std::unique_ptr<OpSendMsg>> opSendMsgs{rawOpSendMsgs.size()};
+    for (size_t i = 0; i < opSendMsgs.size(); i++) {
+        opSendMsgs[i].reset(rawOpSendMsgs[i]);
     }
-    std::sort(sortedBatches.begin(), sortedBatches.end(),
-              [](const MessageAndCallbackBatch* lhs, const MessageAndCallbackBatch* rhs) {
-                  return lhs->sequenceId() < rhs->sequenceId();
-              });
-
-    size_t numBatches = sortedBatches.size();
-    opSendMsgs.resize(numBatches);
-
-    std::vector<Result> results(numBatches);
-    for (size_t i = 0; i + 1 < numBatches; i++) {
-        results[i] = createOpSendMsgHelper(opSendMsgs[i], nullptr, *sortedBatches[i]);
-    }
-    if (numBatches > 0) {
-        // Add flush callback to the last batch
-        results.back() = createOpSendMsgHelper(opSendMsgs.back(), flushCallback, *sortedBatches.back());
-    }
-    return results;
+    clear();
+    return opSendMsgs;
 }
 
 void BatchMessageKeyBasedContainer::serialize(std::ostream& os) const {

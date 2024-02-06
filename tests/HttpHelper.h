@@ -24,5 +24,6 @@
 int makePutRequest(const std::string& url, const std::string& body);
 int makePostRequest(const std::string& url, const std::string& body);
 int makeDeleteRequest(const std::string& url);
+int makeGetRequest(const std::string& url, const std::string& responseData);
 
 #endif /* end of include guard: HTTP_HELPER */

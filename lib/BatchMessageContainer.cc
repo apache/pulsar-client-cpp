@@ -17,13 +17,11 @@
  * under the License.
  */
 #include "BatchMessageContainer.h"
-#include "ClientConnection.h"
-#include "Commands.h"
-#include "LogUtils.h"
-#include "MessageImpl.h"
-#include "ProducerImpl.h"
-#include "TimeUtils.h"
+
 #include <stdexcept>
+
+#include "LogUtils.h"
+#include "OpSendMsg.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -55,14 +53,13 @@ void BatchMessageContainer::clear() {
     LOG_DEBUG(*this << " clear() called");
 }
 
-Result BatchMessageContainer::createOpSendMsg(OpSendMsg& opSendMsg,
-                                              const FlushCallback& flushCallback) const {
-    return createOpSendMsgHelper(opSendMsg, flushCallback, batch_);
-}
-
-std::vector<Result> BatchMessageContainer::createOpSendMsgs(std::vector<OpSendMsg>& opSendMsgs,
-                                                            const FlushCallback& flushCallback) const {
-    throw std::runtime_error("createOpSendMsgs is not supported for BatchMessageContainer");
+std::unique_ptr<OpSendMsg> BatchMessageContainer::createOpSendMsg(const FlushCallback& flushCallback) {
+    auto op = createOpSendMsgHelper(batch_);
+    if (flushCallback) {
+        op->addTrackerCallback(flushCallback);
+    }
+    clear();
+    return op;
 }
 
 void BatchMessageContainer::serialize(std::ostream& os) const {

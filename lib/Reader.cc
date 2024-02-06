@@ -20,8 +20,8 @@
 #include <pulsar/Reader.h>
 
 #include "Future.h"
-#include "Utils.h"
 #include "ReaderImpl.h"
+#include "Utils.h"
 
 namespace pulsar {
 
@@ -47,6 +47,14 @@ Result Reader::readNext(Message& msg, int timeoutMs) {
     }
 
     return impl_->readNext(msg, timeoutMs);
+}
+
+void Reader::readNextAsync(ReadNextCallback callback) {
+    if (!impl_) {
+        return callback(ResultConsumerNotInitialized, {});
+    }
+
+    impl_->readNextAsync(callback);
 }
 
 Result Reader::close() {

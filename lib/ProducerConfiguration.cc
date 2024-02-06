@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/ProducerConfigurationImpl.h>
+#include <pulsar/ProducerConfiguration.h>
 
 #include <stdexcept>
+
+#include "ProducerConfigurationImpl.h"
 
 namespace pulsar {
 
@@ -36,21 +38,21 @@ ProducerConfiguration& ProducerConfiguration::operator=(const ProducerConfigurat
 }
 
 ProducerConfiguration& ProducerConfiguration::setProducerName(const std::string& producerName) {
-    impl_->producerName = Optional<std::string>::of(producerName);
+    impl_->producerName = boost::make_optional(producerName);
     return *this;
 }
 
 const std::string& ProducerConfiguration::getProducerName() const {
-    return impl_->producerName.is_present() ? impl_->producerName.value() : emptyString;
+    return !impl_->producerName ? emptyString : impl_->producerName.value();
 }
 
 ProducerConfiguration& ProducerConfiguration::setInitialSequenceId(int64_t initialSequenceId) {
-    impl_->initialSequenceId = Optional<int64_t>::of(initialSequenceId);
+    impl_->initialSequenceId = boost::make_optional(initialSequenceId);
     return *this;
 }
 
 int64_t ProducerConfiguration::getInitialSequenceId() const {
-    return impl_->initialSequenceId.is_present() ? impl_->initialSequenceId.value() : -1ll;
+    return !impl_->initialSequenceId ? -1ll : impl_->initialSequenceId.value();
 }
 
 ProducerConfiguration& ProducerConfiguration::setSendTimeout(int sendTimeoutMs) {
@@ -264,6 +266,15 @@ ProducerConfiguration& ProducerConfiguration::setAccessMode(const ProducerAccess
 }
 ProducerConfiguration::ProducerAccessMode ProducerConfiguration::getAccessMode() const {
     return impl_->accessMode;
+}
+ProducerConfiguration& ProducerConfiguration::intercept(
+    const std::vector<ProducerInterceptorPtr>& interceptors) {
+    impl_->interceptors.insert(impl_->interceptors.end(), interceptors.begin(), interceptors.end());
+    return *this;
+}
+
+const std::vector<ProducerInterceptorPtr>& ProducerConfiguration::getInterceptors() const {
+    return impl_->interceptors;
 }
 
 }  // namespace pulsar

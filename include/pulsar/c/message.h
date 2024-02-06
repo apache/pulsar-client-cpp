@@ -23,16 +23,25 @@
 extern "C" {
 #endif
 
+#include <pulsar/defines.h>
 #include <stddef.h>
 #include <stdint.h>
 
-#include <pulsar/defines.h>
 #include "string_map.h"
 
 typedef struct _pulsar_message pulsar_message_t;
 typedef struct _pulsar_message_id pulsar_message_id_t;
 
 PULSAR_PUBLIC pulsar_message_t *pulsar_message_create();
+/**
+ * Copy the contents of one pulsar_message_t object to another.
+ *
+ * Note: This method is a shallow copy, which will copy the pulsar::Message.
+ *
+ * @param from  A pointer to the pulsar_message_t object that you want to copy from
+ * @param to  A pointer to the pulsar_message_t object that you want to copy to
+ */
+PULSAR_PUBLIC void pulsar_message_copy(const pulsar_message_t *from, pulsar_message_t *to);
 PULSAR_PUBLIC void pulsar_message_free(pulsar_message_t *message);
 
 /// Builder

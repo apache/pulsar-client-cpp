@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <lib/auth/AuthTls.h>
+#include "AuthTls.h"
 
 namespace pulsar {
 AuthDataTls::AuthDataTls(const std::string& certificatePath, const std::string& privateKeyPath) {
