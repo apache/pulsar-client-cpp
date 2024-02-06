@@ -53,10 +53,18 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
-        
+
+    - name: Install deps
+      run: |
+        sudo apt-get update -y
+        sudo apt-get install -y libcurl4-openssl-dev libssl-dev \
+          protobuf-compiler libprotobuf-dev libboost-dev \
+          libboost-dev libboost-program-options-dev \
+          libzstd-dev libsnappy-dev
+
     - name: Build
       run: |
-        cmake . -DCMAKE_BUILD_TYPE=Debug -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF -DBUILD_STATIC_LIB=OFF 
+        cmake . -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=OFF -DBUILD_STATIC_LIB=OFF -DBUILD_PERF_TOOLS=ON 
         cmake --build . -j8
 
     - name: Perform CodeQL Analysis
