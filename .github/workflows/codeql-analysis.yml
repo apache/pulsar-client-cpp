@@ -44,6 +44,8 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
+      with:
+        submodules: recursive
 
       # Initializes the CodeQL tools for scanning.
     - name: Initialize CodeQL
@@ -53,7 +55,7 @@ jobs:
         
     - name: Build
       run: |
-        cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
+        cmake . -DCMAKE_BUILD_TYPE=Debug -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF -DBUILD_STATIC_LIB=OFF 
         cmake --build . -j8
 
     - name: Perform CodeQL Analysis
