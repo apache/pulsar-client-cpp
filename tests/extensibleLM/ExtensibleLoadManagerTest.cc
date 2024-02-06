@@ -169,9 +169,8 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             }));
             LOG_INFO("after lookup responseData:" << responseDataAfterUnload << ",res:" << res);
 
-            // TODO: check lookup counter after pip-307 is released
             auto lookupCountAfterUnload = clientImplPtr->getLookupCount();
-            ASSERT_TRUE(lookupCountBeforeUnload < lookupCountAfterUnload);
+            ASSERT_EQ(lookupCountBeforeUnload, lookupCountAfterUnload);
             break;
         }
     };

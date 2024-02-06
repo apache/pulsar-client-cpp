@@ -81,9 +81,9 @@ static Result getResult(ServerError serverError, const std::string& message) {
             return ResultConsumerBusy;
 
         case ServiceNotReady:
-            // If the error is not caused by a PulsarServerException, treat it as retryable.
-            return (message.find("PulsarServerException") == std::string::npos) ? ResultRetryable
-                                                                                : ResultServiceUnitNotReady;
+            return (message.find("the broker do not have test listener") == std::string::npos)
+                       ? ResultRetryable
+                       : ResultServiceUnitNotReady;
 
         case ProducerBlockedQuotaExceededError:
             return ResultProducerBlockedQuotaExceededError;
