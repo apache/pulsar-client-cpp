@@ -456,7 +456,11 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::
                 }
             }
             auto weakSelf = weak_from_this();
-            auto callback = [weakSelf](const ASIO_ERROR& err) {
+            auto socket = socket_;
+            auto tlsSocket = tlsSocket_;
+            // socket and ssl::stream objects must exist until async_handshake is done, otherwise segmentation
+            // fault might happen
+            auto callback = [weakSelf, socket, tlsSocket](const ASIO_ERROR& err) {
                 auto self = weakSelf.lock();
                 if (self) {
                     self->handleHandshake(err);
