@@ -504,8 +504,13 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::
 
 void ClientConnection::handleHandshake(const ASIO_ERROR& err) {
     if (err) {
-        LOG_ERROR(cnxString_ << "Handshake failed: " << err.message());
-        close();
+        if (err.value() == ASIO::ssl::error::stream_truncated) {
+            LOG_WARN(cnxString_ << "Handshake failed: " << err.message());
+            close(ResultRetryable);
+        } else {
+            LOG_ERROR(cnxString_ << "Handshake failed: " << err.message());
+            close();
+        }
         return;
     }
 
