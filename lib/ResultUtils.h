@@ -31,26 +31,26 @@ inline bool isResultRetryable(Result result) {
         return true;
     }
 
-    static const std::unordered_set<Result> fatalResults{ResultConnectError,
-                                                         ResultTimeout,
-                                                         ResultAuthenticationError,
-                                                         ResultAuthorizationError,
-                                                         ResultInvalidUrl,
-                                                         ResultInvalidConfiguration,
-                                                         ResultIncompatibleSchema,
-                                                         ResultTopicNotFound,
-                                                         ResultOperationNotSupported,
-                                                         ResultNotAllowedError,
-                                                         ResultChecksumError,
-                                                         ResultCryptoError,
-                                                         ResultConsumerAssignError,
-                                                         ResultProducerBusy,
-                                                         ResultConsumerBusy,
-                                                         ResultLookupError,
-                                                         ResultTooManyLookupRequestException,
-                                                         ResultProducerBlockedQuotaExceededException,
-                                                         ResultProducerBlockedQuotaExceededError};
-    return fatalResults.find(result) == fatalResults.cend();
+    static const std::unordered_set<int> fatalResults{ResultConnectError,
+                                                      ResultTimeout,
+                                                      ResultAuthenticationError,
+                                                      ResultAuthorizationError,
+                                                      ResultInvalidUrl,
+                                                      ResultInvalidConfiguration,
+                                                      ResultIncompatibleSchema,
+                                                      ResultTopicNotFound,
+                                                      ResultOperationNotSupported,
+                                                      ResultNotAllowedError,
+                                                      ResultChecksumError,
+                                                      ResultCryptoError,
+                                                      ResultConsumerAssignError,
+                                                      ResultProducerBusy,
+                                                      ResultConsumerBusy,
+                                                      ResultLookupError,
+                                                      ResultTooManyLookupRequestException,
+                                                      ResultProducerBlockedQuotaExceededException,
+                                                      ResultProducerBlockedQuotaExceededError};
+    return fatalResults.find(static_cast<int>(result)) == fatalResults.cend();
 }
 
 }  // namespace pulsar
