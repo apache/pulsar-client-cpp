@@ -100,8 +100,8 @@ fi
 
 if [ ! -f protobuf-${PROTOBUF_VERSION}/.done ]; then
     echo "Building Protobuf $PROTOBUF_VERSION"
-    curl -O -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-${PROTOBUF_VERSION}.tar.gz
-    tar zxf protobuf-${PROTOBUF_VERSION}.tar.gz
+    curl -O -L https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.tar.gz
+    tar zxf protobuf-cpp-${PROTOBUF_VERSION}.tar.gz
     pushd protobuf-${PROTOBUF_VERSION}
       pushd cmake/
         # Build protoc that can run on both x86 and arm architectures

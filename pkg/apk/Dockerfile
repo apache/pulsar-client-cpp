@@ -52,12 +52,12 @@ RUN BOOST_VERSION=$(dep-version.py boost) && \
 
 # Download and compile protobuf
 RUN PROTOBUF_VERSION=$(dep-version.py protobuf) && \
-    curl -O -L  https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-${PROTOBUF_VERSION}.tar.gz && \
-    tar xfz protobuf-${PROTOBUF_VERSION}.tar.gz && \
+    curl -O -L  https://github.com/google/protobuf/releases/download/v${PROTOBUF_VERSION}/protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
+    tar xfz protobuf-cpp-${PROTOBUF_VERSION}.tar.gz && \
     cd protobuf-${PROTOBUF_VERSION}/ && \
     CXXFLAGS=-fPIC ./configure && \
     make -j8 && make install && \
-    rm -rf /protobuf-${PROTOBUF_VERSION}.tar.gz /protobuf-${PROTOBUF_VERSION}
+    rm -rf /protobuf-cpp-${PROTOBUF_VERSION}.tar.gz /protobuf-${PROTOBUF_VERSION}
 
 # ZLib
 RUN ZLIB_VERSION=$(dep-version.py zlib) && \
