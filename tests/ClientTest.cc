@@ -443,7 +443,8 @@ TEST(ClientTest, testRetryUntilSucceed) {
     EXPECT_CALL(*clientImpl, getConnection).Times((kFailCount + 1) * 2);
     std::atomic_int count{0};
     ON_CALL(*clientImpl, getConnection)
-        .WillByDefault([&clientImpl, &count](const std::string &topic, size_t index) {
+        .WillByDefault([&clientImpl, &count](const std::string &redirectedClusterURI,
+                                             const std::string &topic, size_t index) {
             if (count++ < kFailCount) {
                 return GetConnectionFuture::failed(ResultRetryable);
             }
@@ -461,9 +462,10 @@ TEST(ClientTest, testRetryTimeout) {
     auto clientImpl =
         std::make_shared<MockClientImpl>(lookupUrl, ClientConfiguration().setOperationTimeoutSeconds(2));
     EXPECT_CALL(*clientImpl, getConnection).Times(AtLeast(2 * 2));
-    ON_CALL(*clientImpl, getConnection).WillByDefault([](const std::string &topic, size_t index) {
-        return GetConnectionFuture::failed(ResultRetryable);
-    });
+    ON_CALL(*clientImpl, getConnection)
+        .WillByDefault([](const std::string &redirectedClusterURI, const std::string &topic, size_t index) {
+            return GetConnectionFuture::failed(ResultRetryable);
+        });
 
     auto topic = "client-test-retry-timeout";
     {
@@ -484,9 +486,10 @@ TEST(ClientTest, testNoRetry) {
     auto clientImpl =
         std::make_shared<MockClientImpl>(lookupUrl, ClientConfiguration().setOperationTimeoutSeconds(100));
     EXPECT_CALL(*clientImpl, getConnection).Times(2);
-    ON_CALL(*clientImpl, getConnection).WillByDefault([](const std::string &, size_t) {
-        return GetConnectionFuture::failed(ResultAuthenticationError);
-    });
+    ON_CALL(*clientImpl, getConnection)
+        .WillByDefault([](const std::string &redirectedClusterURI, const std::string &, size_t) {
+            return GetConnectionFuture::failed(ResultAuthenticationError);
+        });
 
     auto topic = "client-test-no-retry";
     {

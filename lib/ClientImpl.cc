@@ -79,8 +79,8 @@ typedef std::vector<std::string> StringList;
 ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
     : mutex_(),
       state_(Open),
-      serviceNameResolver_(serviceUrl),
-      clientConfiguration_(ClientConfiguration(clientConfiguration).setUseTls(serviceNameResolver_.useTls())),
+      clientConfiguration_(ClientConfiguration(clientConfiguration)
+                               .setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)))),
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
@@ -98,24 +98,27 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
     if (loggerFactory) {
         LogUtils::setLoggerFactory(std::move(loggerFactory));
     }
-
-    LookupServicePtr underlyingLookupServicePtr;
-    if (serviceNameResolver_.useHttp()) {
-        LOG_DEBUG("Using HTTP Lookup");
-        underlyingLookupServicePtr = std::make_shared<HTTPLookupService>(
-            std::ref(serviceNameResolver_), std::cref(clientConfiguration_),
-            std::cref(clientConfiguration_.getAuthPtr()));
-    } else {
-        LOG_DEBUG("Using Binary Lookup");
-        underlyingLookupServicePtr = std::make_shared<BinaryProtoLookupService>(
-            std::ref(serviceNameResolver_), std::ref(pool_), std::cref(clientConfiguration_));
-    }
-
-    lookupServicePtr_ = RetryableLookupService::create(
-        underlyingLookupServicePtr, clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
+    lookupServicePtr_ = createLookup(serviceUrl);
 }
 
 ClientImpl::~ClientImpl() { shutdown(); }
+
+LookupServicePtr ClientImpl::createLookup(const std::string& serviceUrl) {
+    LookupServicePtr underlyingLookupServicePtr;
+    if (ServiceNameResolver::useHttp(ServiceURI(serviceUrl))) {
+        LOG_DEBUG("Using HTTP Lookup");
+        underlyingLookupServicePtr = std::make_shared<HTTPLookupService>(
+            serviceUrl, std::cref(clientConfiguration_), std::cref(clientConfiguration_.getAuthPtr()));
+    } else {
+        LOG_DEBUG("Using Binary Lookup");
+        underlyingLookupServicePtr = std::make_shared<BinaryProtoLookupService>(
+            serviceUrl, std::ref(pool_), std::cref(clientConfiguration_));
+    }
+
+    auto lookupServicePtr = RetryableLookupService::create(
+        underlyingLookupServicePtr, clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
+    return lookupServicePtr;
+}
 
 const ClientConfiguration& ClientImpl::conf() const { return clientConfiguration_; }
 
@@ -129,7 +132,21 @@ ExecutorServiceProviderPtr ClientImpl::getPartitionListenerExecutorProvider() {
     return partitionListenerExecutorProvider_;
 }
 
-LookupServicePtr ClientImpl::getLookup() { return lookupServicePtr_; }
+LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) {
+    if (redirectedClusterURI.empty()) {
+        return lookupServicePtr_;
+    }
+
+    Lock lock(mutex_);
+    auto it = redirectedClusterLookupServicePtrs_.find(redirectedClusterURI);
+    if (it == redirectedClusterLookupServicePtrs_.end()) {
+        auto lookup = createLookup(redirectedClusterURI);
+        redirectedClusterLookupServicePtrs_.emplace(redirectedClusterURI, lookup);
+        return lookup;
+    }
+
+    return it->second;
+}
 
 void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfiguration conf,
                                      CreateProducerCallback callback, bool autoDownloadSchema) {
@@ -517,7 +534,8 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
     }
 }
 
-GetConnectionFuture ClientImpl::getConnection(const std::string& topic, size_t key) {
+GetConnectionFuture ClientImpl::getConnection(const std::string& redirectedClusterURI,
+                                              const std::string& topic, size_t key) {
     Promise<Result, ClientConnectionPtr> promise;
 
     const auto topicNamePtr = TopicName::get(topic);
@@ -528,7 +546,8 @@ GetConnectionFuture ClientImpl::getConnection(const std::string& topic, size_t k
     }
 
     auto self = shared_from_this();
-    lookupServicePtr_->getBroker(*topicNamePtr)
+    getLookup(redirectedClusterURI)
+        ->getBroker(*topicNamePtr)
         .addListener([this, self, promise, key](Result result, const LookupService::LookupResult& data) {
             if (result != ResultOk) {
                 promise.setFailed(result);
@@ -554,16 +573,18 @@ GetConnectionFuture ClientImpl::getConnection(const std::string& topic, size_t k
     return promise.getFuture();
 }
 
-const std::string& ClientImpl::getPhysicalAddress(const std::string& logicalAddress) {
+const std::string& ClientImpl::getPhysicalAddress(const std::string& redirectedClusterURI,
+                                                  const std::string& logicalAddress) {
     if (useProxy_) {
-        return serviceNameResolver_.resolveHost();
+        return getLookup(redirectedClusterURI)->getServiceNameResolver().resolveHost();
     } else {
         return logicalAddress;
     }
 }
 
-GetConnectionFuture ClientImpl::connect(const std::string& logicalAddress, size_t key) {
-    const auto& physicalAddress = getPhysicalAddress(logicalAddress);
+GetConnectionFuture ClientImpl::connect(const std::string& redirectedClusterURI,
+                                        const std::string& logicalAddress, size_t key) {
+    const auto& physicalAddress = getPhysicalAddress(redirectedClusterURI, logicalAddress);
     Promise<Result, ClientConnectionPtr> promise;
     pool_.getConnectionAsync(logicalAddress, physicalAddress, key)
         .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
@@ -633,6 +654,9 @@ void ClientImpl::closeAsync(CloseCallback callback) {
 
     memoryLimitController_.close();
     lookupServicePtr_->close();
+    for (const auto& it : redirectedClusterLookupServicePtrs_) {
+        it.second->close();
+    }
 
     auto producers = producers_.move();
     auto consumers = consumers_.move();

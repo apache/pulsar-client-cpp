@@ -26,6 +26,7 @@
 #include "lib/ClientImpl.h"
 #include "lib/ConsumerConfigurationImpl.h"
 #include "lib/ConsumerImpl.h"
+#include "lib/LookupService.h"
 #include "lib/MessageImpl.h"
 #include "lib/MultiTopicsConsumerImpl.h"
 #include "lib/NamespaceName.h"
@@ -38,6 +39,7 @@
 using std::string;
 
 namespace pulsar {
+using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
 class PulsarFriend {
    public:
     static ProducerStatsImplPtr getProducerStatsPtr(Producer producer) {
@@ -166,6 +168,14 @@ class PulsarFriend {
 
     static ClientConnectionWeakPtr getClientConnection(HandlerBase& handler) { return handler.connection_; }
 
+    static std::string getConnectionPhysicalAddress(HandlerBase& handler) {
+        auto cnx = handler.connection_.lock();
+        if (cnx) {
+            return cnx->physicalAddress_;
+        }
+        return "";
+    }
+
     static void setClientConnection(HandlerBase& handler, ClientConnectionWeakPtr conn) {
         handler.connection_ = conn;
     }
@@ -177,7 +187,7 @@ class PulsarFriend {
     static void setServiceUrlIndex(ServiceNameResolver& resolver, size_t index) { resolver.index_ = index; }
 
     static void setServiceUrlIndex(const Client& client, size_t index) {
-        setServiceUrlIndex(client.impl_->serviceNameResolver_, index);
+        setServiceUrlIndex(client.impl_->lookupServicePtr_->getServiceNameResolver(), index);
     }
 
     static proto::MessageMetadata& getMessageMetadata(Message& message) { return message.impl_->metadata; }

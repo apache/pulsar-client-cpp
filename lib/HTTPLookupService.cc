@@ -46,11 +46,11 @@ const static std::string ADMIN_PATH_V2 = "/admin/v2/";
 const static std::string PARTITION_METHOD_NAME = "partitions";
 const static int NUMBER_OF_LOOKUP_THREADS = 1;
 
-HTTPLookupService::HTTPLookupService(ServiceNameResolver &serviceNameResolver,
+HTTPLookupService::HTTPLookupService(const std::string &serviceUrl,
                                      const ClientConfiguration &clientConfiguration,
                                      const AuthenticationPtr &authData)
     : executorProvider_(std::make_shared<ExecutorServiceProvider>(NUMBER_OF_LOOKUP_THREADS)),
-      serviceNameResolver_(serviceNameResolver),
+      serviceNameResolver_(serviceUrl),
       authenticationPtr_(authData),
       lookupTimeoutInSeconds_(clientConfiguration.getOperationTimeoutSeconds()),
       maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()),

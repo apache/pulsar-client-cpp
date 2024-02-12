@@ -1,15 +1,15 @@
 version: '3'
 networks:
-  pulsar:
+  green-pulsar:
     driver: bridge
 services:
   # Start ZooKeeper
   zookeeper:
     image: apachepulsar/pulsar:latest
-    container_name: zookeeper
+    container_name: green-zookeeper
     restart: on-failure
     networks:
-      - pulsar
+      - green-pulsar
     environment:
       - metadataStoreUrl=zk:zookeeper:2181
       - PULSAR_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
@@ -25,11 +25,11 @@ services:
 
   # Initialize cluster metadata
   pulsar-init:
-    container_name: pulsar-init
+    container_name: green-pulsar-init
     hostname: pulsar-init
     image: apachepulsar/pulsar:latest
     networks:
-      - pulsar
+      - green-pulsar
     environment:
       - PULSAR_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
     command: >
@@ -46,10 +46,10 @@ services:
   # Start bookie
   bookie:
     image: apachepulsar/pulsar:latest
-    container_name: bookie
+    container_name: green-bookie
     restart: on-failure
     networks:
-      - pulsar
+      - green-pulsar
     environment:
       - clusterName=cluster-a
       - zkServers=zookeeper:2181
@@ -65,19 +65,19 @@ services:
 
   proxy:
     image: apachepulsar/pulsar:latest
-    container_name: proxy
+    container_name: green-proxy
     hostname: proxy
     restart: on-failure
     networks:
-      - pulsar
+      - green-pulsar
     environment:
       - metadataStoreUrl=zk:zookeeper:2181
       - zookeeperServers=zookeeper:2181
       - clusterName=cluster-a
       - PULSAR_MEM=-Xms128m -Xmx128m -XX:MaxDirectMemorySize=56m
     ports:
-      - "8080:8080"
-      - "6650:6650"
+      - "8081:8080"
+      - "6651:6650"
     depends_on:
       broker-1:
         condition: service_started
@@ -88,11 +88,11 @@ services:
   # Start broker 1
   broker-1:
     image: apachepulsar/pulsar:latest
-    container_name: broker-1
+    container_name: green-broker-1
     hostname: broker-1
     restart: on-failure
     networks:
-      - pulsar
+      - green-pulsar
     environment:
       - metadataStoreUrl=zk:zookeeper:2181
       - zookeeperServers=zookeeper:2181
@@ -100,16 +100,15 @@ services:
       - managedLedgerDefaultEnsembleSize=1
       - managedLedgerDefaultWriteQuorum=1
       - managedLedgerDefaultAckQuorum=1
-      - advertisedAddress=broker-1
+      - advertisedAddress=green-broker-1
       - internalListenerName=internal
-      - advertisedListeners=internal:pulsar://broker-1:6650
+      - advertisedListeners=internal:pulsar://green-broker-1:6650
       - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=56m
       # Load Manager. Here uses the extensible load balancer, sets the unloading strategy to TransferShedder, and enables debug mode.
       - loadManagerClassName=org.apache.pulsar.broker.loadbalance.extensions.ExtensibleLoadManagerImpl
       - loadBalancerLoadSheddingStrategy=org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder
       - loadBalancerSheddingEnabled=false
       - loadBalancerDebugModeEnabled=true
-      - clusterMigrationCheckDurationSeconds=1
       - brokerServiceCompactionThresholdInBytes=1000000
       - PULSAR_PREFIX_defaultNumberOfNamespaceBundles=1
     depends_on:
@@ -122,11 +121,11 @@ services:
   # Start broker 2
   broker-2:
     image: apachepulsar/pulsar:latest
-    container_name: broker-2
+    container_name: green-broker-2
     hostname: broker-2
     restart: on-failure
     networks:
-      - pulsar
+      - green-pulsar
     environment:
       - metadataStoreUrl=zk:zookeeper:2181
       - zookeeperServers=zookeeper:2181
@@ -134,16 +133,15 @@ services:
       - managedLedgerDefaultEnsembleSize=1
       - managedLedgerDefaultWriteQuorum=1
       - managedLedgerDefaultAckQuorum=1
-      - advertisedAddress=broker-2
+      - advertisedAddress=green-broker-2
       - internalListenerName=internal
-      - advertisedListeners=internal:pulsar://broker-2:6650
+      - advertisedListeners=internal:pulsar://green-broker-2:6650
       - PULSAR_MEM=-Xms256m -Xmx256m -XX:MaxDirectMemorySize=56m
       # Load Manager. Here uses the extensible load balancer, sets the unloading strategy to TransferShedder, and enables debug mode.
       - loadManagerClassName=org.apache.pulsar.broker.loadbalance.extensions.ExtensibleLoadManagerImpl
       - loadBalancerLoadSheddingStrategy=org.apache.pulsar.broker.loadbalance.extensions.scheduler.TransferShedder
       - loadBalancerSheddingEnabled=false
       - loadBalancerDebugModeEnabled=true
-      - clusterMigrationCheckDurationSeconds=1
       - brokerServiceCompactionThresholdInBytes=1000000
       - PULSAR_PREFIX_defaultNumberOfNamespaceBundles=1
     depends_on:

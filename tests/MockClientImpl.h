@@ -39,8 +39,8 @@ class MockClientImpl : public ClientImpl {
     MockClientImpl(const std::string& serviceUrl, ClientConfiguration conf = {})
         : ClientImpl(serviceUrl, conf) {}
 
-    MOCK_METHOD((Future<Result, ClientConnectionPtr>), getConnection, (const std::string&, size_t),
-                (override));
+    MOCK_METHOD((Future<Result, ClientConnectionPtr>), getConnection,
+                (const std::string&, const std::string&, size_t), (override));
 
     SyncOpResult createProducer(const std::string& topic) {
         using namespace std::chrono;
@@ -65,7 +65,7 @@ class MockClientImpl : public ClientImpl {
     }
 
     GetConnectionFuture getConnectionReal(const std::string& topic, size_t key) {
-        return ClientImpl::getConnection(topic, key);
+        return ClientImpl::getConnection("", topic, key);
     }
 
     Result close() {

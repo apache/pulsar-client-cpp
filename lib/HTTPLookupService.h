@@ -40,7 +40,7 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     typedef Promise<Result, LookupDataResultPtr> LookupPromise;
 
     ExecutorServiceProviderPtr executorProvider_;
-    ServiceNameResolver& serviceNameResolver_;
+    ServiceNameResolver serviceNameResolver_;
     AuthenticationPtr authenticationPtr_;
     int lookupTimeoutInSeconds_;
     const int maxLookupRedirects_;
@@ -64,7 +64,7 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     Result sendHTTPRequest(std::string completeUrl, std::string& responseData, long& responseCode);
 
    public:
-    HTTPLookupService(ServiceNameResolver&, const ClientConfiguration&, const AuthenticationPtr&);
+    HTTPLookupService(const std::string&, const ClientConfiguration&, const AuthenticationPtr&);
 
     LookupResultFuture getBroker(const TopicName& topicName) override;
 
@@ -74,6 +74,8 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override;
+
+    ServiceNameResolver& getServiceNameResolver() override { return serviceNameResolver_; }
 };
 }  // namespace pulsar
 

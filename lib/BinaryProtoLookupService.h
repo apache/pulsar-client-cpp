@@ -38,9 +38,9 @@ using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, SchemaInfo>>;
 
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
-    BinaryProtoLookupService(ServiceNameResolver& serviceNameResolver, ConnectionPool& pool,
+    BinaryProtoLookupService(const std::string& serviceUrl, ConnectionPool& pool,
                              const ClientConfiguration& clientConfiguration)
-        : serviceNameResolver_(serviceNameResolver),
+        : serviceNameResolver_(serviceUrl),
           cnxPool_(pool),
           listenerName_(clientConfiguration.getListenerName()),
           maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()) {}
@@ -54,6 +54,8 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
 
     Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override;
 
+    ServiceNameResolver& getServiceNameResolver() override { return serviceNameResolver_; }
+
    protected:
     // Mark findBroker as protected to make it accessible from test.
     LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
@@ -63,7 +65,7 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
     std::mutex mutex_;
     uint64_t requestIdGenerator_ = 0;
 
-    ServiceNameResolver& serviceNameResolver_;
+    ServiceNameResolver serviceNameResolver_;
     ConnectionPool& cnxPool_;
     std::string listenerName_;
     const int32_t maxLookupRedirects_;
