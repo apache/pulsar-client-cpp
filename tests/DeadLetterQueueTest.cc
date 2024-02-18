@@ -270,6 +270,8 @@ TEST_P(DeadLetterQueueTest, testSendDLQTriggerByRedeliverUnacknowledgedMessages)
         ASSERT_EQ(msg.getPartitionKey(), "p-key");
         ASSERT_EQ(msg.getOrderingKey(), "o-key");
         ASSERT_EQ(msg.getProperty("pk-1"), "pv-1");
+        ASSERT_EQ(msg.getMessageId().batchSize(), 0);
+        ASSERT_EQ(msg.getMessageId().batchIndex(), -1);
         ASSERT_TRUE(msg.getProperty(SYSTEM_PROPERTY_REAL_TOPIC).find(topic_));
         ASSERT_FALSE(msg.getProperty(PROPERTY_ORIGIN_MESSAGE_ID).empty());
     }

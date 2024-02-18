@@ -1736,6 +1736,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCa
             ProducerConfiguration producerConfiguration;
             producerConfiguration.setSchema(config_.getSchema());
             producerConfiguration.setBlockIfQueueFull(false);
+            producerConfiguration.setBatchingEnabled(false);
             producerConfiguration.impl_->initialSubscriptionName =
                 deadLetterPolicy_.getInitialSubscriptionName();
             ClientImplPtr client = client_.lock();
