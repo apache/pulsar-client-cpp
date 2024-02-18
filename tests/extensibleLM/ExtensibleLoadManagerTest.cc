@@ -70,7 +70,9 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
         return res == 204 || res == 409;
     }));
 
-    Client client{"pulsar://localhost:6650"};
+    ClientConfiguration conf;
+    conf.setIOThreads(8);
+    Client client{"pulsar://localhost:6650", conf};
     Producer producer;
     ProducerConfiguration producerConfiguration;
     Result producerResult = client.createProducer(topicName, producerConfiguration, producer);

@@ -1794,6 +1794,7 @@ void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& co
         return;
     }
 
+    Lock lock(mutex_);
     if (commandTopicMigrated.resource_type() == proto::CommandTopicMigrated_ResourceType_Producer) {
         auto it = producers_.find(resourceId);
         if (it != producers_.end()) {

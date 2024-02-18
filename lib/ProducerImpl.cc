@@ -144,8 +144,8 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
         return promise.getFuture();
     }
 
-    LOG_DEBUG("Creating producer" << topic() << "producerName: " << producerName_ << " on "
-                                  << cnx->cnxString());
+    LOG_DEBUG("Creating producer for topic:" << topic() << ", producerName:" << producerName_ << " on "
+                                             << cnx->cnxString());
     ClientImplPtr client = client_.lock();
     cnx->registerProducer(producerId_, shared_from_this());
 
