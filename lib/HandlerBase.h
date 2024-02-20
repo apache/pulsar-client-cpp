@@ -52,7 +52,8 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     ClientConnectionWeakPtr getCnx() const;
     void setCnx(const ClientConnectionPtr& cnx);
     void resetCnx() { setCnx(nullptr); }
-    void setRedirectedClusterURI(const std::string serviceUrl) { redirectedClusterURI_ = serviceUrl; }
+    void setRedirectedClusterURI(const std::string& serviceUrl);
+    const std::string& getRedirectedClusterURI();
 
    protected:
     /*
