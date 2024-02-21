@@ -22,7 +22,6 @@
 #include "ConnectionPool.h"
 #include "LogUtils.h"
 #include "NamespaceName.h"
-#include "ServiceNameResolver.h"
 #include "TopicName.h"
 
 DECLARE_LOG_OBJECT()

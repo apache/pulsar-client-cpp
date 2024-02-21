@@ -33,9 +33,12 @@ export https_proxy=
 
 # Run ExtensibleLoadManager tests
 docker compose -f tests/extensibleLM/docker-compose.yml up -d
+docker compose -f tests/blue-green/docker-compose.yml up -d
 until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
+until curl http://localhost:8081/metrics > /dev/null 2>&1 ; do sleep 1; done
 sleep 5
 $CMAKE_BUILD_DIRECTORY/tests/ExtensibleLoadManagerTest
+docker compose -f tests/blue-green/docker-compose.yml down
 docker compose -f tests/extensibleLM/docker-compose.yml down
 
 # Run OAuth2 tests

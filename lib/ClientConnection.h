@@ -85,6 +85,7 @@ class BrokerEntryMetadata;
 class CommandActiveConsumerChange;
 class CommandAckResponse;
 class CommandMessage;
+class CommandTopicMigrated;
 class CommandCloseConsumer;
 class CommandCloseProducer;
 class CommandConnected;
@@ -414,6 +415,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleLookupTopicRespose(const proto::CommandLookupTopicResponse&);
     void handleProducerSuccess(const proto::CommandProducerSuccess&);
     void handleError(const proto::CommandError&);
+    void handleTopicMigrated(const proto::CommandTopicMigrated&);
     void handleCloseProducer(const proto::CommandCloseProducer&);
     void handleCloseConsumer(const proto::CommandCloseConsumer&);
     void handleAuthChallenge();
@@ -421,10 +423,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleGetTopicOfNamespaceResponse(const proto::CommandGetTopicsOfNamespaceResponse&);
     void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
     void handleAckResponse(const proto::CommandAckResponse&);
-    boost::optional<std::string> getAssignedBrokerServiceUrl(
-        const proto::CommandCloseProducer& closeProducer);
-    boost::optional<std::string> getAssignedBrokerServiceUrl(
-        const proto::CommandCloseConsumer& closeConsumer);
+    boost::optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseProducer&);
+    boost::optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseConsumer&);
+    std::string getMigratedBrokerServiceUrl(const proto::CommandTopicMigrated&);
 };
 }  // namespace pulsar
 

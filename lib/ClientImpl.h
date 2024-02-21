@@ -97,9 +97,11 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback);
 
     // Use virtual method to test
-    virtual GetConnectionFuture getConnection(const std::string& topic, size_t key);
+    virtual GetConnectionFuture getConnection(const std::string& redirectedClusterURI,
+                                              const std::string& topic, size_t key);
 
-    GetConnectionFuture connect(const std::string& logicalAddress, size_t key);
+    GetConnectionFuture connect(const std::string& redirectedClusterURI, const std::string& logicalAddress,
+                                size_t key);
 
     void closeAsync(CloseCallback callback);
     void shutdown();
@@ -119,7 +121,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ExecutorServiceProviderPtr getIOExecutorProvider();
     ExecutorServiceProviderPtr getListenerExecutorProvider();
     ExecutorServiceProviderPtr getPartitionListenerExecutorProvider();
-    LookupServicePtr getLookup();
+    LookupServicePtr getLookup(const std::string& redirectedClusterURI = "");
 
     void cleanupProducer(ProducerImplBase* address) { producers_.remove(address); }
 
@@ -165,7 +167,10 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                           const std::string& consumerName, const ConsumerConfiguration& conf,
                                           SubscribeCallback callback);
 
-    const std::string& getPhysicalAddress(const std::string& logicalAddress);
+    const std::string& getPhysicalAddress(const std::string& redirectedClusterURI,
+                                          const std::string& logicalAddress);
+
+    LookupServicePtr createLookup(const std::string& serviceUrl);
 
     static std::string getClientVersion(const ClientConfiguration& clientConfiguration);
 
@@ -179,7 +184,6 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     std::mutex mutex_;
 
     State state_;
-    ServiceNameResolver serviceNameResolver_;
     ClientConfiguration clientConfiguration_;
     MemoryLimitController memoryLimitController_;
 
@@ -188,6 +192,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ExecutorServiceProviderPtr partitionListenerExecutorProvider_;
 
     LookupServicePtr lookupServicePtr_;
+    std::unordered_map<std::string, LookupServicePtr> redirectedClusterLookupServicePtrs_;
     ConnectionPool pool_;
 
     uint64_t producerIdGenerator_;

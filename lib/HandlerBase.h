@@ -52,6 +52,8 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     ClientConnectionWeakPtr getCnx() const;
     void setCnx(const ClientConnectionPtr& cnx);
     void resetCnx() { setCnx(nullptr); }
+    void setRedirectedClusterURI(const std::string& serviceUrl);
+    const std::string& getRedirectedClusterURI();
 
    protected:
     /*
@@ -145,6 +147,8 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     mutable std::mutex connectionMutex_;
     std::atomic<bool> reconnectionPending_;
     ClientConnectionWeakPtr connection_;
+    std::string redirectedClusterURI_;
+
     friend class ClientConnection;
     friend class PulsarFriend;
 };

@@ -29,6 +29,7 @@
 #include "Future.h"
 #include "LookupDataResult.h"
 #include "ProtoApiEnums.h"
+#include "ServiceNameResolver.h"
 
 namespace pulsar {
 using NamespaceTopicsPtr = std::shared_ptr<std::vector<std::string>>;
@@ -85,6 +86,8 @@ class LookupService {
      */
     virtual Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName,
                                                  const std::string& version = "") = 0;
+
+    virtual ServiceNameResolver& getServiceNameResolver() = 0;
 
     virtual ~LookupService() {}
 

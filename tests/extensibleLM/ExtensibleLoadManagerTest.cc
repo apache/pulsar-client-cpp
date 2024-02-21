@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 
 #include <thread>
+#include <unordered_set>
 
 #include "include/pulsar/Client.h"
 #include "lib/LogUtils.h"
@@ -35,21 +36,43 @@ bool checkTime() {
     const static auto start = std::chrono::high_resolution_clock::now();
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
-    return duration < 180 * 1000;
+    return duration < 300 * 1000;
 }
 
 TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
-    const static std::string adminUrl = "http://localhost:8080/";
-    const static std::string topicName =
-        "persistent://public/unload-test/topic-1" + std::to_string(time(NULL));
+    const static std::string blueAdminUrl = "http://localhost:8080/";
+    const static std::string greenAdminUrl = "http://localhost:8081/";
+    const static std::string topicNameSuffix = std::to_string(time(NULL));
+    const static std::string topicName = "persistent://public/unload-test/topic-" + topicNameSuffix;
 
     ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
-        std::string url = adminUrl + "admin/v2/namespaces/public/unload-test?bundles=1";
+        std::string url = blueAdminUrl + "admin/v2/clusters/cluster-a/migrate?migrated=false";
+        int res = makePostRequest(url, R"(
+                    {
+                       "serviceUrl": "http://localhost:8081",
+                       "serviceUrlTls":"https://localhost:8085",
+                       "brokerServiceUrl": "pulsar://localhost:6651",
+                       "brokerServiceUrlTls": "pulsar+ssl://localhost:6655"
+                    })");
+        LOG_INFO("res:" << res);
+        return res == 200;
+    }));
+
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
+        std::string url = blueAdminUrl + "admin/v2/namespaces/public/unload-test?bundles=1";
         int res = makePutRequest(url, "");
         return res == 204 || res == 409;
     }));
 
-    Client client{"pulsar://localhost:6650"};
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
+        std::string url = greenAdminUrl + "admin/v2/namespaces/public/unload-test?bundles=1";
+        int res = makePutRequest(url, "");
+        return res == 204 || res == 409;
+    }));
+
+    ClientConfiguration conf;
+    conf.setIOThreads(8);
+    Client client{"pulsar://localhost:6650", conf};
     Producer producer;
     ProducerConfiguration producerConfiguration;
     Result producerResult = client.createProducer(topicName, producerConfiguration, producer);
@@ -58,24 +81,25 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
     Result consumerResult = client.subscribe(topicName, "sub", consumer);
     ASSERT_EQ(consumerResult, ResultOk);
 
-    Semaphore firstUnloadSemaphore(0);
-    Semaphore secondUnloadSemaphore(0);
-    Semaphore halfPubWaitSemaphore(0);
-    const int msgCount = 10;
-    int produced = 0;
+    Semaphore unloadSemaphore(0);
+    Semaphore pubWaitSemaphore(0);
+    Semaphore migrationSemaphore(0);
+
+    const int msgCount = 20;
+    SynchronizedHashMap<int, int> producedMsgs;
     auto produce = [&]() {
         int i = 0;
         while (i < msgCount && checkTime()) {
-            if (i == 3) {
-                firstUnloadSemaphore.acquire();
+            if (i == 3 || i == 8 || i == 17) {
+                unloadSemaphore.acquire();
             }
 
-            if (i == 5) {
-                halfPubWaitSemaphore.release();
+            if (i == 5 || i == 15) {
+                pubWaitSemaphore.release();
             }
 
-            if (i == 8) {
-                secondUnloadSemaphore.acquire();
+            if (i == 12) {
+                migrationSemaphore.acquire();
             }
 
             std::string content = std::to_string(i);
@@ -86,37 +110,33 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
                 return sendResult == ResultOk;
             }));
 
-            LOG_INFO("produced index:" << i);
-            produced++;
+            LOG_INFO("produced i:" << i);
+            producedMsgs.emplace(i, i);
             i++;
         }
         LOG_INFO("producer finished");
     };
-
-    int consumed = 0;
+    std::atomic<bool> stopConsumer(false);
+    SynchronizedHashMap<int, int> consumedMsgs;
     auto consume = [&]() {
         Message receivedMsg;
-        int i = 0;
-        while (i < msgCount && checkTime()) {
-            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
-                Result receiveResult =
-                    consumer.receive(receivedMsg, 1000);  // Assumed that we wait 1000 ms for each message
-                return receiveResult == ResultOk;
-            }));
-            LOG_INFO("received index:" << i);
-
-            int id = std::stoi(receivedMsg.getDataAsString());
-            if (id < i) {
+        while (checkTime()) {
+            if (stopConsumer && producedMsgs.size() == msgCount && consumedMsgs.size() == msgCount) {
+                break;
+            }
+            Result receiveResult =
+                consumer.receive(receivedMsg, 1000);  // Assumed that we wait 1000 ms for each message
+            if (receiveResult != ResultOk) {
                 continue;
             }
+            int i = std::stoi(receivedMsg.getDataAsString());
+            LOG_INFO("received i:" << i);
             ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
                 Result ackResult = consumer.acknowledge(receivedMsg);
                 return ackResult == ResultOk;
             }));
-            LOG_INFO("acked index:" << i);
-
-            consumed++;
-            i++;
+            LOG_INFO("acked i:" << i);
+            consumedMsgs.emplace(i, i);
         }
         LOG_INFO("consumer finished");
     };
@@ -124,7 +144,8 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
     std::thread produceThread(produce);
     std::thread consumeThread(consume);
 
-    auto unload = [&] {
+    auto unload = [&](bool migrated) {
+        const std::string &adminUrl = migrated ? greenAdminUrl : blueAdminUrl;
         auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
         auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
         auto &producerImpl = PulsarFriend::getProducerImpl(producer);
@@ -135,15 +156,17 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             ASSERT_TRUE(waitUntil(std::chrono::seconds(30),
                                   [&] { return consumerImpl.isConnected() && producerImpl.isConnected(); }));
 
-            std::string url = adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic-1";
+            std::string url =
+                adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic" + topicNameSuffix;
             std::string responseDataBeforeUnload;
             int res = makeGetRequest(url, responseDataBeforeUnload);
             if (res != 200) {
                 continue;
             }
-            destinationBroker = responseDataBeforeUnload.find("broker-2") == std::string::npos
-                                    ? "broker-2:8080"
-                                    : "broker-1:8080";
+            std::string prefix = migrated ? "green-" : "";
+            destinationBroker =
+                prefix + (responseDataBeforeUnload.find("broker-2") == std::string::npos ? "broker-2:8080"
+                                                                                         : "broker-1:8080");
             lookupCountBeforeUnload = clientImplPtr->getLookupCount();
             ASSERT_TRUE(lookupCountBeforeUnload > 0);
 
@@ -163,31 +186,69 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
                                   [&] { return consumerImpl.isConnected() && producerImpl.isConnected(); }));
             std::string responseDataAfterUnload;
             ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
-                url = adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic-1";
+                url = adminUrl + "lookup/v2/topic/persistent/public/unload-test/topic" + topicNameSuffix;
                 res = makeGetRequest(url, responseDataAfterUnload);
                 return res == 200 && responseDataAfterUnload.find(destinationBroker) != std::string::npos;
             }));
             LOG_INFO("after lookup responseData:" << responseDataAfterUnload << ",res:" << res);
 
             auto lookupCountAfterUnload = clientImplPtr->getLookupCount();
-            ASSERT_EQ(lookupCountBeforeUnload, lookupCountAfterUnload);
+            if (lookupCountBeforeUnload != lookupCountAfterUnload) {
+                continue;
+            }
             break;
         }
     };
-    LOG_INFO("starting first unload");
-    unload();
-    firstUnloadSemaphore.release();
-    halfPubWaitSemaphore.acquire();
-    LOG_INFO("starting second unload");
-    unload();
-    secondUnloadSemaphore.release();
+    LOG_INFO("#### starting first unload ####");
+    unload(false);
+    unloadSemaphore.release();
+    pubWaitSemaphore.acquire();
+    LOG_INFO("#### starting second unload ####");
+    unload(false);
+    unloadSemaphore.release();
 
-    produceThread.join();
+    LOG_INFO("#### migrating the cluster ####");
+    migrationSemaphore.release();
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
+        std::string url = blueAdminUrl + "admin/v2/clusters/cluster-a/migrate?migrated=true";
+        int res = makePostRequest(url, R"({
+                                               "serviceUrl": "http://localhost:8081",
+                                               "serviceUrlTls":"https://localhost:8085",
+                                               "brokerServiceUrl": "pulsar://localhost:6651",
+                                               "brokerServiceUrlTls": "pulsar+ssl://localhost:6655"
+                                            })");
+        LOG_INFO("res:" << res);
+        return res == 200;
+    }));
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(130), [&] {
+        auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
+        auto &producerImpl = PulsarFriend::getProducerImpl(producer);
+        auto consumerConnAddress = PulsarFriend::getConnectionPhysicalAddress(consumerImpl);
+        auto producerConnAddress = PulsarFriend::getConnectionPhysicalAddress(producerImpl);
+        return consumerImpl.isConnected() && producerImpl.isConnected() &&
+               consumerConnAddress.find("6651") != std::string::npos &&
+               producerConnAddress.find("6651") != std::string::npos;
+    }));
+    pubWaitSemaphore.acquire();
+    LOG_INFO("#### starting third unload after migration ####");
+    unload(true);
+    unloadSemaphore.release();
+
+    stopConsumer = true;
     consumeThread.join();
-    ASSERT_EQ(consumed, msgCount);
-    ASSERT_EQ(produced, msgCount);
-    ASSERT_TRUE(checkTime()) << "timed out";
+    produceThread.join();
+    ASSERT_EQ(producedMsgs.size(), msgCount);
+    ASSERT_EQ(consumedMsgs.size(), msgCount);
+    for (int i = 0; i < msgCount; i++) {
+        producedMsgs.remove(i);
+        consumedMsgs.remove(i);
+    }
+    ASSERT_EQ(producedMsgs.size(), 0);
+    ASSERT_EQ(consumedMsgs.size(), 0);
+
     client.close();
+
+    ASSERT_TRUE(checkTime()) << "timed out";
 }
 
 int main(int argc, char *argv[]) {

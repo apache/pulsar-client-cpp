@@ -36,14 +36,17 @@ class ServiceNameResolver {
     ServiceNameResolver(const ServiceNameResolver&) = delete;
     ServiceNameResolver& operator=(const ServiceNameResolver&) = delete;
 
-    bool useTls() const noexcept {
-        return serviceUri_.getScheme() == PulsarScheme::PULSAR_SSL ||
-               serviceUri_.getScheme() == PulsarScheme::HTTPS;
+    bool useTls() const noexcept { return useTls(serviceUri_); }
+
+    static bool useTls(const ServiceURI& serviceUri) noexcept {
+        return serviceUri.getScheme() == PulsarScheme::PULSAR_SSL ||
+               serviceUri.getScheme() == PulsarScheme::HTTPS;
     }
 
-    bool useHttp() const noexcept {
-        return serviceUri_.getScheme() == PulsarScheme::HTTP ||
-               serviceUri_.getScheme() == PulsarScheme::HTTPS;
+    bool useHttp() const noexcept { return useTls(serviceUri_); }
+
+    static bool useHttp(const ServiceURI& serviceUri) noexcept {
+        return serviceUri.getScheme() == PulsarScheme::HTTP || serviceUri.getScheme() == PulsarScheme::HTTPS;
     }
 
     const std::string& resolveHost() {

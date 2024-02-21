@@ -144,7 +144,11 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
         return promise.getFuture();
     }
 
+    LOG_INFO("Creating producer for topic:" << topic() << ", producerName:" << producerName_ << " on "
+                                            << cnx->cnxString());
     ClientImplPtr client = client_.lock();
+    cnx->registerProducer(producerId_, shared_from_this());
+
     int requestId = client->newRequestId();
 
     SharedBuffer cmd = Commands::newProducer(topic(), producerId_, producerName_, requestId,
@@ -214,7 +218,6 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
         // set the cnx pointer so that new messages will be sent immediately
         LOG_INFO(getName() << "Created producer on broker " << cnx->cnxString());
 
-        cnx->registerProducer(producerId_, shared_from_this());
         producerName_ = responseData.producerName;
         schemaVersion_ = responseData.schemaVersion;
         producerStr_ = "[" + topic() + ", " + producerName_ + "] ";

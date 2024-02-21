@@ -403,7 +403,8 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::
             LOG_INFO(cnxString_ << "Connected to broker");
         } else {
             LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_
-                                << ", proxy: " << proxyServiceUrl_);
+                                << ", proxy: " << proxyServiceUrl_
+                                << ", physical address:" << physicalAddress_);
         }
 
         Lock lock(mutex_);
@@ -943,6 +944,10 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
 
                 case BaseCommand::ERROR:
                     handleError(incomingCmd.error());
+                    break;
+
+                case BaseCommand::TOPIC_MIGRATED:
+                    handleTopicMigrated(incomingCmd.topicmigrated());
                     break;
 
                 case BaseCommand::CLOSE_PRODUCER:
@@ -1757,6 +1762,56 @@ void ClientConnection::handleError(const proto::CommandError& error) {
             } else {
                 lock.unlock();
             }
+        }
+    }
+}
+
+std::string ClientConnection::getMigratedBrokerServiceUrl(
+    const proto::CommandTopicMigrated& commandTopicMigrated) {
+    if (tlsSocket_) {
+        if (commandTopicMigrated.has_brokerserviceurltls()) {
+            return commandTopicMigrated.brokerserviceurltls();
+        }
+    } else if (commandTopicMigrated.has_brokerserviceurl()) {
+        return commandTopicMigrated.brokerserviceurl();
+    }
+    return "";
+}
+
+void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& commandTopicMigrated) {
+    const long resourceId = commandTopicMigrated.resource_id();
+    const std::string migratedBrokerServiceUrl = getMigratedBrokerServiceUrl(commandTopicMigrated);
+
+    if (migratedBrokerServiceUrl.empty()) {
+        LOG_WARN("Failed to find the migrated broker url for resource:"
+                 << resourceId
+                 << (commandTopicMigrated.has_brokerserviceurl()
+                         ? ", migratedBrokerUrl: " + commandTopicMigrated.brokerserviceurl()
+                         : "")
+                 << (commandTopicMigrated.has_brokerserviceurltls()
+                         ? ", migratedBrokerUrlTls: " + commandTopicMigrated.brokerserviceurltls()
+                         : ""));
+        return;
+    }
+
+    Lock lock(mutex_);
+    if (commandTopicMigrated.resource_type() == proto::CommandTopicMigrated_ResourceType_Producer) {
+        auto it = producers_.find(resourceId);
+        if (it != producers_.end()) {
+            auto producer = it->second.lock();
+            producer->setRedirectedClusterURI(migratedBrokerServiceUrl);
+            LOG_INFO("Producer id:" << resourceId << " is migrated to " << migratedBrokerServiceUrl);
+        } else {
+            LOG_WARN("Got invalid producer Id in topicMigrated command: " << resourceId);
+        }
+    } else {
+        auto it = consumers_.find(resourceId);
+        if (it != consumers_.end()) {
+            auto consumer = it->second.lock();
+            consumer->setRedirectedClusterURI(migratedBrokerServiceUrl);
+            LOG_INFO("Consumer id:" << resourceId << " is migrated to " << migratedBrokerServiceUrl);
+        } else {
+            LOG_WARN("Got invalid consumer Id in topicMigrated command: " << resourceId);
         }
     }
 }

@@ -76,6 +76,10 @@ class RetryableLookupService : public LookupService {
         });
     }
 
+    ServiceNameResolver& getServiceNameResolver() override {
+        return lookupService_->getServiceNameResolver();
+    }
+
    private:
     const std::shared_ptr<LookupService> lookupService_;
     RetryableOperationCachePtr<LookupResult> lookupCache_;

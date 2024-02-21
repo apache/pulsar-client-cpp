@@ -43,7 +43,8 @@ HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, 
       epoch_(0),
       timer_(executor_->createDeadlineTimer()),
       creationTimer_(executor_->createDeadlineTimer()),
-      reconnectionPending_(false) {}
+      reconnectionPending_(false),
+      redirectedClusterURI_("") {}
 
 HandlerBase::~HandlerBase() {
     ASIO_ERROR ignored;
@@ -88,9 +89,9 @@ void HandlerBase::grabCnx() { grabCnx(boost::none); }
 Future<Result, ClientConnectionPtr> HandlerBase::getConnection(
     const ClientImplPtr& client, const boost::optional<std::string>& assignedBrokerUrl) {
     if (assignedBrokerUrl && client->getLookupCount() > 0) {
-        return client->connect(assignedBrokerUrl.get(), connectionKeySuffix_);
+        return client->connect(getRedirectedClusterURI(), assignedBrokerUrl.get(), connectionKeySuffix_);
     } else {
-        return client->getConnection(topic(), connectionKeySuffix_);
+        return client->getConnection(getRedirectedClusterURI(), topic(), connectionKeySuffix_);
     }
 }
 
@@ -207,6 +208,15 @@ Result HandlerBase::convertToTimeoutIfNecessary(Result result, ptime startTimest
     } else {
         return result;
     }
+}
+
+void HandlerBase::setRedirectedClusterURI(const std::string& serviceUrl) {
+    Lock lock(mutex_);
+    redirectedClusterURI_ = serviceUrl;
+}
+const std::string& HandlerBase::getRedirectedClusterURI() {
+    Lock lock(mutex_);
+    return redirectedClusterURI_;
 }
 
 }  // namespace pulsar
