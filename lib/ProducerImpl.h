@@ -115,6 +115,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     bool ready() const { return producerCreatedPromise_.isComplete(); }
 
+    int producerRequestId() const { return producerRequestId_.load(std::memory_order_acquire); }
+
    protected:
     ProducerStatsBasePtr producerStatsBasePtr_;
 
@@ -213,6 +215,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     ProducerInterceptorsPtr interceptors_;
 
     bool retryOnCreationError_;
+    std::atomic<long> producerRequestId_{0L};
 };
 
 struct ProducerImplCmp {

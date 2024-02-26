@@ -1800,6 +1800,7 @@ void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& co
         if (it != producers_.end()) {
             auto producer = it->second.lock();
             producer->setRedirectedClusterURI(migratedBrokerServiceUrl);
+            unsafeRemovePendingRequest(producer->producerRequestId());
             LOG_INFO("Producer id:" << resourceId << " is migrated to " << migratedBrokerServiceUrl);
         } else {
             LOG_WARN("Got invalid producer Id in topicMigrated command: " << resourceId);
@@ -1809,6 +1810,7 @@ void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& co
         if (it != consumers_.end()) {
             auto consumer = it->second.lock();
             consumer->setRedirectedClusterURI(migratedBrokerServiceUrl);
+            unsafeRemovePendingRequest(consumer->subscribeRequestId());
             LOG_INFO("Consumer id:" << resourceId << " is migrated to " << migratedBrokerServiceUrl);
         } else {
             LOG_WARN("Got invalid consumer Id in topicMigrated command: " << resourceId);
@@ -2024,6 +2026,16 @@ void ClientConnection::handleAckResponse(const proto::CommandAckResponse& respon
         promise.setFailed(getResult(response.error(), ""));
     } else {
         promise.setValue({});
+    }
+}
+
+void ClientConnection::unsafeRemovePendingRequest(long requestId) {
+    auto it = pendingRequests_.find(requestId);
+    if (it != pendingRequests_.end()) {
+        it->second.promise.setFailed(ResultDisconnected);
+        ASIO_ERROR ec;
+        it->second.timer->cancel(ec);
+        pendingRequests_.erase(it);
     }
 }
 

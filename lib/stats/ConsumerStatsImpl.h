@@ -59,6 +59,10 @@ class ConsumerStatsImpl : public std::enable_shared_from_this<ConsumerStatsImpl>
     ConsumerStatsImpl(const ConsumerStatsImpl& stats);
     void flushAndReset(const ASIO_ERROR&);
     void start() override;
+    void stop() override {
+        ASIO_ERROR error;
+        timer_->cancel(error);
+    }
     void receivedMessage(Message&, Result) override;
     void messageAcknowledged(Result, CommandAck_AckType, uint32_t ackNums) override;
     virtual ~ConsumerStatsImpl();

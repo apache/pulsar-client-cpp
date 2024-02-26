@@ -25,6 +25,7 @@
 #include "include/pulsar/Client.h"
 #include "lib/LogUtils.h"
 #include "lib/Semaphore.h"
+#include "lib/TimeUtils.h"
 #include "tests/HttpHelper.h"
 #include "tests/PulsarFriend.h"
 
@@ -40,6 +41,9 @@ bool checkTime() {
 }
 
 TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
+    constexpr auto maxWaitTime = std::chrono::seconds(5);
+    constexpr long maxWaitTimeMs = maxWaitTime.count() * 1000L;
+
     const static std::string blueAdminUrl = "http://localhost:8080/";
     const static std::string greenAdminUrl = "http://localhost:8081/";
     const static std::string topicNameSuffix = std::to_string(time(NULL));
@@ -105,12 +109,13 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             std::string content = std::to_string(i);
             const auto msg = MessageBuilder().setContent(content).build();
 
-            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
-                Result sendResult = producer.send(msg);
-                return sendResult == ResultOk;
-            }));
+            auto start = TimeUtils::currentTimeMillis();
+            Result sendResult = producer.send(msg);
+            auto elapsed = TimeUtils::currentTimeMillis() - start;
+            LOG_INFO("produce i: " << i << " " << elapsed << " ms");
+            ASSERT_EQ(sendResult, ResultOk);
+            ASSERT_TRUE(elapsed < maxWaitTimeMs);
 
-            LOG_INFO("produced i:" << i);
             producedMsgs.emplace(i, i);
             i++;
         }
@@ -124,18 +129,20 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             if (stopConsumer && producedMsgs.size() == msgCount && consumedMsgs.size() == msgCount) {
                 break;
             }
-            Result receiveResult =
-                consumer.receive(receivedMsg, 1000);  // Assumed that we wait 1000 ms for each message
-            if (receiveResult != ResultOk) {
-                continue;
-            }
+            auto start = TimeUtils::currentTimeMillis();
+            Result receiveResult = consumer.receive(receivedMsg, maxWaitTimeMs);
+            auto elapsed = TimeUtils::currentTimeMillis() - start;
             int i = std::stoi(receivedMsg.getDataAsString());
-            LOG_INFO("received i:" << i);
-            ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
-                Result ackResult = consumer.acknowledge(receivedMsg);
-                return ackResult == ResultOk;
-            }));
-            LOG_INFO("acked i:" << i);
+            LOG_INFO("receive i: " << i << " " << elapsed << " ms");
+            ASSERT_EQ(receiveResult, ResultOk);
+            ASSERT_TRUE(elapsed < maxWaitTimeMs);
+
+            start = TimeUtils::currentTimeMillis();
+            Result ackResult = consumer.acknowledge(receivedMsg);
+            elapsed = TimeUtils::currentTimeMillis() - start;
+            LOG_INFO("acked i:" << i << " " << elapsed << " ms");
+            ASSERT_TRUE(elapsed < maxWaitTimeMs);
+            ASSERT_EQ(ackResult, ResultOk);
             consumedMsgs.emplace(i, i);
         }
         LOG_INFO("consumer finished");
@@ -153,7 +160,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
         std::string destinationBroker;
         while (checkTime()) {
             // make sure producers and consumers are ready
-            ASSERT_TRUE(waitUntil(std::chrono::seconds(30),
+            ASSERT_TRUE(waitUntil(maxWaitTime,
                                   [&] { return consumerImpl.isConnected() && producerImpl.isConnected(); }));
 
             std::string url =
@@ -182,7 +189,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             }
 
             // make sure producers and consumers are ready
-            ASSERT_TRUE(waitUntil(std::chrono::seconds(30),
+            ASSERT_TRUE(waitUntil(maxWaitTime,
                                   [&] { return consumerImpl.isConnected() && producerImpl.isConnected(); }));
             std::string responseDataAfterUnload;
             ASSERT_TRUE(waitUntil(std::chrono::seconds(60), [&] {
@@ -220,7 +227,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
         LOG_INFO("res:" << res);
         return res == 200;
     }));
-    ASSERT_TRUE(waitUntil(std::chrono::seconds(130), [&] {
+    ASSERT_TRUE(waitUntil(maxWaitTime, [&] {
         auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
         auto &producerImpl = PulsarFriend::getProducerImpl(producer);
         auto consumerConnAddress = PulsarFriend::getConnectionPhysicalAddress(consumerImpl);
