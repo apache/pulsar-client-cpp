@@ -159,7 +159,7 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
 
     // Keep a reference to ensure object is kept alive.
     auto self = shared_from_this();
-    producerRequestId_.store(requestId, std::memory_order_release);
+    setFirstRequestIdAfterConnect(requestId);
     cnx->sendRequestWithId(cmd, requestId)
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateProducer(cnx, result, responseData);

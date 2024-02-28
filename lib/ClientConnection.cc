@@ -1800,7 +1800,7 @@ void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& co
         if (it != producers_.end()) {
             auto producer = it->second.lock();
             producer->setRedirectedClusterURI(migratedBrokerServiceUrl);
-            unsafeRemovePendingRequest(producer->producerRequestId());
+            unsafeRemovePendingRequest(producer->firstRequestIdAfterConnect());
             LOG_INFO("Producer id:" << resourceId << " is migrated to " << migratedBrokerServiceUrl);
         } else {
             LOG_WARN("Got invalid producer Id in topicMigrated command: " << resourceId);
@@ -1810,7 +1810,7 @@ void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& co
         if (it != consumers_.end()) {
             auto consumer = it->second.lock();
             consumer->setRedirectedClusterURI(migratedBrokerServiceUrl);
-            unsafeRemovePendingRequest(consumer->subscribeRequestId());
+            unsafeRemovePendingRequest(consumer->firstRequestIdAfterConnect());
             LOG_INFO("Consumer id:" << resourceId << " is migrated to " << migratedBrokerServiceUrl);
         } else {
             LOG_WARN("Got invalid consumer Id in topicMigrated command: " << resourceId);

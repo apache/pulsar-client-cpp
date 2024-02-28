@@ -142,8 +142,6 @@ class ConsumerImpl : public ConsumerImplBase {
     void beforeConnectionChange(ClientConnection& cnx) override;
     void onNegativeAcksSend(const std::set<MessageId>& messageIds);
 
-    long subscribeRequestId() const { return subscribeRequestId_.load(std::memory_order_acquire); }
-
    protected:
     // overrided methods from HandlerBase
     Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override;
@@ -312,7 +310,6 @@ class ConsumerImpl : public ConsumerImplBase {
     std::atomic_bool expireChunkMessageTaskScheduled_{false};
 
     ConsumerInterceptorsPtr interceptors_;
-    std::atomic<long> subscribeRequestId_;
 
     void triggerCheckExpiredChunkedTimer();
     void discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck);
