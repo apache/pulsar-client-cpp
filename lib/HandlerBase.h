@@ -100,6 +100,10 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     const std::string& topic() const { return *topic_; }
     const std::shared_ptr<std::string>& getTopicPtr() const { return topic_; }
 
+    long firstRequestIdAfterConnect() const {
+        return firstRequestIdAfterConnect_.load(std::memory_order_acquire);
+    }
+
    private:
     const std::shared_ptr<std::string> topic_;
 
@@ -140,6 +144,10 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
 
     Result convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const;
 
+    void setFirstRequestIdAfterConnect(long requestId) {
+        firstRequestIdAfterConnect_.store(requestId, std::memory_order_release);
+    }
+
    private:
     DeadlineTimerPtr timer_;
     DeadlineTimerPtr creationTimer_;
@@ -148,6 +156,7 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     std::atomic<bool> reconnectionPending_;
     ClientConnectionWeakPtr connection_;
     std::string redirectedClusterURI_;
+    std::atomic<long> firstRequestIdAfterConnect_{-1L};
 
     friend class ClientConnection;
     friend class PulsarFriend;

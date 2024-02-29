@@ -426,6 +426,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     boost::optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseProducer&);
     boost::optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseConsumer&);
     std::string getMigratedBrokerServiceUrl(const proto::CommandTopicMigrated&);
+    // This method must be called when `mutex_` is held
+    void unsafeRemovePendingRequest(long requestId);
 };
 }  // namespace pulsar
 

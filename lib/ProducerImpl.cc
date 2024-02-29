@@ -149,7 +149,7 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
     ClientImplPtr client = client_.lock();
     cnx->registerProducer(producerId_, shared_from_this());
 
-    int requestId = client->newRequestId();
+    long requestId = client->newRequestId();
 
     SharedBuffer cmd = Commands::newProducer(topic(), producerId_, producerName_, requestId,
                                              conf_.getProperties(), conf_.getSchema(), epoch_,
@@ -159,6 +159,7 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
 
     // Keep a reference to ensure object is kept alive.
     auto self = shared_from_this();
+    setFirstRequestIdAfterConnect(requestId);
     cnx->sendRequestWithId(cmd, requestId)
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateProducer(cnx, result, responseData);

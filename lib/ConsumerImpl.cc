@@ -251,7 +251,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     unAckedMessageTrackerPtr_->clear();
 
     ClientImplPtr client = client_.lock();
-    uint64_t requestId = client->newRequestId();
+    long requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
         topic(), subscription_, consumerId_, requestId, getSubType(), getConsumerName(), subscriptionMode_,
         subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
@@ -260,6 +260,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
 
     // Keep a reference to ensure object is kept alive.
     auto self = get_shared_this_ptr();
+    setFirstRequestIdAfterConnect(requestId);
     cnx->sendRequestWithId(cmd, requestId)
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateConsumer(cnx, result);
@@ -1719,6 +1720,7 @@ void ConsumerImpl::cancelTimers() noexcept {
     batchReceiveTimer_->cancel(ec);
     checkExpiredChunkedTimer_->cancel(ec);
     unAckedMessageTrackerPtr_->stop();
+    consumerStatsBasePtr_->stop();
 }
 
 void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCallBack cb) {

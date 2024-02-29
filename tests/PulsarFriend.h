@@ -169,7 +169,7 @@ class PulsarFriend {
     static ClientConnectionWeakPtr getClientConnection(HandlerBase& handler) { return handler.connection_; }
 
     static std::string getConnectionPhysicalAddress(HandlerBase& handler) {
-        auto cnx = handler.connection_.lock();
+        auto cnx = handler.getCnx().lock();
         if (cnx) {
             return cnx->physicalAddress_;
         }
