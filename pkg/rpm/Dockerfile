@@ -46,7 +46,7 @@ RUN BOOST_VERSION=$(dep-version.py boost) && \
     tar zxf boost-${BOOST_VERSION}.tar.gz && \
     cd boost-${BOOST_VERSION} && \
     ./bootstrap.sh --with-libraries=regex && \
-    ./b2 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
+    ./b2 address-model=64 cxxflags="-fPIC -std=c++11" link=static threading=multi variant=release install && \
     rm -rf /boost-${BOOST_VERSION}.tar.gz /boost-${BOOST_VERSION}
 
 RUN CMAKE_VERSION=$(dep-version.py cmake) && \
@@ -110,7 +110,7 @@ RUN CURL_VERSION=$(dep-version.py curl) && \
     curl -O -L  https://github.com/curl/curl/releases/download/curl-${CURL_VERSION_UNDERSCORE}/curl-${CURL_VERSION}.tar.gz && \
     tar xfz curl-${CURL_VERSION}.tar.gz && \
     cd curl-${CURL_VERSION} && \
-    CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ --without-zstd && \
+    CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ --without-zstd --without-libpsl && \
     make -j8 && make install && \
     rm -rf /curl-${CURL_VERSION}.tar.gz /curl-${CURL_VERSION}
 
