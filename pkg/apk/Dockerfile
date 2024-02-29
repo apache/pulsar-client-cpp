@@ -104,7 +104,7 @@ RUN CURL_VERSION=$(dep-version.py curl) && \
     curl -O -L  https://github.com/curl/curl/releases/download/curl-${CURL_VERSION_UNDERSCORE}/curl-${CURL_VERSION}.tar.gz && \
     tar xfz curl-${CURL_VERSION}.tar.gz && \
     cd curl-${CURL_VERSION} && \
-    CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ --without-zstd && \
+    CFLAGS=-fPIC ./configure --with-ssl=/usr/local/ssl/ --without-zstd --without-libpsl && \
     make -j8 && make install && \
     rm -rf /curl-${CURL_VERSION}.tar.gz /curl-${CURL_VERSION}
 

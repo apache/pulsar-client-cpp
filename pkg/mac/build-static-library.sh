@@ -140,6 +140,9 @@ if [ ! -f snappy-${SNAPPY_VERSION}/.done ]; then
     curl -O -L https://github.com/google/snappy/archive/refs/tags/${SNAPPY_VERSION}.tar.gz
     tar zxf ${SNAPPY_VERSION}.tar.gz
     pushd snappy-${SNAPPY_VERSION}
+      # Without this patch, snappy 1.10 will report a sign-compare error, which cannot be suppressed with the -Wno-sign-compare option in CI
+      curl -O -L https://raw.githubusercontent.com/microsoft/vcpkg/2024.02.14/ports/snappy/no-werror.patch
+      patch <no-werror.patch
       CXXFLAGS="-fPIC -O3 -arch ${ARCH} -mmacosx-version-min=${MACOSX_DEPLOYMENT_TARGET}" \
           cmake . -DCMAKE_INSTALL_PREFIX=$PREFIX -DSNAPPY_BUILD_TESTS=OFF -DSNAPPY_BUILD_BENCHMARKS=OFF
       make -j16
@@ -167,6 +170,7 @@ if [ ! -f curl-${CURL_VERSION}/.done ]; then
               --without-secure-transport \
               --without-librtmp \
               --disable-ipv6 \
+              --without-libpsl \
               --host=$ARCH-apple-darwin \
               --prefix=$PREFIX
       make -j16 install
