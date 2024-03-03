@@ -164,7 +164,7 @@ std::string TopicName::getLocalName() { return localName_; }
 
 std::string TopicName::getEncodedLocalName() const { return getEncodedName(localName_); }
 
-bool TopicName::operator==(const TopicName& other) {
+bool TopicName::operator==(const TopicName& other) const {
     return (this->topicName_.compare(other.topicName_) == 0);
 }
 
