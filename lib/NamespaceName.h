@@ -37,7 +37,7 @@ class PULSAR_PUBLIC NamespaceName : public ServiceUnitId {
     static std::shared_ptr<NamespaceName> get(const std::string& property, const std::string& cluster,
                                               const std::string& namespaceName);
     static std::shared_ptr<NamespaceName> get(const std::string& property, const std::string& namespaceName);
-    bool operator==(const NamespaceName& namespaceName);
+    bool operator==(const NamespaceName& namespaceName) const;
     bool isV2();
     std::string toString();
 
