@@ -101,6 +101,22 @@ jobs:
           cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
           cmake --build . -j8
 
+  loadbalancer-integ-tests:
+    name: Run load balancer integ tests
+    needs: unit-tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Run unit tests
+        run: RETRY_FAILED=3 ./run-loadbalancer-integ-tests.sh
+
   cpp20-build:
     name: Build with the C++20 standard
     runs-on: ubuntu-22.04
@@ -337,7 +353,7 @@ jobs:
   check-completion:
     name: Check Completion
     runs-on: ubuntu-latest
-    needs: [wireshark-dissector-build, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
+    needs: [wireshark-dissector-build, unit-tests, loadbalancer-integ-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
 
     steps:
       - run: true
