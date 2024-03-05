@@ -29,8 +29,20 @@ concurrency:
 
 jobs:
 
+  formatting-check:
+    name: Formatting Check
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Run clang-format style check for C/C++/Protobuf programs.
+      uses: jidicula/clang-format-action@v4.11.0
+      with:
+        clang-format-version: '11'
+        exclude-regex: '.*\.(proto|hpp)'
+
   wireshark-dissector-build:
     name: Build the Wireshark dissector
+    needs: formatting-check
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     strategy:
@@ -61,6 +73,7 @@ jobs:
 
   unit-tests:
     name: Run unit tests
+    needs: formatting-check
     runs-on: ubuntu-22.04
     timeout-minutes: 120
 
@@ -81,8 +94,8 @@ jobs:
           ./vcpkg/vcpkg format-manifest vcpkg.json
           if [[ $(git diff | wc -l) -gt 0 ]]; then
               echo "Please run `./vcpkg/vcpkg format-manifest vcpkg.json` to reformat vcpkg.json"
+              exit 1
           fi
-          make check-format
 
       - name: Build tests
         run: |
@@ -103,6 +116,7 @@ jobs:
 
   cpp20-build:
     name: Build with the C++20 standard
+    needs: formatting-check
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -337,7 +351,7 @@ jobs:
   check-completion:
     name: Check Completion
     runs-on: ubuntu-latest
-    needs: [wireshark-dissector-build, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
+    needs: [formatting-check, wireshark-dissector-build, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
 
     steps:
       - run: true
