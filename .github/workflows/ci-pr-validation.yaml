@@ -302,6 +302,7 @@ jobs:
   cpp-build-macos:
     timeout-minutes: 120
     name: Build CPP Client on macOS
+    needs: formatting-check
     runs-on: macos-12
     steps:
       - name: checkout
