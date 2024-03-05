@@ -342,8 +342,8 @@ class ConsumerImpl : public ConsumerImplBase {
                                                       const proto::MessageIdData& messageIdData,
                                                       const ClientConnectionPtr& cnx, MessageId& messageId);
 
-    // It must be called when mutexForMessageId_ is held
     bool hasMoreMessages() const {
+        std::lock_guard<std::mutex> lock{mutexForMessageId_};
         if (lastMessageIdInBroker_.entryId() == -1L) {
             return false;
         }

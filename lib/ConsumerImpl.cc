@@ -1502,10 +1502,14 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
 
 void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
-    Lock lock(mutexForMessageId_);
-    if (lastDequedMessageId_ == MessageId::earliest() &&
-        startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest()) {
-        lock.unlock();
+    bool compareMarkDeletePosition;
+    {
+        std::lock_guard<std::mutex> lock{mutexForMessageId_};
+        compareMarkDeletePosition =
+            (lastDequedMessageId_ == MessageId::earliest()) &&
+            (startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest());
+    }
+    if (compareMarkDeletePosition) {
         auto self = get_shared_this_ptr();
         getLastMessageIdAsync([self, callback](Result result, const GetLastMessageIdResponse& response) {
             if (result != ResultOk) {
@@ -1538,16 +1542,12 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
         });
     } else {
         if (hasMoreMessages()) {
-            lock.unlock();
             callback(ResultOk, true);
             return;
         }
-        lock.unlock();
-
         auto self = get_shared_this_ptr();
         getLastMessageIdAsync(
             [this, self, callback](Result result, const GetLastMessageIdResponse& response) {
-                std::lock_guard<std::mutex> lock{mutexForMessageId_};
                 callback(result, (result == ResultOk) && hasMoreMessages());
             });
     }
