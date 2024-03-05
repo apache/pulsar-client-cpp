@@ -1685,10 +1685,10 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Me
                 LOG_INFO(getName() << "Seek successfully");
                 ackGroupingTrackerPtr_->flushAndClean();
                 incomingMessages_.clear();
-                Lock lock{mutexForMessageId_};
+                Lock lock(mutexForMessageId_);
                 lastDequedMessageId_ = MessageId::earliest();
                 lock.unlock();
-                if (getCnx().expired()) {
+                if (!hasParent_ && getCnx().expired()) {
                     // It's during reconnection, complete the seek future after connection is established
                     seekStatus_ = SeekStatus::COMPLETED;
                 } else {

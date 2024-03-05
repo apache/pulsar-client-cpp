@@ -343,7 +343,7 @@ class ConsumerImpl : public ConsumerImplBase {
                                                       const ClientConnectionPtr& cnx, MessageId& messageId);
 
     // It must be called when mutexForMessageId_ is held
-    bool hasMoreMessages() {
+    bool hasMoreMessages() const {
         if (lastMessageIdInBroker_.entryId() == -1L) {
             return false;
         }
