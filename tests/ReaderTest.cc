@@ -784,4 +784,56 @@ TEST(ReaderSeekTest, testStartAtLatestMessageId) {
     producer.close();
 }
 
+TEST(ReaderTest, testSeekInProgress) {
+    Client client(serviceUrl);
+    const auto topic = "test-seek-in-progress-" + std::to_string(time(nullptr));
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
+
+    reader.seekAsync(MessageId::earliest(), [](Result) {});
+    Promise<Result, Result> promise;
+    reader.seekAsync(MessageId::earliest(), [promise](Result result) { promise.setValue(result); });
+    Result result;
+    promise.getFuture().get(result);
+    ASSERT_EQ(result, ResultNotAllowedError);
+    client.close();
+}
+
+TEST_P(ReaderTest, testHasMessageAvailableAfterSeekToEnd) {
+    Client client(serviceUrl);
+    const auto topic = "test-has-message-available-after-seek-to-end-" + std::to_string(time(nullptr));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
+
+    producer.send(MessageBuilder().setContent("msg-0").build());
+    producer.send(MessageBuilder().setContent("msg-1").build());
+
+    bool hasMessageAvailable;
+    if (GetParam()) {
+        // Test the case when `ConsumerImpl.lastMessageIdInBroker_` has been initialized
+        reader.hasMessageAvailable(hasMessageAvailable);
+    }
+
+    ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    ASSERT_FALSE(hasMessageAvailable);
+
+    producer.send(MessageBuilder().setContent("msg-2").build());
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    ASSERT_TRUE(hasMessageAvailable);
+
+    Message msg;
+    ASSERT_EQ(ResultOk, reader.readNext(msg, 1000));
+    ASSERT_EQ("msg-2", msg.getDataAsString());
+
+    // Test the 2nd seek
+    ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    ASSERT_FALSE(hasMessageAvailable);
+
+    client.close();
+}
+
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));
