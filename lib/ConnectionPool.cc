@@ -66,6 +66,13 @@ bool ConnectionPool::close() {
     return true;
 }
 
+static const std::string getKey(const std::string& logicalAddress, const std::string& physicalAddress,
+                                size_t keySuffix) {
+    std::stringstream ss;
+    ss << logicalAddress << '-' << physicalAddress << '-' << keySuffix;
+    return ss.str();
+}
+
 Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const std::string& logicalAddress,
                                                                            const std::string& physicalAddress,
                                                                            size_t keySuffix) {
@@ -77,9 +84,7 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const
 
     std::unique_lock<std::recursive_mutex> lock(mutex_);
 
-    std::stringstream ss;
-    ss << logicalAddress << '-' << keySuffix;
-    const std::string key = ss.str();
+    auto key = getKey(logicalAddress, physicalAddress, keySuffix);
 
     PoolMap::iterator cnxIt = pool_.find(key);
     if (cnxIt != pool_.end()) {
@@ -127,7 +132,9 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const
     return future;
 }
 
-void ConnectionPool::remove(const std::string& key, ClientConnection* value) {
+void ConnectionPool::remove(const std::string& logicalAddress, const std::string& physicalAddress,
+                            size_t keySuffix, ClientConnection* value) {
+    auto key = getKey(logicalAddress, physicalAddress, keySuffix);
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     auto it = pool_.find(key);
     if (it != pool_.end() && it->second.get() == value) {
