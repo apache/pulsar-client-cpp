@@ -752,6 +752,8 @@ TEST(ReaderSeekTest, testSeekForMessageId) {
     producer.close();
 }
 
+class ReaderSeekTest : public ::testing::TestWithParam<bool> {};
+
 TEST(ReaderSeekTest, testStartAtLatestMessageId) {
     Client client(serviceUrl);
 
@@ -799,7 +801,7 @@ TEST(ReaderTest, testSeekInProgress) {
     client.close();
 }
 
-TEST_P(ReaderTest, testHasMessageAvailableAfterSeekToEnd) {
+TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
     Client client(serviceUrl);
     const auto topic = "test-has-message-available-after-seek-to-end-" + std::to_string(time(nullptr));
     Producer producer;
@@ -813,7 +815,7 @@ TEST_P(ReaderTest, testHasMessageAvailableAfterSeekToEnd) {
     bool hasMessageAvailable;
     if (GetParam()) {
         // Test the case when `ConsumerImpl.lastMessageIdInBroker_` has been initialized
-        reader.hasMessageAvailable(hasMessageAvailable);
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     }
 
     ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
@@ -837,3 +839,4 @@ TEST_P(ReaderTest, testHasMessageAvailableAfterSeekToEnd) {
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));
+INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderSeekTest, ::testing::Values(true, false));

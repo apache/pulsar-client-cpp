@@ -241,7 +241,6 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     }
 
     Lock lockForMessageId(mutexForMessageId_);
-    // Update startMessageId so that we can discard messages after delivery restarts
     clearReceiveQueue();
     const auto subscribeMessageId =
         (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId_.get() : boost::none;
@@ -1047,6 +1046,7 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  * Clear the internal receiver queue and returns the message id of what was the 1st message in the queue that
  * was
  * not seen by the application
+ * `startMessageId_` is updated so that we can discard messages after delivery restarts.
  */
 void ConsumerImpl::clearReceiveQueue() {
     if (duringSeek()) {
