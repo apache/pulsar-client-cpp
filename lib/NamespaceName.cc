@@ -93,7 +93,7 @@ std::shared_ptr<NamespaceName> NamespaceName::getNamespaceObject() {
     return std::shared_ptr<NamespaceName>(this);
 }
 
-bool NamespaceName::operator==(const NamespaceName& namespaceName) {
+bool NamespaceName::operator==(const NamespaceName& namespaceName) const {
     return this->namespace_.compare(namespaceName.namespace_) == 0;
 }
 

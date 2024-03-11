@@ -30,6 +30,11 @@ class Synchronized {
         return value_;
     }
 
+    T&& release() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return std::move(value_);
+    }
+
     Synchronized& operator=(const T& value) {
         std::lock_guard<std::mutex> lock(mutex_);
         value_ = value;

@@ -75,6 +75,13 @@ const static std::string SYSTEM_PROPERTY_REAL_TOPIC = "REAL_TOPIC";
 const static std::string PROPERTY_ORIGIN_MESSAGE_ID = "ORIGIN_MESSAGE_ID";
 const static std::string DLQ_GROUP_TOPIC_SUFFIX = "-DLQ";
 
+enum class SeekStatus : std::uint8_t
+{
+    NOT_STARTED,
+    IN_PROGRESS,
+    COMPLETED
+};
+
 class ConsumerImpl : public ConsumerImplBase {
    public:
     ConsumerImpl(const ClientImplPtr client, const std::string& topic, const std::string& subscriptionName,
@@ -193,7 +200,7 @@ class ConsumerImpl : public ConsumerImplBase {
                                        const DeadlineTimerPtr& timer,
                                        BrokerGetLastMessageIdCallback callback);
 
-    boost::optional<MessageId> clearReceiveQueue();
+    void clearReceiveQueue();
     void seekAsyncInternal(long requestId, SharedBuffer seek, const MessageId& seekId, long timestamp,
                            ResultCallback callback);
     void processPossibleToDLQ(const MessageId& messageId, ProcessDLQCallBack cb);
@@ -239,9 +246,12 @@ class ConsumerImpl : public ConsumerImplBase {
     MessageId lastDequedMessageId_{MessageId::earliest()};
     MessageId lastMessageIdInBroker_{MessageId::earliest()};
 
-    std::atomic_bool duringSeek_{false};
+    std::atomic<SeekStatus> seekStatus_{SeekStatus::NOT_STARTED};
+    Synchronized<ResultCallback> seekCallback_{[](Result) {}};
     Synchronized<boost::optional<MessageId>> startMessageId_;
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
+
+    bool duringSeek() const { return seekStatus_ != SeekStatus::NOT_STARTED; }
 
     class ChunkedMessageCtx {
        public:
@@ -331,6 +341,23 @@ class ConsumerImpl : public ConsumerImplBase {
                                                       const proto::MessageMetadata& metadata,
                                                       const proto::MessageIdData& messageIdData,
                                                       const ClientConnectionPtr& cnx, MessageId& messageId);
+
+    bool hasMoreMessages() const {
+        std::lock_guard<std::mutex> lock{mutexForMessageId_};
+        if (lastMessageIdInBroker_.entryId() == -1L) {
+            return false;
+        }
+
+        const auto inclusive = config_.isStartMessageIdInclusive();
+        if (lastDequedMessageId_ == MessageId::earliest()) {
+            // If startMessageId_ is none, use latest so that this method will return false
+            const auto startMessageId = startMessageId_.get().value_or(MessageId::latest());
+            return inclusive ? (lastMessageIdInBroker_ >= startMessageId)
+                             : (lastMessageIdInBroker_ > startMessageId);
+        } else {
+            return lastMessageIdInBroker_ > lastDequedMessageId_;
+        }
+    }
 
     friend class PulsarFriend;
     friend class MultiTopicsConsumerImpl;

@@ -475,7 +475,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
     };
     const auto state = state_.load();
     if (state == Closing || state == Closed) {
-        callback(ResultAlreadyClosed);
+        callback(ResultOk);
         return;
     }
 
@@ -488,7 +488,7 @@ void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
     if (consumers.empty()) {
         LOG_DEBUG("TopicsConsumer have no consumers to close "
                   << " topic" << topic() << " subscription - " << subscriptionName_);
-        callback(ResultAlreadyClosed);
+        callback(ResultOk);
         return;
     }
 

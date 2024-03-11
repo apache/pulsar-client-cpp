@@ -1321,7 +1321,7 @@ void ClientConnection::close(Result result, bool detach) {
     }
     // Remove the connection from the pool before completing any promise
     if (detach) {
-        pool_.remove(logicalAddress_ + "-" + std::to_string(poolIndex_), this);
+        pool_.remove(logicalAddress_, physicalAddress_, poolIndex_, this);
     }
 
     auto self = shared_from_this();
