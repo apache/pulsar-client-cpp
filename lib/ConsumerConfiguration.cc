@@ -317,6 +317,13 @@ ConsumerConfiguration& ConsumerConfiguration::setAckReceiptEnabled(bool ackRecei
 
 bool ConsumerConfiguration::isAckReceiptEnabled() const { return impl_->ackReceiptEnabled; }
 
+ConsumerConfiguration& ConsumerConfiguration::setStartPaused(bool startPaused) {
+    impl_->startPaused = startPaused;
+    return *this;
+}
+
+bool ConsumerConfiguration::isStartPaused() const { return impl_->startPaused; }
+
 ConsumerConfiguration& ConsumerConfiguration::setRegexSubscriptionMode(
     RegexSubscriptionMode regexSubscriptionMode) {
     impl_->regexSubscriptionMode = regexSubscriptionMode;

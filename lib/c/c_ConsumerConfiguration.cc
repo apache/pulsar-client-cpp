@@ -254,6 +254,15 @@ pulsar_consumer_regex_subscription_mode pulsar_consumer_configuration_get_regex_
         consumer_configuration->consumerConfiguration.getRegexSubscriptionMode();
 }
 
+void pulsar_consumer_configuration_set_start_paused(pulsar_consumer_configuration_t *consumer_configuration,
+                                                    int start_paused) {
+    consumer_configuration->consumerConfiguration.setStartPaused(start_paused);
+}
+
+int pulsar_consumer_configuration_is_start_paused(pulsar_consumer_configuration_t *consumer_configuration) {
+    return consumer_configuration->consumerConfiguration.isStartPaused();
+}
+
 int pulsar_consumer_configuration_set_batch_receive_policy(
     pulsar_consumer_configuration_t *consumer_configuration,
     const pulsar_consumer_batch_receive_policy_t *batch_receive_policy_t) {

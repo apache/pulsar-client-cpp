@@ -917,8 +917,7 @@ TEST(BasicEndToEndTest, testMessageListenerPause) {
     std::string topicName = "partition-testMessageListenerPause";
 
     // call admin api to make it partitioned
-    std::string url =
-        adminUrl + "admin/v2/persistent/public/default/partition-testMessageListener-pauses/partitions";
+    std::string url = adminUrl + "admin/v2/persistent/public/default/" + topicName + "/partitions";
     int res = makePutRequest(url, "5");
 
     LOG_INFO("res = " << res);
@@ -967,6 +966,60 @@ TEST(BasicEndToEndTest, testMessageListenerPause) {
     producer.close();
     client.close();
 }
+
+void testStartPaused(bool isPartitioned) {
+    Client client(lookupUrl);
+    std::string topicName =
+        isPartitioned ? "testStartPausedWithPartitionedTopic" : "testStartPausedWithNonPartitionedTopic";
+    std::string subName = "sub";
+
+    if (isPartitioned) {
+        // Call admin api to make it partitioned
+        std::string url = adminUrl + "admin/v2/persistent/public/default/" + topicName + "/partitions";
+        int res = makePutRequest(url, "5");
+        LOG_INFO("res = " << res);
+        ASSERT_FALSE(res != 204 && res != 409);
+    }
+
+    Producer producer;
+    Result result = client.createProducer(topicName, producer);
+
+    // Initializing global Count
+    globalCount = 0;
+
+    ConsumerConfiguration consumerConfig;
+    consumerConfig.setMessageListener(
+        std::bind(messageListenerFunction, std::placeholders::_1, std::placeholders::_2));
+    consumerConfig.setStartPaused(true);
+    Consumer consumer;
+    // Removing dangling subscription from previous test failures
+    result = client.subscribe(topicName, subName, consumerConfig, consumer);
+    consumer.unsubscribe();
+
+    result = client.subscribe(topicName, subName, consumerConfig, consumer);
+    ASSERT_EQ(ResultOk, result);
+
+    int numOfMessages = 50;
+    for (int i = 0; i < numOfMessages; i++) {
+        std::string messageContent = "msg-" + std::to_string(i);
+        Message msg = MessageBuilder().setContent(messageContent).build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    std::this_thread::sleep_for(std::chrono::microseconds(2 * 1000 * 1000));
+    ASSERT_EQ(globalCount, 0);
+    consumer.resumeMessageListener();
+    std::this_thread::sleep_for(std::chrono::microseconds(2 * 1000 * 1000));
+    ASSERT_EQ(globalCount, numOfMessages);
+
+    consumer.unsubscribe();
+    producer.close();
+    client.close();
+}
+
+TEST(BasicEndToEndTest, testStartPausedWithNonPartitionedTopic) { testStartPaused(false); }
+
+TEST(BasicEndToEndTest, testStartPausedWithPartitionedTopic) { testStartPaused(true); }
 
 TEST(BasicEndToEndTest, testResendViaSendCallback) {
     ClientConfiguration clientConfiguration;

@@ -659,6 +659,21 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      */
     bool isAckReceiptEnabled() const;
 
+    /**
+     * Starts the consumer in a paused state.
+     *
+     * When enabled, the consumer does not immediately fetch messages when the consumer is created.
+     * Instead, the consumer waits to fetch messages until Consumer::resumeMessageListener is called.
+     *
+     * Default: false
+     */
+    ConsumerConfiguration& setStartPaused(bool startPaused);
+
+    /**
+     * The associated getter of setStartPaused.
+     */
+    bool isStartPaused() const;
+
     friend class PulsarWrapper;
     friend class PulsarFriend;
 

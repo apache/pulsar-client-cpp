@@ -62,6 +62,7 @@ struct ConsumerConfigurationImpl {
     bool batchIndexAckEnabled{false};
     std::vector<ConsumerInterceptorPtr> interceptors;
     bool ackReceiptEnabled{false};
+    bool startPaused{false};
 };
 }  // namespace pulsar
 #endif /* LIB_CONSUMERCONFIGURATIONIMPL_H_ */
