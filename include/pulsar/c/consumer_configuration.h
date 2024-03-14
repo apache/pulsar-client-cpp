@@ -353,6 +353,12 @@ PULSAR_PUBLIC pulsar_consumer_regex_subscription_mode
 pulsar_consumer_configuration_get_regex_subscription_mode(
     pulsar_consumer_configuration_t *consumer_configuration);
 
+PULSAR_PUBLIC void pulsar_consumer_configuration_set_start_paused(
+    pulsar_consumer_configuration_t *consumer_configuration, int start_paused);
+
+PULSAR_PUBLIC int pulsar_consumer_configuration_is_start_paused(
+    pulsar_consumer_configuration_t *consumer_configuration);
+
 /**
  * Set batch receive policy.
  *
