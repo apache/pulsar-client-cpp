@@ -47,6 +47,8 @@ Since it's integrated with vcpkg, see [vcpkg#README](https://github.com/microsof
 
 ### How to build from source
 
+The simplest way is to clone this project with the vcpkg submodule.
+
 ```bash
 git clone https://github.com/apache/pulsar-client-cpp.git
 cd pulsar-client-cpp
@@ -56,6 +58,17 @@ cmake --build build -j8
 ```
 
 The 1st step will download vcpkg and then install all dependencies according to the version description in [vcpkg.json](./vcpkg.json). The 2nd step will build the Pulsar C++ libraries under `./build/lib/`, where `./build` is the CMake build directory.
+
+> You can also add the CMAKE_TOOLCHAIN_FILE option if your system already have vcpkg installed.
+>
+> ```bash
+> git clone https://github.com/apache/pulsar-client-cpp.git
+> cd pulsar-client-cpp
+> # For example, you can install vcpkg in /tmp/vcpkg
+> cd /tmp && git clone https://github.com/microsoft/vcpkg.git && cd -
+> cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
+> cmake --build build -j8
+> ```
 
 After the build, the hierarchy of the `build` directory will be:
 

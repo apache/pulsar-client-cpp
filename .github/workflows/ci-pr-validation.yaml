@@ -114,6 +114,11 @@ jobs:
           cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
           cmake --build . -j8
 
+      - name: Verify custom vcpkg installation
+        run: |
+          mv vcpkg /tmp/
+          cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
+
   cpp20-build:
     name: Build with the C++20 standard
     needs: formatting-check
