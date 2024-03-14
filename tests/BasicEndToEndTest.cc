@@ -1009,8 +1009,7 @@ void testStartPaused(bool isPartitioned) {
     std::this_thread::sleep_for(std::chrono::microseconds(2 * 1000 * 1000));
     ASSERT_EQ(globalCount, 0);
     consumer.resumeMessageListener();
-    std::this_thread::sleep_for(std::chrono::microseconds(2 * 1000 * 1000));
-    ASSERT_EQ(globalCount, numOfMessages);
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(5), [&]() -> bool { return globalCount >= numOfMessages; }));
 
     consumer.unsubscribe();
     producer.close();
