@@ -64,6 +64,11 @@ jobs:
         run: |
           # See https://github.com/Homebrew/homebrew-core/issues/157142
           export HOMEBREW_NO_INSTALLED_DEPENDENTS_CHECK=1
+          cd /usr/local/bin
+          rm -f 2to3* idle3* pydoc* python3*
+          rm -f /usr/local/share/man/man1/python3.1 /usr/local/lib/pkgconfig/python3*
+          cd /usr/local/Frameworks/Python.framework
+          rm -rf Headers Python Resources Versions/Current
           brew update
           brew install pkg-config wireshark protobuf
       - name: Build wireshark plugin
