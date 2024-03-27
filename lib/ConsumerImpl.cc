@@ -1050,7 +1050,9 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  */
 void ConsumerImpl::clearReceiveQueue() {
     if (duringSeek()) {
-        startMessageId_ = seekMessageId_.get();
+        if (!hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
+            startMessageId_ = seekMessageId_.get();
+        }
         SeekStatus expected = SeekStatus::COMPLETED;
         if (seekStatus_.compare_exchange_strong(expected, SeekStatus::NOT_STARTED)) {
             auto seekCallback = seekCallback_.release();
@@ -1476,7 +1478,7 @@ void ConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
         return;
     }
     const auto requestId = client->newRequestId();
-    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), msgId, 0L, callback);
+    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId}, callback);
 }
 
 void ConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
@@ -1495,8 +1497,8 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
         return;
     }
     const auto requestId = client->newRequestId();
-    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), MessageId::earliest(),
-                      timestamp, callback);
+    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), SeekArg{timestamp},
+                      callback);
 }
 
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
@@ -1509,7 +1511,7 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
             (lastDequedMessageId_ == MessageId::earliest()) &&
             (startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest());
     }
-    if (compareMarkDeletePosition) {
+    if (compareMarkDeletePosition || hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
         auto self = get_shared_this_ptr();
         getLastMessageIdAsync([self, callback](Result result, const GetLastMessageIdResponse& response) {
             if (result != ResultOk) {
@@ -1518,8 +1520,8 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
             }
             auto handleResponse = [self, response, callback] {
                 if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
-                    // We only care about comparing ledger ids and entry ids as mark delete position doesn't
-                    // have other ids such as batch index
+                    // We only care about comparing ledger ids and entry ids as mark delete position
+                    // doesn't have other ids such as batch index
                     auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
                                                                  response.getLastMessageId());
                     callback(ResultOk, self->config_.isStartMessageIdInclusive() ? compareResult <= 0
@@ -1528,7 +1530,8 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
                     callback(ResultOk, false);
                 }
             };
-            if (self->config_.isStartMessageIdInclusive()) {
+            if (self->config_.isStartMessageIdInclusive() &&
+                !self->hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
                 self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
                     if (result != ResultOk) {
                         callback(result, {});
@@ -1644,8 +1647,8 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
-void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const MessageId& seekId,
-                                     long timestamp, ResultCallback callback) {
+void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const SeekArg& seekArg,
+                                     ResultCallback callback) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
         LOG_ERROR(getName() << " Client Connection not ready for Consumer");
@@ -1655,21 +1658,21 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Me
 
     auto expected = SeekStatus::NOT_STARTED;
     if (!seekStatus_.compare_exchange_strong(expected, SeekStatus::IN_PROGRESS)) {
-        LOG_ERROR(getName() << " attempted to seek (" << seekId << ", " << timestamp << " when the status is "
+        LOG_ERROR(getName() << " attempted to seek " << seekArg << " when the status is "
                             << static_cast<int>(expected));
         callback(ResultNotAllowedError);
         return;
     }
 
     const auto originalSeekMessageId = seekMessageId_.get();
-    seekMessageId_ = seekId;
+    if (boost::get<uint64_t>(&seekArg)) {
+        hasSoughtByTimestamp_.store(true, std::memory_order_release);
+    } else {
+        seekMessageId_ = *boost::get<MessageId>(&seekArg);
+    }
     seekStatus_ = SeekStatus::IN_PROGRESS;
     seekCallback_ = std::move(callback);
-    if (timestamp > 0) {
-        LOG_INFO(getName() << " Seeking subscription to " << timestamp);
-    } else {
-        LOG_INFO(getName() << " Seeking subscription to " << seekId);
-    }
+    LOG_INFO(getName() << " Seeking subscription to " << seekArg);
 
     std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
 
@@ -1692,7 +1695,9 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Me
                     // It's during reconnection, complete the seek future after connection is established
                     seekStatus_ = SeekStatus::COMPLETED;
                 } else {
-                    startMessageId_ = seekMessageId_.get();
+                    if (!hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
+                        startMessageId_ = seekMessageId_.get();
+                    }
                     seekCallback_.release()(result);
                 }
             } else {
