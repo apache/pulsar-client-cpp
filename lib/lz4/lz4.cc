@@ -1175,9 +1175,9 @@ FORCE_INLINE int LZ4_decompress_generic(
                 s = *ip++;
                 length += s;
             } while (likely((endOnInput) ? ip < iend - RUN_MASK : 1) && (s == 255));
-            if ((safeDecode) && unlikely((size_t)(op + length) < (size_t)(op)))
+            if ((safeDecode) && unlikely(length >= (size_t)(oend - op)))
                 goto _output_error; /* overflow detection */
-            if ((safeDecode) && unlikely((size_t)(ip + length) < (size_t)(ip)))
+            if ((safeDecode) && unlikely(length >= (size_t)(iend - ip)))
                 goto _output_error; /* overflow detection */
         }
 
@@ -1220,7 +1220,7 @@ FORCE_INLINE int LZ4_decompress_generic(
                 s = *ip++;
                 length += s;
             } while (s == 255);
-            if ((safeDecode) && unlikely((size_t)(op + length) < (size_t)op))
+            if ((safeDecode) && unlikely(length >= (size_t)(oend - op)))
                 goto _output_error; /* overflow detection */
         }
         length += MINMATCH;
