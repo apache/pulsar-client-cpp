@@ -700,9 +700,16 @@ TEST_P(ReaderTest, testReceiveAfterSeek) {
     client.close();
 }
 
-TEST(ReaderSeekTest, testSeekForMessageId) {
-    Client client(serviceUrl);
+class ReaderSeekTest : public ::testing::TestWithParam<bool> {
+   public:
+    void SetUp() override { client = Client{serviceUrl}; }
 
+    void TearDown() override { client.close(); }
+
+    Client client{serviceUrl};
+};
+
+TEST_F(ReaderSeekTest, testSeekForMessageId) {
     const std::string topic = "test-seek-for-message-id-" + std::to_string(time(nullptr));
 
     Producer producer;
@@ -752,18 +759,24 @@ TEST(ReaderSeekTest, testSeekForMessageId) {
     producer.close();
 }
 
-class ReaderSeekTest : public ::testing::TestWithParam<bool> {};
+#define EXPECT_HAS_MESSAGE_AVAILABLE(reader, expected)           \
+    {                                                            \
+        bool actual;                                             \
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(actual)); \
+        EXPECT_EQ(actual, (expected));                           \
+    }
 
-TEST(ReaderSeekTest, testStartAtLatestMessageId) {
-    Client client(serviceUrl);
-
+TEST_F(ReaderSeekTest, testStartAtLatestMessageId) {
     const std::string topic = "test-seek-latest-message-id-" + std::to_string(time(nullptr));
 
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
 
     MessageId id;
-    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build(), id));
+    for (int i = 0; i < 10; i++) {
+        ASSERT_EQ(ResultOk,
+                  producer.send(MessageBuilder().setContent("msg-" + std::to_string(i)).build(), id));
+    }
 
     Reader readerExclusive;
     ASSERT_EQ(ResultOk,
@@ -774,20 +787,24 @@ TEST(ReaderSeekTest, testStartAtLatestMessageId) {
               client.createReader(topic, MessageId::latest(),
                                   ReaderConfiguration().setStartMessageIdInclusive(true), readerInclusive));
 
+    EXPECT_HAS_MESSAGE_AVAILABLE(readerExclusive, false);
+    EXPECT_HAS_MESSAGE_AVAILABLE(readerInclusive, true);
+
     Message msg;
-    bool hasMsgAvaliable = false;
-    readerInclusive.hasMessageAvailable(hasMsgAvaliable);
-    ASSERT_TRUE(hasMsgAvaliable);
     ASSERT_EQ(ResultOk, readerInclusive.readNext(msg, 3000));
-    ASSERT_EQ(ResultTimeout, readerExclusive.readNext(msg, 3000));
+    ASSERT_EQ(msg.getDataAsString(), "msg-9");
+
+    readerInclusive.seek(0L);
+    EXPECT_HAS_MESSAGE_AVAILABLE(readerInclusive, true);
+    ASSERT_EQ(ResultOk, readerInclusive.readNext(msg, 3000));
+    ASSERT_EQ(msg.getDataAsString(), "msg-0");
 
     readerExclusive.close();
     readerInclusive.close();
     producer.close();
 }
 
-TEST(ReaderTest, testSeekInProgress) {
-    Client client(serviceUrl);
+TEST_F(ReaderSeekTest, testSeekInProgress) {
     const auto topic = "test-seek-in-progress-" + std::to_string(time(nullptr));
     Reader reader;
     ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
@@ -798,11 +815,9 @@ TEST(ReaderTest, testSeekInProgress) {
     Result result;
     promise.getFuture().get(result);
     ASSERT_EQ(result, ResultNotAllowedError);
-    client.close();
 }
 
 TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
-    Client client(serviceUrl);
     const auto topic = "test-has-message-available-after-seek-to-end-" + std::to_string(time(nullptr));
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
@@ -814,7 +829,6 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
 
     bool hasMessageAvailable;
     if (GetParam()) {
-        // Test the case when `ConsumerImpl.lastMessageIdInBroker_` has been initialized
         ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     }
 
@@ -834,8 +848,44 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
     ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
     ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     ASSERT_FALSE(hasMessageAvailable);
+}
 
-    client.close();
+TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
+    using namespace std::chrono;
+    const auto topic = "test-has-message-available-after-seek-timestamp-" + std::to_string(time(nullptr));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    MessageId sentMsgId;
+    const auto timestampBeforeSend =
+        duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build(), sentMsgId));
+
+    auto createReader = [this, &topic](Reader& reader, const MessageId& msgId) {
+        ASSERT_EQ(ResultOk, client.createReader(topic, msgId, {}, reader));
+        if (GetParam()) {
+            if (msgId == MessageId::earliest()) {
+                EXPECT_HAS_MESSAGE_AVAILABLE(reader, true);
+            } else {
+                EXPECT_HAS_MESSAGE_AVAILABLE(reader, false);
+            }
+        }
+    };
+
+    std::vector<MessageId> msgIds{MessageId::earliest(), sentMsgId, MessageId::latest()};
+
+    for (auto&& msgId : msgIds) {
+        Reader reader;
+        createReader(reader, msgId);
+        ASSERT_EQ(ResultOk,
+                  reader.seek(duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count()));
+        EXPECT_HAS_MESSAGE_AVAILABLE(reader, false);
+    }
+    for (auto&& msgId : msgIds) {
+        Reader reader;
+        createReader(reader, msgId);
+        ASSERT_EQ(ResultOk, reader.seek(timestampBeforeSend));
+        EXPECT_HAS_MESSAGE_AVAILABLE(reader, true);
+    }
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));

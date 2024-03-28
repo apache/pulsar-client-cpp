@@ -22,6 +22,7 @@
 #include <pulsar/Reader.h>
 
 #include <boost/optional.hpp>
+#include <boost/variant.hpp>
 #include <functional>
 #include <list>
 #include <memory>
@@ -201,7 +202,18 @@ class ConsumerImpl : public ConsumerImplBase {
                                        BrokerGetLastMessageIdCallback callback);
 
     void clearReceiveQueue();
-    void seekAsyncInternal(long requestId, SharedBuffer seek, const MessageId& seekId, long timestamp,
+    using SeekArg = boost::variant<uint64_t, MessageId>;
+    friend std::ostream& operator<<(std::ostream& os, const SeekArg& seekArg) {
+        auto ptr = boost::get<uint64_t>(&seekArg);
+        if (ptr) {
+            os << *ptr;
+        } else {
+            os << *boost::get<MessageId>(&seekArg);
+        }
+        return os;
+    }
+
+    void seekAsyncInternal(long requestId, SharedBuffer seek, const SeekArg& seekArg,
                            ResultCallback callback);
     void processPossibleToDLQ(const MessageId& messageId, ProcessDLQCallBack cb);
 
@@ -250,6 +262,7 @@ class ConsumerImpl : public ConsumerImplBase {
     Synchronized<ResultCallback> seekCallback_{[](Result) {}};
     Synchronized<boost::optional<MessageId>> startMessageId_;
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
+    std::atomic<bool> hasSoughtByTimestamp_{false};
 
     bool duringSeek() const { return seekStatus_ != SeekStatus::NOT_STARTED; }
 
