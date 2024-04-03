@@ -1490,4 +1490,46 @@ TEST(ConsumerTest, testSNIProxyConnect) {
     ASSERT_EQ(ResultOk, client.subscribe(topic, "test-sub", consumer));
     client.close();
 }
+
+TEST(ConsumerTest, testMultiConsumerListenerAndAck) {
+    Client client{lookupUrl};
+
+    const std::string topicName = "testConsumerEventWithPartition-topic-" + std::to_string(time(nullptr));
+    int res = makePutRequest(adminUrl + "admin/v2/persistent/public/default/" + topicName + "/partitions",
+                             std::to_string(5));
+    ASSERT_TRUE(res == 204 || res == 409) << "res: " << res;
+
+    // Create a producer
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    int num = 10;
+    // Use listener to consume
+    Latch latch{num};
+    Consumer consumer;
+    ConsumerConfiguration consumerConfiguration;
+    PulsarFriend::setConsumerUnAckMessagesTimeoutMs(consumerConfiguration, 2000);
+    consumerConfiguration.setMessageListener([&latch](Consumer& consumer, const Message& msg) {
+        LOG_INFO("Received message '" << msg.getDataAsString() << "' and ack it");
+        consumer.acknowledge(msg);
+        latch.countdown();
+    });
+    ASSERT_EQ(ResultOk, client.subscribe(topicName, "consumer-1", consumerConfiguration, consumer));
+
+    // Send synchronously
+    for (int i = 0; i < 10; ++i) {
+        Message msg = MessageBuilder().setContent("content" + std::to_string(i)).build();
+        Result result = producer.send(msg);
+        LOG_INFO("Message sent: " << result);
+    }
+
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
+    auto multiConsumerImplPtr = PulsarFriend::getMultiTopicsConsumerImplPtr(consumer);
+    auto tracker =
+        static_cast<UnAckedMessageTrackerEnabled*>(multiConsumerImplPtr->unAckedMessageTrackerPtr_.get());
+    ASSERT_EQ(0, tracker->size());
+
+    client.close();
+}
+
 }  // namespace pulsar

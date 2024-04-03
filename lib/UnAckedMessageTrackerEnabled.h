@@ -67,6 +67,7 @@ class UnAckedMessageTrackerEnabled : public std::enable_shared_from_this<UnAcked
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testBatchUnAckedMessageTracker);
     FRIEND_TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition);
+    FRIEND_TEST(ConsumerTest, testMultiConsumerListenerAndAck);
 };
 }  // namespace pulsar
 
