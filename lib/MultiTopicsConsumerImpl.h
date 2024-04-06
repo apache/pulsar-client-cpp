@@ -183,6 +183,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition);
     FRIEND_TEST(ConsumerTest, testPatternSubscribeTopic);
+    FRIEND_TEST(ConsumerTest, testMultiConsumerListenerAndAck);
 };
 
 typedef std::shared_ptr<MultiTopicsConsumerImpl> MultiTopicsConsumerImplPtr;
