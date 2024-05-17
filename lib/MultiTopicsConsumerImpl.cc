@@ -338,41 +338,23 @@ void MultiTopicsConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) 
     }
     state_ = Closing;
 
-    std::shared_ptr<std::atomic<int>> consumerUnsubed = std::make_shared<std::atomic<int>>(0);
     auto self = get_shared_this_ptr();
-    int numConsumers = 0;
     consumers_.forEachValue(
-        [&numConsumers, &consumerUnsubed, &self, callback](const ConsumerImplPtr& consumer) {
-            numConsumers++;
-            consumer->unsubscribeAsync([self, consumerUnsubed, callback](Result result) {
-                self->handleUnsubscribedAsync(result, consumerUnsubed, callback);
+        [this, self, callback](const ConsumerImplPtr& consumer, SharedFuture future) {
+            consumer->unsubscribeAsync([this, self, callback, future](Result result) {
+                if (result != ResultOk) {
+                    state_ = Failed;
+                    LOG_ERROR("Error Closing one of the consumers in TopicsConsumer, result: "
+                              << result << " subscription - " << subscriptionName_);
+                }
+                if (future.tryComplete()) {
+                    LOG_DEBUG("Unsubscribed all of the partition consumer for TopicsConsumer.  - "
+                              << consumerStr_);
+                    callback((state_ != Failed) ? ResultOk : ResultUnknownError);
+                }
             });
-        });
-    if (numConsumers == 0) {
-        // No need to unsubscribe, since the list matching the regex was empty
-        callback(ResultOk);
-    }
-}
-
-void MultiTopicsConsumerImpl::handleUnsubscribedAsync(Result result,
-                                                      std::shared_ptr<std::atomic<int>> consumerUnsubed,
-                                                      ResultCallback callback) {
-    (*consumerUnsubed)++;
-
-    if (result != ResultOk) {
-        state_ = Failed;
-        LOG_ERROR("Error Closing one of the consumers in TopicsConsumer, result: "
-                  << result << " subscription - " << subscriptionName_);
-    }
-
-    if (consumerUnsubed->load() == numberTopicPartitions_->load()) {
-        LOG_DEBUG("Unsubscribed all of the partition consumer for TopicsConsumer.  - " << consumerStr_);
-        Result result1 = (state_ != Failed) ? ResultOk : ResultUnknownError;
-        // The `callback` is a wrapper of user provided callback, it's not null and will call `shutdown()` if
-        // unsubscribe succeeds.
-        callback(result1);
-        return;
-    }
+        },
+        [callback] { callback(ResultOk); });
 }
 
 void MultiTopicsConsumerImpl::unsubscribeOneTopicAsync(const std::string& topic, ResultCallback callback) {
@@ -841,24 +823,26 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(BrokerConsumerStatsCal
         callback(ResultConsumerNotInitialized, BrokerConsumerStats());
         return;
     }
+
     Lock lock(mutex_);
     MultiTopicsBrokerConsumerStatsPtr statsPtr =
         std::make_shared<MultiTopicsBrokerConsumerStatsImpl>(numberTopicPartitions_->load());
-    LatchPtr latchPtr = std::make_shared<Latch>(numberTopicPartitions_->load());
     lock.unlock();
-
     size_t i = 0;
-    consumers_.forEachValue([this, &latchPtr, &statsPtr, &i, callback](const ConsumerImplPtr& consumer) {
-        size_t index = i++;
-        auto weakSelf = weak_from_this();
-        consumer->getBrokerConsumerStatsAsync(
-            [this, weakSelf, latchPtr, statsPtr, index, callback](Result result, BrokerConsumerStats stats) {
+    // TODO: fix the thread safety issue if numberTopicPartitions_ was changed here
+    consumers_.forEachValue(
+        [this, statsPtr, &i, callback](const ConsumerImplPtr& consumer, SharedFuture future) {
+            size_t index = i++;
+            auto weakSelf = weak_from_this();
+            consumer->getBrokerConsumerStatsAsync([this, weakSelf, future, statsPtr, index, callback](
+                                                      Result result, BrokerConsumerStats stats) {
                 auto self = weakSelf.lock();
                 if (self) {
-                    handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
+                    handleGetConsumerStats(result, stats, future, statsPtr, index, callback);
                 }
             });
-    });
+        },
+        [callback] { callback(ResultOk, BrokerConsumerStats{}); });
 }
 
 void MultiTopicsConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) {
@@ -866,19 +850,20 @@ void MultiTopicsConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallba
 }
 
 void MultiTopicsConsumerImpl::handleGetConsumerStats(Result res, BrokerConsumerStats brokerConsumerStats,
-                                                     LatchPtr latchPtr,
+                                                     SharedFuture future,
                                                      MultiTopicsBrokerConsumerStatsPtr statsPtr, size_t index,
                                                      BrokerConsumerStatsCallback callback) {
     Lock lock(mutex_);
+    bool completed = false;
     if (res == ResultOk) {
-        latchPtr->countdown();
+        completed = future.tryComplete();
         statsPtr->add(brokerConsumerStats, index);
     } else {
         lock.unlock();
         callback(res, BrokerConsumerStats());
         return;
     }
-    if (latchPtr->getCount() == 0) {
+    if (completed) {
         lock.unlock();
         callback(ResultOk, BrokerConsumerStats(statsPtr));
     }
@@ -899,48 +884,48 @@ std::shared_ptr<TopicName> MultiTopicsConsumerImpl::topicNamesValid(const std::v
     return topicNamePtr;
 }
 
-void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
-    callback(ResultOperationNotSupported);
-}
-
-void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
-    if (state_ != Ready) {
-        callback(ResultAlreadyClosed);
-        return;
-    }
-
+void MultiTopicsConsumerImpl::beforeSeek() {
     duringSeek_.store(true, std::memory_order_release);
     consumers_.forEachValue([](const ConsumerImplPtr& consumer) { consumer->pauseMessageListener(); });
     unAckedMessageTrackerPtr_->clear();
     incomingMessages_.clear();
     incomingMessagesSize_ = 0L;
+}
 
-    auto weakSelf = weak_from_this();
-    auto numConsumersLeft = std::make_shared<std::atomic<int64_t>>(consumers_.size());
-    auto wrappedCallback = [this, weakSelf, callback, numConsumersLeft](Result result) {
-        auto self = weakSelf.lock();
-        if (PULSAR_UNLIKELY(!self)) {
-            callback(result);
-            return;
-        }
-        if (result != ResultOk) {
-            *numConsumersLeft = 0;  // skip the following callbacks
-            callback(result);
-            return;
-        }
-        if (--*numConsumersLeft > 0) {
-            return;
-        }
-        duringSeek_.store(false, std::memory_order_release);
-        listenerExecutor_->postWork([this, self] {
-            consumers_.forEachValue(
-                [](const ConsumerImplPtr& consumer) { consumer->resumeMessageListener(); });
-        });
-        callback(ResultOk);
-    };
-    consumers_.forEachValue([timestamp, &wrappedCallback](const ConsumerImplPtr& consumer) {
-        consumer->seekAsync(timestamp, wrappedCallback);
+void MultiTopicsConsumerImpl::afterSeek() {
+    duringSeek_.store(false, std::memory_order_release);
+    auto self = get_shared_this_ptr();
+    listenerExecutor_->postWork([this, self] {
+        consumers_.forEachValue([](const ConsumerImplPtr& consumer) { consumer->resumeMessageListener(); });
     });
+}
+
+void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
+    if (msgId == MessageId::earliest() || msgId == MessageId::latest()) {
+        return seekAllAsync(msgId, callback);
+    }
+
+    auto optConsumer = consumers_.find(msgId.getTopicName());
+    if (!optConsumer) {
+        callback(ResultOperationNotSupported);
+        return;
+    }
+
+    beforeSeek();
+    auto weakSelf = weak_from_this();
+    optConsumer.get()->seekAsync(msgId, [this, weakSelf, callback](Result result) {
+        auto self = weakSelf.lock();
+        if (self) {
+            afterSeek();
+            callback(result);
+        } else {
+            callback(ResultAlreadyClosed);
+        }
+    });
+}
+
+void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
+    seekAllAsync(timestamp, callback);
 }
 
 void MultiTopicsConsumerImpl::setNegativeAcknowledgeEnabledForTesting(bool enabled) {
