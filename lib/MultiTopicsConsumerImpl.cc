@@ -823,26 +823,23 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(BrokerConsumerStatsCal
         callback(ResultConsumerNotInitialized, BrokerConsumerStats());
         return;
     }
-
     Lock lock(mutex_);
     MultiTopicsBrokerConsumerStatsPtr statsPtr =
         std::make_shared<MultiTopicsBrokerConsumerStatsImpl>(numberTopicPartitions_->load());
+    LatchPtr latchPtr = std::make_shared<Latch>(numberTopicPartitions_->load());
     lock.unlock();
     size_t i = 0;
-    // TODO: fix the thread safety issue if numberTopicPartitions_ was changed here
-    consumers_.forEachValue(
-        [this, statsPtr, &i, callback](const ConsumerImplPtr& consumer, SharedFuture future) {
-            size_t index = i++;
-            auto weakSelf = weak_from_this();
-            consumer->getBrokerConsumerStatsAsync([this, weakSelf, future, statsPtr, index, callback](
-                                                      Result result, BrokerConsumerStats stats) {
+    consumers_.forEachValue([this, &latchPtr, &statsPtr, &i, callback](const ConsumerImplPtr& consumer) {
+        size_t index = i++;
+        auto weakSelf = weak_from_this();
+        consumer->getBrokerConsumerStatsAsync(
+            [this, weakSelf, latchPtr, statsPtr, index, callback](Result result, BrokerConsumerStats stats) {
                 auto self = weakSelf.lock();
                 if (self) {
-                    handleGetConsumerStats(result, stats, future, statsPtr, index, callback);
+                    handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
                 }
             });
-        },
-        [callback] { callback(ResultOk, BrokerConsumerStats{}); });
+    });
 }
 
 void MultiTopicsConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) {
@@ -850,20 +847,19 @@ void MultiTopicsConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallba
 }
 
 void MultiTopicsConsumerImpl::handleGetConsumerStats(Result res, BrokerConsumerStats brokerConsumerStats,
-                                                     SharedFuture future,
+                                                     LatchPtr latchPtr,
                                                      MultiTopicsBrokerConsumerStatsPtr statsPtr, size_t index,
                                                      BrokerConsumerStatsCallback callback) {
     Lock lock(mutex_);
-    bool completed = false;
     if (res == ResultOk) {
-        completed = future.tryComplete();
+        latchPtr->countdown();
         statsPtr->add(brokerConsumerStats, index);
     } else {
         lock.unlock();
         callback(res, BrokerConsumerStats());
         return;
     }
-    if (completed) {
+    if (latchPtr->getCount() == 0) {
         lock.unlock();
         callback(ResultOk, BrokerConsumerStats(statsPtr));
     }
@@ -907,6 +903,8 @@ void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback c
 
     auto optConsumer = consumers_.find(msgId.getTopicName());
     if (!optConsumer) {
+        LOG_ERROR(getName() << "cannot seek a message id whose topic \"" + msgId.getTopicName() +
+                                   "\" is not subscribed");
         callback(ResultOperationNotSupported);
         return;
     }
