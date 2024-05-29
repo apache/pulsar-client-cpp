@@ -897,6 +897,11 @@ void MultiTopicsConsumerImpl::afterSeek() {
     });
 }
 
+void MultiTopicsConsumerImpl::handleNoConsumersWhenSeek(const ResultCallback& callback) const {
+    LOG_ERROR(getName() << "There are no consumers when seek");
+    callback(ResultOperationNotSupported);
+}
+
 void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
     if (msgId == MessageId::earliest() || msgId == MessageId::latest()) {
         return seekAllAsync(msgId, callback);
