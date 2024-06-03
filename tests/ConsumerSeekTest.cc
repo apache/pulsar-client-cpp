@@ -197,7 +197,7 @@ TEST_P(ConsumerSeekTest, testMultiTopicsSeekSingle) {
 TEST_F(ConsumerSeekTest, testNoInternalConsumer) {
     Consumer consumer;
     ASSERT_EQ(ResultOk, client_.subscribeWithRegex("testNoInternalConsumer.*", "sub", consumer));
-    ASSERT_EQ(ResultOperationNotSupported, consumer.seek(MessageId::earliest()));
+    ASSERT_EQ(ResultOk, consumer.seek(MessageId::earliest()));
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, ConsumerSeekTest, ::testing::Values(true, false));

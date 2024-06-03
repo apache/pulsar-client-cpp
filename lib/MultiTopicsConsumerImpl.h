@@ -185,7 +185,6 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
 
     void beforeSeek();
     void afterSeek();
-    void handleNoConsumersWhenSeek(const ResultCallback& callback) const;
 
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
@@ -229,7 +228,7 @@ template <typename SeekArg>
                 }
             });
         },
-        [this, callback] { handleNoConsumersWhenSeek(callback); });
+        [callback] { callback(ResultOk); });
 }
 
 }  // namespace pulsar
