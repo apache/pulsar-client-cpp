@@ -91,6 +91,28 @@ TEST(SynchronizedHashMapTest, testForEach) {
     m.forEach([&pairs](const int& key, const int& value) { pairs.emplace_back(key, value); });
     PairVector expectedPairs({{1, 100}, {2, 200}, {3, 300}});
     ASSERT_EQ(sort(pairs), expectedPairs);
+
+    m.clear();
+    int result = 0;
+    values.clear();
+    m.forEachValue([&values](int value, SharedFuture) { values.emplace_back(value); },
+                   [&result] { result = 1; });
+    ASSERT_TRUE(values.empty());
+    ASSERT_EQ(result, 1);
+
+    m.emplace(1, 100);
+    m.forEachValue([&values](int value, SharedFuture) { values.emplace_back(value); },
+                   [&result] { result = 2; });
+    ASSERT_EQ(values, (std::vector<int>({100})));
+    ASSERT_EQ(result, 1);
+
+    values.clear();
+    m.emplace(2, 200);
+    m.forEachValue([&values](int value, SharedFuture) { values.emplace_back(value); },
+                   [&result] { result = 2; });
+    std::sort(values.begin(), values.end());
+    ASSERT_EQ(values, (std::vector<int>({100, 200})));
+    ASSERT_EQ(result, 1);
 }
 
 TEST(SynchronizedHashMap, testRecursiveMutex) {

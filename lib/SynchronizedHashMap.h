@@ -18,14 +18,26 @@
  */
 #pragma once
 
+#include <atomic>
 #include <boost/optional.hpp>
 #include <functional>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 namespace pulsar {
+
+class SharedFuture {
+   public:
+    SharedFuture(size_t size) : count_(std::make_shared<std::atomic_size_t>(size)) {}
+
+    bool tryComplete() const { return --*count_ == 0; }
+
+   private:
+    std::shared_ptr<std::atomic_size_t> count_;
+};
 
 // V must be default constructible and copyable
 template <typename K, typename V>
@@ -60,10 +72,57 @@ class SynchronizedHashMap {
         }
     }
 
-    void forEachValue(std::function<void(const V&)> f) const {
-        Lock lock(mutex_);
-        for (const auto& kv : data_) {
-            f(kv.second);
+    template <typename ValueFunc>
+#if __cplusplus >= 202002L
+    requires requires(ValueFunc&& each, const V& value) {
+        each(value);
+    }
+#endif
+    void forEachValue(ValueFunc&& each) {
+        Lock lock{mutex_};
+        for (auto&& kv : data_) {
+            each(kv.second);
+        }
+    }
+
+    // This override provides a convenient approach to execute tasks on each consumer concurrently and
+    // supports checking if all tasks are done in the `each` callback.
+    //
+    // All map values will be passed as the 1st argument to the `each` function. The 2nd argument is a shared
+    // future whose `tryComplete` method marks this task as completed. If users want to check if all task are
+    // completed in the `each` function, this method must be called.
+    //
+    // For example, given a `SynchronizedHashMap<int, std::string>` object `m` and the following call:
+    //
+    // ```c++
+    // m.forEachValue([](const std::string& s, SharedFuture future) {
+    //   std::cout << s << std::endl;
+    //   if (future.tryComplete()) {
+    //     std::cout << "done" << std::endl;
+    //   }
+    // }, [] { std::cout << "empty map" << std::endl; });
+    // ```
+    //
+    // If the map is empty, only "empty map" will be printed. Otherwise, all values will be printed
+    // and "done" will be printed after that.
+    template <typename ValueFunc, typename EmptyFunc>
+#if __cplusplus >= 202002L
+    requires requires(ValueFunc&& each, const V& value, SharedFuture count, EmptyFunc emptyFunc) {
+        each(value, count);
+        emptyFunc();
+    }
+#endif
+    void forEachValue(ValueFunc&& each, EmptyFunc&& emptyFunc) {
+        std::unique_lock<MutexType> lock{mutex_};
+        if (data_.empty()) {
+            lock.unlock();
+            emptyFunc();
+            return;
+        }
+        SharedFuture future{data_.size()};
+        for (auto&& kv : data_) {
+            const auto& value = kv.second;
+            each(value, future);
         }
     }
 

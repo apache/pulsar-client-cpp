@@ -25,7 +25,7 @@
 #include <vector>
 
 #include "Commands.h"
-#include "ConsumerImplBase.h"
+#include "ConsumerImpl.h"
 #include "ConsumerInterceptors.h"
 #include "Future.h"
 #include "Latch.h"
@@ -38,7 +38,6 @@
 namespace pulsar {
 typedef std::shared_ptr<Promise<Result, Consumer>> ConsumerSubResultPromisePtr;
 
-class ConsumerImpl;
 using ConsumerImplPtr = std::shared_ptr<ConsumerImpl>;
 class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
@@ -152,8 +151,6 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void handleSingleConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
                                      std::shared_ptr<std::atomic<int>> partitionsNeedCreate,
                                      ConsumerSubResultPromisePtr topicSubResultPromise);
-    void handleUnsubscribedAsync(Result result, std::shared_ptr<std::atomic<int>> consumerUnsubed,
-                                 ResultCallback callback);
     void handleOneTopicUnsubscribedAsync(Result result, std::shared_ptr<std::atomic<int>> consumerUnsubed,
                                          int numberPartitions, TopicNamePtr topicNamePtr,
                                          std::string& topicPartitionName, ResultCallback callback);
@@ -179,6 +176,16 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
         return std::static_pointer_cast<MultiTopicsConsumerImpl>(shared_from_this());
     }
 
+    template <typename SeekArg>
+#if __cplusplus >= 202002L
+        requires std::convertible_to<SeekArg, uint64_t> ||
+        std::same_as<std::remove_cv_t<std::remove_reference_t<SeekArg>>, MessageId>
+#endif
+        void seekAllAsync(const SeekArg& seekArg, ResultCallback callback);
+
+    void beforeSeek();
+    void afterSeek();
+
     FRIEND_TEST(ConsumerTest, testMultiTopicsConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testPartitionedConsumerUnAckedMessageRedelivery);
     FRIEND_TEST(ConsumerTest, testAcknowledgeCumulativeWithPartition);
@@ -187,5 +194,42 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
 };
 
 typedef std::shared_ptr<MultiTopicsConsumerImpl> MultiTopicsConsumerImplPtr;
+
+template <typename SeekArg>
+#if __cplusplus >= 202002L
+    requires std::convertible_to<SeekArg, uint64_t> ||
+    std::same_as<std::remove_cv_t<std::remove_reference_t<SeekArg>>, MessageId>
+#endif
+    inline void MultiTopicsConsumerImpl::seekAllAsync(const SeekArg& seekArg, ResultCallback callback) {
+    if (state_ != Ready) {
+        callback(ResultAlreadyClosed);
+        return;
+    }
+    beforeSeek();
+    auto weakSelf = weak_from_this();
+    auto failed = std::make_shared<std::atomic_bool>(false);
+    consumers_.forEachValue(
+        [this, weakSelf, &seekArg, callback, failed](const ConsumerImplPtr& consumer, SharedFuture future) {
+            consumer->seekAsync(seekArg, [this, weakSelf, callback, failed, future](Result result) {
+                auto self = weakSelf.lock();
+                if (!self || failed->load(std::memory_order_acquire)) {
+                    callback(result);
+                    return;
+                }
+                if (result != ResultOk) {
+                    failed->store(true, std::memory_order_release);  // skip the following callbacks
+                    afterSeek();
+                    callback(result);
+                    return;
+                }
+                if (future.tryComplete()) {
+                    afterSeek();
+                    callback(ResultOk);
+                }
+            });
+        },
+        [callback] { callback(ResultOk); });
+}
+
 }  // namespace pulsar
 #endif  // PULSAR_MULTI_TOPICS_CONSUMER_HEADER
