@@ -2,22 +2,26 @@
   "name": "pulsar-cpp",
   "version": "3.5.0",
   "description": "Pulsar C++ SDK",
-  "builtin-baseline": "b051745c68faa6f65c493371d564c4eb8af34dad",
+  "builtin-baseline": "b27651341123a59f7187b42ef2bc476284afb310",
   "dependencies": [
     {
       "name": "asio",
       "features": [
         "openssl"
       ],
-      "version>=": "1.28.2"
+      "version>=": "1.30.2"
     },
     {
       "name": "boost-accumulators",
-      "version>=": "1.83.0"
+      "version>=": "1.85.0"
+    },
+    {
+      "name": "boost-format",
+      "version>=": "1.85.0"
     },
     {
       "name": "boost-property-tree",
-      "version>=": "1.83.0"
+      "version>=": "1.85.0"
     },
     {
       "name": "curl",
@@ -25,7 +29,7 @@
       "features": [
         "openssl"
       ],
-      "version>=": "8.4.0"
+      "version>=": "8.8.0"
     },
     {
       "name": "dlfcn-win32",
@@ -33,11 +37,11 @@
     },
     {
       "name": "openssl",
-      "version>=": "3.1.4#1"
+      "version>=": "3.3.1"
     },
     {
       "name": "protobuf",
-      "version>=": "3.21.12"
+      "version>=": "3.21.12#3"
     },
     {
       "name": "snappy",
@@ -45,11 +49,11 @@
     },
     {
       "name": "zlib",
-      "version>=": "1.3"
+      "version>=": "1.3.1"
     },
     {
       "name": "zstd",
-      "version>=": "1.5.5"
+      "version>=": "1.5.6"
     }
   ],
   "features": {
@@ -58,7 +62,7 @@
       "dependencies": [
         {
           "name": "boost-program-options",
-          "version>=": "1.83.0"
+          "version>=": "1.85.0"
         }
       ]
     },
