@@ -415,9 +415,6 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, con
             ptree::write_json(valueStream, kvRoot.get_child("value"), false);
             auto keyData = keyStream.str();
             auto valueData = valueStream.str();
-            // Remove the last line break.
-            keyData.pop_back();
-            valueData.pop_back();
             schemaData = mergeKeyValueSchema(keyData, valueData);
         }
 

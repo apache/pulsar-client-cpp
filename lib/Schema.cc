@@ -172,9 +172,7 @@ SchemaInfo::SchemaInfo(const SchemaInfo &keySchema, const SchemaInfo &valueSchem
         }
         std::ostringstream buf;
         write_json(buf, pt, false);
-        auto s = buf.str();
-        s.pop_back();
-        return s;
+        return buf.str();
     };
 
     StringMap properties;
