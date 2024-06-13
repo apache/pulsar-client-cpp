@@ -41,12 +41,12 @@ ADD .build/dep-version.py /usr/local/bin
 
 # Download and compile boost
 RUN BOOST_VERSION=$(dep-version.py boost) && \
-    curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz && \
-    tar zxf boost-${BOOST_VERSION}.tar.gz && \
+    curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-b2-nodocs.tar.gz && \
+    tar zxf boost-${BOOST_VERSION}-b2-nodocs.tar.gz && \
     cd boost-${BOOST_VERSION} && \
     ./bootstrap.sh --with-libraries=regex && \
     ./b2 -d0 address-model=64 cxxflags=-fPIC link=static threading=multi variant=release install && \
-    rm -rf /boost-${BOOST_VERSION}.tar.gz /boost-${BOOST_VERSION}
+    rm -rf /boost-${BOOST_VERSION}-b2-nodocs.tar.gz /boost-${BOOST_VERSION}
 
 RUN CMAKE_VERSION=$(dep-version.py cmake) && \
     curl -O -L https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-${PLATFORM}.tar.gz && \
