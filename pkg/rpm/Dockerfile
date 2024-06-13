@@ -43,7 +43,7 @@ ADD .build/dep-version.py /usr/local/bin
 RUN BOOST_VERSION=$(dep-version.py boost) && \
     echo "BOOST VERSION: '${BOOST_VERSION}'" && \
     curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-b2-nodocs.tar.gz && \
-    tar zxf boost-${BOOST_VERSION}.tar.gz && \
+    tar zxf boost-${BOOST_VERSION}-b2-nodocs.tar.gz && \
     cd boost-${BOOST_VERSION} && \
     ./bootstrap.sh --with-libraries=regex && \
     ./b2 address-model=64 cxxflags="-fPIC -std=c++11" link=static threading=multi variant=release install && \
