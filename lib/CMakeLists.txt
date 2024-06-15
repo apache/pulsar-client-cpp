@@ -76,6 +76,7 @@ target_include_directories(PULSAR_OBJECT_LIB PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_BINARY_DIR}/include")
 
+include(CheckCXXSymbolExists)
 if (BUILD_DYNAMIC_LIB)
     add_library(pulsarShared SHARED $<TARGET_OBJECTS:PULSAR_OBJECT_LIB>)
     set_property(TARGET pulsarShared PROPERTY OUTPUT_NAME ${LIB_NAME_SHARED})
@@ -89,9 +90,12 @@ if (BUILD_DYNAMIC_LIB)
         target_include_directories(pulsarShared PRIVATE ${dlfcn-win32_INCLUDE_DIRS})
         target_link_options(pulsarShared PRIVATE $<$<CONFIG:DEBUG>:/NODEFAULTLIB:MSVCRT>)
     endif()
+    check_cxx_symbol_exists(__GLIBCXX__ iostream GLIBCXX)
+    if (GLIBCXX)
+        target_link_libraries(pulsarShared PUBLIC -static-libgcc -static-libstdc++)
+    endif ()
 endif()
 
-include(CheckCXXSymbolExists)
 check_cxx_symbol_exists(getauxval sys/auxv.h HAVE_AUXV_GETAUXVAL)
 if(HAVE_AUXV_GETAUXVAL)
     add_definitions(-DPULSAR_AUXV_GETAUXVAL_PRESENT)

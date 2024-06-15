@@ -20,6 +20,7 @@
 %define name        apache-pulsar-client
 %define release     1
 %define buildroot   %{_topdir}/%{name}-%{version}-root
+%define debug_package %{nil}
 
 BuildRoot:      %{buildroot}
 Summary:        Apache Pulsar client library
@@ -52,8 +53,15 @@ static library.
 %setup -q -n apache-pulsar-client-cpp-%{pom_version}
 
 %build
-cmake . -DBUILD_TESTS=OFF -DLINK_STATIC=ON
-make -j 3
+git clone https://github.com/microsoft/vcpkg.git
+cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON
+cmake --build build -j8
+./build-support/merge_archives_vcpkg.sh $PWD/build
+
+cp build/lib/libpulsar.a lib/libpulsar.a
+cp build/lib/libpulsar.so lib/libpulsar.so
+cp build/libpulsarwithdeps.a lib/libpulsarwithdeps.a
 
 %install
 INCLUDE_DIR=$RPM_BUILD_ROOT/usr/include

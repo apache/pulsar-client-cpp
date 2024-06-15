@@ -19,29 +19,14 @@
 #
 
 set -e
+cd `dirname $0`
 
-cd /pulsar-client-cpp
-ROOT_DIR=$(pwd)
-cd $ROOT_DIR/pkg/rpm
-
-if [[ $PLATFORM == "aarch64" ]]; then
-    export VCPKG_FORCE_SYSTEM_BINARIES=arm
+if [[ $# -lt 1 ]]; then
+    echo "Usage: $0 <cmake-build-directory>"
+    exit 1
 fi
 
-POM_VERSION=`cat $ROOT_DIR/version.txt | xargs`
-
-# Sanitize VERSION by removing `-incubating` since it's not legal in RPM
-VERSION=`echo $POM_VERSION | awk -F-  '{print $1}'`
-
-mkdir -p BUILD RPMS SOURCES SPECS SRPMS
-
-cp $ROOT_DIR/apache-pulsar-client-cpp-$POM_VERSION.tar.gz SOURCES
-
-rpmbuild -v -bb --clean \
-        --define "version $VERSION" \
-        --define "pom_version $POM_VERSION" \
-        --define "_topdir $PWD" \
-        SPECS/pulsar-client.spec
-
-cd RPMS/${PLATFORM}
-createrepo .
+CMAKE_BUILD_DIRECTORY=$1
+./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
+    $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
+    $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed" -name "*.a" | grep -v debug)
