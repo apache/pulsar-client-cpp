@@ -47,8 +47,8 @@ CURL_VERSION=$(./dep-version.py curl)
 
 if [ ! -f boost/.done ]; then
     echo "Building Boost $BOOST_VERSION"
-    curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}.tar.gz
-    tar zxf boost-${BOOST_VERSION}.tar.gz
+    curl -O -L https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-b2-nodocs.tar.gz
+    tar zxf boost-${BOOST_VERSION}-b2-nodocs.tar.gz
     mkdir -p $PREFIX/include
     pushd boost-${BOOST_VERSION}
       ./bootstrap.sh
