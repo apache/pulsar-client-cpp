@@ -344,18 +344,21 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Build libraries
-        run: ./pkg/mac/build-static-library.sh
+        run: ARCH=x86_64 ./pkg/mac/build-static-library.sh
 
       - name: Test static libraries
         run: |
-          export PULSAR_DIR=$PWD/pkg/mac/.install
+          export PULSAR_DIR=./build
           echo "Build with static library"
-          clang++ win-examples/example.cc -o static.out -std=c++11 -I $PULSAR_DIR/include $PULSAR_DIR/lib/libpulsarwithdeps.a
+          clang++ win-examples/example.cc -arch x86_64 -o static.out -std=c++11 -I $PULSAR_DIR/include $PULSAR_DIR/build/lib/libpulsarwithdeps.a -framework SystemConfiguration -framework CoreFoundation
           ./static.out
           echo "Build with dynamic library"
-          clang++ win-examples/example.cc -o dynamic.out -std=c++11 -I $PULSAR_DIR/include -L $PULSAR_DIR/lib -Wl,-rpath $PULSAR_DIR/lib -lpulsar
+          clang++ win-examples/example.cc -arch x86_64 -o dynamic.out -std=c++11 -I $PULSAR_DIR/include -L $PULSAR_DIR/build/lib -Wl,-rpath $PULSAR_DIR/build/lib -lpulsar
           ./dynamic.out
 
   # Job that will be required to complete and depends on all the other jobs
