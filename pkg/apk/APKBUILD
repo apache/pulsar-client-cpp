@@ -45,6 +45,7 @@ build() {
     fi
     set +e
     cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_MAKE_PROGRAM=make \
         -DCMAKE_INSTALL_PREFIX="$pkgdir" \
         -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON \
         $ROOT_DIR
