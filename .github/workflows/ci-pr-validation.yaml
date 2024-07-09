@@ -292,9 +292,6 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
       - name: Build dependencies Docker image
         uses: docker/build-push-action@v3
         with:
