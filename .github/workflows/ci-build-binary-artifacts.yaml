@@ -63,8 +63,6 @@ jobs:
           tags: build:latest
           platforms: linux/${{matrix.cpu.platform}}
           build-args: PLATFORM=${{matrix.cpu.arch}}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
