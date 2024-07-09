@@ -52,15 +52,13 @@ jobs:
         run: build-support/generate-source-archive.sh
 
       - name: Build dependencies Docker image
-        uses: docker/build-push-action@v3
+        uses: docker/setup-buildx-action@v3
         with:
           context: ./pkg/${{matrix.pkg.type}}
           load: true
           tags: build:latest
           platforms: linux/${{matrix.cpu.platform}}
           build-args: PLATFORM=${{matrix.cpu.arch}}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
