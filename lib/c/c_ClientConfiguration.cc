@@ -198,3 +198,13 @@ void pulsar_client_configuration_set_listener_name(pulsar_client_configuration_t
 const char *pulsar_client_configuration_get_listener_name(pulsar_client_configuration_t *conf) {
     return conf->conf.getListenerName().c_str();
 }
+
+void pulsar_client_configuration_set_partitions_update_interval(pulsar_client_configuration_t *conf,
+                                                               const unsigned int intervalInSeconds) {
+    conf->conf.setPartititionsUpdateInterval(intervalInSeconds);
+}
+
+const unsigned int pulsar_client_configuration_get_partitions_update_interval(
+    pulsar_client_configuration_t *conf) {
+    return conf->conf.getPartitionsUpdateInterval();
+}
