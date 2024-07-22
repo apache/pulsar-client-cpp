@@ -55,9 +55,6 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
-      - uses: docker/setup-buildx-action@v2
-      - run: build-support/copy-deps-versionfile.sh
-
       - name: Build dependencies Docker image
         uses: docker/build-push-action@v3
         with:
@@ -66,8 +63,6 @@ jobs:
           tags: build:latest
           platforms: linux/${{matrix.cpu.platform}}
           build-args: PLATFORM=${{matrix.cpu.arch}}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
 
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
@@ -208,17 +203,19 @@ jobs:
     steps:
       - name: checkout
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Install dependencies
-        run: |
-          export ARCH=${{ matrix.arch }}
-          ./pkg/mac/build-static-library.sh
+        run: ARCH=${{ matrix.arch }} ./pkg/mac/build-static-library.sh
 
       - name: Zip artifact
         run: |
-          cd ./pkg/mac/.install
-          zip -r macos-${{ matrix.arch }}.zip ./include/pulsar/* ./lib/*
-          cp macos-${{ matrix.arch }}.zip ../../../
+          mv build/include/pulsar/Version.h include/pulsar/
+          mv build/lib/*.a lib/
+          mv build/lib/*.dylib lib/
+          zip -r macos-${{ matrix.arch }}.zip ./include/pulsar/* ./lib/*.a ./lib/*.dylib
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
