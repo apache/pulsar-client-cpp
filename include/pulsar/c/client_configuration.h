@@ -192,6 +192,12 @@ PULSAR_PUBLIC void pulsar_client_configuration_set_listener_name(pulsar_client_c
 
 PULSAR_PUBLIC const char *pulsar_client_configuration_get_listener_name(pulsar_client_configuration_t *conf);
 
+PULSAR_PUBLIC void pulsar_client_configuration_set_partitions_update_interval(
+    pulsar_client_configuration_t *conf, const unsigned int intervalInSeconds);
+
+PULSAR_PUBLIC const unsigned int pulsar_client_configuration_get_partitions_update_interval(
+    pulsar_client_configuration_t *conf);
+
 /*
  * Get the stats interval set in the client.
  */
