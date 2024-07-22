@@ -200,7 +200,7 @@ const char *pulsar_client_configuration_get_listener_name(pulsar_client_configur
 }
 
 void pulsar_client_configuration_set_partitions_update_interval(pulsar_client_configuration_t *conf,
-                                                               const unsigned int intervalInSeconds) {
+                                                                const unsigned int intervalInSeconds) {
     conf->conf.setPartititionsUpdateInterval(intervalInSeconds);
 }
 
