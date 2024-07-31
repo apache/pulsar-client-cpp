@@ -157,9 +157,11 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     ClientConnectionWeakPtr connection_;
     std::string redirectedClusterURI_;
     std::atomic<long> firstRequestIdAfterConnect_{-1L};
+    std::atomic<long> connectionTimeMs_{0};  // only for tests
 
     friend class ClientConnection;
     friend class PulsarFriend;
+    friend class ConsumerTest;
 };
 }  // namespace pulsar
 #endif  //_PULSAR_HANDLER_BASE_HEADER_

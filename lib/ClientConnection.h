@@ -404,6 +404,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     const size_t poolIndex_;
 
     friend class PulsarFriend;
+    friend class ConsumerTest;
 
     void checkServerError(ServerError error, const std::string& message);
 
