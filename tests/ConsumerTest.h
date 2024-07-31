@@ -16,9 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <chrono>
+#include <memory>
+#include <stdexcept>
 #include <string>
 
+#include "lib/ClientConnection.h"
 #include "lib/ConsumerImpl.h"
+#include "lib/ExecutorService.h"
 
 using std::string;
 
@@ -27,6 +32,24 @@ class ConsumerTest {
    public:
     static int getNumOfMessagesInQueue(const Consumer& consumer) {
         return consumer.impl_->getNumOfPrefetchedMessages();
+    }
+
+    template <typename T>
+    static DeadlineTimerPtr scheduleCloseConnection(const Consumer& consumer, T delaySinceStartGrabCnx) {
+        auto impl = std::dynamic_pointer_cast<ConsumerImpl>(consumer.impl_);
+        if (!impl) {
+            throw std::runtime_error("scheduleCloseConnection can only be called on ConsumerImpl");
+        }
+
+        auto cnx = impl->getCnx().lock();
+        if (!cnx) {
+            return nullptr;
+        }
+        auto timer = cnx->executor_->createDeadlineTimer();
+        timer->expires_from_now(delaySinceStartGrabCnx -
+                                std::chrono::milliseconds(impl->connectionTimeMs_ + 50));
+        timer->async_wait([cnx](const ASIO_ERROR&) { cnx->close(); });
+        return timer;
     }
 };
 }  // namespace pulsar

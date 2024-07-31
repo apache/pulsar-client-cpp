@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "ConsumerTest.h"
+
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
@@ -26,6 +28,7 @@
 #include <map>
 #include <mutex>
 #include <set>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -1464,6 +1467,35 @@ TEST(ConsumerTest, testMultiConsumerListenerAndAck) {
         static_cast<UnAckedMessageTrackerEnabled*>(multiConsumerImplPtr->unAckedMessageTrackerPtr_.get());
     ASSERT_EQ(0, tracker->size());
 
+    client.close();
+}
+
+// When a consumer starts grabbing the connection, it registers a timer after the operation timeout. When that
+// timer is expired, it will fail the connection and cancel the connection timer. However, it results a race
+// condition that:
+//   1. The consumer's connection is closed (e.g. the keep alive timer failed)
+//   2. The connection timer is registered on the executor and will trigger the reconnection after 100ms
+//   3. The connection timer is cancelled, then the reconnection won't start.
+TEST(ConsumerTest, testReconnectWhenFirstConnectTimedOut) {
+    ClientConfiguration conf;
+    conf.setOperationTimeoutSeconds(1);
+    Client client{lookupUrl, conf};
+
+    auto topic = "consumer-test-reconnect-when-first-connect-timed-out" + std::to_string(time(nullptr));
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
+
+    auto timer = ConsumerTest::scheduleCloseConnection(consumer, std::chrono::seconds(1));
+    ASSERT_TRUE(timer != nullptr);
+    timer->wait();
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build()));
+
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+    ASSERT_EQ("msg", msg.getDataAsString());
     client.close();
 }
 
