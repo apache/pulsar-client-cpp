@@ -18,6 +18,9 @@
  */
 #include "HandlerBase.h"
 
+#include <chrono>
+
+#include "AsioDefines.h"
 #include "Backoff.h"
 #include "ClientConnection.h"
 #include "ClientImpl.h"
@@ -63,6 +66,7 @@ void HandlerBase::start() {
     creationTimer_->async_wait([this, weakSelf](const ASIO_ERROR& error) {
         auto self = weakSelf.lock();
         if (self && !error) {
+            LOG_WARN("Cancel the pending reconnection due to the start timeout");
             connectionFailed(ResultTimeout);
             ASIO_ERROR ignored;
             timer_->cancel(ignored);
@@ -118,13 +122,21 @@ void HandlerBase::grabCnx(const boost::optional<std::string>& assignedBrokerUrl)
     }
     auto self = shared_from_this();
     auto cnxFuture = getConnection(client, assignedBrokerUrl);
-    cnxFuture.addListener([this, self](Result result, const ClientConnectionPtr& cnx) {
+    using namespace std::chrono;
+    auto before = high_resolution_clock::now();
+    cnxFuture.addListener([this, self, before](Result result, const ClientConnectionPtr& cnx) {
         if (result == ResultOk) {
-            LOG_DEBUG(getName() << "Connected to broker: " << cnx->cnxString());
-            connectionOpened(cnx).addListener([this, self](Result result, bool) {
+            connectionOpened(cnx).addListener([this, self, before](Result result, bool) {
                 // Do not use bool, only Result.
                 reconnectionPending_ = false;
-                if (result != ResultOk && isResultRetryable(result)) {
+                if (result == ResultOk) {
+                    connectionTimeMs_ =
+                        duration_cast<milliseconds>(high_resolution_clock::now() - before).count();
+                    // Prevent the creationTimer_ from cancelling the timer_ in future
+                    ASIO_ERROR ignored;
+                    creationTimer_->cancel(ignored);
+                    LOG_INFO("Finished connecting to broker after " << connectionTimeMs_ << " ms")
+                } else if (isResultRetryable(result)) {
                     scheduleReconnection();
                 }
             });
@@ -194,8 +206,7 @@ void HandlerBase::scheduleReconnection(const boost::optional<std::string>& assig
 
 void HandlerBase::handleTimeout(const ASIO_ERROR& ec, const boost::optional<std::string>& assignedBrokerUrl) {
     if (ec) {
-        LOG_DEBUG(getName() << "Ignoring timer cancelled event, code[" << ec << "]");
-        return;
+        LOG_INFO(getName() << "Ignoring timer cancelled event, code[" << ec << "]");
     } else {
         epoch_++;
         grabCnx(assignedBrokerUrl);
