@@ -32,6 +32,8 @@ jobs:
   formatting-check:
     name: Formatting Check
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v3
     - name: Run clang-format style check for C/C++/Protobuf programs.
@@ -44,6 +46,8 @@ jobs:
     name: Build the Wireshark dissector
     needs: formatting-check
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     timeout-minutes: 60
     strategy:
       matrix:
@@ -80,6 +84,8 @@ jobs:
     name: Run unit tests
     needs: formatting-check
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     timeout-minutes: 120
 
     steps:
@@ -128,6 +134,8 @@ jobs:
     name: Build with the C++20 standard
     needs: formatting-check
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     timeout-minutes: 60
 
     steps:
@@ -152,6 +160,8 @@ jobs:
     name: Build CPP Client on ${{ matrix.name }}
     needs: unit-tests
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
       INSTALL_DIR: 'C:\\pulsar-cpp'
@@ -269,6 +279,8 @@ jobs:
   package:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     needs: unit-tests
     timeout-minutes: 500
 
@@ -314,6 +326,8 @@ jobs:
     name: Build CPP Client on macOS
     needs: formatting-check
     runs-on: macos-12
+    permissions:
+      contents: write
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -340,6 +354,8 @@ jobs:
     timeout-minutes: 120
     name: Build CPP Client on macOS with static dependencies
     runs-on: macos-12
+    permissions:
+      contents: write
     needs: unit-tests
     steps:
       - name: checkout
@@ -362,6 +378,8 @@ jobs:
   check-completion:
     name: Check Completion
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     needs: [formatting-check, wireshark-dissector-build, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
 
     steps:

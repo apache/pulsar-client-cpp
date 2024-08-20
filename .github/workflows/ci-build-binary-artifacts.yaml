@@ -32,6 +32,8 @@ jobs:
   package-linux:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
     runs-on: ubuntu-22.04
+    permissions:
+      contents: write
     timeout-minutes: 500
 
     strategy:
@@ -85,6 +87,8 @@ jobs:
     timeout-minutes: 120
     name: Build CPP Client on ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
     env:
       VCPKG_ROOT: '${{ github.workspace }}/vcpkg'
       INSTALL_DIR: 'C:\\pulsar-cpp'
@@ -198,6 +202,8 @@ jobs:
   package-macos:
     name: Build macOS libraries
     runs-on: macos-12
+    permissions:
+      contents: write
     timeout-minutes: 500
 
     strategy:
