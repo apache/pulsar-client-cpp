@@ -38,19 +38,27 @@ build() {
 	if [ "$CBUILD" != "$CHOST" ]; then
 		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
 	fi
-	cmake \
-		-DCMAKE_INSTALL_PREFIX=/usr \
-		-DCMAKE_INSTALL_LIBDIR=lib \
-		-DBUILD_SHARED_LIBS=True \
-		-DCMAKE_BUILD_TYPE=Release \
-		-DCMAKE_CXX_FLAGS="$CXXFLAGS" \
-		-DCMAKE_C_FLAGS="$CFLAGS" \
-		-DBUILD_TESTS=OFF \
-                -DLINK_STATIC=ON  \
-		${CMAKE_CROSSOPTS} ${ROOT_DIR}
-	make -j6
+    git clone https://github.com/microsoft/vcpkg.git
+    mv vcpkg $ROOT_DIR/
+    if [[ $PLATFORM == "aarch64" ]]; then
+        export VCPKG_FORCE_SYSTEM_BINARIES=1
+    fi
+    set +e
+    cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_MAKE_PROGRAM=make \
+        -DCMAKE_INSTALL_PREFIX="$pkgdir" \
+        -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON \
+        $ROOT_DIR
+    if [[ $? -ne 0 ]]; then
+        cat /pulsar-client-cpp/vcpkg/buildtrees/detect_compiler/config-x64-linux-rel-CMakeCache.txt.log
+        cat /pulsar-client-cpp/vcpkg/buildtrees/detect_compiler/config-x64-linux-rel-out.log
+        cat /pulsar-client-cpp/vcpkg/buildtrees/detect_compiler/config-x64-linux-rel-err.log
+        exit 1
+    fi
+    set -e
+    cmake --build build -j8
 }
 
 package() {
-	make DESTDIR="$pkgdir" install
+    cmake --build build --target install
 }
