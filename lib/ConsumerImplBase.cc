@@ -76,10 +76,7 @@ void ConsumerImplBase::doBatchReceiveTimeTask() {
         long diff =
             batchReceivePolicy_.getTimeoutMs() - (TimeUtils::currentTimeMillis() - batchReceive.createAt_);
         if (diff <= 0) {
-            Lock batchOptionLock(batchReceiveOptionMutex_);
-            notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
-            batchOptionLock.unlock();
-            batchPendingReceives_.pop();
+            notifyBatchPendingReceivedCallback(popBatchReceiveCallback());
         } else {
             hasPendingReceives = true;
             timeToWaitMs = diff;
@@ -96,20 +93,17 @@ void ConsumerImplBase::doBatchReceiveTimeTask() {
 void ConsumerImplBase::failPendingBatchReceiveCallback() {
     Lock lock(batchPendingReceiveMutex_);
     while (!batchPendingReceives_.empty()) {
-        OpBatchReceive opBatchReceive = batchPendingReceives_.front();
-        batchPendingReceives_.pop();
-        listenerExecutor_->postWork(
-            [opBatchReceive]() { opBatchReceive.batchReceiveCallback_(ResultAlreadyClosed, {}); });
+        auto callback = popBatchReceiveCallback();
+        listenerExecutor_->postWork([callback]() { callback(ResultAlreadyClosed, {}); });
     }
 }
 
 void ConsumerImplBase::notifyBatchPendingReceivedCallback() {
     Lock lock(batchPendingReceiveMutex_);
     if (!batchPendingReceives_.empty()) {
-        OpBatchReceive& batchReceive = batchPendingReceives_.front();
-        batchPendingReceives_.pop();
+        auto callback = popBatchReceiveCallback();
         lock.unlock();
-        notifyBatchPendingReceivedCallback(batchReceive.batchReceiveCallback_);
+        notifyBatchPendingReceivedCallback(callback);
     }
 }
 

@@ -112,6 +112,14 @@ class ConsumerImplBase : public HandlerBase {
 
     virtual void setNegativeAcknowledgeEnabledForTesting(bool enabled) = 0;
 
+    // Note: it should be protected by batchPendingReceiveMutex_ and called when `batchPendingReceives_` is
+    // not empty
+    BatchReceiveCallback popBatchReceiveCallback() {
+        auto callback = std::move(batchPendingReceives_.front().batchReceiveCallback_);
+        batchPendingReceives_.pop();
+        return callback;
+    }
+
     friend class MultiTopicsConsumerImpl;
     friend class PulsarFriend;
 };
