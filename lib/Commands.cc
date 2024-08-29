@@ -191,7 +191,7 @@ SharedBuffer Commands::newConsumerStats(uint64_t consumerId, uint64_t requestId)
     return buffer;
 }
 
-PairSharedBuffer Commands::newSend(SharedBuffer& headers, BaseCommand& cmd, ChecksumType checksumType,
+PairSharedBuffer Commands::newSend(SharedBuffer& originalHeaders, BaseCommand& cmd, ChecksumType checksumType,
                                    const SendArguments& args) {
     cmd.set_type(BaseCommand::SEND);
     CommandSend* send = cmd.mutable_send();
@@ -221,9 +221,16 @@ PairSharedBuffer Commands::newSend(SharedBuffer& headers, BaseCommand& cmd, Chec
     int totalSize = headerContentSize + payloadSize;
     int checksumReaderIndex = -1;
 
-    headers.reset();
-    assert(headers.writableBytes() >= (4 + headerContentSize));  // totalSize + headerLength
-    headers.writeUnsignedInt(totalSize);                         // External frame
+    // By default, headers refers a static buffer whose capacity is 64KB, which can be reused for headers to
+    // avoid frequent memory allocation. However, if users configure many properties, the size could be great
+    // that results a buffer overflow. In this case, we can only allocate a new larger buffer.
+    originalHeaders.reset();
+    auto headers = originalHeaders;
+    if (headers.writableBytes() < (4 /* header length */ + headerContentSize)) {
+        headers = SharedBuffer::allocate(4 + headerContentSize);
+    }
+
+    headers.writeUnsignedInt(totalSize);  // External frame
 
     // Write cmd
     headers.writeUnsignedInt(cmdSize);
