@@ -683,4 +683,35 @@ TEST(ProducerTest, testFailedToCreateNewPartitionProducer) {
     client.close();
 }
 
+TEST(ProducerTest, testLargeProperties) {
+    const std::string topic = "producer-test-large-properties-" + std::to_string(time(nullptr));
+    Client client(serviceUrl);
+    Producer producer;
+    ProducerConfiguration conf;
+    conf.setBatchingEnabled(false);
+    ASSERT_EQ(ResultOk, client.createProducer(topic, conf, producer));
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
+
+    MessageBuilder::StringMap properties;
+    constexpr int propertyCount = 20000;
+    auto builder = MessageBuilder().setContent("msg");
+    for (int i = 0; i < propertyCount; i++) {
+        builder.setProperty("key" + std::to_string(i), "value-" + std::to_string(i));
+    }
+
+    // ASSERT_EQ(ResultOk,
+    // producer.send(MessageBuilder().setContent("msg").setProperties(properties).build()));
+    ASSERT_EQ(ResultOk, producer.send(builder.build()));
+
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+    ASSERT_EQ(msg.getProperties().size(), propertyCount);
+    for (int i = 0; i < propertyCount; i++) {
+        auto it = msg.getProperties().find("key" + std::to_string(i));
+        ASSERT_NE(it, msg.getProperties().cend());
+    }
+    client.close();
+}
+
 INSTANTIATE_TEST_CASE_P(Pulsar, ProducerTest, ::testing::Values(true, false));
