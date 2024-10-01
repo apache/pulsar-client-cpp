@@ -292,11 +292,7 @@ void ConsumerImpl::sendFlowPermitsToBroker(const ClientConnectionPtr& cnx, int n
 Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result result) {
     Result handleResult = ResultOk;
 
-    static bool firstTime = true;
     if (result == ResultOk) {
-        if (firstTime) {
-            firstTime = false;
-        }
         LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
         {
             Lock lock(mutex_);
@@ -313,12 +309,10 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
         }
 
         LOG_DEBUG(getName() << "Send initial flow permits: " << config_.getReceiverQueueSize());
-        if (consumerTopicType_ == NonPartitioned || !firstTime) {
-            if (config_.getReceiverQueueSize() != 0) {
-                sendFlowPermitsToBroker(cnx, config_.getReceiverQueueSize());
-            } else if (messageListener_) {
-                sendFlowPermitsToBroker(cnx, 1);
-            }
+        if (config_.getReceiverQueueSize() != 0) {
+            sendFlowPermitsToBroker(cnx, config_.getReceiverQueueSize());
+        } else if (messageListener_) {
+            sendFlowPermitsToBroker(cnx, 1);
         }
         consumerCreatedPromise_.setValue(get_shared_this_ptr());
     } else {
