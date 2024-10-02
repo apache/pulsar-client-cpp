@@ -156,6 +156,11 @@ void MultiTopicsConsumerImpl::handleOneTopicSubscribed(Result result, Consumer c
             // when `closeAsync` completes.
             closeAsync(nullptr);
         }
+        // Now all child topics are successfully subscribed, start messageListeners
+        if (messageListener_ && !conf_.isStartPaused()) {
+            LOG_INFO("Start messageListeners");
+            resumeMessageListener();
+        }
     }
 }
 
@@ -205,6 +210,11 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
                                                        ConsumerSubResultPromisePtr topicSubResultPromise) {
     std::shared_ptr<ConsumerImpl> consumer;
     ConsumerConfiguration config = conf_.clone();
+    // Pause messageListener until all child topics are subscribed.
+    // Otherwise messages may be acked before the parent consumer gets "Ready", causing ack failures.
+    if (messageListener_) {
+        config.setStartPaused(true);
+    }
     auto client = client_.lock();
     if (!client) {
         topicSubResultPromise->setFailed(ResultAlreadyClosed);
