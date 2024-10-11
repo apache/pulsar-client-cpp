@@ -149,6 +149,11 @@ void MultiTopicsConsumerImpl::handleOneTopicSubscribed(Result result, Consumer c
         if (state_.compare_exchange_strong(state, Ready)) {
             LOG_INFO("Successfully Subscribed to Topics");
             multiTopicsConsumerCreatedPromise_.setValue(get_shared_this_ptr());
+            // Now all child topics are successfully subscribed, start messageListeners
+            if (messageListener_ && !conf_.isStartPaused()) {
+                LOG_INFO("Start messageListeners");
+                resumeMessageListener();
+            }
         } else {
             LOG_ERROR("Unable to create Consumer - " << consumerStr_ << " Error - " << result);
             // unsubscribed all of the successfully subscribed partitioned consumers
@@ -205,6 +210,11 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
                                                        ConsumerSubResultPromisePtr topicSubResultPromise) {
     std::shared_ptr<ConsumerImpl> consumer;
     ConsumerConfiguration config = conf_.clone();
+    // Pause messageListener until all child topics are subscribed.
+    // Otherwise messages may be acked before the parent consumer gets "Ready", causing ack failures.
+    if (messageListener_) {
+        config.setStartPaused(true);
+    }
     auto client = client_.lock();
     if (!client) {
         topicSubResultPromise->setFailed(ResultAlreadyClosed);
