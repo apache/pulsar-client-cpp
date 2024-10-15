@@ -30,15 +30,8 @@ RUN yum update -y && \
         rpm-build \
         which \
         createrepo \
-        git \
-        python3 \
-        python3-pip
+        git
 RUN dnf --enablerepo=powertools install -y libstdc++-static
-
-RUN pip3 install pyyaml
-
-ADD .build/dependencies.yaml /
-ADD .build/dep-version.py /usr/local/bin
 
 # Vcpkg does not provide pre-built binaries for Arm architectures so we need to build vcpkg from source
 RUN yum install -y cmake

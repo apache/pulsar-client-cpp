@@ -27,4 +27,6 @@ IMAGE_NAME=${1:-apachepulsar/pulsar-build:debian-9-2.11-arm64}
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
         --env PLATFORM=arm64 \
         $IMAGE_NAME \
-        /pulsar-client-cpp/pkg/deb/build-deb.sh
+        /pulsar-client-cpp/pkg/deb/build-deb.sh \
+        aarch64
+        https://github.com/Kitware/CMake/releases/download/v3.30.0/cmake-3.30.0-linux-aarch64.tar.gz
