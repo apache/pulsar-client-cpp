@@ -30,7 +30,7 @@ struct ClientConfigurationImpl {
     uint64_t memoryLimit{0ull};
     int ioThreads{1};
     int connectionsPerBroker{1};
-    std::chrono::nanoseconds operationTimeout{30L * 1000 * 1000 * 1000};
+    std::chrono::nanoseconds operationTimeout{30LL * 1000 * 1000 * 1000};
     int messageListenerThreads{1};
     int concurrentLookupRequest{50000};
     int maxLookupRedirects{20};
