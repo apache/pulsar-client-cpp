@@ -47,7 +47,8 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        os: [ubuntu-20.04, macos-12]
+        # TODO: support build on macos-12
+        os: [ubuntu-20.04]
 
     steps:
       - name: checkout
