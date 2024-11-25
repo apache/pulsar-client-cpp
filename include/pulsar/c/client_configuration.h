@@ -204,6 +204,12 @@ PULSAR_PUBLIC const unsigned int pulsar_client_configuration_get_partitions_upda
 PULSAR_PUBLIC const unsigned int pulsar_client_configuration_get_stats_interval_in_seconds(
     pulsar_client_configuration_t *conf);
 
+PULSAR_PUBLIC void pulsar_client_configuration_set_keep_alive_interval_in_seconds(
+    pulsar_client_configuration_t *conf, unsigned int keepAliveIntervalInSeconds);
+
+PULSAR_PUBLIC unsigned int pulsar_client_configuration_get_keep_alive_interval_in_seconds(
+    pulsar_client_configuration_t *conf);
+
 #ifdef __cplusplus
 }
 #endif

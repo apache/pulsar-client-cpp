@@ -34,4 +34,7 @@ TEST(C_ClientConfigurationTest, testCApiConfig) {
 
     pulsar_client_configuration_set_partitions_update_interval(conf, 10);
     ASSERT_EQ(pulsar_client_configuration_get_partitions_update_interval(conf), 10);
+
+    pulsar_client_configuration_set_keep_alive_interval_in_seconds(conf, 60);
+    ASSERT_EQ(pulsar_client_configuration_get_keep_alive_interval_in_seconds(conf), 60);
 }

@@ -208,3 +208,13 @@ const unsigned int pulsar_client_configuration_get_partitions_update_interval(
     pulsar_client_configuration_t *conf) {
     return conf->conf.getPartitionsUpdateInterval();
 }
+
+void pulsar_client_configuration_set_keep_alive_interval_in_seconds(pulsar_client_configuration_t *conf,
+                                                                    unsigned int keepAliveIntervalInSeconds) {
+    conf->conf.setKeepAliveIntervalInSeconds(keepAliveIntervalInSeconds);
+}
+
+unsigned int pulsar_client_configuration_get_keep_alive_interval_in_seconds(
+    pulsar_client_configuration_t *conf) {
+    return conf->conf.getKeepAliveIntervalInSeconds();
+}
