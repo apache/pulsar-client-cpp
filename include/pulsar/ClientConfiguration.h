@@ -365,7 +365,7 @@ class PULSAR_PUBLIC ClientConfiguration {
     ClientConfiguration& setKeepAliveIntervalInSeconds(unsigned int keepAliveIntervalInSeconds);
 
     /**
-     * The getter associated with setConnectionTimeout().
+     * The getter associated with setKeepAliveIntervalInSeconds().
      */
     unsigned int getKeepAliveIntervalInSeconds() const;
 
