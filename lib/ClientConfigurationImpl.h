@@ -47,6 +47,7 @@ struct ClientConfigurationImpl {
     unsigned int partitionsUpdateInterval{60};  // 1 minute
     std::string listenerName;
     int connectionTimeoutMs{10000};  // 10 seconds
+    unsigned int keepAliveIntervalInSeconds{30};
     std::string description;
     std::string proxyServiceUrl;
     ClientConfiguration::ProxyProtocol proxyProtocol;

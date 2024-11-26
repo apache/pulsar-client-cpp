@@ -356,6 +356,19 @@ class PULSAR_PUBLIC ClientConfiguration {
      */
     int getConnectionTimeout() const;
 
+    /**
+     * Set keep alive interval for each client-broker-connection. <i>(default: 30 seconds)</i>.
+     *
+     * @param keepAliveIntervalInSeconds
+     * @return
+     */
+    ClientConfiguration& setKeepAliveIntervalInSeconds(unsigned int keepAliveIntervalInSeconds);
+
+    /**
+     * The getter associated with setKeepAliveIntervalInSeconds().
+     */
+    unsigned int getKeepAliveIntervalInSeconds() const;
+
     friend class ClientImpl;
     friend class PulsarWrapper;
 

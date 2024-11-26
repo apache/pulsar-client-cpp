@@ -51,8 +51,6 @@ using proto::BaseCommand;
 
 static const uint32_t DefaultBufferSize = 64 * 1024;
 
-static const int KeepAliveIntervalInSeconds = 30;
-
 static MessageId toMessageId(const proto::MessageIdData& messageIdData) {
     return MessageIdBuilder::from(messageIdData).build();
 }
@@ -186,6 +184,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       connectTimeoutTask_(
           std::make_shared<PeriodicTask>(*executor_, clientConfiguration.getConnectionTimeout())),
       outgoingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
+      keepAliveIntervalInSeconds_(clientConfiguration.getKeepAliveIntervalInSeconds()),
       consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
       maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()),
       clientVersion_(clientVersion),
@@ -310,7 +309,7 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         // Only send keep-alive probes if the broker supports it
         keepAliveTimer_ = executor_->createDeadlineTimer();
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(std::chrono::seconds(KeepAliveIntervalInSeconds));
+            keepAliveTimer_->expires_from_now(std::chrono::seconds(keepAliveIntervalInSeconds_));
             auto weakSelf = weak_from_this();
             keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
@@ -1245,7 +1244,7 @@ void ClientConnection::handleKeepAliveTimeout() {
         // be zero And we do not attempt to dereference the pointer.
         Lock lock(mutex_);
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(std::chrono::seconds(KeepAliveIntervalInSeconds));
+            keepAliveTimer_->expires_from_now(std::chrono::seconds(keepAliveIntervalInSeconds_));
             auto weakSelf = weak_from_this();
             keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();

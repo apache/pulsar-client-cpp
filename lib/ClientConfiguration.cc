@@ -214,6 +214,16 @@ ClientConfiguration& ClientConfiguration::setConnectionTimeout(int timeoutMs) {
 
 int ClientConfiguration::getConnectionTimeout() const { return impl_->connectionTimeoutMs; }
 
+ClientConfiguration& ClientConfiguration::setKeepAliveIntervalInSeconds(
+    unsigned int keepAliveIntervalInSeconds) {
+    impl_->keepAliveIntervalInSeconds = keepAliveIntervalInSeconds;
+    return *this;
+}
+
+unsigned int ClientConfiguration::getKeepAliveIntervalInSeconds() const {
+    return impl_->keepAliveIntervalInSeconds;
+}
+
 ClientConfiguration& ClientConfiguration::setDescription(const std::string& description) {
     if (description.length() > 64) {
         throw std::invalid_argument("The description length exceeds 64");
