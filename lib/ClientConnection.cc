@@ -528,8 +528,15 @@ void ClientConnection::handleHandshake(const ASIO_ERROR& err) {
 
     bool connectingThroughProxy = logicalAddress_ != physicalAddress_;
     Result result = ResultOk;
-    SharedBuffer buffer = Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy,
-                                               clientVersion_, result);
+    SharedBuffer buffer;
+    try {
+        buffer = Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy,
+                                      clientVersion_, result);
+    } catch (const std::exception& e) {
+        LOG_ERROR(cnxString_ << "Failed to create Connect command: " << e.what());
+        close(ResultAuthenticationError);
+        return;
+    }
     if (result != ResultOk) {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << result);
         close(result);
