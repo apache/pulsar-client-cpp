@@ -200,3 +200,13 @@ TEST(AuthPluginToken, testNoAuthWithHttp) {
     result = client.subscribe(topicName, subName, consumer);
     ASSERT_EQ(ResultConnectError, result);
 }
+
+TEST(AuthPluginToken, testTokenSupplierException) {
+    ClientConfiguration config;
+    config.setAuth(
+        AuthToken::create([]() -> std::string { throw std::runtime_error("failed to generate token"); }));
+    Client client(serviceUrl, config);
+    Producer producer;
+    ASSERT_EQ(ResultAuthenticationError, client.createProducer("topic", producer));
+    ASSERT_EQ(ResultOk, client.close());
+}
