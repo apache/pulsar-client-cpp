@@ -2,7 +2,7 @@
   "name": "pulsar-cpp",
   "version": "3.5.0",
   "description": "Pulsar C++ SDK",
-  "builtin-baseline": "b051745c68faa6f65c493371d564c4eb8af34dad",
+  "builtin-baseline": "d2b6159679a36b233b0c31bdf027a57c2bf480db",
   "dependencies": [
     {
       "name": "asio",
@@ -13,11 +13,11 @@
     },
     {
       "name": "boost-accumulators",
-      "version>=": "1.83.0"
+      "version>=": "1.86.0"
     },
     {
       "name": "boost-property-tree",
-      "version>=": "1.83.0"
+      "version>=": "1.86.0"
     },
     {
       "name": "curl",
@@ -58,7 +58,7 @@
       "dependencies": [
         {
           "name": "boost-program-options",
-          "version>=": "1.83.0"
+          "version>=": "1.86.0"
         }
       ]
     },
