@@ -71,7 +71,10 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] msgId ID of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledge(const MessageId& msgId, ResultCallback callback) { callback(ResultOk); }
+    virtual void addAcknowledge(const MessageId& msgId, ResultCallback callback) {
+        if (callback)
+            callback(ResultOk);
+    }
 
     /**
      * Adding message ID list into ACK group for individual ACK.
@@ -79,7 +82,8 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] callback the callback that is triggered when the messages are acknowledged
      */
     virtual void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {
-        callback(ResultOk);
+        if (callback)
+            callback(ResultOk);
     }
 
     /**
@@ -88,7 +92,8 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
     virtual void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {
-        callback(ResultOk);
+        if (callback)
+            callback(ResultOk);
     }
 
     /**
