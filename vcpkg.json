@@ -16,6 +16,10 @@
       "version>=": "1.86.0"
     },
     {
+      "name": "boost-format",
+      "version>=": "1.86.0"
+    },
+    {
       "name": "boost-property-tree",
       "version>=": "1.86.0"
     },
