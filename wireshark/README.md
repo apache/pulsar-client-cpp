@@ -37,13 +37,13 @@ To install the Wireshark, see [the official documents](https://www.wireshark.org
 - macOS
 
 ```shell
-$ brew install wireshark
+$ brew install pkg-config wireshark protobuf
 ```
 
 - Ubuntu
 
 ```shell
-$ sudo apt install wireshark-dev
+$ sudo apt install protobuf-compiler libprotobuf-dev wireshark-dev
 ```
 
 ### Build from source
