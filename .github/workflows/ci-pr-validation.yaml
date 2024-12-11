@@ -47,7 +47,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       matrix:
-        # TODO: support build on macos-12
+        # TODO: support build on macos-14
         os: [ubuntu-20.04]
 
     steps:
@@ -314,7 +314,7 @@ jobs:
     timeout-minutes: 120
     name: Build CPP Client on macOS
     needs: formatting-check
-    runs-on: macos-12
+    runs-on: macos-14
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -340,7 +340,7 @@ jobs:
   cpp-build-macos-static:
     timeout-minutes: 120
     name: Build CPP Client on macOS with static dependencies
-    runs-on: macos-12
+    runs-on: macos-14
     needs: unit-tests
     steps:
       - name: checkout
