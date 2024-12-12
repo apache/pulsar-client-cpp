@@ -59,6 +59,21 @@ DECLARE_LOG_OBJECT()
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
+static boost::optional<MessageId> getStartMessageId(const boost::optional<MessageId>& startMessageId,
+                                                    bool inclusive) {
+    if (!inclusive || !startMessageId) {
+        return startMessageId;
+    }
+    // The default ledger id and entry id of a chunked message refer the fields of the last chunk. When the
+    // start message id is inclusive, we need to start from the first chunk.
+    auto chunkMsgIdImpl =
+        dynamic_cast<const ChunkMessageIdImpl*>(Commands::getMessageIdImpl(startMessageId.value()).get());
+    if (chunkMsgIdImpl) {
+        return boost::optional<MessageId>{chunkMsgIdImpl->getChunkedMessageIds().front()};
+    }
+    return startMessageId;
+}
+
 ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
                            bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
@@ -91,7 +106,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
       messageListenerRunning_(!conf.isStartPaused()),
       negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
       readCompacted_(conf.isReadCompacted()),
-      startMessageId_(startMessageId),
+      startMessageId_(getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
       expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
@@ -469,7 +484,15 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
 
     auto& chunkedMsgCtx = it->second;
     if (it == chunkedMessageCache_.end() || !chunkedMsgCtx.validateChunkId(chunkId)) {
-        if (it == chunkedMessageCache_.end()) {
+        auto startMessageId = startMessageId_.get().value_or(MessageId::earliest());
+        if (!config_.isStartMessageIdInclusive() && startMessageId.ledgerId() == messageId.ledgerId() &&
+            startMessageId.entryId() == messageId.entryId()) {
+            // When the start message id is not inclusive, the last chunk of the previous chunked message will
+            // be delivered, which is expected and we only need to filter it out.
+            chunkedMessageCache_.remove(uuid);
+            LOG_INFO("Filtered the chunked message before the start message id (uuid: "
+                     << uuid << " chunkId: " << chunkId << ", messageId: " << messageId << ")");
+        } else if (it == chunkedMessageCache_.end()) {
             LOG_ERROR("Received an uncached chunk (uuid: " << uuid << " chunkId: " << chunkId
                                                            << ", messageId: " << messageId << ")");
         } else {

@@ -888,5 +888,34 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
     }
 }
 
+TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
+    const auto topic = "test-seek-inclusive-chunk-message-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ProducerConfiguration producerConf;
+    producerConf.setBatchingEnabled(false);
+    producerConf.setChunkingEnabled(true);
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConf, producer));
+
+    std::string largeValue(1024 * 1024 * 6, 'a');
+    MessageId firstMsgId;
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeValue).build(), firstMsgId));
+    MessageId secondMsgId;
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeValue).build(), secondMsgId));
+
+    auto assertStartMessageId = [&](bool inclusive, MessageId expectedMsgId) {
+        Reader reader;
+        ReaderConfiguration readerConf;
+        readerConf.setStartMessageIdInclusive(inclusive);
+        ASSERT_EQ(ResultOk, client.createReader(topic, firstMsgId, readerConf, reader));
+        Message msg;
+        ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
+        ASSERT_EQ(expectedMsgId, msg.getMessageId());
+        ASSERT_EQ(ResultOk, reader.close());
+    };
+    assertStartMessageId(true, firstMsgId);
+    assertStartMessageId(false, secondMsgId);
+}
+
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderSeekTest, ::testing::Values(true, false));
