@@ -49,6 +49,8 @@ static const std::string serviceUrlHttps = "https://localhost:8443";
 static const std::string caPath = TEST_CONF_DIR "/cacert.pem";
 static const std::string clientPublicKeyPath = TEST_CONF_DIR "/client-cert.pem";
 static const std::string clientPrivateKeyPath = TEST_CONF_DIR "/client-key.pem";
+static const std::string chainedClientPublicKeyPath = TEST_CONF_DIR "/chained-client-cert.pem";
+static const std::string chainedClientPrivateKeyPath = TEST_CONF_DIR "/chained-client-key.pem";
 
 // Man in middle certificate which tries to act as a broker by sending its own valid certificate
 static const std::string mimServiceUrlTls = "pulsar+ssl://localhost:6653";
@@ -285,6 +287,21 @@ TEST(AuthPluginTest, testTlsDetectHttpsWithInvalidBroker) {
     ASSERT_EQ(ResultLookupError, res);
 
     res = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, res);
+}
+
+TEST(AuthPluginTest, testTlsDetectClientCertSignedByICA) {
+    ClientConfiguration config = ClientConfiguration();
+    config.setTlsTrustCertsFilePath(caPath);
+    config.setTlsAllowInsecureConnection(false);
+    config.setValidateHostName(true);
+    config.setAuth(pulsar::AuthTls::create(chainedClientPublicKeyPath, chainedClientPrivateKeyPath));
+
+    Client client(serviceUrlTls, config);
+    std::string topicName = "persistent://private/auth/testTlsDetectClientCertSignedByICA";
+
+    Producer producer;
+    Result res = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultOk, res);
 }
 
