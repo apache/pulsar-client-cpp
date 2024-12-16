@@ -23,10 +23,10 @@ cd `dirname $0`/../..
 
 if [[ $ARCH == "x86_64" ]]; then
     export VCPKG_TRIPLET=x64-osx
-    cp -f x64-osx.cmake vcpkg/triplets/x64-osx.cmake
+    cp -f vcpkg-triplets/x64-osx.cmake vcpkg/triplets/x64-osx.cmake
 elif [[ $ARCH == "arm64" ]]; then
     export VCPKG_TRIPLET=arm64-osx
-    cp -f arm64-osx.cmake vcpkg/triplets/community/arm64-osx.cmake
+    cp -f vcpkg-triplets/arm64-osx.cmake vcpkg/triplets/community/arm64-osx.cmake
 else
     echo "Invalid ARCH: $ARCH"
     exit 1
