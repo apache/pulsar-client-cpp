@@ -185,6 +185,10 @@ fi
 popd # pkg/mac
 cd ../../ # project root
 
+# TODO: add it only for debugging
+ls $PREFIX/lib
+for file in $(ls $PREFIX/lib/*.a); do file $file; done
+
 cmake -B build-static -DCMAKE_OSX_DEPLOYMENT_TARGET=$MACOSX_DEPLOYMENT_TARGET \
     -DLINK_STATIC=ON \
     -DBUILD_TESTS=OFF \
