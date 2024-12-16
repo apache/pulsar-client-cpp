@@ -27,6 +27,12 @@ if [[ $# -lt 1 ]]; then
 fi
 
 CMAKE_BUILD_DIRECTORY=$1
-./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
-    $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
-    $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed" -name "*.a" | grep -v debug)
+if [[ $VCPKG_TRIPLET ]]; then
+    ./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
+        $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
+        $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed/$VCPKG_TRIPLET" -name "*.a" | grep -v debug)
+else
+    ./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
+        $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
+        $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed" -name "*.a" | grep -v debug)
+fi

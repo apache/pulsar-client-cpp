@@ -18,12 +18,25 @@
 # under the License.
 #
 
-set -ex
+set -e
 cd `dirname $0`/../..
 
+if [[ $ARCH == "x86_64" ]]; then
+    export VCPKG_TRIPLET=x64-osx
+elif [[ $ARCH == "arm64" ]]; then
+    export VCPKG_TRIPLET=arm64-osx
+else
+    echo "Invalid ARCH: $ARCH"
+    exit 1
+fi
+CMAKE_OSX_ARCHITECTURES=$ARCH
+
 INSTALL_DIR=$PWD/pkg/mac/.install
+set -x
 cmake -B build-osx -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
     -DINTEGRATE_VCPKG=ON \
+    -DVCPKG_TARGET_TRIPLET=$VCPKG_TRIPLET \
+    -DCMAKE_OSX_ARCHITECTURES=$CMAKE_OSX_ARCHITECTURES \
     -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTS=OFF \
     -DBUILD_PERF_TOOLS=OFF \
