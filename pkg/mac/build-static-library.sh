@@ -30,7 +30,7 @@ cmake -B build-osx -DCMAKE_OSX_DEPLOYMENT_TARGET=10.15 \
     -DBUILD_DYNAMIC_LIB=ON \
     -DBUILD_STATIC_LIB=ON \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR
-cmake --build build-osx -j16
+cmake --build build-osx -j16 --target install
 
 ./build-support/merge_archives_vcpkg.sh $PWD/build-osx
 cp ./build-osx/libpulsarwithdeps.a $INSTALL_DIR/lib/
