@@ -34,6 +34,11 @@ else
     exit 1
 fi
 
+# Use a forked version of vcpkg to support building libcurl with IPv6 disabled
+rm -rf vcpkg
+git clone https://github.com/BewareMyPower/vcpkg.git -b curl-8.4.0-osx-patch
+git apply vcpkg-osx-json.diff
+
 INSTALL_DIR=$PWD/pkg/mac/.install
 set -x
 cmake -B build-osx \

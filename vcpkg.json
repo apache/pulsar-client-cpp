@@ -2,7 +2,7 @@
   "name": "pulsar-cpp",
   "version": "3.5.0",
   "description": "Pulsar C++ SDK",
-  "builtin-baseline": "b03173a5d0cbd2f7c3c5e85a576e98fba3560835",
+  "builtin-baseline": "b051745c68faa6f65c493371d564c4eb8af34dad",
   "dependencies": [
     {
       "name": "asio",
@@ -25,7 +25,7 @@
       "features": [
         "openssl"
       ],
-      "version>=": "8.4.0#1"
+      "version>=": "8.4.0"
     },
     {
       "name": "dlfcn-win32",

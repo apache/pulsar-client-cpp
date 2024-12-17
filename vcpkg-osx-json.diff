@@ -1,0 +1,22 @@
+diff --git a/vcpkg.json b/vcpkg.json
+index 5ff4410..e117563 100644
+--- a/vcpkg.json
++++ b/vcpkg.json
+@@ -2,7 +2,7 @@
+   "name": "pulsar-cpp",
+   "version": "3.5.0",
+   "description": "Pulsar C++ SDK",
+-  "builtin-baseline": "b051745c68faa6f65c493371d564c4eb8af34dad",
++  "builtin-baseline": "b03173a5d0cbd2f7c3c5e85a576e98fba3560835",
+   "dependencies": [
+     {
+       "name": "asio",
+@@ -25,7 +25,7 @@
+       "features": [
+         "openssl"
+       ],
+-      "version>=": "8.4.0"
++      "version>=": "8.4.0#1"
+     },
+     {
+       "name": "dlfcn-win32",
