@@ -52,3 +52,9 @@ cmake --build build-osx -j16 --target install
 
 ./build-support/merge_archives_vcpkg.sh $PWD/build-osx
 cp ./build-osx/libpulsarwithdeps.a $INSTALL_DIR/lib/
+
+# Test the libraries
+clang++ win-examples/example.cc -o dynamic.out -std=c++11 -arch $ARCH -I $INSTALL_DIR/include -L $INSTALL_DIR/lib -Wl,-rpath $INSTALL_DIR/lib -lpulsar
+./dynamic.out
+clang++ win-examples/example.cc -o static.out -std=c++11 -arch $ARCH -I $INSTALL_DIR/include $INSTALL_DIR/lib/libpulsarwithdeps.a
+./static.out
