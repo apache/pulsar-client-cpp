@@ -46,13 +46,20 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
-      - name: Apply the patch for vcpkg
-        run: ./build-support/apply-vcpkg-macos-curl-patch.sh
-
       - name: Install dependencies
         run: |
           export ARCH=${{ matrix.arch }}
           ./pkg/mac/build-static-library.sh
+
+      - name: Test static libraries
+        run: |
+          export PULSAR_DIR=$PWD/pkg/mac/.install
+          echo "Build with dynamic library"
+          clang++ win-examples/example.cc -o dynamic.out -std=c++11 -arch ${{ matrix.arch }} -I $PULSAR_DIR/include -L $PULSAR_DIR/lib -Wl,-rpath $PULSAR_DIR/lib -lpulsar
+          ./dynamic.out
+          echo "Build with static library"
+          clang++ win-examples/example.cc -o static.out -std=c++11 -arch ${{ matrix.arch }} -I $PULSAR_DIR/include $PULSAR_DIR/lib/libpulsarwithdeps.a
+          ./static.out
 
       - name: Zip artifact
         run: |
@@ -65,16 +72,6 @@ jobs:
         with:
           name: macos-${{ matrix.arch }}.zip
           path: macos-${{ matrix.arch }}.zip
-
-      - name: Test static libraries
-        run: |
-          export PULSAR_DIR=$PWD/pkg/mac/.install
-          echo "Build with dynamic library"
-          clang++ win-examples/example.cc -o dynamic.out -std=c++11 -arch ${{ matrix.arch }} -I $PULSAR_DIR/include -L $PULSAR_DIR/lib -Wl,-rpath $PULSAR_DIR/lib -lpulsar
-          ./dynamic.out
-          echo "Build with static library"
-          clang++ win-examples/example.cc -o static.out -std=c++11 -arch ${{ matrix.arch }} -I $PULSAR_DIR/include $PULSAR_DIR/lib/libpulsarwithdeps.a
-          ./static.out
 
   check-completion:
     name: Check Completion
