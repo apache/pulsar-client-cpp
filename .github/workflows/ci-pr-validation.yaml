@@ -341,7 +341,7 @@ jobs:
     timeout-minutes: 120
     name: Build CPP Client on macOS with static dependencies
     runs-on: macos-14
-    needs: unit-tests
+    needs: formatting-check
     steps:
       - name: checkout
         uses: actions/checkout@v3
