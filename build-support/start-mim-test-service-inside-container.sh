@@ -76,7 +76,8 @@ put tenants/private '{
 put namespaces/private/auth '{
   "auth_policies": {
     "namespace_auth": {
-      "token-principal": ["produce", "consume"]
+      "token-principal": ["produce", "consume"],
+      "chained-client": ["produce", "consume"]
     }
   },
   "replication_clusters": ["standalone"]
