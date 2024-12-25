@@ -176,7 +176,7 @@ class PULSAR_PUBLIC Message {
     /**
      * Get the redelivery count for this message
      */
-    const int getRedeliveryCount() const;
+    int getRedeliveryCount() const;
 
     /**
      * Check if schema version exists

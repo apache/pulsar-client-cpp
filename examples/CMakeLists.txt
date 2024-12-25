@@ -19,6 +19,7 @@
 
 if (NOT MSVC)
   set(CMAKE_C_FLAGS " -std=c99 ${CMAKE_C_FLAGS}")
+  add_compile_options(-Wextra -Wno-unused-parameter)
 endif()
 
 set(SAMPLE_ASYNC_PRODUCER_SOURCES

@@ -73,7 +73,7 @@ class PULSAR_PUBLIC BrokerConsumerStats {
     virtual const std::string getConnectedSince() const;
 
     /** Returns Whether this subscription is Exclusive or Shared or Failover */
-    virtual const ConsumerType getType() const;
+    virtual ConsumerType getType() const;
 
     /** Returns the rate of messages expired on this subscription. msg/s */
     virtual double getMsgRateExpired() const;

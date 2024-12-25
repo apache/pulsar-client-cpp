@@ -173,8 +173,7 @@ void pulsar_client_configuration_set_stats_interval_in_seconds(pulsar_client_con
     conf->conf.setStatsIntervalInSeconds(interval);
 }
 
-const unsigned int pulsar_client_configuration_get_stats_interval_in_seconds(
-    pulsar_client_configuration_t *conf) {
+unsigned int pulsar_client_configuration_get_stats_interval_in_seconds(pulsar_client_configuration_t *conf) {
     return conf->conf.getStatsIntervalInSeconds();
 }
 
@@ -204,8 +203,7 @@ void pulsar_client_configuration_set_partitions_update_interval(pulsar_client_co
     conf->conf.setPartititionsUpdateInterval(intervalInSeconds);
 }
 
-const unsigned int pulsar_client_configuration_get_partitions_update_interval(
-    pulsar_client_configuration_t *conf) {
+unsigned int pulsar_client_configuration_get_partitions_update_interval(pulsar_client_configuration_t *conf) {
     return conf->conf.getPartitionsUpdateInterval();
 }
 

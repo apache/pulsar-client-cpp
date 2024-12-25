@@ -184,7 +184,7 @@ const std::string& Message::getTopicName() const {
     return impl_->getTopicName();
 }
 
-const int Message::getRedeliveryCount() const {
+int Message::getRedeliveryCount() const {
     if (!impl_) {
         return 0;
     }
