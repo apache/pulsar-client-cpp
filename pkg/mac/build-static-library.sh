@@ -34,10 +34,21 @@ else
     exit 1
 fi
 
-# Use a forked version of vcpkg to support building libcurl with IPv6 disabled
-rm -rf vcpkg
-git clone https://github.com/BewareMyPower/vcpkg.git -b curl-8.4.0-osx-patch
-git apply vcpkg-osx-json.diff
+# Apply the patch to support building libcurl with IPv6 disabled
+COMMIT_ID=$(grep "builtin-baseline" vcpkg.json | sed 's/"//g' | sed 's/,//' | awk '{print $2}')
+cd vcpkg
+git reset --hard $COMMIT_ID
+git apply ../pkg/mac/vcpkg-curl-patch.diff
+git add ports/curl
+git commit -m "Disable IPv6 for macOS in curl"
+./bootstrap-vcpkg.sh
+./vcpkg x-add-version --all
+git add versions/
+git commit -m "Update version"
+COMMIT_ID=$(git log --pretty=oneline | head -n 1 | awk '{print $1}')
+cd ..
+sed -i.bak "s/.*builtin-baseline.*/  \"builtin-baseline\": \"$COMMIT_ID\",/" vcpkg.json
+sed -i.bak "s/\"version>=\": \"8\.4\.0\"/\"version>=\": \"8.4.0#1\"/" vcpkg.json
 
 INSTALL_DIR=$PWD/pkg/mac/.install
 set -x
