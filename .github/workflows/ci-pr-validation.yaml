@@ -312,33 +312,6 @@ jobs:
 
   cpp-build-macos:
     timeout-minutes: 120
-    name: Build CPP Client on macOS
-    needs: formatting-check
-    runs-on: macos-14
-    steps:
-      - name: checkout
-        uses: actions/checkout@v3
-
-      - name: Install dependencies
-        run: brew install openssl protobuf boost zstd snappy googletest
-
-      - name: Configure (default)
-        shell: bash
-        run: cmake -B ./build-macos -S .
-
-      - name: Compile
-        shell: bash
-        run: |
-          cmake --build ./build-macos --parallel --config Release
-
-      - name: Build with C++20
-        shell: bash
-        run: |
-          cmake -B build-macos-cpp20 -DCMAKE_CXX_STANDARD=20
-          cmake --build build-macos-cpp20 -j8
-
-  cpp-build-macos-static:
-    timeout-minutes: 120
     name: Build CPP Client on macOS with static dependencies
     runs-on: macos-14
     needs: formatting-check
