@@ -310,15 +310,23 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
     if (result == ResultOk) {
         LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
         {
-            Lock lock(mutex_);
+            Lock mutexLock(mutex_);
             setCnx(cnx);
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             state_ = Ready;
             backoff_.reset();
-            // Complicated logic since we don't have a isLocked() function for mutex
-            if (waitingForZeroQueueSizeMessage) {
-                sendFlowPermitsToBroker(cnx, 1);
+            if (!messageListener_ && config_.getReceiverQueueSize() == 0) {
+                // Complicated logic since we don't have a isLocked() function for mutex
+                if (waitingForZeroQueueSizeMessage) {
+                    sendFlowPermitsToBroker(cnx, 1);
+                }
+                // Note that the order of lock acquisition must be mutex_ -> pendingReceiveMutex_,
+                // otherwise a deadlock will occur.
+                Lock pendingReceiveMutexLock(pendingReceiveMutex_);
+                if (!pendingReceives_.empty()) {
+                    sendFlowPermitsToBroker(cnx, pendingReceives_.size());
+                }
             }
             availablePermits_ = 0;
         }
@@ -915,7 +923,6 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
     }
 
     // Using RAII for locking
-    ClientConnectionPtr currentCnx = getCnx().lock();
     Lock lock(mutexForReceiveWithZeroQueueSize);
 
     // Just being cautious
@@ -924,9 +931,18 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
             getName() << "The incoming message queue should never be greater than 0 when Queue size is 0");
         incomingMessages_.clear();
     }
-    waitingForZeroQueueSizeMessage = true;
 
-    sendFlowPermitsToBroker(currentCnx, 1);
+    {
+        // Lock mutex_ to prevent a race condition with handleCreateConsumer.
+        // If handleCreateConsumer is executed after setting waitingForZeroQueueSizeMessage to true and
+        // before calling sendFlowPermitsToBroker, the result may be that a flow permit is sent twice.
+        Lock lock(mutex_);
+        waitingForZeroQueueSizeMessage = true;
+        // If connection_ is nullptr, sendFlowPermitsToBroker does nothing.
+        // In other words, a flow permit will not be sent until setCnx(cnx) is executed in
+        // handleCreateConsumer.
+        sendFlowPermitsToBroker(getCnx().lock(), 1);
+    }
 
     while (true) {
         if (!incomingMessages_.pop(msg)) {
@@ -939,6 +955,7 @@ Result ConsumerImpl::fetchSingleMessageFromBroker(Message& msg) {
             Lock localLock(mutex_);
             // if message received due to an old flow - discard it and wait for the message from the
             // latest flow command
+            ClientConnectionPtr currentCnx = getCnx().lock();
             if (msg.impl_->cnx_ == currentCnx.get()) {
                 waitingForZeroQueueSizeMessage = false;
                 // Can't use break here else it may trigger a race with connection opened.
@@ -966,19 +983,42 @@ void ConsumerImpl::receiveAsync(ReceiveCallback callback) {
         return;
     }
 
-    Lock lock(pendingReceiveMutex_);
+    if (messageListener_) {
+        LOG_ERROR(getName() << "Can not receive when a listener has been set");
+        callback(ResultInvalidConfiguration, msg);
+        return;
+    }
+
+    Lock mutexlock(mutex_, std::defer_lock);
+    if (config_.getReceiverQueueSize() == 0) {
+        // Lock mutex_ to prevent a race condition with handleCreateConsumer.
+        // If handleCreateConsumer is executed after pushing the callback to pendingReceives_ and
+        // before calling sendFlowPermitsToBroker, the result may be that a flow permit is sent twice.
+        // Note that the order of lock acquisition must be mutex_ -> pendingReceiveMutex_,
+        // otherwise a deadlock will occur.
+        mutexlock.lock();
+    }
+
+    Lock pendingReceiveMutexLock(pendingReceiveMutex_);
     if (incomingMessages_.pop(msg, std::chrono::milliseconds(0))) {
-        lock.unlock();
+        pendingReceiveMutexLock.unlock();
+        if (config_.getReceiverQueueSize() == 0) {
+            mutexlock.unlock();
+        }
         messageProcessed(msg);
         msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         callback(ResultOk, msg);
+    } else if (config_.getReceiverQueueSize() == 0) {
+        pendingReceives_.push(callback);
+        // If connection_ is nullptr, sendFlowPermitsToBroker does nothing.
+        // In other words, a flow permit will not be sent until setCnx(cnx) is executed in
+        // handleCreateConsumer.
+        sendFlowPermitsToBroker(getCnx().lock(), 1);
+        pendingReceiveMutexLock.unlock();
+        mutexlock.unlock();
     } else {
         pendingReceives_.push(callback);
-        lock.unlock();
-
-        if (config_.getReceiverQueueSize() == 0) {
-            sendFlowPermitsToBroker(getCnx().lock(), 1);
-        }
+        pendingReceiveMutexLock.unlock();
     }
 }
 
