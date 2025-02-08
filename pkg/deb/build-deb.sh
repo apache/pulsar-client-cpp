@@ -41,7 +41,7 @@ pushd $CPP_DIR
 export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
 
 chmod +x $(find . -name "*.sh")
-cmake . -DBUILD_TESTS=OFF -DBUILD_PERF_TOOLS=OFF -DLINK_STATIC=ON
+cmake . -DBUILD_TESTS=OFF -DBUILD_PERF_TOOLS=OFF -DLINK_STATIC=ON -DLINK_STATIC_GCC_CXX=ON
 make -j 3
 popd
 
