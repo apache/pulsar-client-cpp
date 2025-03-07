@@ -422,7 +422,7 @@ void ConsumerImpl::discardChunkMessages(std::string uuid, MessageId messageId, b
 }
 
 void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
-    checkExpiredChunkedTimer_->expires_from_now(milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
+    checkExpiredChunkedTimer_->expires_after(milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
     std::weak_ptr<ConsumerImplBase> weakSelf{shared_from_this()};
     checkExpiredChunkedTimer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) -> void {
         auto self = weakSelf.lock();
@@ -1668,7 +1668,7 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
         }
         remainTime -= next;
 
-        timer->expires_from_now(next);
+        timer->expires_after(next);
 
         auto self = shared_from_this();
         timer->async_wait([this, backoff, remainTime, timer, next, callback,
@@ -1791,9 +1791,8 @@ std::shared_ptr<ConsumerImpl> ConsumerImpl::get_shared_this_ptr() {
 }
 
 void ConsumerImpl::cancelTimers() noexcept {
-    ASIO_ERROR ec;
-    batchReceiveTimer_->cancel(ec);
-    checkExpiredChunkedTimer_->cancel(ec);
+    batchReceiveTimer_->cancel();
+    checkExpiredChunkedTimer_->cancel();
     unAckedMessageTrackerPtr_->stop();
     consumerStatsBasePtr_->stop();
 }

@@ -266,7 +266,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
             LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
             std::string urlHost = isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
-            tlsSocket_->set_verify_callback(ASIO::ssl::rfc2818_verification(urlHost));
+            tlsSocket_->set_verify_callback(ASIO::ssl::host_name_verification(urlHost));
         }
 
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
@@ -309,7 +309,7 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         // Only send keep-alive probes if the broker supports it
         keepAliveTimer_ = executor_->createDeadlineTimer();
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(std::chrono::seconds(keepAliveIntervalInSeconds_));
+            keepAliveTimer_->expires_after(std::chrono::seconds(keepAliveIntervalInSeconds_));
             auto weakSelf = weak_from_this();
             keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
@@ -354,7 +354,7 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
     // If the close operation has reset the consumerStatsRequestTimer_ then the use_count will be zero
     // Check if we have a timer still before we set the request timer to pop again.
     if (consumerStatsRequestTimer_) {
-        consumerStatsRequestTimer_->expires_from_now(operationsTimeout_);
+        consumerStatsRequestTimer_->expires_after(operationsTimeout_);
         auto weakSelf = weak_from_this();
         consumerStatsRequestTimer_->async_wait([weakSelf, consumerStatsRequests](const ASIO_ERROR& err) {
             auto self = weakSelf.lock();
@@ -388,129 +388,87 @@ typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPALIVE> tcp_kee
 typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> tcp_keep_alive_idle;
 #endif
 
-/*
- *  TCP Connect handler
- *
- *  if async_connect without any error, connected_ would be set to true
- *  at this point the connection is deemed valid to be used by clients of this class
- */
-void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
-    if (!err) {
-        std::stringstream cnxStringStream;
-        try {
-            cnxStringStream << "[" << socket_->local_endpoint() << " -> " << socket_->remote_endpoint()
-                            << "] ";
-            cnxString_ = cnxStringStream.str();
-        } catch (const ASIO_SYSTEM_ERROR& e) {
-            LOG_ERROR("Failed to get endpoint: " << e.what());
-            close(ResultRetryable);
-            return;
-        }
-        if (logicalAddress_ == physicalAddress_) {
-            LOG_INFO(cnxString_ << "Connected to broker");
-        } else {
-            LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_
-                                << ", proxy: " << proxyServiceUrl_
-                                << ", physical address:" << physicalAddress_);
-        }
-
-        Lock lock(mutex_);
-        if (isClosed()) {
-            LOG_INFO(cnxString_ << "Connection already closed");
-            return;
-        }
-        state_ = TcpConnected;
-        lock.unlock();
-
-        ASIO_ERROR error;
-        socket_->set_option(tcp::no_delay(true), error);
-        if (error) {
-            LOG_WARN(cnxString_ << "Socket failed to set tcp::no_delay: " << error.message());
-        }
-
-        socket_->set_option(tcp::socket::keep_alive(true), error);
-        if (error) {
-            LOG_WARN(cnxString_ << "Socket failed to set tcp::socket::keep_alive: " << error.message());
-        }
-
-        // Start TCP keep-alive probes after connection has been idle after 1 minute. Ideally this
-        // should never happen, given that we're sending our own keep-alive probes (within the TCP
-        // connection) every 30 seconds
-        socket_->set_option(tcp_keep_alive_idle(1 * 60), error);
-        if (error) {
-            LOG_DEBUG(cnxString_ << "Socket failed to set tcp_keep_alive_idle: " << error.message());
-        }
-
-        // Send up to 10 probes before declaring the connection broken
-        socket_->set_option(tcp_keep_alive_count(10), error);
-        if (error) {
-            LOG_DEBUG(cnxString_ << "Socket failed to set tcp_keep_alive_count: " << error.message());
-        }
-
-        // Interval between probes: 6 seconds
-        socket_->set_option(tcp_keep_alive_interval(6), error);
-        if (error) {
-            LOG_DEBUG(cnxString_ << "Socket failed to set tcp_keep_alive_interval: " << error.message());
-        }
-
-        if (tlsSocket_) {
-            if (!isTlsAllowInsecureConnection_) {
-                ASIO_ERROR err;
-                Url service_url;
-                if (!Url::parse(physicalAddress_, service_url)) {
-                    LOG_ERROR(cnxString_ << "Invalid Url, unable to parse: " << err << " " << err.message());
-                    close();
-                    return;
-                }
-            }
-            auto weakSelf = weak_from_this();
-            auto socket = socket_;
-            auto tlsSocket = tlsSocket_;
-            // socket and ssl::stream objects must exist until async_handshake is done, otherwise segmentation
-            // fault might happen
-            auto callback = [weakSelf, socket, tlsSocket](const ASIO_ERROR& err) {
-                auto self = weakSelf.lock();
-                if (self) {
-                    self->handleHandshake(err);
-                }
-            };
-            tlsSocket_->async_handshake(ASIO::ssl::stream<tcp::socket>::client,
-                                        ASIO::bind_executor(strand_, callback));
-        } else {
-            handleHandshake(ASIO_SUCCESS);
-        }
-    } else if (endpointIterator != tcp::resolver::iterator()) {
-        LOG_WARN(cnxString_ << "Failed to establish connection: " << err.message());
-        // The connection failed. Try the next endpoint in the list.
-        ASIO_ERROR closeError;
-        socket_->close(closeError);  // ignore the error of close
-        if (closeError) {
-            LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
-        }
-        connectTimeoutTask_->stop();
-        ++endpointIterator;
-        if (endpointIterator != tcp::resolver::iterator()) {
-            LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
-            connectTimeoutTask_->start();
-            tcp::endpoint endpoint = *endpointIterator;
-            auto weakSelf = weak_from_this();
-            socket_->async_connect(endpoint, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
-                auto self = weakSelf.lock();
-                if (self) {
-                    self->handleTcpConnected(err, endpointIterator);
-                }
-            });
-        } else {
-            if (err == ASIO::error::operation_aborted) {
-                // TCP connect timeout, which is not retryable
-                close();
-            } else {
-                close(ResultRetryable);
-            }
-        }
-    } else {
-        LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
+void ClientConnection::completeConnect(ASIO::ip::tcp::endpoint endpoint) {
+    std::stringstream cnxStringStream;
+    try {
+        cnxStringStream << "[" << socket_->local_endpoint() << " -> " << socket_->remote_endpoint() << "] ";
+        cnxString_ = cnxStringStream.str();
+    } catch (const ASIO_SYSTEM_ERROR& e) {
+        LOG_ERROR("Failed to get endpoint: " << e.what());
         close(ResultRetryable);
+        return;
+    }
+    if (logicalAddress_ == physicalAddress_) {
+        LOG_INFO(cnxString_ << "Connected to broker");
+    } else {
+        LOG_INFO(cnxString_ << "Connected to broker through proxy. Logical broker: " << logicalAddress_
+                            << ", proxy: " << proxyServiceUrl_ << ", physical address:" << physicalAddress_);
+    }
+
+    Lock lock(mutex_);
+    if (isClosed()) {
+        LOG_INFO(cnxString_ << "Connection already closed");
+        return;
+    }
+    state_ = TcpConnected;
+    lock.unlock();
+
+    ASIO_ERROR error;
+    socket_->set_option(tcp::no_delay(true), error);
+    if (error) {
+        LOG_WARN(cnxString_ << "Socket failed to set tcp::no_delay: " << error.message());
+    }
+
+    socket_->set_option(tcp::socket::keep_alive(true), error);
+    if (error) {
+        LOG_WARN(cnxString_ << "Socket failed to set tcp::socket::keep_alive: " << error.message());
+    }
+
+    // Start TCP keep-alive probes after connection has been idle after 1 minute. Ideally this
+    // should never happen, given that we're sending our own keep-alive probes (within the TCP
+    // connection) every 30 seconds
+    socket_->set_option(tcp_keep_alive_idle(1 * 60), error);
+    if (error) {
+        LOG_DEBUG(cnxString_ << "Socket failed to set tcp_keep_alive_idle: " << error.message());
+    }
+
+    // Send up to 10 probes before declaring the connection broken
+    socket_->set_option(tcp_keep_alive_count(10), error);
+    if (error) {
+        LOG_DEBUG(cnxString_ << "Socket failed to set tcp_keep_alive_count: " << error.message());
+    }
+
+    // Interval between probes: 6 seconds
+    socket_->set_option(tcp_keep_alive_interval(6), error);
+    if (error) {
+        LOG_DEBUG(cnxString_ << "Socket failed to set tcp_keep_alive_interval: " << error.message());
+    }
+
+    if (tlsSocket_) {
+        if (!isTlsAllowInsecureConnection_) {
+            ASIO_ERROR err;
+            Url service_url;
+            if (!Url::parse(physicalAddress_, service_url)) {
+                LOG_ERROR(cnxString_ << "Invalid Url, unable to parse: " << err << " " << err.message());
+                close();
+                return;
+            }
+        }
+        auto weakSelf = weak_from_this();
+        auto socket = socket_;
+        auto tlsSocket = tlsSocket_;
+        // socket and ssl::stream objects must exist until async_handshake is done, otherwise segmentation
+        // fault might happen
+        auto callback = [weakSelf, socket, tlsSocket](const ASIO_ERROR& err) {
+            auto self = weakSelf.lock();
+            if (self) {
+                self->handleHandshake(err);
+            }
+        };
+        tlsSocket_->async_handshake(ASIO::ssl::stream<tcp::socket>::client,
+                                    ASIO::bind_executor(strand_, callback));
+    } else {
+        handleHandshake(ASIO_SUCCESS);
     }
 }
 
@@ -603,60 +561,71 @@ void ClientConnection::tcpConnectAsync() {
     }
 
     LOG_DEBUG(cnxString_ << "Resolving " << service_url.host() << ":" << service_url.port());
-    tcp::resolver::query query(service_url.host(), std::to_string(service_url.port()));
+    tcp::resolver::endpoint_type endpoint(ASIO::ip::make_address(service_url.host()), service_url.port());
     auto weakSelf = weak_from_this();
-    resolver_->async_resolve(query, [weakSelf](const ASIO_ERROR& err, tcp::resolver::iterator iterator) {
-        auto self = weakSelf.lock();
-        if (self) {
-            self->handleResolve(err, iterator);
-        }
-    });
+    resolver_->async_resolve(
+        endpoint, [this, weakSelf](const ASIO_ERROR& err, tcp::resolver::results_type results) {
+            auto self = weakSelf.lock();
+            if (!self) {
+                return;
+            }
+            if (err) {
+                std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
+                LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
+                close();
+                return;
+            }
+            if (results.empty()) {
+                LOG_ERROR(cnxString_ << "No IP address found");
+                close();
+                return;
+            }
+            connectTimeoutTask_->setCallback([weakSelf](const PeriodicTask::ErrorCode& ec) {
+                ClientConnectionPtr ptr = weakSelf.lock();
+                if (!ptr) {
+                    // Connection was already destroyed
+                    return;
+                }
+
+                if (ptr->state_ != Ready) {
+                    LOG_ERROR(ptr->cnxString_ << "Connection was not established in "
+                                              << ptr->connectTimeoutTask_->getPeriodMs()
+                                              << " ms, close the socket");
+                    PeriodicTask::ErrorCode err;
+                    ptr->socket_->close(err);
+                    if (err) {
+                        LOG_WARN(ptr->cnxString_ << "Failed to close socket: " << err.message());
+                    }
+                }
+                ptr->connectTimeoutTask_->stop();
+            });
+            connectTimeoutTask_->start();
+            std::vector<tcp::resolver::endpoint_type> endpoints;
+            for (const auto& result : results) {
+                endpoints.emplace_back(result.endpoint());
+            }
+            asyncConnect(endpoints, 0);
+        });
 }
 
-void ClientConnection::handleResolve(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
-    if (err) {
-        std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
-        LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
-        close();
+void ClientConnection::asyncConnect(const std::vector<ASIO::ip::tcp::endpoint>& endpoints, size_t index) {
+    if (index >= endpoints.size()) {
+        close(ResultRetryable);
         return;
     }
-
     auto weakSelf = weak_from_this();
-    connectTimeoutTask_->setCallback([weakSelf](const PeriodicTask::ErrorCode& ec) {
-        ClientConnectionPtr ptr = weakSelf.lock();
-        if (!ptr) {
-            // Connection was already destroyed
+    socket_->async_connect(endpoints[index], [this, weakSelf, endpoints, index](const ASIO_ERROR& err) {
+        auto self = weakSelf.lock();
+        if (!self) {
             return;
         }
-
-        if (ptr->state_ != Ready) {
-            LOG_ERROR(ptr->cnxString_ << "Connection was not established in "
-                                      << ptr->connectTimeoutTask_->getPeriodMs() << " ms, close the socket");
-            PeriodicTask::ErrorCode err;
-            ptr->socket_->close(err);
-            if (err) {
-                LOG_WARN(ptr->cnxString_ << "Failed to close socket: " << err.message());
-            }
+        if (err) {
+            LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
+            asyncConnect(endpoints, index + 1);
+            return;
         }
-        ptr->connectTimeoutTask_->stop();
+        completeConnect(endpoints[index]);
     });
-
-    LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
-    connectTimeoutTask_->start();
-    if (endpointIterator != tcp::resolver::iterator()) {
-        LOG_DEBUG(cnxString_ << "Resolved hostname " << endpointIterator->host_name()  //
-                             << " to " << endpointIterator->endpoint());
-        socket_->async_connect(*endpointIterator, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
-            auto self = weakSelf.lock();
-            if (self) {
-                self->handleTcpConnected(err, endpointIterator);
-            }
-        });
-    } else {
-        LOG_WARN(cnxString_ << "No IP address found");
-        close();
-        return;
-    }
 }
 
 void ClientConnection::readNextCommand() {
@@ -1058,7 +1027,7 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, const uint64_t request
     LookupRequestData requestData;
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_from_now(operationsTimeout_);
+    requestData.timer->expires_after(operationsTimeout_);
     auto weakSelf = weak_from_this();
     requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
@@ -1174,8 +1143,9 @@ void ClientConnection::sendPendingCommands() {
             PairSharedBuffer buffer =
                 Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
 
-            // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before the
-            // callback is called, an invalid buffer range might be passed to the underlying socket send.
+            // Capture the buffer because asio does not copy the buffer, if the buffer is destroyed before
+            // the callback is called, an invalid buffer range might be passed to the underlying socket
+            // send.
             asyncWrite(buffer, customAllocWriteHandler([this, self, buffer](const ASIO_ERROR& err, size_t) {
                            handleSendPair(err);
                        }));
@@ -1198,7 +1168,7 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
 
     PendingRequestData requestData;
     requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_from_now(operationsTimeout_);
+    requestData.timer->expires_after(operationsTimeout_);
     auto weakSelf = weak_from_this();
     requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
@@ -1251,7 +1221,7 @@ void ClientConnection::handleKeepAliveTimeout() {
         // be zero And we do not attempt to dereference the pointer.
         Lock lock(mutex_);
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(std::chrono::seconds(keepAliveIntervalInSeconds_));
+            keepAliveTimer_->expires_after(std::chrono::seconds(keepAliveIntervalInSeconds_));
             auto weakSelf = weak_from_this();
             keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
@@ -1430,7 +1400,7 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     LastMessageIdRequestData requestData;
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_from_now(operationsTimeout_);
+    requestData.timer->expires_after(operationsTimeout_);
     auto weakSelf = weak_from_this();
     requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
@@ -1478,7 +1448,7 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
     lock.unlock();
 
     auto weakSelf = weak_from_this();
-    timer->expires_from_now(operationsTimeout_);
+    timer->expires_after(operationsTimeout_);
     timer->async_wait([this, weakSelf, requestId](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (!self) {
@@ -2047,8 +2017,7 @@ void ClientConnection::unsafeRemovePendingRequest(long requestId) {
     auto it = pendingRequests_.find(requestId);
     if (it != pendingRequests_.end()) {
         it->second.promise.setFailed(ResultDisconnected);
-        ASIO_ERROR ec;
-        it->second.timer->cancel(ec);
+        it->second.timer->cancel();
         pendingRequests_.erase(it);
     }
 }

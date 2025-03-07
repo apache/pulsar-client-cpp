@@ -23,11 +23,11 @@
 
 #include <atomic>
 #ifdef USE_ASIO
-#include <asio/io_service.hpp>
+#include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/ssl.hpp>
 #else
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl.hpp>
 #endif
@@ -46,7 +46,7 @@ typedef std::shared_ptr<ASIO::ssl::stream<ASIO::ip::tcp::socket &> > TlsSocketPt
 typedef std::shared_ptr<ASIO::ip::tcp::resolver> TcpResolverPtr;
 class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<ExecutorService> {
    public:
-    using IOService = ASIO::io_service;
+    using IOService = ASIO::io_context;
     using SharedPtr = std::shared_ptr<ExecutorService>;
 
     static SharedPtr create();
@@ -67,14 +67,14 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
     // See TimeoutProcessor for the semantics of the parameter.
     void close(long timeoutMs = 3000);
 
-    IOService &getIOService() { return io_service_; }
+    IOService &getIOService() { return io_context_; }
     bool isClosed() const noexcept { return closed_; }
 
    private:
     /*
-     * io_service is our interface to os, io object schedule async ops on this object
+     * io_context is our interface to os, io object schedule async ops on this object
      */
-    IOService io_service_;
+    IOService io_context_;
 
     std::atomic_bool closed_{false};
     std::mutex mutex_;

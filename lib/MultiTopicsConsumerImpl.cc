@@ -962,7 +962,7 @@ uint64_t MultiTopicsConsumerImpl::getNumberOfConnectedConsumer() {
     return numberOfConnectedConsumer;
 }
 void MultiTopicsConsumerImpl::runPartitionUpdateTask() {
-    partitionsUpdateTimer_->expires_from_now(partitionsUpdateInterval_);
+    partitionsUpdateTimer_->expires_after(partitionsUpdateInterval_);
     auto weakSelf = weak_from_this();
     partitionsUpdateTimer_->async_wait([weakSelf](const ASIO_ERROR& ec) {
         // If two requests call runPartitionUpdateTask at the same time, the timer will fail, and it
@@ -1115,8 +1115,7 @@ void MultiTopicsConsumerImpl::beforeConnectionChange(ClientConnection& cnx) {
 
 void MultiTopicsConsumerImpl::cancelTimers() noexcept {
     if (partitionsUpdateTimer_) {
-        ASIO_ERROR ec;
-        partitionsUpdateTimer_->cancel(ec);
+        partitionsUpdateTimer_->cancel();
     }
 }
 

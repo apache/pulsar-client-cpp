@@ -109,7 +109,7 @@ void ProducerStatsImpl::messageReceived(Result res, const ptime& publishTime) {
 ProducerStatsImpl::~ProducerStatsImpl() { timer_->cancel(); }
 
 void ProducerStatsImpl::scheduleTimer() {
-    timer_->expires_from_now(std::chrono::seconds(statsIntervalInSeconds_));
+    timer_->expires_after(std::chrono::seconds(statsIntervalInSeconds_));
     std::weak_ptr<ProducerStatsImpl> weakSelf{shared_from_this()};
     timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
