@@ -118,6 +118,9 @@ void PatternMultiTopicsConsumerImpl::timerGetTopicsOfNamespace(const Result resu
     // callback method when added topics all subscribed.
     ResultCallback topicsAddedCallback = [this, topicsRemoved, topicsRemovedCallback](Result result) {
         if (result == ResultOk) {
+            if(messageListener_) {
+                resumeMessageListener();
+            }
             // call to unsubscribe all removed topics.
             onTopicsRemoved(topicsRemoved, topicsRemovedCallback);
         } else {
