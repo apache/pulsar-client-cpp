@@ -48,7 +48,7 @@ jobs:
     strategy:
       matrix:
         # TODO: support build on macos-14
-        os: [ubuntu-20.04]
+        os: [ubuntu-latest]
 
     steps:
       - name: checkout
