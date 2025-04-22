@@ -1,8 +1,8 @@
 {
   "name": "pulsar-cpp",
-  "version": "3.5.0",
+  "version": "3.8.0",
   "description": "Pulsar C++ SDK",
-  "builtin-baseline": "b051745c68faa6f65c493371d564c4eb8af34dad",
+  "builtin-baseline": "d6995a0cf3cafda5e9e52749fad075dd62bfd90c",
   "dependencies": [
     {
       "name": "asio",
@@ -16,6 +16,10 @@
       "version>=": "1.83.0"
     },
     {
+      "name": "boost-format",
+      "version>=": "1.83.0"
+    },
+    {
       "name": "boost-property-tree",
       "version>=": "1.83.0"
     },
@@ -25,7 +29,7 @@
       "features": [
         "openssl"
       ],
-      "version>=": "8.4.0"
+      "version>=": "8.13.0"
     },
     {
       "name": "dlfcn-win32",
@@ -33,7 +37,7 @@
     },
     {
       "name": "openssl",
-      "version>=": "3.1.4#1"
+      "version>=": "3.5.0"
     },
     {
       "name": "protobuf",
@@ -45,7 +49,7 @@
     },
     {
       "name": "zlib",
-      "version>=": "1.3"
+      "version>=": "1.3.1"
     },
     {
       "name": "zstd",
@@ -71,5 +75,15 @@
         }
       ]
     }
-  }
+  },
+  "overrides": [
+    {
+      "name": "asio",
+      "version": "1.28.2"
+    },
+    {
+      "name": "protobuf",
+      "version": "3.21.12"
+    }
+  ]
 }
