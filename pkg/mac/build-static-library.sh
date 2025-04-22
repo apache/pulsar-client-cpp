@@ -48,7 +48,7 @@ git commit -m "Update version"
 COMMIT_ID=$(git log --pretty=oneline | head -n 1 | awk '{print $1}')
 cd ..
 sed -i.bak "s/.*builtin-baseline.*/  \"builtin-baseline\": \"$COMMIT_ID\",/" vcpkg.json
-sed -i.bak "s/\"version>=\": \"8\.4\.0\"/\"version>=\": \"8.4.0#1\"/" vcpkg.json
+sed -i.bak "s/\"version>=\": \"8\.13\.0#1\"/\"version>=\": \"8.13.0#2\"/" vcpkg.json
 
 INSTALL_DIR=$PWD/pkg/mac/.install
 set -x

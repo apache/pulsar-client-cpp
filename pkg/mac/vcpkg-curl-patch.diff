@@ -1,8 +1,8 @@
 diff --git a/ports/curl/portfile.cmake b/ports/curl/portfile.cmake
-index bdc544e9e..340d93865 100644
+index 427bccb217..ddfd75d30f 100644
 --- a/ports/curl/portfile.cmake
 +++ b/ports/curl/portfile.cmake
-@@ -64,6 +64,10 @@ if(VCPKG_TARGET_IS_WINDOWS)
+@@ -62,6 +62,10 @@ if(VCPKG_TARGET_IS_WINDOWS)
      list(APPEND OPTIONS -DENABLE_UNICODE=ON)
  endif()
  
@@ -10,18 +10,19 @@ index bdc544e9e..340d93865 100644
 +    list(APPEND OPTIONS -DENABLE_IPV6=OFF)
 +endif()
 +
+ vcpkg_find_acquire_program(PKGCONFIG)
+
  vcpkg_cmake_configure(
-     SOURCE_PATH "${SOURCE_PATH}"
-     OPTIONS 
 diff --git a/ports/curl/vcpkg.json b/ports/curl/vcpkg.json
-index e028d3897..a63858e34 100644
+index 31955859d0..50e619b846 100644
 --- a/ports/curl/vcpkg.json
 +++ b/ports/curl/vcpkg.json
-@@ -1,6 +1,7 @@
+@@ -1,7 +1,7 @@
  {
    "name": "curl",
-   "version": "8.4.0",
-+  "port-version": 1,
+   "version": "8.13.0",
+-  "port-version": 1,
++  "port-version": 2,
    "description": "A library for transferring data with URLs",
    "homepage": "https://curl.se/",
    "license": "curl AND ISC AND BSD-3-Clause",
