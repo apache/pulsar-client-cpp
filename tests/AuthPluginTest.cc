@@ -309,16 +309,17 @@ namespace testAthenz {
 std::string principalToken;
 void mockZTS(Latch& latch, int port) {
     LOG_INFO("-- MockZTS started");
-    ASIO::io_service io;
-    ASIO::ip::tcp::iostream stream;
+    ASIO::io_context io;
+    ASIO::ip::tcp::socket socket(io);
     ASIO::ip::tcp::acceptor acceptor(io, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), port));
 
     LOG_INFO("-- MockZTS waiting for connnection");
     latch.countdown();
-    acceptor.accept(*stream.rdbuf());
+    acceptor.accept(socket);
     LOG_INFO("-- MockZTS got connection");
 
     std::string headerLine;
+    ASIO::ip::tcp::iostream stream(std::move(socket));
     while (getline(stream, headerLine)) {
         std::vector<std::string> kv;
         boost::algorithm::split(kv, headerLine, boost::is_any_of(" "));

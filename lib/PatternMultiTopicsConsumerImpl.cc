@@ -48,7 +48,7 @@ const PULSAR_REGEX_NAMESPACE::regex PatternMultiTopicsConsumerImpl::getPattern()
 
 void PatternMultiTopicsConsumerImpl::resetAutoDiscoveryTimer() {
     autoDiscoveryRunning_ = false;
-    autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
+    autoDiscoveryTimer_->expires_after(seconds(conf_.getPatternAutoDiscoveryPeriod()));
 
     auto weakSelf = weak_from_this();
     autoDiscoveryTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
@@ -231,7 +231,7 @@ void PatternMultiTopicsConsumerImpl::start() {
     LOG_DEBUG("PatternMultiTopicsConsumerImpl start autoDiscoveryTimer_.");
 
     if (conf_.getPatternAutoDiscoveryPeriod() > 0) {
-        autoDiscoveryTimer_->expires_from_now(seconds(conf_.getPatternAutoDiscoveryPeriod()));
+        autoDiscoveryTimer_->expires_after(seconds(conf_.getPatternAutoDiscoveryPeriod()));
         auto weakSelf = weak_from_this();
         autoDiscoveryTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {
             if (auto self = weakSelf.lock()) {
@@ -251,7 +251,4 @@ void PatternMultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
     MultiTopicsConsumerImpl::closeAsync(callback);
 }
 
-void PatternMultiTopicsConsumerImpl::cancelTimers() noexcept {
-    ASIO_ERROR ec;
-    autoDiscoveryTimer_->cancel(ec);
-}
+void PatternMultiTopicsConsumerImpl::cancelTimers() noexcept { autoDiscoveryTimer_->cancel(); }

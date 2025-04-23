@@ -18,6 +18,12 @@
  */
 #include "ExecutorService.h"
 
+#ifdef USE_ASIO
+#include <asio/post.hpp>
+#else
+#include <boost/asio/post.hpp>
+#endif
+
 #include "LogUtils.h"
 #include "TimeUtils.h"
 DECLARE_LOG_OBJECT()
@@ -31,18 +37,13 @@ ExecutorService::~ExecutorService() { close(0); }
 void ExecutorService::start() {
     auto self = shared_from_this();
     std::thread t{[this, self] {
-        LOG_DEBUG("Run io_service in a single thread");
-        ASIO_ERROR ec;
+        LOG_DEBUG("Run io_context in a single thread");
         while (!closed_) {
-            io_service_.restart();
-            IOService::work work{getIOService()};
-            io_service_.run(ec);
+            io_context_.restart();
+            auto work{ASIO::make_work_guard(io_context_)};
+            io_context_.run();
         }
-        if (ec) {
-            LOG_ERROR("Failed to run io_service: " << ec.message());
-        } else {
-            LOG_DEBUG("Event loop of ExecutorService exits successfully");
-        }
+        LOG_DEBUG("Event loop of ExecutorService exits successfully");
         {
             std::lock_guard<std::mutex> lock{mutex_};
             ioServiceDone_ = true;
@@ -63,12 +64,12 @@ ExecutorServicePtr ExecutorService::create() {
 }
 
 /*
- *  factory method of ASIO::ip::tcp::socket associated with io_service_ instance
+ *  factory method of ASIO::ip::tcp::socket associated with io_context_ instance
  *  @ returns shared_ptr to this socket
  */
 SocketPtr ExecutorService::createSocket() {
     try {
-        return SocketPtr(new ASIO::ip::tcp::socket(io_service_));
+        return SocketPtr(new ASIO::ip::tcp::socket(io_context_));
     } catch (const ASIO_SYSTEM_ERROR &e) {
         restart();
         auto error = std::string("Failed to create socket: ") + e.what();
@@ -82,12 +83,12 @@ TlsSocketPtr ExecutorService::createTlsSocket(SocketPtr &socket, ASIO::ssl::cont
 }
 
 /*
- *  factory method of Resolver object associated with io_service_ instance
+ *  factory method of Resolver object associated with io_context_ instance
  *  @returns shraed_ptr to resolver object
  */
 TcpResolverPtr ExecutorService::createTcpResolver() {
     try {
-        return TcpResolverPtr(new ASIO::ip::tcp::resolver(io_service_));
+        return TcpResolverPtr(new ASIO::ip::tcp::resolver(io_context_));
     } catch (const ASIO_SYSTEM_ERROR &e) {
         restart();
         auto error = std::string("Failed to create resolver: ") + e.what();
@@ -97,7 +98,7 @@ TcpResolverPtr ExecutorService::createTcpResolver() {
 
 DeadlineTimerPtr ExecutorService::createDeadlineTimer() {
     try {
-        return DeadlineTimerPtr(new ASIO::steady_timer(io_service_));
+        return DeadlineTimerPtr(new ASIO::steady_timer(io_context_));
     } catch (const ASIO_SYSTEM_ERROR &e) {
         restart();
         auto error = std::string("Failed to create steady_timer: ") + e.what();
@@ -105,7 +106,7 @@ DeadlineTimerPtr ExecutorService::createDeadlineTimer() {
     }
 }
 
-void ExecutorService::restart() { io_service_.stop(); }
+void ExecutorService::restart() { io_context_.stop(); }
 
 void ExecutorService::close(long timeoutMs) {
     bool expectedState = false;
@@ -113,12 +114,12 @@ void ExecutorService::close(long timeoutMs) {
         return;
     }
     if (timeoutMs == 0) {  // non-blocking
-        io_service_.stop();
+        io_context_.stop();
         return;
     }
 
     std::unique_lock<std::mutex> lock{mutex_};
-    io_service_.stop();
+    io_context_.stop();
     if (timeoutMs > 0) {
         cond_.wait_for(lock, std::chrono::milliseconds(timeoutMs), [this] { return ioServiceDone_; });
     } else {  // < 0
@@ -126,7 +127,7 @@ void ExecutorService::close(long timeoutMs) {
     }
 }
 
-void ExecutorService::postWork(std::function<void(void)> task) { io_service_.post(task); }
+void ExecutorService::postWork(std::function<void(void)> task) { ASIO::post(io_context_, task); }
 
 /////////////////////
 

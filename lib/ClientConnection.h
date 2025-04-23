@@ -25,13 +25,13 @@
 #include <atomic>
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
-#include <asio/io_service.hpp>
+#include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/ssl/stream.hpp>
 #include <asio/strand.hpp>
 #else
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/strand.hpp>
@@ -231,13 +231,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         DeadlineTimerPtr timer;
     };
 
-    /*
-     * handler for connectAsync
-     * creates a ConnectionPtr which has a valid ClientConnection object
-     * although not usable at this point, since this is just tcp connection
-     * Pulsar - Connect/Connected has yet to happen
-     */
-    void handleTcpConnected(const ASIO_ERROR& err, ASIO::ip::tcp::resolver::iterator endpointIterator);
+    void asyncConnect(const std::vector<ASIO::ip::tcp::endpoint>& endpoints, size_t index);
+    void completeConnect(ASIO::ip::tcp::endpoint endpoint);
 
     void handleHandshake(const ASIO_ERROR& err);
 
@@ -259,8 +254,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
                                proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
 
     void handlePulsarConnected(const proto::CommandConnected& cmdConnected);
-
-    void handleResolve(const ASIO_ERROR& err, ASIO::ip::tcp::resolver::iterator endpointIterator);
 
     void handleSend(const ASIO_ERROR& err, const SharedBuffer& cmd);
     void handleSendPair(const ASIO_ERROR& err);
@@ -324,7 +317,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     SocketPtr socket_;
     TlsSocketPtr tlsSocket_;
-    ASIO::strand<ASIO::io_service::executor_type> strand_;
+    ASIO::strand<ASIO::io_context::executor_type> strand_;
 
     const std::string logicalAddress_;
     /*

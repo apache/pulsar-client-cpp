@@ -26,8 +26,8 @@
 #include <functional>
 #include <memory>
 
+#include "AsioTimer.h"
 #include "Backoff.h"
-#include "ExecutorService.h"
 #include "Future.h"
 #include "LogUtils.h"
 #include "ResultUtils.h"
@@ -68,8 +68,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
 
     void cancel() {
         promise_.setFailed(ResultDisconnected);
-        ASIO_ERROR ec;
-        timer_->cancel(ec);
+        timer_->cancel();
     }
 
    private:
@@ -107,7 +106,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
             }
 
             auto delay = std::min(backoff_.next(), remainingTime);
-            timer_->expires_from_now(delay);
+            timer_->expires_after(delay);
 
             auto nextRemainingTime = remainingTime - delay;
             LOG_INFO("Reschedule " << name_ << " for " << toMillis(delay)

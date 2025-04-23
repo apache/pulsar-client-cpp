@@ -46,8 +46,8 @@ class ConsumerTest {
             return nullptr;
         }
         auto timer = cnx->executor_->createDeadlineTimer();
-        timer->expires_from_now(delaySinceStartGrabCnx -
-                                std::chrono::milliseconds(impl->connectionTimeMs_ + 50));
+        timer->expires_after(delaySinceStartGrabCnx -
+                             std::chrono::milliseconds(impl->connectionTimeMs_ + 50));
         timer->async_wait([cnx](const ASIO_ERROR&) { cnx->close(); });
         return timer;
     }
