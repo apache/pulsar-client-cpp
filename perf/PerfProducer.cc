@@ -19,6 +19,8 @@
 #include <lib/LogUtils.h>
 DECLARE_LOG_OBJECT()
 
+// Don't remove this line because p_square_quantile.hpp requires including <algorithm> on some platforms
+#include <algorithm>
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/p_square_quantile.hpp>
