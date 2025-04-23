@@ -26,6 +26,7 @@
 #include "CurlWrapper.h"
 #include "ExecutorService.h"
 #include "Int64SerDes.h"
+#include "JsonUtils.h"
 #include "LogUtils.h"
 #include "NamespaceName.h"
 #include "SchemaUtils.h"
@@ -409,15 +410,8 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, con
                 promise.setFailed(ResultInvalidMessage);
                 return;
             }
-            std::stringstream keyStream;
-            ptree::write_json(keyStream, kvRoot.get_child("key"), false);
-            std::stringstream valueStream;
-            ptree::write_json(valueStream, kvRoot.get_child("value"), false);
-            auto keyData = keyStream.str();
-            auto valueData = valueStream.str();
-            // Remove the last line break.
-            keyData.pop_back();
-            valueData.pop_back();
+            const auto keyData = toJson(kvRoot.get_child("key"));
+            const auto valueData = toJson(kvRoot.get_child("value"));
             schemaData = mergeKeyValueSchema(keyData, valueData);
         }
 
