@@ -924,7 +924,9 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
         case Ready: {
             // Since we are receiving data from the connection, we are assuming that for now the
             // connection is still working well.
-            havePendingPingRequest_ = false;
+            if (incomingCmd.type() != BaseCommand::PING) {
+                havePendingPingRequest_ = false;
+            }
 
             // Handle normal commands
             switch (incomingCmd.type()) {
