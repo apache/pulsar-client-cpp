@@ -25,11 +25,10 @@
 #include <map>
 #include <memory>
 
+#include "JsonUtils.h"
 #include "SchemaUtils.h"
 
 using boost::property_tree::ptree;
-using boost::property_tree::read_json;
-using boost::property_tree::write_json;
 
 PULSAR_PUBLIC std::ostream &operator<<(std::ostream &s, pulsar::SchemaType schemaType) {
     return s << strSchemaType(schemaType);
@@ -170,11 +169,7 @@ SchemaInfo::SchemaInfo(const SchemaInfo &keySchema, const SchemaInfo &valueSchem
         for (auto &entry : properties) {
             pt.put(entry.first, entry.second);
         }
-        std::ostringstream buf;
-        write_json(buf, pt, false);
-        auto s = buf.str();
-        s.pop_back();
-        return s;
+        return toJson(pt);
     };
 
     StringMap properties;
