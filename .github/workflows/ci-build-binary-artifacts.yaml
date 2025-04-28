@@ -76,7 +76,7 @@ jobs:
         run: zip -r ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip ${{matrix.pkg.path}}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@master
         with:
           name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
           path: ${{matrix.pkg.path}}
@@ -162,7 +162,7 @@ jobs:
         run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}.zip ${{ env.INSTALL_DIR }}/*
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@master
         with:
           name: ${{ matrix.triplet }}
           path: ${{ env.INSTALL_DIR }}
@@ -190,7 +190,7 @@ jobs:
         run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}-Debug.zip ${{ env.INSTALL_DIR }}-Debug/*
 
       - name: Upload artifacts (Debug)
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@master
         with:
           name: ${{ matrix.triplet }}-Debug
           path: ${{ env.INSTALL_DIR }}-Debug
@@ -224,7 +224,7 @@ jobs:
           cp macos-${{ matrix.arch }}.zip ../../../
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@master
         with:
           name: macos-${{ matrix.arch }}.zip
           path: macos-${{ matrix.arch }}.zip
