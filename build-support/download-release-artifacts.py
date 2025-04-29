@@ -18,7 +18,7 @@
 # under the License.
 #
 
-import sys, json, urllib.request, os, shutil, zipfile, tempfile
+import sys, requests, os, zipfile, tempfile
 from pathlib import Path
 
 if len(sys.argv) != 3:
@@ -39,33 +39,36 @@ workflow_run_id = int(sys.argv[1])
 dest_path = sys.argv[2]
 
 workflow_run_url = LIST_URL % workflow_run_id
-request = urllib.request.Request(workflow_run_url,
-                    headers={'Accept': ACCEPT_HEADER, 'Authorization': 'Bearer ' + GITHUB_TOKEN})
-with urllib.request.urlopen(request) as response:
-    data = json.loads(response.read().decode("utf-8"))
+headers={'Accept': ACCEPT_HEADER, 'Authorization': 'Bearer ' + GITHUB_TOKEN}
+
+with requests.get(workflow_run_url, headers=headers) as response:
+    response.raise_for_status()
+    data = response.json()
     for artifact in data['artifacts']:
         name = artifact['name']
         # Skip debug artifact
         if name.endswith("-Debug"):
             continue
+        dest_dir = os.path.join(dest_path, name)
+        if name.find("windows") >= 0 and os.path.exists(dest_dir + ".tar.gz"):
+            print(f'Skip downloading {name} since {dest_dir}.tar.gz exists')
+            continue
+        if os.path.exists(dest_dir) and \
+           (os.path.isfile(dest_dir) or len(os.listdir(dest_dir)) > 0):
+            print(f'Skip downloading {name} since the directory exists')
+            continue
         url = artifact['archive_download_url']
 
         print('Downloading %s from %s' % (name, url))
-        artifact_request = urllib.request.Request(url,
-                    headers={'Authorization': 'Bearer ' + GITHUB_TOKEN})
-        with urllib.request.urlopen(artifact_request) as response:
+        with requests.get(url, headers=headers, stream=True) as response:
             tmp_zip = tempfile.NamedTemporaryFile(delete=False)
             try:
-                #
-                shutil.copyfileobj(response, tmp_zip)
+                for chunk in response.iter_content(chunk_size=8192):
+                    tmp_zip.write(chunk)
                 tmp_zip.close()
 
-                dest_dir = os.path.join(dest_path, name)
                 Path(dest_dir).mkdir(parents=True, exist_ok=True)
                 with zipfile.ZipFile(tmp_zip.name, 'r') as z:
                     z.extractall(dest_dir)
             finally:
                 os.unlink(tmp_zip.name)
-
-
-
