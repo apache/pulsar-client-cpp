@@ -225,8 +225,9 @@ void ClientImpl::handleProducerCreated(Result result, ProducerImplBaseWeakPtr pr
         auto address = producer.get();
         auto existingProducer = producers_.create(address, producer);
         if (existingProducer) {
+            auto producer = existingProducer.value().lock();
             LOG_ERROR("Unexpected existing producer at the same address: "
-                      << address << ", producer: " << existingProducer.value().lock()->getProducerName());
+                      << address << ", producer: " << (producer ? producer->getProducerName() : "(null)"));
             callback(ResultUnknownError, {});
             return;
         }
@@ -313,8 +314,9 @@ void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDat
             auto address = consumer.get();
             auto existingConsumer = consumers_.create(address, consumer);
             if (existingConsumer) {
+                consumer = existingConsumer.value().lock();
                 LOG_ERROR("Unexpected existing consumer at the same address: "
-                          << address << ", consumer: " << existingConsumer.value().lock()->getName());
+                          << address << ", consumer: " << (consumer ? consumer->getName() : "(null)"));
             }
         } else {
             LOG_ERROR("Unexpected case: the consumer is somehow expired");
@@ -513,8 +515,9 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
         auto address = consumer.get();
         auto existingConsumer = consumers_.create(address, consumer);
         if (existingConsumer) {
+            auto consumer = existingConsumer.value().lock();
             LOG_ERROR("Unexpected existing consumer at the same address: "
-                      << address << ", consumer: " << existingConsumer.value().lock()->getName());
+                      << address << ", consumer: " << (consumer ? consumer->getName() : "(null)"));
             callback(ResultUnknownError, {});
             return;
         }
