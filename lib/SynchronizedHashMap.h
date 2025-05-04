@@ -59,9 +59,9 @@ class SynchronizedHashMap {
         }
     }
 
-    // Create a new key-value pair if the key does not exist.
+    // Put a new key-value pair if the key does not exist.
     // Return boost::none if the key already exists or the existing value.
-    OptValue create(const K& key, const V& value) {
+    OptValue putIfAbsent(const K& key, const V& value) {
         Lock lock(mutex_);
         auto pair = data_.emplace(key, value);
         if (pair.second) {
@@ -71,8 +71,8 @@ class SynchronizedHashMap {
         }
     }
 
-    // Update the key with a new value no matter if the key exists.
-    void update(const K& key, const V& value) {
+    // Put a key-value pair no matter if the key exists.
+    void put(const K& key, const V& value) {
         Lock lock(mutex_);
         data_[key] = value;
     }

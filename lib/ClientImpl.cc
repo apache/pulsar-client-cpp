@@ -223,7 +223,7 @@ void ClientImpl::handleProducerCreated(Result result, ProducerImplBaseWeakPtr pr
                                        CreateProducerCallback callback, ProducerImplBasePtr producer) {
     if (result == ResultOk) {
         auto address = producer.get();
-        auto existingProducer = producers_.create(address, producer);
+        auto existingProducer = producers_.putIfAbsent(address, producer);
         if (existingProducer) {
             auto producer = existingProducer.value().lock();
             LOG_ERROR("Unexpected existing producer at the same address: "
@@ -312,7 +312,7 @@ void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDat
         auto consumer = weakConsumerPtr.lock();
         if (consumer) {
             auto address = consumer.get();
-            auto existingConsumer = consumers_.create(address, consumer);
+            auto existingConsumer = consumers_.putIfAbsent(address, consumer);
             if (existingConsumer) {
                 consumer = existingConsumer.value().lock();
                 LOG_ERROR("Unexpected existing consumer at the same address: "
@@ -513,7 +513,7 @@ void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr co
                                        SubscribeCallback callback, ConsumerImplBasePtr consumer) {
     if (result == ResultOk) {
         auto address = consumer.get();
-        auto existingConsumer = consumers_.create(address, consumer);
+        auto existingConsumer = consumers_.putIfAbsent(address, consumer);
         if (existingConsumer) {
             auto consumer = existingConsumer.value().lock();
             LOG_ERROR("Unexpected existing consumer at the same address: "

@@ -101,14 +101,14 @@ TEST(SynchronizedHashMapTest, testForEach) {
     ASSERT_TRUE(values.empty());
     ASSERT_EQ(result, 1);
 
-    ASSERT_EQ(m.create(1, 100), boost::none);
-    ASSERT_EQ(m.create(1, 101), boost::optional<int>(100));
+    ASSERT_EQ(m.putIfAbsent(1, 100), boost::none);
+    ASSERT_EQ(m.putIfAbsent(1, 101), boost::optional<int>(100));
     m.forEachValue([&values](int value, SharedFuture) { values.emplace_back(value); },
                    [&result] { result = 2; });
     ASSERT_EQ(values, (std::vector<int>({100})));
     ASSERT_EQ(result, 1);
 
-    m.update(1, 102);
+    m.put(1, 102);
     values.clear();
     m.forEachValue([&values](int value, SharedFuture) { values.emplace_back(value); },
                    [&result] { result = 2; });
@@ -116,8 +116,8 @@ TEST(SynchronizedHashMapTest, testForEach) {
     ASSERT_EQ(result, 1);
 
     values.clear();
-    ASSERT_EQ(m.create(2, 200), boost::none);
-    ASSERT_EQ(m.create(2, 201), boost::optional<int>(200));
+    ASSERT_EQ(m.putIfAbsent(2, 200), boost::none);
+    ASSERT_EQ(m.putIfAbsent(2, 201), boost::optional<int>(200));
     m.forEachValue([&values](int value, SharedFuture) { values.emplace_back(value); },
                    [&result] { result = 2; });
     std::sort(values.begin(), values.end());
