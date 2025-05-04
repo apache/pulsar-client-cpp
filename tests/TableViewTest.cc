@@ -96,10 +96,22 @@ TEST(TableViewTest, testSimpleTableView) {
 
     // assert interfaces.
     std::string value;
+    ASSERT_TRUE(tableView.containsKey("key1"));
     ASSERT_TRUE(tableView.getValue("key1", value));
     ASSERT_EQ(value, "value1");
+
+    // Test value update
+    ASSERT_EQ(ResultOk,
+              producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1-update").build()));
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(2), [&tableView]() {
+        std::string value;
+        tableView.getValue("key1", value);
+        return value == "value1-update";
+    }));
+
+    // retrieveValue will remove the key/value from the table view.
     ASSERT_TRUE(tableView.retrieveValue("key1", value));
-    ASSERT_EQ(value, "value1");
+    ASSERT_EQ(value, "value1-update");
     ASSERT_FALSE(tableView.containsKey("key1"));
     ASSERT_EQ(tableView.snapshot().size(), count * 2 - 1);
     ASSERT_EQ(tableView.size(), 0);

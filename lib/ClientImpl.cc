@@ -222,12 +222,12 @@ void ClientImpl::handleCreateProducer(const Result result, const LookupDataResul
 void ClientImpl::handleProducerCreated(Result result, ProducerImplBaseWeakPtr producerBaseWeakPtr,
                                        CreateProducerCallback callback, ProducerImplBasePtr producer) {
     if (result == ResultOk) {
-        auto pair = producers_.emplace(producer.get(), producer);
-        if (!pair.second) {
-            auto existingProducer = pair.first->second.lock();
+        auto address = producer.get();
+        auto existingProducer = producers_.putIfAbsent(address, producer);
+        if (existingProducer) {
+            auto producer = existingProducer.value().lock();
             LOG_ERROR("Unexpected existing producer at the same address: "
-                      << pair.first->first << ", producer: "
-                      << (existingProducer ? existingProducer->getProducerName() : "(null)"));
+                      << address << ", producer: " << (producer ? producer->getProducerName() : "(null)"));
             callback(ResultUnknownError, {});
             return;
         }
@@ -311,12 +311,12 @@ void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDat
     reader->start(startMessageId, [this, self](const ConsumerImplBaseWeakPtr& weakConsumerPtr) {
         auto consumer = weakConsumerPtr.lock();
         if (consumer) {
-            auto pair = consumers_.emplace(consumer.get(), consumer);
-            if (!pair.second) {
-                auto existingConsumer = pair.first->second.lock();
+            auto address = consumer.get();
+            auto existingConsumer = consumers_.putIfAbsent(address, consumer);
+            if (existingConsumer) {
+                consumer = existingConsumer.value().lock();
                 LOG_ERROR("Unexpected existing consumer at the same address: "
-                          << pair.first->first
-                          << ", consumer: " << (existingConsumer ? existingConsumer->getName() : "(null)"));
+                          << address << ", consumer: " << (consumer ? consumer->getName() : "(null)"));
             }
         } else {
             LOG_ERROR("Unexpected case: the consumer is somehow expired");
@@ -512,12 +512,12 @@ void ClientImpl::handleSubscribe(const Result result, const LookupDataResultPtr 
 void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
                                        SubscribeCallback callback, ConsumerImplBasePtr consumer) {
     if (result == ResultOk) {
-        auto pair = consumers_.emplace(consumer.get(), consumer);
-        if (!pair.second) {
-            auto existingConsumer = pair.first->second.lock();
+        auto address = consumer.get();
+        auto existingConsumer = consumers_.putIfAbsent(address, consumer);
+        if (existingConsumer) {
+            auto consumer = existingConsumer.value().lock();
             LOG_ERROR("Unexpected existing consumer at the same address: "
-                      << pair.first->first
-                      << ", consumer: " << (existingConsumer ? existingConsumer->getName() : "(null)"));
+                      << address << ", consumer: " << (consumer ? consumer->getName() : "(null)"));
             callback(ResultUnknownError, {});
             return;
         }

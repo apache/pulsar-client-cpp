@@ -104,7 +104,7 @@ void TableViewImpl::handleMessage(const Message& msg) {
         if (msg.getLength() == 0) {
             data_.remove(msg.getPartitionKey());
         } else {
-            data_.emplace(msg.getPartitionKey(), value);
+            data_.put(msg.getPartitionKey(), value);
         }
 
         Lock lock(listenersMutex_);

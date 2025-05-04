@@ -59,10 +59,22 @@ class SynchronizedHashMap {
         }
     }
 
-    template <typename... Args>
-    std::pair<Iterator, bool> emplace(Args&&... args) {
+    // Put a new key-value pair if the key does not exist.
+    // Return boost::none if the key already exists or the existing value.
+    OptValue putIfAbsent(const K& key, const V& value) {
         Lock lock(mutex_);
-        return data_.emplace(std::forward<Args>(args)...);
+        auto pair = data_.emplace(key, value);
+        if (pair.second) {
+            return boost::none;
+        } else {
+            return pair.first->second;
+        }
+    }
+
+    // Put a key-value pair no matter if the key exists.
+    void put(const K& key, const V& value) {
+        Lock lock(mutex_);
+        data_[key] = value;
     }
 
     void forEach(std::function<void(const K&, const V&)> f) const {
