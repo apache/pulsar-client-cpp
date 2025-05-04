@@ -116,7 +116,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             ASSERT_EQ(sendResult, ResultOk);
             ASSERT_TRUE(elapsed < maxWaitTimeMs);
 
-            producedMsgs.emplace(i, i);
+            producedMsgs.put(i, i);
             i++;
         }
         LOG_INFO("producer finished");
@@ -143,7 +143,7 @@ TEST(ExtensibleLoadManagerTest, testPubSubWhileUnloading) {
             LOG_INFO("acked i:" << i << " " << elapsed << " ms");
             ASSERT_TRUE(elapsed < maxWaitTimeMs);
             ASSERT_EQ(ackResult, ResultOk);
-            consumedMsgs.emplace(i, i);
+            consumedMsgs.put(i, i);
         }
         LOG_INFO("consumer finished");
     };

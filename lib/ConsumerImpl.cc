@@ -619,7 +619,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
             return;
         }
         if (redeliveryCount >= deadLetterPolicy_.getMaxRedeliverCount()) {
-            possibleSendToDeadLetterTopicMessages_.emplace(m.getMessageId(), std::vector<Message>{m});
+            possibleSendToDeadLetterTopicMessages_.put(m.getMessageId(), std::vector<Message>{m});
             if (redeliveryCount > deadLetterPolicy_.getMaxRedeliverCount()) {
                 redeliverUnacknowledgedMessages({m.getMessageId()});
                 increaseAvailablePermits(cnx);
@@ -786,7 +786,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
     }
 
     if (!possibleToDeadLetter.empty()) {
-        possibleSendToDeadLetterTopicMessages_.emplace(batchedMessage.getMessageId(), possibleToDeadLetter);
+        possibleSendToDeadLetterTopicMessages_.put(batchedMessage.getMessageId(), possibleToDeadLetter);
         if (redeliveryCount > deadLetterPolicy_.getMaxRedeliverCount()) {
             redeliverUnacknowledgedMessages({batchedMessage.getMessageId()});
         }
