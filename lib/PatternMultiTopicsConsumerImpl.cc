@@ -30,10 +30,10 @@ using namespace pulsar;
 using std::chrono::seconds;
 
 PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(
-    ClientImplPtr client, const std::string pattern, CommandGetTopicsOfNamespace_Mode getTopicsMode,
+    const ClientImplPtr& client, const std::string& pattern, CommandGetTopicsOfNamespace_Mode getTopicsMode,
     const std::vector<std::string>& topics, const std::string& subscriptionName,
-    const ConsumerConfiguration& conf, const LookupServicePtr lookupServicePtr_,
-    const ConsumerInterceptorsPtr interceptors)
+    const ConsumerConfiguration& conf, const LookupServicePtr& lookupServicePtr_,
+    const ConsumerInterceptorsPtr& interceptors)
     : MultiTopicsConsumerImpl(client, topics, subscriptionName, TopicName::get(pattern), conf,
                               lookupServicePtr_, interceptors),
       patternString_(pattern),
@@ -89,8 +89,8 @@ void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const ASIO_ERROR& er
                                std::placeholders::_1, std::placeholders::_2));
 }
 
-void PatternMultiTopicsConsumerImpl::timerGetTopicsOfNamespace(const Result result,
-                                                               const NamespaceTopicsPtr topics) {
+void PatternMultiTopicsConsumerImpl::timerGetTopicsOfNamespace(Result result,
+                                                               const NamespaceTopicsPtr& topics) {
     if (result != ResultOk) {
         LOG_ERROR("Error in Getting topicsOfNameSpace. result: " << result);
         resetAutoDiscoveryTimer();
@@ -132,7 +132,8 @@ void PatternMultiTopicsConsumerImpl::timerGetTopicsOfNamespace(const Result resu
     onTopicsAdded(topicsAdded, topicsAddedCallback);
 }
 
-void PatternMultiTopicsConsumerImpl::onTopicsAdded(NamespaceTopicsPtr addedTopics, ResultCallback callback) {
+void PatternMultiTopicsConsumerImpl::onTopicsAdded(const NamespaceTopicsPtr& addedTopics,
+                                                   const ResultCallback& callback) {
     // start call subscribeOneTopicAsync for each single topic
 
     if (addedTopics->empty()) {
@@ -152,9 +153,9 @@ void PatternMultiTopicsConsumerImpl::onTopicsAdded(NamespaceTopicsPtr addedTopic
     }
 }
 
-void PatternMultiTopicsConsumerImpl::handleOneTopicAdded(const Result result, const std::string& topic,
-                                                         std::shared_ptr<std::atomic<int>> topicsNeedCreate,
-                                                         ResultCallback callback) {
+void PatternMultiTopicsConsumerImpl::handleOneTopicAdded(
+    Result result, const std::string& topic, const std::shared_ptr<std::atomic<int>>& topicsNeedCreate,
+    const ResultCallback& callback) {
     (*topicsNeedCreate)--;
 
     if (result != ResultOk) {
@@ -169,8 +170,8 @@ void PatternMultiTopicsConsumerImpl::handleOneTopicAdded(const Result result, co
     }
 }
 
-void PatternMultiTopicsConsumerImpl::onTopicsRemoved(NamespaceTopicsPtr removedTopics,
-                                                     ResultCallback callback) {
+void PatternMultiTopicsConsumerImpl::onTopicsRemoved(const NamespaceTopicsPtr& removedTopics,
+                                                     const ResultCallback& callback) {
     // start call subscribeOneTopicAsync for each single topic
     if (removedTopics->empty()) {
         LOG_DEBUG("no topics need unsubscribe");
@@ -208,7 +209,7 @@ NamespaceTopicsPtr PatternMultiTopicsConsumerImpl::topicsPatternFilter(
     for (const auto& topicStr : topics) {
         auto topic = TopicName::removeDomain(topicStr);
         if (PULSAR_REGEX_NAMESPACE::regex_match(topic, pattern)) {
-            topicsResultPtr->push_back(std::move(topicStr));
+            topicsResultPtr->push_back(topicStr);
         }
     }
     return topicsResultPtr;

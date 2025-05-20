@@ -110,7 +110,7 @@ class PULSAR_PUBLIC Client {
      * @param topic the name of the topic where to produce
      * @param conf the customized ProducerConfiguration
      */
-    void createProducerAsync(const std::string& topic, ProducerConfiguration conf,
+    void createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                              CreateProducerCallback callback);
 
     /**
@@ -331,7 +331,7 @@ class PULSAR_PUBLIC Client {
      * built from a message that already exists
      */
     void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
-                              TableViewCallback callBack);
+                              const TableViewCallback& callBack);
 
     /**
      * Get the list of partitions for a given topic.
@@ -415,7 +415,7 @@ class PULSAR_PUBLIC Client {
                             std::function<void(Result, const SchemaInfo&)> callback);
 
    private:
-    Client(const std::shared_ptr<ClientImpl>);
+    Client(const std::shared_ptr<ClientImpl>&);
 
     friend class PulsarFriend;
     friend class PulsarWrapper;

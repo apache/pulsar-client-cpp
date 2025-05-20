@@ -48,7 +48,7 @@ DECLARE_LOG_OBJECT()
 
 using std::chrono::milliseconds;
 
-ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
+ProducerImpl::ProducerImpl(const ClientImplPtr& client, const TopicName& topicName,
                            const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
                            int32_t partition, bool retryOnCreationError)
     : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
@@ -352,7 +352,7 @@ void ProducerImpl::failPendingMessages(Result result, bool withLock) {
     }
 }
 
-void ProducerImpl::resendMessages(ClientConnectionPtr cnx) {
+void ProducerImpl::resendMessages(const ClientConnectionPtr& cnx) {
     if (pendingMessagesQueue_.empty()) {
         return;
     }

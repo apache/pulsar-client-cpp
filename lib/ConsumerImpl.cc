@@ -74,14 +74,14 @@ static boost::optional<MessageId> getStartMessageId(const boost::optional<Messag
     return startMessageId;
 }
 
-ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
+ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic,
                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
                            bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
-                           const ExecutorServicePtr listenerExecutor /* = NULL by default */,
+                           const ExecutorServicePtr& listenerExecutor /* = NULL by default */,
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
                            Commands::SubscriptionMode subscriptionMode,
-                           boost::optional<MessageId> startMessageId)
+                           const boost::optional<MessageId>& startMessageId)
     : ConsumerImplBase(
           client, topic,
           Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
@@ -141,7 +141,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
     }
 
     // Config dlq
-    auto deadLetterPolicy = conf.getDeadLetterPolicy();
+    const auto& deadLetterPolicy = conf.getDeadLetterPolicy();
     if (deadLetterPolicy.getMaxRedeliverCount() > 0) {
         auto deadLetterPolicyBuilder =
             DeadLetterPolicyBuilder()
@@ -408,7 +408,7 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
     }
 }
 
-void ConsumerImpl::discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck) {
+void ConsumerImpl::discardChunkMessages(std::string uuid, const MessageId& messageId, bool autoAck) {
     if (autoAck) {
         acknowledgeAsync(messageId, [uuid, messageId](Result result) {
             if (result != ResultOk) {
@@ -460,7 +460,7 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
                                                                 const ClientConnectionPtr& cnx,
                                                                 MessageId& messageId) {
     const auto chunkId = metadata.chunk_id();
-    const auto uuid = metadata.uuid();
+    const auto& uuid = metadata.uuid();
     LOG_DEBUG("Process message chunk (chunkId: " << chunkId << ", uuid: " << uuid
                                                  << ", messageId: " << messageId << ") of "
                                                  << payload.readableBytes() << " bytes");
@@ -1461,7 +1461,7 @@ void ConsumerImpl::redeliverMessages(const std::set<MessageId>& messageIds) {
 
 int ConsumerImpl::getNumOfPrefetchedMessages() const { return incomingMessages_.size(); }
 
-void ConsumerImpl::getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) {
+void ConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback) {
     if (state_ != Ready) {
         LOG_ERROR(getName() << "Client connection is not open, please try again later.")
         callback(ResultConsumerNotInitialized, BrokerConsumerStats());
@@ -1515,7 +1515,7 @@ void ConsumerImpl::brokerConsumerStatsListener(Result res, BrokerConsumerStatsIm
     }
 }
 
-void ConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
+void ConsumerImpl::seekAsync(const MessageId& msgId, const ResultCallback& callback) {
     const auto state = state_.load();
     if (state == Closed || state == Closing) {
         LOG_ERROR(getName() << "Client connection already closed.");
@@ -1534,7 +1534,7 @@ void ConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
     seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId}, callback);
 }
 
-void ConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
+void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
     const auto state = state_.load();
     if (state == Closed || state == Closing) {
         LOG_ERROR(getName() << "Client connection already closed.");
@@ -1609,7 +1609,7 @@ void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback
     }
 }
 
-void ConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) {
+void ConsumerImpl::getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& callback) {
     const auto state = state_.load();
     if (state == Closed || state == Closing) {
         LOG_ERROR(getName() << "Client connection already closed.");
@@ -1628,7 +1628,7 @@ void ConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback
 
 void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, TimeDuration remainTime,
                                                  const DeadlineTimerPtr& timer,
-                                                 BrokerGetLastMessageIdCallback callback) {
+                                                 const BrokerGetLastMessageIdCallback& callback) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (cnx) {
         if (cnx->getServerProtocolVersion() >= proto::v12) {
@@ -1701,7 +1701,7 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
 void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const SeekArg& seekArg,
-                                     ResultCallback callback) {
+                                     const ResultCallback& callback) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
         LOG_ERROR(getName() << " Client Connection not ready for Consumer");
@@ -1724,12 +1724,12 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Se
         seekMessageId_ = *boost::get<MessageId>(&seekArg);
     }
     seekStatus_ = SeekStatus::IN_PROGRESS;
-    seekCallback_ = std::move(callback);
+    seekCallback_ = callback;
     LOG_INFO(getName() << " Seeking subscription to " << seekArg);
 
     std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
 
-    cnx->sendRequestWithId(seek, requestId)
+    cnx->sendRequestWithId(std::move(seek), requestId)
         .addListener([this, weakSelf, callback, originalSeekMessageId](Result result,
                                                                        const ResponseData& responseData) {
             auto self = weakSelf.lock();
@@ -1794,7 +1794,7 @@ void ConsumerImpl::cancelTimers() noexcept {
     consumerStatsBasePtr_->stop();
 }
 
-void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCallBack cb) {
+void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const ProcessDLQCallBack& cb) {
     auto messages = possibleSendToDeadLetterTopicMessages_.find(messageId);
     if (!messages) {
         cb(false);
@@ -1817,7 +1817,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, ProcessDLQCa
                 auto self = get_shared_this_ptr();
                 client->createProducerAsync(
                     deadLetterPolicy_.getDeadLetterTopic(), producerConfiguration,
-                    [self](Result res, Producer producer) {
+                    [self](Result res, const Producer& producer) {
                         if (res == ResultOk) {
                             self->deadLetterProducer_->setValue(producer);
                         } else {

@@ -328,12 +328,12 @@ void mockZTS(Latch& latch, int port) {
 
         if (headerLine == "\r" || headerLine == "\n" || headerLine == "\r\n") {
             std::string mockToken = "{\"token\":\"mockToken\",\"expiryTime\":4133980800}";
-            stream << "HTTP/1.1 200 OK" << std::endl;
-            stream << "Host: localhost" << std::endl;
-            stream << "Content-Type: application/json" << std::endl;
-            stream << "Content-Length: " << mockToken.size() << std::endl;
-            stream << std::endl;
-            stream << mockToken << std::endl;
+            stream << "HTTP/1.1 200 OK" << '\n';
+            stream << "Host: localhost" << '\n';
+            stream << "Content-Type: application/json" << '\n';
+            stream << "Content-Length: " << mockToken.size() << '\n';
+            stream << '\n';
+            stream << mockToken << '\n';
             break;
         }
     }

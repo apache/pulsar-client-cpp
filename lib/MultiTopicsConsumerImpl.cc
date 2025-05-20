@@ -40,25 +40,23 @@ using namespace pulsar;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
-MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, TopicNamePtr topicName,
+MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(const ClientImplPtr& client, const TopicNamePtr& topicName,
                                                  int numPartitions, const std::string& subscriptionName,
                                                  const ConsumerConfiguration& conf,
-                                                 LookupServicePtr lookupServicePtr,
+                                                 const LookupServicePtr& lookupServicePtr,
                                                  const ConsumerInterceptorsPtr& interceptors,
-                                                 const Commands::SubscriptionMode subscriptionMode,
-                                                 boost::optional<MessageId> startMessageId)
+                                                 Commands::SubscriptionMode subscriptionMode,
+                                                 const boost::optional<MessageId>& startMessageId)
     : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
                               lookupServicePtr, interceptors, subscriptionMode, startMessageId) {
     topicsPartitions_[topicName->toString()] = numPartitions;
 }
 
-MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(ClientImplPtr client, const std::vector<std::string>& topics,
-                                                 const std::string& subscriptionName, TopicNamePtr topicName,
-                                                 const ConsumerConfiguration& conf,
-                                                 LookupServicePtr lookupServicePtr,
-                                                 const ConsumerInterceptorsPtr& interceptors,
-                                                 const Commands::SubscriptionMode subscriptionMode,
-                                                 boost::optional<MessageId> startMessageId)
+MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(
+    const ClientImplPtr& client, const std::vector<std::string>& topics, const std::string& subscriptionName,
+    const TopicNamePtr& topicName, const ConsumerConfiguration& conf,
+    const LookupServicePtr& lookupServicePtr, const ConsumerInterceptorsPtr& interceptors,
+    Commands::SubscriptionMode subscriptionMode, const boost::optional<MessageId>& startMessageId)
     : ConsumerImplBase(client, topicName ? topicName->toString() : "EmptyTopics",
                        Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
                        client->getListenerExecutorProvider()->get()),
@@ -120,7 +118,7 @@ void MultiTopicsConsumerImpl::start() {
     // subscribe for each passed in topic
     auto weakSelf = weak_from_this();
     for (std::vector<std::string>::const_iterator itr = topics_.begin(); itr != topics_.end(); itr++) {
-        auto topic = *itr;
+        const auto& topic = *itr;
         subscribeOneTopicAsync(topic).addListener(
             [this, weakSelf, topic, topicsNeedCreate](Result result, const Consumer& consumer) {
                 auto self = weakSelf.lock();
@@ -131,9 +129,9 @@ void MultiTopicsConsumerImpl::start() {
     }
 }
 
-void MultiTopicsConsumerImpl::handleOneTopicSubscribed(Result result, Consumer consumer,
-                                                       const std::string& topic,
-                                                       std::shared_ptr<std::atomic<int>> topicsNeedCreate) {
+void MultiTopicsConsumerImpl::handleOneTopicSubscribed(
+    Result result, const Consumer& consumer, const std::string& topic,
+    const std::shared_ptr<std::atomic<int>>& topicsNeedCreate) {
     if (result != ResultOk) {
         state_ = Failed;
         // Use the first failed result
@@ -205,9 +203,9 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
     return topicPromise->getFuture();
 }
 
-void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicNamePtr topicName,
-                                                       const std::string& consumerName,
-                                                       ConsumerSubResultPromisePtr topicSubResultPromise) {
+void MultiTopicsConsumerImpl::subscribeTopicPartitions(
+    int numPartitions, const TopicNamePtr& topicName, const std::string& consumerName,
+    const ConsumerSubResultPromisePtr& topicSubResultPromise) {
     std::shared_ptr<ConsumerImpl> consumer;
     ConsumerConfiguration config = conf_.clone();
     // Pause messageListener until all child topics are subscribed.
@@ -223,7 +221,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
     ExecutorServicePtr internalListenerExecutor = client->getPartitionListenerExecutorProvider()->get();
 
     auto weakSelf = weak_from_this();
-    config.setMessageListener([this, weakSelf](Consumer consumer, const Message& msg) {
+    config.setMessageListener([this, weakSelf](const Consumer& consumer, const Message& msg) {
         auto self = weakSelf.lock();
         if (self) {
             messageReceived(consumer, msg);
@@ -295,9 +293,9 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(int numPartitions, TopicN
 }
 
 void MultiTopicsConsumerImpl::handleSingleConsumerCreated(
-    Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
-    std::shared_ptr<std::atomic<int>> partitionsNeedCreate,
-    ConsumerSubResultPromisePtr topicSubResultPromise) {
+    Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr,
+    const std::shared_ptr<std::atomic<int>>& partitionsNeedCreate,
+    const ConsumerSubResultPromisePtr& topicSubResultPromise) {
     if (state_ == Failed) {
         // one of the consumer creation failed, and we are cleaning up
         topicSubResultPromise->setFailed(ResultAlreadyClosed);
@@ -412,8 +410,8 @@ void MultiTopicsConsumerImpl::unsubscribeOneTopicAsync(const std::string& topic,
 }
 
 void MultiTopicsConsumerImpl::handleOneTopicUnsubscribedAsync(
-    Result result, std::shared_ptr<std::atomic<int>> consumerUnsubed, int numberPartitions,
-    TopicNamePtr topicNamePtr, std::string& topicPartitionName, ResultCallback callback) {
+    Result result, const std::shared_ptr<std::atomic<int>>& consumerUnsubed, int numberPartitions,
+    const TopicNamePtr& topicNamePtr, const std::string& topicPartitionName, const ResultCallback& callback) {
     (*consumerUnsubed)++;
 
     if (result != ResultOk) {
@@ -555,7 +553,7 @@ void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& 
     }
 }
 
-void MultiTopicsConsumerImpl::internalListener(Consumer consumer) {
+void MultiTopicsConsumerImpl::internalListener(const Consumer& consumer) {
     Message m;
     incomingMessages_.pop(m);
     try {
@@ -682,7 +680,7 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
 
     std::unordered_map<std::string, MessageIdList> topicToMessageId;
     for (const MessageId& messageId : messageIdList) {
-        auto topicName = messageId.getTopicName();
+        const auto& topicName = messageId.getTopicName();
         if (topicName.empty()) {
             LOG_ERROR("MessageId without a topic name cannot be acknowledged for a multi-topics consumer");
             callback(ResultOperationNotSupported);
@@ -812,7 +810,7 @@ void MultiTopicsConsumerImpl::redeliverUnacknowledgedMessages(const std::set<Mes
     LOG_DEBUG("Sending RedeliverUnacknowledgedMessages command for partitioned consumer.");
     std::unordered_map<std::string, std::set<MessageId>> topicToMessageId;
     for (const MessageId& messageId : messageIds) {
-        auto topicName = messageId.getTopicName();
+        const auto& topicName = messageId.getTopicName();
         topicToMessageId[topicName].emplace(messageId);
     }
 
@@ -828,7 +826,7 @@ void MultiTopicsConsumerImpl::redeliverUnacknowledgedMessages(const std::set<Mes
 
 int MultiTopicsConsumerImpl::getNumOfPrefetchedMessages() const { return incomingMessages_.size(); }
 
-void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) {
+void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback) {
     if (state_ != Ready) {
         callback(ResultConsumerNotInitialized, BrokerConsumerStats());
         return;
@@ -843,24 +841,26 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(BrokerConsumerStatsCal
     consumers_.forEachValue([this, &latchPtr, &statsPtr, &i, callback](const ConsumerImplPtr& consumer) {
         size_t index = i++;
         auto weakSelf = weak_from_this();
-        consumer->getBrokerConsumerStatsAsync(
-            [this, weakSelf, latchPtr, statsPtr, index, callback](Result result, BrokerConsumerStats stats) {
-                auto self = weakSelf.lock();
-                if (self) {
-                    handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
-                }
-            });
+        consumer->getBrokerConsumerStatsAsync([this, weakSelf, latchPtr, statsPtr, index, callback](
+                                                  Result result, const BrokerConsumerStats& stats) {
+            auto self = weakSelf.lock();
+            if (self) {
+                handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
+            }
+        });
     });
 }
 
-void MultiTopicsConsumerImpl::getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) {
+void MultiTopicsConsumerImpl::getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& callback) {
     callback(ResultOperationNotSupported, GetLastMessageIdResponse());
 }
 
-void MultiTopicsConsumerImpl::handleGetConsumerStats(Result res, BrokerConsumerStats brokerConsumerStats,
-                                                     LatchPtr latchPtr,
-                                                     MultiTopicsBrokerConsumerStatsPtr statsPtr, size_t index,
-                                                     BrokerConsumerStatsCallback callback) {
+void MultiTopicsConsumerImpl::handleGetConsumerStats(Result res,
+                                                     const BrokerConsumerStats& brokerConsumerStats,
+                                                     const LatchPtr& latchPtr,
+                                                     const MultiTopicsBrokerConsumerStatsPtr& statsPtr,
+                                                     size_t index,
+                                                     const BrokerConsumerStatsCallback& callback) {
     Lock lock(mutex_);
     if (res == ResultOk) {
         latchPtr->countdown();
@@ -907,7 +907,7 @@ void MultiTopicsConsumerImpl::afterSeek() {
     });
 }
 
-void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
+void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, const ResultCallback& callback) {
     if (msgId == MessageId::earliest() || msgId == MessageId::latest()) {
         return seekAllAsync(msgId, callback);
     }
@@ -933,7 +933,7 @@ void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, ResultCallback c
     });
 }
 
-void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
+void MultiTopicsConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
     seekAllAsync(timestamp, callback);
 }
 
@@ -992,7 +992,7 @@ void MultiTopicsConsumerImpl::topicPartitionUpdate() {
             });
     }
 }
-void MultiTopicsConsumerImpl::handleGetPartitions(TopicNamePtr topicName, Result result,
+void MultiTopicsConsumerImpl::handleGetPartitions(const TopicNamePtr& topicName, Result result,
                                                   const LookupDataResultPtr& lookupDataResult,
                                                   int currentNumPartitions) {
     if (state_ != Ready) {
@@ -1024,9 +1024,9 @@ void MultiTopicsConsumerImpl::handleGetPartitions(TopicNamePtr topicName, Result
 }
 
 void MultiTopicsConsumerImpl::subscribeSingleNewConsumer(
-    int numPartitions, TopicNamePtr topicName, int partitionIndex,
-    ConsumerSubResultPromisePtr topicSubResultPromise,
-    std::shared_ptr<std::atomic<int>> partitionsNeedCreate) {
+    int numPartitions, const TopicNamePtr& topicName, int partitionIndex,
+    const ConsumerSubResultPromisePtr& topicSubResultPromise,
+    const std::shared_ptr<std::atomic<int>>& partitionsNeedCreate) {
     ConsumerConfiguration config = conf_.clone();
     auto client = client_.lock();
     if (!client) {
@@ -1130,24 +1130,25 @@ void MultiTopicsConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallba
     auto needCallBack = std::make_shared<std::atomic<int>>(consumers_.size());
     auto self = get_shared_this_ptr();
 
-    consumers_.forEachValue([self, needCallBack, callback, hasMessageAvailable](ConsumerImplPtr consumer) {
-        consumer->hasMessageAvailableAsync(
-            [self, needCallBack, callback, hasMessageAvailable](Result result, bool hasMsg) {
-                if (result != ResultOk) {
-                    LOG_ERROR("Filed when acknowledge list: " << result);
-                    // set needCallBack is -1 to avoid repeated callback.
-                    needCallBack->store(-1);
-                    callback(result, false);
-                    return;
-                }
+    consumers_.forEachValue(
+        [self, needCallBack, callback, hasMessageAvailable](const ConsumerImplPtr& consumer) {
+            consumer->hasMessageAvailableAsync(
+                [self, needCallBack, callback, hasMessageAvailable](Result result, bool hasMsg) {
+                    if (result != ResultOk) {
+                        LOG_ERROR("Filed when acknowledge list: " << result);
+                        // set needCallBack is -1 to avoid repeated callback.
+                        needCallBack->store(-1);
+                        callback(result, false);
+                        return;
+                    }
 
-                if (hasMsg) {
-                    hasMessageAvailable->store(hasMsg);
-                }
+                    if (hasMsg) {
+                        hasMessageAvailable->store(hasMsg);
+                    }
 
-                if (--(*needCallBack) == 0) {
-                    callback(result, hasMessageAvailable->load() || self->incomingMessagesSize_ > 0);
-                }
-            });
-    });
+                    if (--(*needCallBack) == 0) {
+                        callback(result, hasMessageAvailable->load() || self->incomingMessagesSize_ > 0);
+                    }
+                });
+        });
 }

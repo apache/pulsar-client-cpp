@@ -76,7 +76,7 @@ class PULSAR_PUBLIC MultiTopicsBrokerConsumerStatsImpl : public BrokerConsumerSt
     /** Returns the BrokerConsumerStatsImpl at of ith partition */
     BrokerConsumerStats getBrokerConsumerStats(int index);
 
-    void add(BrokerConsumerStats stats, int index);
+    void add(const BrokerConsumerStats &stats, int index);
 
     void clear();
 

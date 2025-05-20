@@ -53,7 +53,7 @@ class ConnectionFailTest : public ::testing::TestWithParam<int> {
         limit.rlim_cur = fdLimit;
         limit.rlim_max = maxFdCount_;
         ASSERT_EQ(setrlimit(RLIMIT_NOFILE, &limit), 0);
-        std::cout << "Updated fd limit to " << limit.rlim_cur << std::endl;
+        std::cout << "Updated fd limit to " << limit.rlim_cur << '\n';
     }
 };
 
@@ -88,7 +88,7 @@ TEST_P(ConnectionFailTest, test) {
             break;
         }
     }
-    std::cout << "Create producer, consumer and reader successfully when fdLimit is " << fdLimit << std::endl;
+    std::cout << "Create producer, consumer and reader successfully when fdLimit is " << fdLimit << '\n';
     ASSERT_TRUE(fdLimit < 100);
 }
 

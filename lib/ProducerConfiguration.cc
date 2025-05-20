@@ -180,7 +180,7 @@ ProducerConfiguration::BatchingType ProducerConfiguration::getBatchingType() con
 const CryptoKeyReaderPtr ProducerConfiguration::getCryptoKeyReader() const { return impl_->cryptoKeyReader; }
 
 ProducerConfiguration& ProducerConfiguration::setCryptoKeyReader(CryptoKeyReaderPtr cryptoKeyReader) {
-    impl_->cryptoKeyReader = cryptoKeyReader;
+    impl_->cryptoKeyReader = std::move(cryptoKeyReader);
     return *this;
 }
 
@@ -201,7 +201,7 @@ bool ProducerConfiguration::isEncryptionEnabled() const {
     return (!impl_->encryptionKeys.empty() && (impl_->cryptoKeyReader != NULL));
 }
 
-ProducerConfiguration& ProducerConfiguration::addEncryptionKey(std::string key) {
+ProducerConfiguration& ProducerConfiguration::addEncryptionKey(const std::string& key) {
     impl_->encryptionKeys.insert(key);
     return *this;
 }

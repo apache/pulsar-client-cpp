@@ -31,7 +31,7 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
-NegativeAcksTracker::NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &consumer,
+NegativeAcksTracker::NegativeAcksTracker(const ClientImplPtr &client, ConsumerImpl &consumer,
                                          const ConsumerConfiguration &conf)
     : consumer_(consumer),
       timerInterval_(0),

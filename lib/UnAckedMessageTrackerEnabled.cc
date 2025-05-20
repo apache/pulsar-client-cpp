@@ -73,12 +73,12 @@ void UnAckedMessageTrackerEnabled::timeoutHandlerHelper() {
     }
 }
 
-UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, const ClientImplPtr client,
+UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, const ClientImplPtr& client,
                                                            ConsumerImplBase& consumer)
     : UnAckedMessageTrackerEnabled(timeoutMs, timeoutMs, client, consumer) {}
 
 UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, long tickDurationInMs,
-                                                           const ClientImplPtr client,
+                                                           const ClientImplPtr& client,
                                                            ConsumerImplBase& consumer)
     : consumerReference_(consumer),
       client_(client),

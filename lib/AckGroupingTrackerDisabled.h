@@ -19,8 +19,6 @@
 #ifndef LIB_ACKGROUPINGTRACKERDISABLED_H_
 #define LIB_ACKGROUPINGTRACKERDISABLED_H_
 
-#include <cstdint>
-
 #include "AckGroupingTracker.h"
 
 namespace pulsar {
@@ -37,9 +35,9 @@ class AckGroupingTrackerDisabled : public AckGroupingTracker {
     using AckGroupingTracker::AckGroupingTracker;
     virtual ~AckGroupingTrackerDisabled() = default;
 
-    void addAcknowledge(const MessageId& msgId, ResultCallback callback) override;
-    void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) override;
-    void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) override;
+    void addAcknowledge(const MessageId& msgId, const ResultCallback& callback) override;
+    void addAcknowledgeList(const MessageIdList& msgIds, const ResultCallback& callback) override;
+    void addAcknowledgeCumulative(const MessageId& msgId, const ResultCallback& callback) override;
 };  // class AckGroupingTrackerDisabled
 
 }  // namespace pulsar

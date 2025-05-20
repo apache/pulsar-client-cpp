@@ -20,6 +20,7 @@
 
 #include <pulsar/defines.h>
 
+#include <cstdint>
 #include <memory>
 #include <utility>
 #include <vector>
@@ -29,7 +30,7 @@ namespace pulsar {
 /**
  * KeyShared mode of KeyShared subscription.
  */
-enum KeySharedMode
+enum KeySharedMode : uint8_t
 {
 
     /**

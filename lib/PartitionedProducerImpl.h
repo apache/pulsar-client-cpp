@@ -20,6 +20,7 @@
 #include <pulsar/TopicMetadata.h>
 
 #include <atomic>
+#include <cstdint>
 #include <memory>
 #include <mutex>
 #include <vector>
@@ -47,7 +48,7 @@ using TopicNamePtr = std::shared_ptr<TopicName>;
 class PartitionedProducerImpl : public ProducerImplBase,
                                 public std::enable_shared_from_this<PartitionedProducerImpl> {
    public:
-    enum State
+    enum State : uint8_t
     {
         Pending,
         Ready,
@@ -59,8 +60,9 @@ class PartitionedProducerImpl : public ProducerImplBase,
 
     typedef std::unique_lock<std::mutex> Lock;
 
-    PartitionedProducerImpl(ClientImplPtr ptr, const TopicNamePtr topicName, const unsigned int numPartitions,
-                            const ProducerConfiguration& config, const ProducerInterceptorsPtr& interceptors);
+    PartitionedProducerImpl(const ClientImplPtr& ptr, const TopicNamePtr& topicName,
+                            unsigned int numPartitions, const ProducerConfiguration& config,
+                            const ProducerInterceptorsPtr& interceptors);
     virtual ~PartitionedProducerImpl();
 
     // overrided methods from ProducerImplBase
@@ -82,11 +84,12 @@ class PartitionedProducerImpl : public ProducerImplBase,
     void flushAsync(FlushCallback callback) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedProducer() override;
-    void handleSinglePartitionProducerCreated(Result result, ProducerImplBaseWeakPtr producerBaseWeakPtr,
+    void handleSinglePartitionProducerCreated(Result result,
+                                              const ProducerImplBaseWeakPtr& producerBaseWeakPtr,
                                               const unsigned int partitionIndex);
     void createLazyPartitionProducer(const unsigned int partitionIndex);
-    void handleSinglePartitionProducerClose(Result result, const unsigned int partitionIndex,
-                                            CloseCallback callback);
+    void handleSinglePartitionProducerClose(Result result, unsigned int partitionIndex,
+                                            const CloseCallback& callback);
 
     void notifyResult(CloseCallback closeCallback);
 

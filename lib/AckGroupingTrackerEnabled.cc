@@ -60,7 +60,7 @@ bool AckGroupingTrackerEnabled::isDuplicate(const MessageId& msgId) {
     return this->pendingIndividualAcks_.count(msgId) > 0;
 }
 
-void AckGroupingTrackerEnabled::addAcknowledge(const MessageId& msgId, ResultCallback callback) {
+void AckGroupingTrackerEnabled::addAcknowledge(const MessageId& msgId, const ResultCallback& callback) {
     std::lock_guard<std::recursive_mutex> lock(this->rmutexPendingIndAcks_);
     this->pendingIndividualAcks_.insert(msgId);
     if (waitResponse_) {
@@ -73,7 +73,8 @@ void AckGroupingTrackerEnabled::addAcknowledge(const MessageId& msgId, ResultCal
     }
 }
 
-void AckGroupingTrackerEnabled::addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {
+void AckGroupingTrackerEnabled::addAcknowledgeList(const MessageIdList& msgIds,
+                                                   const ResultCallback& callback) {
     std::lock_guard<std::recursive_mutex> lock(this->rmutexPendingIndAcks_);
     for (const auto& msgId : msgIds) {
         this->pendingIndividualAcks_.emplace(msgId);
@@ -88,8 +89,10 @@ void AckGroupingTrackerEnabled::addAcknowledgeList(const MessageIdList& msgIds, 
     }
 }
 
-void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {
+void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId,
+                                                         const ResultCallback& callback) {
     std::unique_lock<std::mutex> lock(this->mutexCumulativeAckMsgId_);
+    bool completeCallback = true;
     if (compare(msgId, this->nextCumulativeAckMsgId_) > 0) {
         this->nextCumulativeAckMsgId_ = msgId;
         this->requireCumulativeAck_ = true;
@@ -101,13 +104,13 @@ void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId,
             // Move the callback to latestCumulativeCallback_ so that it will be triggered when receiving the
             // AckResponse or being replaced by a newer MessageId
             latestCumulativeCallback_ = callback;
-            callback = nullptr;
+            completeCallback = false;
         } else {
             latestCumulativeCallback_ = nullptr;
         }
     }
     lock.unlock();
-    if (callback) {
+    if (callback && completeCallback) {
         callback(ResultOk);
     }
 }

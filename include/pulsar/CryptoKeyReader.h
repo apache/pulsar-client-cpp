@@ -71,7 +71,7 @@ class PULSAR_PUBLIC DefaultCryptoKeyReader : public CryptoKeyReader {
    private:
     std::string publicKeyPath_;
     std::string privateKeyPath_;
-    void readFile(std::string fileName, std::string& fileContents) const;
+    void readFile(const std::string& fileName, std::string& fileContents) const;
 
    public:
     /**

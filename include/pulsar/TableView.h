@@ -98,18 +98,18 @@ class PULSAR_PUBLIC TableView {
      * Performs the given action for each entry in this map until all entries have been processed or the
      * action throws an exception.
      */
-    void forEach(TableViewAction action);
+    void forEach(const TableViewAction& action);
 
     /**
      * Performs the given action for each entry in this map until all entries have been processed and
      * register the callback, which will be called each time a key-value pair is updated.
      */
-    void forEachAndListen(TableViewAction action);
+    void forEachAndListen(const TableViewAction& action);
 
     /**
      * Asynchronously close the tableview and stop the broker to push more messages
      */
-    void closeAsync(ResultCallback callback);
+    void closeAsync(const ResultCallback& callback);
 
     /**
      * Close the table view and stop the broker to push more messages

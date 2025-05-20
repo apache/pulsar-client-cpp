@@ -45,8 +45,8 @@ using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
  */
 class AckGroupingTrackerEnabled : public AckGroupingTracker {
    public:
-    AckGroupingTrackerEnabled(std::function<ClientConnectionPtr()> connectionSupplier,
-                              std::function<uint64_t()> requestIdSupplier, uint64_t consumerId,
+    AckGroupingTrackerEnabled(const std::function<ClientConnectionPtr()>& connectionSupplier,
+                              const std::function<uint64_t()>& requestIdSupplier, uint64_t consumerId,
                               bool waitResponse, long ackGroupingTimeMs, long ackGroupingMaxSize,
                               const ExecutorServicePtr& executor)
         : AckGroupingTracker(connectionSupplier, requestIdSupplier, consumerId, waitResponse),
@@ -60,9 +60,9 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
 
     void start() override;
     bool isDuplicate(const MessageId& msgId) override;
-    void addAcknowledge(const MessageId& msgId, ResultCallback callback) override;
-    void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) override;
-    void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) override;
+    void addAcknowledge(const MessageId& msgId, const ResultCallback& callback) override;
+    void addAcknowledgeList(const MessageIdList& msgIds, const ResultCallback& callback) override;
+    void addAcknowledgeCumulative(const MessageId& msgId, const ResultCallback& callback) override;
     void flush();
     void flushAndClean() override;
 

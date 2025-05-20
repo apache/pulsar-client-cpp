@@ -66,7 +66,7 @@ ConsumerConfiguration& ConsumerConfiguration::setConsumerType(ConsumerType consu
 ConsumerType ConsumerConfiguration::getConsumerType() const { return impl_->consumerType; }
 
 ConsumerConfiguration& ConsumerConfiguration::setMessageListener(MessageListener messageListener) {
-    impl_->messageListener = messageListener;
+    impl_->messageListener = std::move(messageListener);
     impl_->hasMessageListener = true;
     return *this;
 }
@@ -77,7 +77,7 @@ bool ConsumerConfiguration::hasMessageListener() const { return impl_->hasMessag
 
 ConsumerConfiguration& ConsumerConfiguration::setConsumerEventListener(
     ConsumerEventListenerPtr eventListener) {
-    impl_->eventListener = eventListener;
+    impl_->eventListener = std::move(eventListener);
     impl_->hasConsumerEventListener = true;
     return *this;
 }
@@ -147,7 +147,7 @@ bool ConsumerConfiguration::isEncryptionEnabled() const { return (impl_->cryptoK
 const CryptoKeyReaderPtr ConsumerConfiguration::getCryptoKeyReader() const { return impl_->cryptoKeyReader; }
 
 ConsumerConfiguration& ConsumerConfiguration::setCryptoKeyReader(CryptoKeyReaderPtr cryptoKeyReader) {
-    impl_->cryptoKeyReader = cryptoKeyReader;
+    impl_->cryptoKeyReader = std::move(cryptoKeyReader);
     return *this;
 }
 
@@ -238,7 +238,7 @@ ConsumerConfiguration& ConsumerConfiguration::setPriorityLevel(int priorityLevel
 
 int ConsumerConfiguration::getPriorityLevel() const { return impl_->priorityLevel; }
 
-ConsumerConfiguration& ConsumerConfiguration::setKeySharedPolicy(KeySharedPolicy keySharedPolicy) {
+ConsumerConfiguration& ConsumerConfiguration::setKeySharedPolicy(const KeySharedPolicy& keySharedPolicy) {
     impl_->keySharedPolicy = keySharedPolicy.clone();
     return *this;
 }

@@ -48,12 +48,12 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     // which only contains after namespace part.
     // when subscribe, client will first get all topics that match given pattern.
     // `topics` contains the topics that match `patternString`.
-    PatternMultiTopicsConsumerImpl(ClientImplPtr client, const std::string patternString,
+    PatternMultiTopicsConsumerImpl(const ClientImplPtr& client, const std::string& patternString,
                                    CommandGetTopicsOfNamespace_Mode getTopicsMode,
                                    const std::vector<std::string>& topics,
                                    const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                                   const LookupServicePtr lookupServicePtr_,
-                                   const ConsumerInterceptorsPtr interceptors);
+                                   const LookupServicePtr& lookupServicePtr_,
+                                   const ConsumerInterceptorsPtr& interceptors);
 
     const PULSAR_REGEX_NAMESPACE::regex getPattern();
 
@@ -82,11 +82,12 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
 
     void cancelTimers() noexcept;
     void resetAutoDiscoveryTimer();
-    void timerGetTopicsOfNamespace(const Result result, const NamespaceTopicsPtr topics);
-    void onTopicsAdded(NamespaceTopicsPtr addedTopics, ResultCallback callback);
-    void onTopicsRemoved(NamespaceTopicsPtr removedTopics, ResultCallback callback);
-    void handleOneTopicAdded(const Result result, const std::string& topic,
-                             std::shared_ptr<std::atomic<int>> topicsNeedCreate, ResultCallback callback);
+    void timerGetTopicsOfNamespace(Result result, const NamespaceTopicsPtr& topics);
+    void onTopicsAdded(const NamespaceTopicsPtr& addedTopics, const ResultCallback& callback);
+    void onTopicsRemoved(const NamespaceTopicsPtr& removedTopics, const ResultCallback& callback);
+    void handleOneTopicAdded(Result result, const std::string& topic,
+                             const std::shared_ptr<std::atomic<int>>& topicsNeedCreate,
+                             const ResultCallback& callback);
 
     std::weak_ptr<PatternMultiTopicsConsumerImpl> weak_from_this() noexcept {
         return std::static_pointer_cast<PatternMultiTopicsConsumerImpl>(shared_from_this());

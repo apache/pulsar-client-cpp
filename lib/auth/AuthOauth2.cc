@@ -14,7 +14,7 @@
  * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
  * KIND, either express or implied.  See the License for the
  * specific language governing permissions and limitations
- * under the License.
+ &* under the License.
  */
 #include "AuthOauth2.h"
 
@@ -87,7 +87,7 @@ CachedToken::~CachedToken() {}
 
 // Oauth2CachedToken
 
-Oauth2CachedToken::Oauth2CachedToken(Oauth2TokenResultPtr token) {
+Oauth2CachedToken::Oauth2CachedToken(const Oauth2TokenResultPtr& token) {
     latest_ = token;
 
     int64_t expiredIn = token->getExpiresIn();

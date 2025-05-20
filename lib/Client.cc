@@ -33,7 +33,7 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
-Client::Client(const std::shared_ptr<ClientImpl> impl) : impl_(impl) {}
+Client::Client(const std::shared_ptr<ClientImpl>& impl) : impl_(impl) {}
 
 Client::Client(const std::string& serviceUrl)
     : impl_(std::make_shared<ClientImpl>(serviceUrl, ClientConfiguration())) {}
@@ -55,12 +55,12 @@ Result Client::createProducer(const std::string& topic, const ProducerConfigurat
 }
 
 void Client::createProducerAsync(const std::string& topic, CreateProducerCallback callback) {
-    createProducerAsync(topic, ProducerConfiguration(), callback);
+    createProducerAsync(topic, ProducerConfiguration(), std::move(callback));
 }
 
-void Client::createProducerAsync(const std::string& topic, ProducerConfiguration conf,
+void Client::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                                  CreateProducerCallback callback) {
-    impl_->createProducerAsync(topic, conf, callback);
+    impl_->createProducerAsync(topic, conf, std::move(callback));
 }
 
 Result Client::subscribe(const std::string& topic, const std::string& subscriptionName, Consumer& consumer) {
@@ -78,13 +78,13 @@ Result Client::subscribe(const std::string& topic, const std::string& subscripti
 
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                             SubscribeCallback callback) {
-    subscribeAsync(topic, subscriptionName, ConsumerConfiguration(), callback);
+    subscribeAsync(topic, subscriptionName, ConsumerConfiguration(), std::move(callback));
 }
 
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                             const ConsumerConfiguration& conf, SubscribeCallback callback) {
     LOG_INFO("Subscribing on Topic :" << topic);
-    impl_->subscribeAsync(topic, subscriptionName, conf, callback);
+    impl_->subscribeAsync(topic, subscriptionName, conf, std::move(callback));
 }
 
 Result Client::subscribe(const std::vector<std::string>& topics, const std::string& subscriptionName,
@@ -103,12 +103,12 @@ Result Client::subscribe(const std::vector<std::string>& topics, const std::stri
 
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                             SubscribeCallback callback) {
-    subscribeAsync(topics, subscriptionName, ConsumerConfiguration(), callback);
+    subscribeAsync(topics, subscriptionName, ConsumerConfiguration(), std::move(callback));
 }
 
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                             const ConsumerConfiguration& conf, SubscribeCallback callback) {
-    impl_->subscribeAsync(topics, subscriptionName, conf, callback);
+    impl_->subscribeAsync(topics, subscriptionName, conf, std::move(callback));
 }
 
 Result Client::subscribeWithRegex(const std::string& regexPattern, const std::string& subscriptionName,
@@ -127,12 +127,12 @@ Result Client::subscribeWithRegex(const std::string& regexPattern, const std::st
 
 void Client::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
                                      SubscribeCallback callback) {
-    subscribeWithRegexAsync(regexPattern, subscriptionName, ConsumerConfiguration(), callback);
+    subscribeWithRegexAsync(regexPattern, subscriptionName, ConsumerConfiguration(), std::move(callback));
 }
 
 void Client::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
                                      const ConsumerConfiguration& conf, SubscribeCallback callback) {
-    impl_->subscribeWithRegexAsync(regexPattern, subscriptionName, conf, callback);
+    impl_->subscribeWithRegexAsync(regexPattern, subscriptionName, conf, std::move(callback));
 }
 
 Result Client::createReader(const std::string& topic, const MessageId& startMessageId,
@@ -146,7 +146,7 @@ Result Client::createReader(const std::string& topic, const MessageId& startMess
 
 void Client::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                                const ReaderConfiguration& conf, ReaderCallback callback) {
-    impl_->createReaderAsync(topic, startMessageId, conf, callback);
+    impl_->createReaderAsync(topic, startMessageId, conf, std::move(callback));
 }
 
 Result Client::createTableView(const std::string& topic, const TableViewConfiguration& conf,
@@ -159,8 +159,8 @@ Result Client::createTableView(const std::string& topic, const TableViewConfigur
 }
 
 void Client::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
-                                  TableViewCallback callBack) {
-    impl_->createTableViewAsync(topic, conf, callBack);
+                                  const TableViewCallback& callback) {
+    impl_->createTableViewAsync(topic, conf, callback);
 }
 
 Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::string>& partitions) {
@@ -172,7 +172,7 @@ Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::
 }
 
 void Client::getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback) {
-    impl_->getPartitionsForTopicAsync(topic, callback);
+    impl_->getPartitionsForTopicAsync(topic, std::move(callback));
 }
 
 Result Client::close() {
@@ -184,7 +184,7 @@ Result Client::close() {
     return result;
 }
 
-void Client::closeAsync(CloseCallback callback) { impl_->closeAsync(callback); }
+void Client::closeAsync(CloseCallback callback) { impl_->closeAsync(std::move(callback)); }
 
 void Client::shutdown() { impl_->shutdown(); }
 
@@ -195,6 +195,6 @@ void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
                                 std::function<void(Result, const SchemaInfo&)> callback) {
     impl_->getLookup()
         ->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
-        .addListener(callback);
+        .addListener(std::move(callback));
 }
 }  // namespace pulsar
