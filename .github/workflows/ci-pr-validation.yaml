@@ -115,7 +115,7 @@ jobs:
       - name: Tidy check
         run: |
           sudo apt-get install -y clang-tidy
-          run-clang-tidy -p build
+          run-clang-tidy -p .
           if [[ $? -ne 0 ]]; then
               echo "clang-tidy failed"
               exit 1
