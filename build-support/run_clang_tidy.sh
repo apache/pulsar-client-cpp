@@ -18,6 +18,9 @@
 # under the License.
 #
 
+set -e
+cd `dirname $0`/..
+
 FILES=$(find $PWD/include $PWD/lib $PWD/tests $PWD/examples -name "*.h" -o -name "*.cc" \
     | grep -v "lib\/c\/" | grep -v "lib\/checksum\/" | grep -v "lib\/lz4\/" \
     | grep -v "include\/pulsar\/c\/" | grep -v "tests\/c\/")

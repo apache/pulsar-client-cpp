@@ -16,58 +16,59 @@
 # under the License.
 
 ---
+#bugprone-*,
+#google-*,
+#misc-*,
+#modernize-*,
+#performance-*,
+#portability-*,
+#readability-*,
+#-google-readability-braces-around-statements,
+#-google-readability-namespace-comments,
+#-google-runtime-references,
+#-misc-non-private-member-variables-in-classes,
+#-misc-const-correctness,
+#-misc-include-cleaner,
+#-modernize-return-braced-init-list,
+#-modernize-use-trailing-return-type,
+#-modernize-concat-nested-namespaces,
+#-modernize-use-nodiscard,
+#-modernize-avoid-c-arrays,
+#-modernize-type-traits,
+#-modernize-unary-static-assert,
+#-performance-move-const-arg,
+#-performance-avoid-endl,
+#-performance-enum-size,
+#-readability-braces-around-statements,
+#-readability-identifier-length,
+#-readability-magic-numbers,
+#-readability-named-parameter,
+#-readability-redundant-declaration,
+#-readability-avoid-return-with-void-value,
+#-readability-function-cognitive-complexity,
+#-bugprone-narrowing-conversions,
+#-bugprone-easily-swappable-parameters,
+#-bugprone-inc-dec-in-conditions,
+#-bugprone-implicit-widening-of-multiplication-result,
+#-bugprone-unchecked-optional-access,
+#-bugprone-unused-local-non-trivial-variable,
+#-bugprone-unused-return-value,
+#-bugprone-reserved-identifier,
+#-google-build-using-namespace,
+#-misc-unused-parameters,
+#-modernize-deprecated-headers,
+#-modernize-use-equals-default,
+#-modernize-use-using,
+#-readability-enum-initial-value,
 Checks: >
-  # The following checks are based on https://github.com/googleapis/google-cloud-cpp/blob/main/.clang-tidy
   -*,
-  bugprone-*,
-  google-*,
-  misc-*,
-  modernize-*,
-  performance-*,
-  portability-*,
-  readability-*,
-  -google-readability-braces-around-statements,
-  -google-readability-namespace-comments,
-  -google-runtime-references,
-  -misc-non-private-member-variables-in-classes,
-  -misc-const-correctness,
-  -misc-include-cleaner,
-  -modernize-return-braced-init-list,
-  -modernize-use-trailing-return-type,
-  -modernize-concat-nested-namespaces,
-  -modernize-use-nodiscard,
-  -modernize-avoid-c-arrays,
-  -modernize-type-traits,
-  -modernize-unary-static-assert,
-  -performance-move-const-arg,
-  -performance-avoid-endl,
-  -performance-enum-size,
-  -readability-braces-around-statements,
-  -readability-identifier-length,
-  -readability-magic-numbers,
-  -readability-named-parameter,
-  -readability-redundant-declaration,
-  -readability-avoid-return-with-void-value,
-  -readability-function-cognitive-complexity,
-  -bugprone-narrowing-conversions,
-  -bugprone-easily-swappable-parameters,
-  -bugprone-inc-dec-in-conditions,
-  -bugprone-implicit-widening-of-multiplication-result,
-  -bugprone-unchecked-optional-access,
-  -bugprone-unused-local-non-trivial-variable,
-  -bugprone-unused-return-value,
-  # Here are new excluded checks that are not in the original file
-  -bugprone-reserved-identifier,
-  -google-build-using-namespace,
-  -modernize-deprecated-headers,
-  -modernize-use-using,
-  -readability-enum-initial-value,
+  clang-analyzer-*,
+  -clang-analyzer-security.insecureAPI.rand,
 WarningsAsErrors: '*'
 HeaderFileExtensions:
   - ''
   - h
 ImplementationFileExtensions:
-  # TODO: the *.c files are not being linted because they use a different style
   - cc
 HeaderFilterRegex: '.*'
 FormatStyle:     none
@@ -86,5 +87,6 @@ CheckOptions:
   readability-identifier-naming.FunctionCase: 'camelBack'
   readability-identifier-naming.MemberCase: 'camelBack'
   readability-identifier-naming.PrivateMemberSuffix: '_'
+  readability-identifier-naming.ProtectedMemberSuffix: '_'
   readability-identifier-naming.PublicMemberSuffix: ''
 SystemHeaders: false

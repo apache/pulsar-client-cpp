@@ -120,7 +120,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
     void closeAsync(ResultCallback callback) override;
     void start() override;
-    void shutdown() override;
+    void shutdown();
     bool isClosed() override;
     bool isOpen() override;
     Result pauseMessageListener() override;
@@ -277,9 +277,9 @@ class ConsumerImpl : public ConsumerImplBase {
         ChunkedMessageCtx(const ChunkedMessageCtx&) = delete;
         // Here we don't use =default to be compatible with GCC 4.8
         ChunkedMessageCtx(ChunkedMessageCtx&& rhs) noexcept
-            : totalChunks_(rhs.totalChunks_),
-              chunkedMsgBuffer_(std::move(rhs.chunkedMsgBuffer_)),
-              chunkedMessageIds_(std::move(rhs.chunkedMessageIds_)) {}
+            : totalChunks_(rhs.totalChunks_), chunkedMsgBuffer_(std::move(rhs.chunkedMsgBuffer_)) {
+            std::swap(chunkedMessageIds_, rhs.chunkedMessageIds_);
+        }
 
         bool validateChunkId(int chunkId) const noexcept { return chunkId == numChunks(); }
 
@@ -295,7 +295,11 @@ class ConsumerImpl : public ConsumerImplBase {
 
         const std::vector<MessageId>& getChunkedMessageIds() const noexcept { return chunkedMessageIds_; }
 
-        std::vector<MessageId> moveChunkedMessageIds() noexcept { return std::move(chunkedMessageIds_); }
+        std::vector<MessageId> moveChunkedMessageIds() noexcept {
+            std::vector<MessageId> result;
+            result.swap(chunkedMessageIds_);
+            return result;
+        }
 
         long getReceivedTimeMs() const noexcept { return receivedTimeMs_; }
 

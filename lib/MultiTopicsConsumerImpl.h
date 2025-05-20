@@ -80,7 +80,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
     void closeAsync(ResultCallback callback) override;
     void start() override;
-    void shutdown() override;
+    void shutdown();
     bool isClosed() override;
     bool isOpen() override;
     Result pauseMessageListener() override;

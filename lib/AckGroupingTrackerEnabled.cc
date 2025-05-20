@@ -112,7 +112,7 @@ void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId,
     }
 }
 
-void AckGroupingTrackerEnabled::close() {
+AckGroupingTrackerEnabled::~AckGroupingTrackerEnabled() {
     isClosed_ = true;
     this->flush();
     std::lock_guard<std::mutex> lock(this->mutexTimer_);

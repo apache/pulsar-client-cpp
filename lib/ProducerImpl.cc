@@ -114,11 +114,11 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
 }
 
 ProducerImpl::~ProducerImpl() {
-    LOG_DEBUG(getName() << "~ProducerImpl");
+    LOG_DEBUG(producerStr_ << "~ProducerImpl");
     shutdown();
     printStats();
     if (state_ == Ready || state_ == Pending) {
-        LOG_WARN(getName() << "Destroyed producer which was not properly closed");
+        LOG_WARN(producerStr_ << "Destroyed producer which was not properly closed");
     }
 }
 

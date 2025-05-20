@@ -425,6 +425,7 @@ TEST(BasicEndToEndTest, testProduceAndConsumeAfterClientClose) {
 
     Consumer consumer;
     result = client.subscribe(topicName, "my-sub-name", consumer);
+    ASSERT_EQ(ResultOk, result);
 
     // Clean dangling subscription
     consumer.unsubscribe();
@@ -494,6 +495,7 @@ TEST(BasicEndToEndTest, testSubscribeCloseUnsubscribeSherpaScenario) {
 
     Consumer consumer1;
     result = client.subscribe(topicName, subName, consumer1);
+    ASSERT_EQ(ResultOk, result);
     result = consumer1.unsubscribe();
     ASSERT_EQ(ResultOk, result);
 }
@@ -709,6 +711,7 @@ TEST(BasicEndToEndTest, testSinglePartitionRoutingPolicy) {
     ProducerConfiguration producerConfiguration;
     producerConfiguration.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
     Result result = client.createProducer(topicName, producerConfiguration, producer);
+    ASSERT_EQ(ResultOk, result);
 
     Consumer consumer;
     result = client.subscribe(topicName, "subscription-A", consumer);
@@ -884,6 +887,7 @@ TEST(BasicEndToEndTest, testMessageListener) {
     ProducerConfiguration producerConfiguration;
     producerConfiguration.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
     Result result = client.createProducer(topicName, producerConfiguration, producer);
+    ASSERT_EQ(ResultOk, result);
 
     // Initializing global Count
     globalCount = 0;
@@ -927,6 +931,7 @@ TEST(BasicEndToEndTest, testMessageListenerPause) {
     ProducerConfiguration producerConfiguration;
     producerConfiguration.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
     Result result = client.createProducer(topicName, producerConfiguration, producer);
+    ASSERT_EQ(ResultOk, result);
 
     // Initializing global Count
     globalCount = 0;
@@ -937,6 +942,7 @@ TEST(BasicEndToEndTest, testMessageListenerPause) {
     Consumer consumer;
     // Removing dangling subscription from previous test failures
     result = client.subscribe(topicName, "subscription-name", consumerConfig, consumer);
+    ASSERT_EQ(ResultOk, result);
     consumer.unsubscribe();
 
     result = client.subscribe(topicName, "subscription-name", consumerConfig, consumer);
@@ -983,6 +989,7 @@ void testStartPaused(bool isPartitioned) {
 
     Producer producer;
     Result result = client.createProducer(topicName, producer);
+    ASSERT_EQ(ResultOk, result);
 
     // Initializing global Count
     globalCount = 0;
@@ -994,6 +1001,7 @@ void testStartPaused(bool isPartitioned) {
     Consumer consumer;
     // Removing dangling subscription from previous test failures
     result = client.subscribe(topicName, subName, consumerConfig, consumer);
+    ASSERT_EQ(ResultOk, result);
     consumer.unsubscribe();
 
     result = client.subscribe(topicName, subName, consumerConfig, consumer);
@@ -1556,6 +1564,7 @@ TEST(BasicEndToEndTest, testEncryptionFailure) {
     client.subscribeAsync(topicName, subName, consConfig, WaitForCallbackValue<Consumer>(consumerPromise3));
     consumerFuture = consumerPromise3.getFuture();
     result = consumerFuture.get(consumer);
+    ASSERT_EQ(ResultOk, result);
 
     for (; msgNum < totalMsgs - 1; msgNum++) {
         ASSERT_EQ(ResultOk, consumer.receive(msgReceived, 1000));
@@ -1575,6 +1584,7 @@ TEST(BasicEndToEndTest, testEncryptionFailure) {
     client.subscribeAsync(topicName, subName, consConfig2, WaitForCallbackValue<Consumer>(consumerPromise4));
     consumerFuture = consumerPromise4.getFuture();
     result = consumerFuture.get(consumer);
+    ASSERT_EQ(ResultOk, result);
 
     // Since messag is discarded, no message will be received.
     ASSERT_EQ(ResultTimeout, consumer.receive(msgReceived, 5000));
@@ -2831,6 +2841,7 @@ void testFlushInPartitionedProducer(bool lazyStartPartitionedProducers) {
         partitionedConsumerId << consumerId << i;
         subscribeResult = client.subscribe(partitionedTopicName.str(), partitionedConsumerId.str(),
                                            consConfig, consumer[i]);
+        ASSERT_EQ(ResultOk, subscribeResult);
         consumer[i].unsubscribe();
         subscribeResult = client.subscribe(partitionedTopicName.str(), partitionedConsumerId.str(),
                                            consConfig, consumer[i]);
@@ -3919,7 +3930,7 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerEnabledCumulativeAck) {
         false, ackGroupingTimeMs, ackGroupingMaxSize, clientImplPtr->getIOExecutorProvider()->get());
     tracker1->start();
     tracker1->addAcknowledgeCumulative(recvMsgId[numMsg - 1], nullptr);
-    tracker1->close();
+    tracker1.reset();
     consumer.close();
 
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));

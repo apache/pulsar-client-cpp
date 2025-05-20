@@ -56,15 +56,14 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
         pendingIndividualCallbacks_.reserve(ackGroupingMaxSize);
     }
 
-    virtual ~AckGroupingTrackerEnabled() { this->close(); }
+    ~AckGroupingTrackerEnabled();
 
     void start() override;
     bool isDuplicate(const MessageId& msgId) override;
     void addAcknowledge(const MessageId& msgId, ResultCallback callback) override;
     void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) override;
     void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) override;
-    void close() override;
-    void flush() override;
+    void flush();
     void flushAndClean() override;
 
    protected:

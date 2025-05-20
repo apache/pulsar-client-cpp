@@ -92,16 +92,6 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
     }
 
     /**
-     * Flush all the pending grouped ACKs (as flush() does), and stop period ACKs sending.
-     */
-    virtual void close() {}
-
-    /**
-     * Flush all the pending grouped ACKs and send them to the broker.
-     */
-    virtual void flush() {}
-
-    /**
      * Flush all the pending grouped ACKs (as flush() does), and clean all records about ACKed
      * messages, such as last cumulative ACKed message ID.
      */

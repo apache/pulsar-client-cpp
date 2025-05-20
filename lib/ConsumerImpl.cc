@@ -159,13 +159,13 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr client, const std::string& topic,
 }
 
 ConsumerImpl::~ConsumerImpl() {
-    LOG_DEBUG(getName() << "~ConsumerImpl");
+    LOG_DEBUG(consumerStr_ << "~ConsumerImpl");
     if (state_ == Ready) {
         // this could happen at least in this condition:
         //      consumer seek, caused reconnection, if consumer close happened before connection ready,
         //      then consumer will not send closeConsumer to Broker side, and caused a leak of consumer in
         //      broker.
-        LOG_WARN(getName() << "Destroyed consumer which was not properly closed");
+        LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
 
         ClientConnectionPtr cnx = getCnx().lock();
         ClientImplPtr client = client_.lock();
@@ -173,9 +173,9 @@ ConsumerImpl::~ConsumerImpl() {
             int requestId = client->newRequestId();
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
             cnx->removeConsumer(consumerId_);
-            LOG_INFO(getName() << "Closed consumer for race condition: " << consumerId_);
+            LOG_INFO(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
         } else {
-            LOG_WARN(getName() << "Client is destroyed and cannot send the CloseConsumer command");
+            LOG_WARN(consumerStr_ << "Client is destroyed and cannot send the CloseConsumer command");
         }
     }
     shutdown();
@@ -1330,9 +1330,7 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
     incomingMessages_.close();
 
     // Flush pending grouped ACK requests.
-    if (ackGroupingTrackerPtr_) {
-        ackGroupingTrackerPtr_->close();
-    }
+    ackGroupingTrackerPtr_.reset();
     negativeAcksTracker_->close();
 
     ClientConnectionPtr cnx = getCnx().lock();
@@ -1360,9 +1358,7 @@ void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
 
 void ConsumerImpl::shutdown() {
-    if (ackGroupingTrackerPtr_) {
-        ackGroupingTrackerPtr_->close();
-    }
+    ackGroupingTrackerPtr_.reset();
     incomingMessages_.clear();
     possibleSendToDeadLetterTopicMessages_.clear();
     resetCnx();

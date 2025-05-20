@@ -74,7 +74,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
      */
     void closeAsync(CloseCallback callback) override;
     void start() override;
-    void shutdown() override;
+    void shutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
     Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
