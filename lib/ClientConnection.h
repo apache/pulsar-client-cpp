@@ -177,8 +177,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void sendCommandInternal(const SharedBuffer& cmd);
     void sendMessage(const std::shared_ptr<SendArguments>& args);
 
-    void registerProducer(int producerId, ProducerImplPtr producer);
-    void registerConsumer(int consumerId, ConsumerImplPtr consumer);
+    void registerProducer(int producerId, const ProducerImplPtr& producer);
+    void registerConsumer(int consumerId, const ConsumerImplPtr& consumer);
 
     void removeProducer(int producerId);
     void removeConsumer(int consumerId);
@@ -187,7 +187,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Send a request with a specific Id over the connection. The future will be
      * triggered when the response for this request is received
      */
-    Future<Result, ResponseData> sendRequestWithId(SharedBuffer cmd, int requestId);
+    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId);
 
     const std::string& brokerAddress() const;
 

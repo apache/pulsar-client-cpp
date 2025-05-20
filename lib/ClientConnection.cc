@@ -1189,7 +1189,7 @@ void ClientConnection::sendPendingCommands() {
     }
 }
 
-Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cmd, int requestId) {
+Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuffer& cmd, int requestId) {
     Lock lock(mutex_);
 
     if (isClosed()) {
@@ -1389,12 +1389,12 @@ Future<Result, ClientConnectionWeakPtr> ClientConnection::getConnectFuture() {
     return connectPromise_.getFuture();
 }
 
-void ClientConnection::registerProducer(int producerId, ProducerImplPtr producer) {
+void ClientConnection::registerProducer(int producerId, const ProducerImplPtr& producer) {
     Lock lock(mutex_);
     producers_.insert(std::make_pair(producerId, producer));
 }
 
-void ClientConnection::registerConsumer(int consumerId, ConsumerImplPtr consumer) {
+void ClientConnection::registerConsumer(int consumerId, const ConsumerImplPtr& consumer) {
     Lock lock(mutex_);
     consumers_.insert(std::make_pair(consumerId, consumer));
 }

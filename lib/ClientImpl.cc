@@ -148,7 +148,7 @@ LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) 
     return it->second;
 }
 
-void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfiguration conf,
+void ClientImpl::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                                      const CreateProducerCallback& callback, bool autoDownloadSchema) {
     if (conf.isChunkingEnabled() && conf.getBatchingEnabled()) {
         throw std::invalid_argument("Batching and chunking of messages can't be enabled together");
@@ -239,7 +239,7 @@ void ClientImpl::handleProducerCreated(Result result, const ProducerImplBaseWeak
 }
 
 void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
-                                   const ReaderConfiguration& conf, ReaderCallback callback) {
+                                   const ReaderConfiguration& conf, const ReaderCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -326,7 +326,8 @@ void ClientImpl::handleReaderMetadataLookup(Result result, const LookupDataResul
 }
 
 void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
-                                         const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                                         const ConsumerConfiguration& conf,
+                                         const SubscribeCallback& callback) {
     TopicNamePtr topicNamePtr = TopicName::get(regexPattern);
 
     Lock lock(mutex_);
@@ -378,7 +379,7 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
                                                   CommandGetTopicsOfNamespace_Mode mode,
                                                   const std::string& subscriptionName,
                                                   const ConsumerConfiguration& conf,
-                                                  SubscribeCallback callback) {
+                                                  const SubscribeCallback& callback) {
     if (result == ResultOk) {
         ConsumerImplBasePtr consumer;
 
@@ -404,7 +405,7 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
 }
 
 void ClientImpl::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
-                                const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                                const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     TopicNamePtr topicNamePtr;
 
     Lock lock(mutex_);
@@ -440,7 +441,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& topics, const st
 }
 
 void ClientImpl::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
-                                const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                                const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -468,7 +469,7 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
 
 void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
                                  const TopicNamePtr& topicName, const std::string& subscriptionName,
-                                 ConsumerConfiguration conf, SubscribeCallback callback) {
+                                 ConsumerConfiguration conf, const SubscribeCallback& callback) {
     if (result == ResultOk) {
         // generate random name if not supplied by the customer.
         if (conf.getConsumerName().empty()) {
@@ -625,7 +626,7 @@ void ClientImpl::handleGetPartitions(Result result, const LookupDataResultPtr& p
     callback(ResultOk, partitions);
 }
 
-void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback) {
+void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetPartitionsCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -644,7 +645,7 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, GetPartiti
                   std::placeholders::_2, topicName, callback));
 }
 
-void ClientImpl::closeAsync(CloseCallback callback) {
+void ClientImpl::closeAsync(const CloseCallback& callback) {
     if (state_ != Open) {
         if (callback) {
             callback(ResultAlreadyClosed);

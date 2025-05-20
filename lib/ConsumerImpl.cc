@@ -1700,7 +1700,7 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
-void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const SeekArg& seekArg,
+void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
                                      const ResultCallback& callback) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
@@ -1729,7 +1729,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Se
 
     std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
 
-    cnx->sendRequestWithId(std::move(seek), requestId)
+    cnx->sendRequestWithId(seek, requestId)
         .addListener([this, weakSelf, callback, originalSeekMessageId](Result result,
                                                                        const ResponseData& responseData) {
             auto self = weakSelf.lock();

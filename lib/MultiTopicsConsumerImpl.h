@@ -137,8 +137,8 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     /* methods */
     void handleSinglePartitionConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
                                               unsigned int partitionIndex);
-    void notifyResult(CloseCallback closeCallback);
-    void messageReceived(Consumer consumer, const Message& msg);
+    void notifyResult(const CloseCallback& closeCallback);
+    void messageReceived(const Consumer& consumer, const Message& msg);
     void messageProcessed(Message& msg);
     void internalListener(const Consumer& consumer);
     void receiveMessages();

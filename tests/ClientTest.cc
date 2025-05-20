@@ -405,7 +405,7 @@ TEST(ClientTest, testConnectionClose) {
 
     const auto topic = "client-test-connection-close";
     for (auto &client : clients) {
-        auto testClose = [&client](ClientConnectionWeakPtr weakCnx) {
+        auto testClose = [&client](const ClientConnectionWeakPtr &weakCnx) {
             auto cnx = weakCnx.lock();
             ASSERT_TRUE(cnx);
 

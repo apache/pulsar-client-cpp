@@ -510,7 +510,7 @@ void MultiTopicsConsumerImpl::closeAsync(const ResultCallback& originalCallback)
     batchReceiveTimer_->cancel();
 }
 
-void MultiTopicsConsumerImpl::messageReceived(Consumer consumer, const Message& msg) {
+void MultiTopicsConsumerImpl::messageReceived(const Consumer& consumer, const Message& msg) {
     if (PULSAR_UNLIKELY(duringSeek_.load(std::memory_order_acquire))) {
         return;
     }
@@ -1038,7 +1038,7 @@ void MultiTopicsConsumerImpl::subscribeSingleNewConsumer(
     }
     ExecutorServicePtr internalListenerExecutor = client->getPartitionListenerExecutorProvider()->get();
     auto weakSelf = weak_from_this();
-    config.setMessageListener([this, weakSelf](Consumer consumer, const Message& msg) {
+    config.setMessageListener([this, weakSelf](const Consumer& consumer, const Message& msg) {
         auto self = weakSelf.lock();
         if (self) {
             messageReceived(consumer, msg);

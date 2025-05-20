@@ -214,7 +214,7 @@ class ConsumerImpl : public ConsumerImplBase {
         return os;
     }
 
-    void seekAsyncInternal(long requestId, SharedBuffer seek, const SeekArg& seekArg,
+    void seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
                            const ResultCallback& callback);
     void processPossibleToDLQ(const MessageId& messageId, const ProcessDLQCallBack& cb);
 
