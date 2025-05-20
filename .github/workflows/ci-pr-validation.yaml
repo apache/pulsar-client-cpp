@@ -105,12 +105,21 @@ jobs:
 
       - name: Build tests
         run: |
-          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON
+          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           cmake --build . -j8
 
       - name: Install gtest-parallel
         run: |
           sudo curl -o /gtest-parallel https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py 
+
+      - name: Tidy check
+        run: |
+          sudo apt-get install -y clang-tidy
+          run-clang-tidy -p build
+          if [[ $? -ne 0 ]]; then
+              echo "clang-tidy failed"
+              exit 1
+          fi
 
       - name: Run unit tests
         run: RETRY_FAILED=3 ./run-unit-tests.sh
