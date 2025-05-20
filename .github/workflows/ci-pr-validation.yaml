@@ -92,8 +92,8 @@ jobs:
 
       - name: Build core libraries
         run: |
-          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
-          cmake --build . -j8
+          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
+          cmake --build build -j8
 
       - name: Check formatting
         run: |
@@ -105,8 +105,8 @@ jobs:
 
       - name: Build tests
         run: |
-          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          cmake --build . -j8
+          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --build build -j8
 
       - name: Install gtest-parallel
         run: |
@@ -115,24 +115,24 @@ jobs:
       - name: Tidy check
         run: |
           sudo apt-get install -y clang-tidy
-          run-clang-tidy -p .
+          ./build-support/run_clang_tidy.sh
           if [[ $? -ne 0 ]]; then
               echo "clang-tidy failed"
               exit 1
           fi
 
       - name: Run unit tests
-        run: RETRY_FAILED=3 ./run-unit-tests.sh
+        run: RETRY_FAILED=3 CMAKE_BUILD_DIRECTORY=./build ./run-unit-tests.sh
 
       - name: Build perf tools
         run: |
-          cmake . -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
-          cmake --build . -j8
+          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
+          cmake --build build -j8
 
       - name: Verify custom vcpkg installation
         run: |
           mv vcpkg /tmp/
-          cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
   cpp20-build:
     name: Build with the C++20 standard
