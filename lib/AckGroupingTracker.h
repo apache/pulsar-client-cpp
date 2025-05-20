@@ -100,8 +100,9 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
     virtual void flushAndClean() {}
 
    protected:
-    void doImmediateAck(const MessageId& msgId, ResultCallback callback, CommandAck_AckType ackType) const;
-    void doImmediateAck(const std::set<MessageId>& msgIds, ResultCallback callback) const;
+    void doImmediateAck(const MessageId& msgId, const ResultCallback& callback,
+                        CommandAck_AckType ackType) const;
+    void doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback) const;
 
    private:
     const std::function<ClientConnectionPtr()> connectionSupplier_;

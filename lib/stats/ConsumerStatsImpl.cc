@@ -30,7 +30,7 @@ DECLARE_LOG_OBJECT();
 
 using Lock = std::unique_lock<std::mutex>;
 
-ConsumerStatsImpl::ConsumerStatsImpl(std::string consumerStr, ExecutorServicePtr executor,
+ConsumerStatsImpl::ConsumerStatsImpl(const std::string& consumerStr, const ExecutorServicePtr& executor,
                                      unsigned int statsIntervalInSeconds)
     : consumerStr_(consumerStr),
       timer_(executor->createDeadlineTimer()),

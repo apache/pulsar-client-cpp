@@ -323,7 +323,7 @@ void MultiTopicsConsumerImpl::handleSingleConsumerCreated(
     }
 }
 
-void MultiTopicsConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
+void MultiTopicsConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
     LOG_INFO("[ Topics Consumer " << topic() << "," << subscriptionName_ << "] Unsubscribing");
 
     auto callback = [this, originalCallback](Result result) {
@@ -348,7 +348,7 @@ void MultiTopicsConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) 
 
     auto self = get_shared_this_ptr();
     consumers_.forEachValue(
-        [this, self, callback](const ConsumerImplPtr& consumer, SharedFuture future) {
+        [this, self, callback](const ConsumerImplPtr& consumer, const SharedFuture& future) {
             consumer->unsubscribeAsync([this, self, callback, future](Result result) {
                 if (result != ResultOk) {
                     state_ = Failed;
@@ -365,7 +365,8 @@ void MultiTopicsConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) 
         [callback] { callback(ResultOk); });
 }
 
-void MultiTopicsConsumerImpl::unsubscribeOneTopicAsync(const std::string& topic, ResultCallback callback) {
+void MultiTopicsConsumerImpl::unsubscribeOneTopicAsync(const std::string& topic,
+                                                       const ResultCallback& callback) {
     Lock lock(mutex_);
     std::map<std::string, int>::iterator it = topicsPartitions_.find(topic);
     if (it == topicsPartitions_.end()) {
@@ -446,7 +447,7 @@ void MultiTopicsConsumerImpl::handleOneTopicUnsubscribedAsync(
     }
 }
 
-void MultiTopicsConsumerImpl::closeAsync(ResultCallback originalCallback) {
+void MultiTopicsConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     std::weak_ptr<MultiTopicsConsumerImpl> weakSelf{get_shared_this_ptr()};
     auto callback = [weakSelf, originalCallback](Result result) {
         auto self = weakSelf.lock();
@@ -601,7 +602,7 @@ Result MultiTopicsConsumerImpl::receive(Message& msg, int timeout) {
     }
 }
 
-void MultiTopicsConsumerImpl::receiveAsync(ReceiveCallback callback) {
+void MultiTopicsConsumerImpl::receiveAsync(const ReceiveCallback& callback) {
     Message msg;
 
     // fail the callback if consumer is closing or closed
@@ -648,7 +649,7 @@ void MultiTopicsConsumerImpl::notifyPendingReceivedCallback(Result result, const
     callback(result, msg);
 }
 
-void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callback) {
+void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, const ResultCallback& callback) {
     if (state_ != Ready) {
         interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultAlreadyClosed, msgId);
         callback(ResultAlreadyClosed);
@@ -672,7 +673,8 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCal
     }
 }
 
-void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
+void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList,
+                                               const ResultCallback& callback) {
     if (state_ != Ready) {
         callback(ResultAlreadyClosed);
         return;
@@ -714,7 +716,8 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
     }
 }
 
-void MultiTopicsConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
+void MultiTopicsConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId,
+                                                         const ResultCallback& callback) {
     msgId.getTopicName();
     auto optConsumer = consumers_.find(msgId.getTopicName());
     if (optConsumer) {
@@ -1120,7 +1123,7 @@ void MultiTopicsConsumerImpl::cancelTimers() noexcept {
     }
 }
 
-void MultiTopicsConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
+void MultiTopicsConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) {
     if (incomingMessagesSize_ > 0) {
         callback(ResultOk, true);
         return;

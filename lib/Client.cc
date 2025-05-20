@@ -54,13 +54,13 @@ Result Client::createProducer(const std::string& topic, const ProducerConfigurat
     return future.get(producer);
 }
 
-void Client::createProducerAsync(const std::string& topic, CreateProducerCallback callback) {
-    createProducerAsync(topic, ProducerConfiguration(), std::move(callback));
+void Client::createProducerAsync(const std::string& topic, const CreateProducerCallback& callback) {
+    createProducerAsync(topic, ProducerConfiguration(), callback);
 }
 
 void Client::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
-                                 CreateProducerCallback callback) {
-    impl_->createProducerAsync(topic, conf, std::move(callback));
+                                 const CreateProducerCallback& callback) {
+    impl_->createProducerAsync(topic, conf, callback);
 }
 
 Result Client::subscribe(const std::string& topic, const std::string& subscriptionName, Consumer& consumer) {
@@ -77,14 +77,14 @@ Result Client::subscribe(const std::string& topic, const std::string& subscripti
 }
 
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
-                            SubscribeCallback callback) {
-    subscribeAsync(topic, subscriptionName, ConsumerConfiguration(), std::move(callback));
+                            const SubscribeCallback& callback) {
+    subscribeAsync(topic, subscriptionName, ConsumerConfiguration(), callback);
 }
 
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
-                            const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                            const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     LOG_INFO("Subscribing on Topic :" << topic);
-    impl_->subscribeAsync(topic, subscriptionName, conf, std::move(callback));
+    impl_->subscribeAsync(topic, subscriptionName, conf, callback);
 }
 
 Result Client::subscribe(const std::vector<std::string>& topics, const std::string& subscriptionName,
@@ -102,13 +102,13 @@ Result Client::subscribe(const std::vector<std::string>& topics, const std::stri
 }
 
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
-                            SubscribeCallback callback) {
-    subscribeAsync(topics, subscriptionName, ConsumerConfiguration(), std::move(callback));
+                            const SubscribeCallback& callback) {
+    subscribeAsync(topics, subscriptionName, ConsumerConfiguration(), callback);
 }
 
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
-                            const ConsumerConfiguration& conf, SubscribeCallback callback) {
-    impl_->subscribeAsync(topics, subscriptionName, conf, std::move(callback));
+                            const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
+    impl_->subscribeAsync(topics, subscriptionName, conf, callback);
 }
 
 Result Client::subscribeWithRegex(const std::string& regexPattern, const std::string& subscriptionName,
@@ -126,13 +126,13 @@ Result Client::subscribeWithRegex(const std::string& regexPattern, const std::st
 }
 
 void Client::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
-                                     SubscribeCallback callback) {
-    subscribeWithRegexAsync(regexPattern, subscriptionName, ConsumerConfiguration(), std::move(callback));
+                                     const SubscribeCallback& callback) {
+    subscribeWithRegexAsync(regexPattern, subscriptionName, ConsumerConfiguration(), callback);
 }
 
 void Client::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
-                                     const ConsumerConfiguration& conf, SubscribeCallback callback) {
-    impl_->subscribeWithRegexAsync(regexPattern, subscriptionName, conf, std::move(callback));
+                                     const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
+    impl_->subscribeWithRegexAsync(regexPattern, subscriptionName, conf, callback);
 }
 
 Result Client::createReader(const std::string& topic, const MessageId& startMessageId,
@@ -145,8 +145,8 @@ Result Client::createReader(const std::string& topic, const MessageId& startMess
 }
 
 void Client::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
-                               const ReaderConfiguration& conf, ReaderCallback callback) {
-    impl_->createReaderAsync(topic, startMessageId, conf, std::move(callback));
+                               const ReaderConfiguration& conf, const ReaderCallback& callback) {
+    impl_->createReaderAsync(topic, startMessageId, conf, callback);
 }
 
 Result Client::createTableView(const std::string& topic, const TableViewConfiguration& conf,
@@ -171,8 +171,8 @@ Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::
     return future.get(partitions);
 }
 
-void Client::getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback) {
-    impl_->getPartitionsForTopicAsync(topic, std::move(callback));
+void Client::getPartitionsForTopicAsync(const std::string& topic, const GetPartitionsCallback& callback) {
+    impl_->getPartitionsForTopicAsync(topic, callback);
 }
 
 Result Client::close() {
@@ -184,7 +184,7 @@ Result Client::close() {
     return result;
 }
 
-void Client::closeAsync(CloseCallback callback) { impl_->closeAsync(std::move(callback)); }
+void Client::closeAsync(const CloseCallback& callback) { impl_->closeAsync(callback); }
 
 void Client::shutdown() { impl_->shutdown(); }
 

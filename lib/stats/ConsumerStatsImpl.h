@@ -55,7 +55,7 @@ class ConsumerStatsImpl : public std::enable_shared_from_this<ConsumerStatsImpl>
     friend class PulsarFriend;
 
    public:
-    ConsumerStatsImpl(std::string, ExecutorServicePtr, unsigned int);
+    ConsumerStatsImpl(const std::string&, const ExecutorServicePtr&, unsigned int);
     ConsumerStatsImpl(const ConsumerStatsImpl& stats);
     void flushAndReset(const ASIO_ERROR&);
     void start() override;

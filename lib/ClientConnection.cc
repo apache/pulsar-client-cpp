@@ -160,7 +160,7 @@ static bool file_exists(const std::string& path) {
 std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessageSize};
 
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                                   ExecutorServicePtr executor,
+                                   const ExecutorServicePtr& executor,
                                    const ClientConfiguration& clientConfiguration,
                                    const AuthenticationPtr& authentication, const std::string& clientVersion,
                                    ConnectionPool& pool, size_t poolIndex)
@@ -223,7 +223,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         } else {
             ctx.set_verify_mode(ASIO::ssl::context::verify_peer);
 
-            std::string trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
+            const auto& trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
             if (!trustCertFilePath.empty()) {
                 if (file_exists(trustCertFilePath)) {
                     ctx.load_verify_file(trustCertFilePath);
@@ -605,15 +605,16 @@ void ClientConnection::tcpConnectAsync() {
     LOG_DEBUG(cnxString_ << "Resolving " << service_url.host() << ":" << service_url.port());
     tcp::resolver::query query(service_url.host(), std::to_string(service_url.port()));
     auto weakSelf = weak_from_this();
-    resolver_->async_resolve(query, [weakSelf](const ASIO_ERROR& err, tcp::resolver::iterator iterator) {
-        auto self = weakSelf.lock();
-        if (self) {
-            self->handleResolve(err, iterator);
-        }
-    });
+    resolver_->async_resolve(query,
+                             [weakSelf](const ASIO_ERROR& err, const tcp::resolver::iterator& iterator) {
+                                 auto self = weakSelf.lock();
+                                 if (self) {
+                                     self->handleResolve(err, iterator);
+                                 }
+                             });
 }
 
-void ClientConnection::handleResolve(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
+void ClientConnection::handleResolve(const ASIO_ERROR& err, const tcp::resolver::iterator& endpointIterator) {
     if (err) {
         std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
         LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
@@ -1033,18 +1034,18 @@ Future<Result, BrokerConsumerStatsImpl> ClientConnection::newConsumerStats(uint6
 }
 
 void ClientConnection::newTopicLookup(const std::string& topicName, bool authoritative,
-                                      const std::string& listenerName, const uint64_t requestId,
-                                      LookupDataResultPromisePtr promise) {
+                                      const std::string& listenerName, uint64_t requestId,
+                                      const LookupDataResultPromisePtr& promise) {
     newLookup(Commands::newLookup(topicName, authoritative, requestId, listenerName), requestId, promise);
 }
 
-void ClientConnection::newPartitionedMetadataLookup(const std::string& topicName, const uint64_t requestId,
-                                                    LookupDataResultPromisePtr promise) {
+void ClientConnection::newPartitionedMetadataLookup(const std::string& topicName, uint64_t requestId,
+                                                    const LookupDataResultPromisePtr& promise) {
     newLookup(Commands::newPartitionMetadataRequest(topicName, requestId), requestId, promise);
 }
 
-void ClientConnection::newLookup(const SharedBuffer& cmd, const uint64_t requestId,
-                                 LookupDataResultPromisePtr promise) {
+void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId,
+                                 const LookupDataResultPromisePtr& promise) {
     Lock lock(mutex_);
     std::shared_ptr<LookupDataResultPtr> lookupDataResult;
     lookupDataResult = std::make_shared<LookupDataResultPtr>();
@@ -1216,20 +1217,22 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(SharedBuffer cm
     return requestData.promise.getFuture();
 }
 
-void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec, PendingRequestData pendingRequestData) {
+void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec,
+                                            const PendingRequestData& pendingRequestData) {
     if (!ec && !pendingRequestData.hasGotResponse->load()) {
         pendingRequestData.promise.setFailed(ResultTimeout);
     }
 }
 
-void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec, LookupRequestData pendingRequestData) {
+void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec,
+                                           const LookupRequestData& pendingRequestData) {
     if (!ec) {
         pendingRequestData.promise->setFailed(ResultTimeout);
     }
 }
 
 void ClientConnection::handleGetLastMessageIdTimeout(const ASIO_ERROR& ec,
-                                                     ClientConnection::LastMessageIdRequestData data) {
+                                                     const ClientConnection::LastMessageIdRequestData& data) {
     if (!ec) {
         data.promise->setFailed(ResultTimeout);
     }
@@ -1267,7 +1270,7 @@ void ClientConnection::handleKeepAliveTimeout() {
 }
 
 void ClientConnection::handleConsumerStatsTimeout(const ASIO_ERROR& ec,
-                                                  std::vector<uint64_t> consumerStatsRequests) {
+                                                  const std::vector<uint64_t>& consumerStatsRequests) {
     if (ec) {
         LOG_DEBUG(cnxString_ << " Ignoring timer cancelled event, code[" << ec << "]");
         return;

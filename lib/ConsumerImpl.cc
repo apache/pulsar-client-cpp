@@ -367,7 +367,7 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
     return handleResult;
 }
 
-void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
+void ConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
     LOG_INFO(getName() << "Unsubscribing");
 
     auto callback = [this, originalCallback](Result result) {
@@ -408,7 +408,7 @@ void ConsumerImpl::unsubscribeAsync(ResultCallback originalCallback) {
     }
 }
 
-void ConsumerImpl::discardChunkMessages(std::string uuid, const MessageId& messageId, bool autoAck) {
+void ConsumerImpl::discardChunkMessages(const std::string& uuid, const MessageId& messageId, bool autoAck) {
     if (autoAck) {
         acknowledgeAsync(messageId, [uuid, messageId](Result result) {
             if (result != ResultOk) {
@@ -974,7 +974,7 @@ Result ConsumerImpl::receive(Message& msg) {
     return res;
 }
 
-void ConsumerImpl::receiveAsync(ReceiveCallback callback) {
+void ConsumerImpl::receiveAsync(const ReceiveCallback& callback) {
     Message msg;
 
     // fail the callback if consumer is closing or closed
@@ -1195,7 +1195,7 @@ inline CommandSubscribe_InitialPosition ConsumerImpl::getInitialPosition() {
     BOOST_THROW_EXCEPTION(std::logic_error("Invalid InitialPosition enumeration value"));
 }
 
-void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callback) {
+void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, const ResultCallback& callback) {
     auto pair = prepareIndividualAck(msgId);
     const auto& msgIdToAck = pair.first;
     const bool readyToAck = pair.second;
@@ -1209,7 +1209,7 @@ void ConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callb
     interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultOk, msgId);
 }
 
-void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
+void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, const ResultCallback& callback) {
     MessageIdList messageIdListToAck;
     // TODO: Need to check if the consumer is ready. Same to all other public methods
     for (auto&& msgId : messageIdList) {
@@ -1226,7 +1226,7 @@ void ConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdList, ResultCa
     this->ackGroupingTrackerPtr_->addAcknowledgeList(messageIdListToAck, callback);
 }
 
-void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
+void ConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, const ResultCallback& callback) {
     if (!isCumulativeAcknowledgementAllowed(config_.getConsumerType())) {
         interceptors_->onAcknowledgeCumulative(Consumer(shared_from_this()),
                                                ResultCumulativeAcknowledgementNotAllowedError, msgId);
@@ -1304,7 +1304,7 @@ void ConsumerImpl::disconnectConsumer(const boost::optional<std::string>& assign
     scheduleReconnection(assignedBrokerUrl);
 }
 
-void ConsumerImpl::closeAsync(ResultCallback originalCallback) {
+void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     auto callback = [this, originalCallback](Result result, bool alreadyClosed = false) {
         shutdown();
         if (result == ResultOk) {
@@ -1503,7 +1503,7 @@ void ConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback
 }
 
 void ConsumerImpl::brokerConsumerStatsListener(Result res, BrokerConsumerStatsImpl brokerConsumerStats,
-                                               BrokerConsumerStatsCallback callback) {
+                                               const BrokerConsumerStatsCallback& callback) {
     if (res == ResultOk) {
         Lock lock(mutex_);
         brokerConsumerStats.setCacheTime(config_.getBrokerConsumerStatsCacheTimeInMs());
@@ -1556,7 +1556,7 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback)
 
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
 
-void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
+void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) {
     bool compareMarkDeletePosition;
     {
         std::lock_guard<std::mutex> lock{mutexForMessageId_};

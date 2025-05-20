@@ -67,7 +67,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     static NamespaceTopicsPtr topicsListsMinus(std::vector<std::string>& list1,
                                                std::vector<std::string>& list2);
 
-    virtual void closeAsync(ResultCallback callback);
+    virtual void closeAsync(const ResultCallback& callback);
     virtual void start();
     virtual void shutdown();
 

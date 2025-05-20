@@ -74,12 +74,12 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     const std::string& getTopic() const override;
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
-    void receiveAsync(ReceiveCallback callback) override;
-    void unsubscribeAsync(ResultCallback callback) override;
-    void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
-    void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) override;
-    void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
-    void closeAsync(ResultCallback callback) override;
+    void receiveAsync(const ReceiveCallback& callback) override;
+    void unsubscribeAsync(const ResultCallback& callback) override;
+    void acknowledgeAsync(const MessageId& msgId, const ResultCallback& callback) override;
+    void acknowledgeAsync(const MessageIdList& messageIdList, const ResultCallback& callback) override;
+    void acknowledgeCumulativeAsync(const MessageId& msgId, const ResultCallback& callback) override;
+    void closeAsync(const ResultCallback& callback) override;
     void start() override;
     void shutdown();
     bool isClosed() override;
@@ -97,14 +97,14 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
-    void hasMessageAvailableAsync(HasMessageAvailableCallback callback) override;
+    void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) override;
 
     void handleGetConsumerStats(Result, const BrokerConsumerStats&, const LatchPtr&,
                                 const MultiTopicsBrokerConsumerStatsPtr&, size_t,
                                 const BrokerConsumerStatsCallback&);
     // return first topic name when all topics name valid, or return null pointer
     static std::shared_ptr<TopicName> topicNamesValid(const std::vector<std::string>& topics);
-    void unsubscribeOneTopicAsync(const std::string& topic, ResultCallback callback);
+    void unsubscribeOneTopicAsync(const std::string& topic, const ResultCallback& callback);
     Future<Result, Consumer> subscribeOneTopicAsync(const std::string& topic);
 
    protected:

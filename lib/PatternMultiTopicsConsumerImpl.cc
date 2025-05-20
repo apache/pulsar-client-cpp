@@ -247,7 +247,7 @@ void PatternMultiTopicsConsumerImpl::shutdown() {
     MultiTopicsConsumerImpl::shutdown();
 }
 
-void PatternMultiTopicsConsumerImpl::closeAsync(ResultCallback callback) {
+void PatternMultiTopicsConsumerImpl::closeAsync(const ResultCallback& callback) {
     cancelTimers();
     MultiTopicsConsumerImpl::closeAsync(callback);
 }
