@@ -90,7 +90,7 @@ TEST(ConsumerConfigurationTest, testCustomConfig) {
     conf.setConsumerType(ConsumerKeyShared);
     ASSERT_EQ(conf.getConsumerType(), ConsumerKeyShared);
 
-    conf.setMessageListener([](Consumer consumer, const Message& msg) {});
+    conf.setMessageListener([](const Consumer& consumer, const Message& msg) {});
     ASSERT_EQ(conf.hasMessageListener(), true);
 
     conf.setConsumerEventListener(std::make_shared<DummyEventListener>());

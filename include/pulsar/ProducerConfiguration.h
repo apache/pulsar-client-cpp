@@ -28,6 +28,7 @@
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
 
+#include <cstdint>
 #include <functional>
 #include <set>
 
@@ -44,19 +45,19 @@ class PulsarWrapper;
  */
 class PULSAR_PUBLIC ProducerConfiguration {
    public:
-    enum PartitionsRoutingMode
+    enum PartitionsRoutingMode : uint8_t
     {
         UseSinglePartition,
         RoundRobinDistribution,
         CustomPartition
     };
-    enum HashingScheme
+    enum HashingScheme : uint8_t
     {
         Murmur3_32Hash,
         BoostHash,
         JavaStringHash
     };
-    enum BatchingType
+    enum BatchingType : uint8_t
     {
         /**
          * Default batching.
@@ -80,7 +81,7 @@ class PULSAR_PUBLIC ProducerConfiguration {
          */
         KeyBasedBatching
     };
-    enum ProducerAccessMode
+    enum ProducerAccessMode : uint8_t
     {
         /**
          * By default multiple producers can publish on a topic.
@@ -460,7 +461,7 @@ class PULSAR_PUBLIC ProducerConfiguration {
      * @key the encryption key to add
      * @return the ProducerConfiguration self
      */
-    ProducerConfiguration& addEncryptionKey(std::string key);
+    ProducerConfiguration& addEncryptionKey(const std::string& key);
 
     /**
      * Check whether the producer has a specific property attached.

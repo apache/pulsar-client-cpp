@@ -47,7 +47,7 @@ DefaultCryptoKeyReader::DefaultCryptoKeyReader(const std::string& publicKeyPath,
 
 DefaultCryptoKeyReader::~DefaultCryptoKeyReader() {}
 
-void DefaultCryptoKeyReader::readFile(std::string fileName, std::string& fileContents) const {
+void DefaultCryptoKeyReader::readFile(const std::string& fileName, std::string& fileContents) const {
     std::ifstream ifs(fileName);
     std::stringstream fileStream;
     fileStream << ifs.rdbuf();

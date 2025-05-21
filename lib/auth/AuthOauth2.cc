@@ -87,7 +87,7 @@ CachedToken::~CachedToken() {}
 
 // Oauth2CachedToken
 
-Oauth2CachedToken::Oauth2CachedToken(Oauth2TokenResultPtr token) {
+Oauth2CachedToken::Oauth2CachedToken(const Oauth2TokenResultPtr& token) {
     latest_ = token;
 
     int64_t expiredIn = token->getExpiresIn();
@@ -124,7 +124,7 @@ KeyFile KeyFile::fromParamMap(ParamMap& params) {
         if (endPos == std::string::npos) {
             return "";
         }
-        const auto prefix = url.substr(startPos, endPos - startPos);
+        auto prefix = url.substr(startPos, endPos - startPos);
         startPos = endPos + 1;
         return prefix;
     };

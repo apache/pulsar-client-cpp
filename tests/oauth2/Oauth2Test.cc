@@ -86,7 +86,7 @@ TEST(Oauth2Test, testTlsTrustFilePath) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << "Load Oauth2 configs from " << gKeyPath << "..." << std::endl;
+    std::cout << "Load Oauth2 configs from " << gKeyPath << "..." << '\n';
     boost::property_tree::ptree root;
     boost::property_tree::read_json(gKeyPath, root);
     gClientId = root.get<std::string>("client_id");

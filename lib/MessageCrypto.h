@@ -62,7 +62,7 @@ class MessageCrypto {
      * @return ResultOk if succeeded
      *
      */
-    Result addPublicKeyCipher(const std::set<std::string>& keyNames, const CryptoKeyReaderPtr keyReader);
+    Result addPublicKeyCipher(const std::set<std::string>& keyNames, const CryptoKeyReaderPtr& keyReader);
 
     /*
      * Remove a key <p> Remove the key identified by the keyName from the list of keys.<p>
@@ -84,7 +84,7 @@ class MessageCrypto {
      *
      * @return true if success
      */
-    bool encrypt(const std::set<std::string>& encKeys, const CryptoKeyReaderPtr keyReader,
+    bool encrypt(const std::set<std::string>& encKeys, const CryptoKeyReaderPtr& keyReader,
                  proto::MessageMetadata& msgMetadata, SharedBuffer& payload, SharedBuffer& encryptedPayload);
 
     /*
@@ -98,7 +98,7 @@ class MessageCrypto {
      * @return true if success
      */
     bool decrypt(const proto::MessageMetadata& msgMetadata, SharedBuffer& payload,
-                 const CryptoKeyReaderPtr keyReader, SharedBuffer& decryptedPayload);
+                 const CryptoKeyReaderPtr& keyReader, SharedBuffer& decryptedPayload);
 
    private:
     typedef std::unique_lock<std::mutex> Lock;
@@ -131,7 +131,7 @@ class MessageCrypto {
                    unsigned char keyDigest[], unsigned int& digestLen);
     void removeExpiredDataKey();
 
-    Result addPublicKeyCipher(const std::string& keyName, const CryptoKeyReaderPtr keyReader);
+    Result addPublicKeyCipher(const std::string& keyName, const CryptoKeyReaderPtr& keyReader);
 
     bool decryptDataKey(const proto::EncryptionKeys& encKeys, const CryptoKeyReader& keyReader);
     bool decryptData(const std::string& dataKeySecret, const proto::MessageMetadata& msgMetadata,

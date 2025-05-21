@@ -59,7 +59,7 @@ class PULSAR_PUBLIC EncryptionKeyInfo {
      *
      * @param Key the key of the message for routing policy
      */
-    void setKey(std::string key);
+    void setKey(const std::string& key);
 
     /**
      * @return the metadata information
@@ -74,7 +74,7 @@ class PULSAR_PUBLIC EncryptionKeyInfo {
     void setMetadata(StringMap& metadata);
 
    private:
-    explicit EncryptionKeyInfo(EncryptionKeyInfoImplPtr);
+    explicit EncryptionKeyInfo(const EncryptionKeyInfoImplPtr&);
 
     EncryptionKeyInfoImplPtr impl_;
 

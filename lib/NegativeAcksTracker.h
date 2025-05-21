@@ -42,7 +42,8 @@ using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTracker> {
    public:
-    NegativeAcksTracker(ClientImplPtr client, ConsumerImpl &consumer, const ConsumerConfiguration &conf);
+    NegativeAcksTracker(const ClientImplPtr &client, ConsumerImpl &consumer,
+                        const ConsumerConfiguration &conf);
 
     NegativeAcksTracker(const NegativeAcksTracker &) = delete;
 

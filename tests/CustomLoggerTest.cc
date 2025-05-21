@@ -38,7 +38,7 @@ class MyTestLogger : public Logger {
     void log(Level level, int line, const std::string &message) override {
         std::stringstream ss;
         ss << std::this_thread::get_id() << " " << level << " " << fileName_ << ":" << line << " " << message
-           << std::endl;
+           << '\n';
         logLines.emplace_back(ss.str());
     }
 

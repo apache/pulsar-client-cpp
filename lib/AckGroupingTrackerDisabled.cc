@@ -19,16 +19,16 @@
 
 #include "AckGroupingTrackerDisabled.h"
 
-#include "HandlerBase.h"
 #include "ProtoApiEnums.h"
 
 namespace pulsar {
 
-void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId, ResultCallback callback) {
+void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId, const ResultCallback& callback) {
     doImmediateAck(msgId, callback, CommandAck_AckType_Individual);
 }
 
-void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {
+void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds,
+                                                    const ResultCallback& callback) {
     std::set<MessageId> msgIdSet;
     for (auto&& msgId : msgIds) {
         msgIdSet.emplace(msgId);
@@ -36,7 +36,8 @@ void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds,
     doImmediateAck(msgIdSet, callback);
 }
 
-void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {
+void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId,
+                                                          const ResultCallback& callback) {
     doImmediateAck(msgId, callback, CommandAck_AckType_Cumulative);
 }
 

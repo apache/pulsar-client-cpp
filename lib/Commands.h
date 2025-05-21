@@ -109,7 +109,7 @@ class Commands {
         const std::map<std::string, std::string>& metadata,
         const std::map<std::string, std::string>& subscriptionProperties, const SchemaInfo& schemaInfo,
         CommandSubscribe_InitialPosition subscriptionInitialPosition, bool replicateSubscriptionState,
-        KeySharedPolicy keySharedPolicy, int priorityLevel = 0);
+        const KeySharedPolicy& keySharedPolicy, int priorityLevel = 0);
 
     static SharedBuffer newUnsubscribe(uint64_t consumerId, uint64_t requestId);
 

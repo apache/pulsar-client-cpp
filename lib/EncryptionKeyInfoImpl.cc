@@ -22,11 +22,11 @@
 namespace pulsar {
 
 EncryptionKeyInfoImpl::EncryptionKeyInfoImpl(std::string key, StringMap& metadata)
-    : metadata_(metadata), key_(key) {}
+    : metadata_(metadata), key_(std::move(key)) {}
 
 std::string& EncryptionKeyInfoImpl::getKey() { return key_; }
 
-void EncryptionKeyInfoImpl::setKey(std::string key) { key_ = key; }
+void EncryptionKeyInfoImpl::setKey(const std::string& key) { key_ = key; }
 
 EncryptionKeyInfoImpl::StringMap& EncryptionKeyInfoImpl::getMetadata() { return metadata_; }
 

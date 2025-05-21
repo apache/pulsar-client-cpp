@@ -72,7 +72,8 @@ class InternalState {
         cond_.notify_all();
 
         if (!listeners_.empty()) {
-            auto listeners = std::move(listeners_);
+            decltype(listeners_) listeners;
+            listeners.swap(listeners_);
             lock.unlock();
             for (auto &&listener : listeners) {
                 listener(result, value);

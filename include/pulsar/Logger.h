@@ -20,14 +20,14 @@
 
 #include <pulsar/defines.h>
 
-#include <memory>
+#include <cstdint>
 #include <string>
 
 namespace pulsar {
 
 class PULSAR_PUBLIC Logger {
    public:
-    enum Level
+    enum Level : std::uint8_t
     {
         LEVEL_DEBUG = 0,
         LEVEL_INFO = 1,

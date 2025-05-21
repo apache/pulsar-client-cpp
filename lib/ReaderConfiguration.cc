@@ -41,7 +41,7 @@ ReaderConfiguration& ReaderConfiguration::setSchema(const SchemaInfo& schemaInfo
 const SchemaInfo& ReaderConfiguration::getSchema() const { return impl_->schemaInfo; }
 
 ReaderConfiguration& ReaderConfiguration::setReaderListener(ReaderListener readerListener) {
-    impl_->readerListener = readerListener;
+    impl_->readerListener = std::move(readerListener);
     impl_->hasReaderListener = true;
     return *this;
 }
@@ -71,7 +71,7 @@ bool ReaderConfiguration::isReadCompacted() const { return impl_->readCompacted;
 void ReaderConfiguration::setReadCompacted(bool compacted) { impl_->readCompacted = compacted; }
 
 void ReaderConfiguration::setInternalSubscriptionName(std::string internalSubscriptionName) {
-    impl_->internalSubscriptionName = internalSubscriptionName;
+    impl_->internalSubscriptionName = std::move(internalSubscriptionName);
 }
 
 const std::string& ReaderConfiguration::getInternalSubscriptionName() const {
@@ -107,7 +107,7 @@ bool ReaderConfiguration::isEncryptionEnabled() const { return impl_->cryptoKeyR
 const CryptoKeyReaderPtr ReaderConfiguration::getCryptoKeyReader() const { return impl_->cryptoKeyReader; }
 
 ReaderConfiguration& ReaderConfiguration::setCryptoKeyReader(CryptoKeyReaderPtr cryptoKeyReader) {
-    impl_->cryptoKeyReader = cryptoKeyReader;
+    impl_->cryptoKeyReader = std::move(cryptoKeyReader);
     return *this;
 }
 

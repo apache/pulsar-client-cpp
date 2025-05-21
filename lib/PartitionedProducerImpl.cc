@@ -36,8 +36,8 @@ namespace pulsar {
 
 const std::string PartitionedProducerImpl::PARTITION_NAME_SUFFIX = "-partition-";
 
-PartitionedProducerImpl::PartitionedProducerImpl(ClientImplPtr client, const TopicNamePtr topicName,
-                                                 const unsigned int numPartitions,
+PartitionedProducerImpl::PartitionedProducerImpl(const ClientImplPtr& client, const TopicNamePtr& topicName,
+                                                 unsigned int numPartitions,
                                                  const ProducerConfiguration& config,
                                                  const ProducerInterceptorsPtr& interceptors)
     : client_(client),
@@ -144,9 +144,8 @@ void PartitionedProducerImpl::start() {
     }
 }
 
-void PartitionedProducerImpl::handleSinglePartitionProducerCreated(Result result,
-                                                                   ProducerImplBaseWeakPtr producerWeakPtr,
-                                                                   unsigned int partitionIndex) {
+void PartitionedProducerImpl::handleSinglePartitionProducerCreated(
+    Result result, const ProducerImplBaseWeakPtr& producerWeakPtr, unsigned int partitionIndex) {
     // to indicate, we are doing cleanup using closeAsync after producer create
     // has failed and the invocation of closeAsync is not from client
     const auto numPartitions = getNumPartitionsWithLock();
@@ -234,9 +233,9 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
     } else {
         // Wrapping the callback into a lambda has overhead, so we check if the producer is ready first
         producer->getProducerCreatedFuture().addListener(
-            [msg, callback](Result result, ProducerImplBaseWeakPtr weakProducer) {
+            [msg, callback](Result result, const ProducerImplBaseWeakPtr& weakProducer) {
                 if (result == ResultOk) {
-                    weakProducer.lock()->sendAsync(msg, std::move(callback));
+                    weakProducer.lock()->sendAsync(msg, callback);
                 } else if (callback) {
                     callback(result, {});
                 }
@@ -331,9 +330,8 @@ void PartitionedProducerImpl::closeAsync(CloseCallback originalCallback) {
 }
 
 // `callback` is a wrapper of user provided callback, it's not null and will call `shutdown()`
-void PartitionedProducerImpl::handleSinglePartitionProducerClose(Result result,
-                                                                 const unsigned int partitionIndex,
-                                                                 CloseCallback callback) {
+void PartitionedProducerImpl::handleSinglePartitionProducerClose(Result result, unsigned int partitionIndex,
+                                                                 const CloseCallback& callback) {
     if (state_ == Failed) {
         // we should have already notified the client by callback
         return;

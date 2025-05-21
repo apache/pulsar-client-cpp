@@ -41,7 +41,7 @@ typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
 
 class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
    public:
-    TableViewImpl(ClientImplPtr client, const std::string& topic, const TableViewConfiguration& conf);
+    TableViewImpl(const ClientImplPtr& client, const std::string& topic, const TableViewConfiguration& conf);
 
     ~TableViewImpl(){};
 
@@ -57,11 +57,11 @@ class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
 
     std::size_t size() const;
 
-    void forEach(TableViewAction action);
+    void forEach(const TableViewAction& action);
 
-    void forEachAndListen(TableViewAction action);
+    void forEachAndListen(const TableViewAction& action);
 
-    void closeAsync(ResultCallback callback);
+    void closeAsync(const ResultCallback& callback);
 
    private:
     using MutexType = std::mutex;
@@ -77,7 +77,7 @@ class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
     SynchronizedHashMap<std::string, std::string> data_;
 
     void handleMessage(const Message& msg);
-    void readAllExistingMessages(Promise<Result, TableViewImplPtr> promise, long startTime,
+    void readAllExistingMessages(const Promise<Result, TableViewImplPtr>& promise, long startTime,
                                  long messagesRead);
     void readTailMessage();
 };

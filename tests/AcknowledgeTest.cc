@@ -147,7 +147,7 @@ TEST_P(AcknowledgeTest, testAckMsgListWithMultiConsumer) {
     // assert stats
     unsigned long totalAck = 0;
     auto consumerStatsList = PulsarFriend::getConsumerStatsPtrList(consumer);
-    for (auto consumerStats : consumerStatsList) {
+    for (auto&& consumerStats : consumerStatsList) {
         auto ackMap = consumerStats->getAckedMsgMap();
         totalAck += ackMap[std::make_pair(ResultOk, CommandAck_AckType_Individual)];
     }

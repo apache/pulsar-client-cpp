@@ -50,7 +50,7 @@ class PartitionsSet {
    public:
     size_t size() const { return names_.size(); }
 
-    Result initProducer(std::string topicName, bool enablePartitionsUpdate,
+    Result initProducer(const std::string& topicName, bool enablePartitionsUpdate,
                         bool lazyStartPartitionedProducers) {
         clientForProducer_.reset(new Client(serviceUrl, newClientConfig(enablePartitionsUpdate)));
         const auto producerConfig = ProducerConfiguration()
@@ -59,7 +59,7 @@ class PartitionsSet {
         return clientForProducer_->createProducer(topicName, producerConfig, producer_);
     }
 
-    Result initConsumer(std::string topicName, bool enablePartitionsUpdate) {
+    Result initConsumer(const std::string& topicName, bool enablePartitionsUpdate) {
         clientForConsumer_.reset(new Client(serviceUrl, newClientConfig(enablePartitionsUpdate)));
         return clientForConsumer_->subscribe(topicName, "SubscriptionName", consumer_);
     }
@@ -120,7 +120,7 @@ TEST(PartitionsUpdateTest, testConfigPartitionsUpdateInterval) {
     ASSERT_EQ(static_cast<unsigned int>(-1), clientConfig.getPartitionsUpdateInterval());
 }
 
-void testPartitionsUpdate(bool lazyStartPartitionedProducers, std::string topicNameSuffix) {
+void testPartitionsUpdate(bool lazyStartPartitionedProducers, const std::string& topicNameSuffix) {
     std::string topicName = "persistent://" + topicNameSuffix;
     std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" + topicNameSuffix + "/partitions";
 

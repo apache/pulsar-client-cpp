@@ -90,8 +90,7 @@ AuthenticationPtr AuthToken::create(const std::string &authParamsString) {
         std::string envVarName = authParamsString.substr(strlen("env:"));
         params["env"] = envVarName;
     } else {
-        std::string token = authParamsString;
-        params["token"] = token;
+        params["token"] = authParamsString;
     }
 
     return create(params);

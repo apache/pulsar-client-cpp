@@ -117,7 +117,7 @@ Future<Result, LookupDataResultPtr> BinaryProtoLookupService::getPartitionMetada
 
 void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
                                                                   const ClientConnectionWeakPtr& clientCnx,
-                                                                  LookupDataResultPromisePtr promise) {
+                                                                  const LookupDataResultPromisePtr& promise) {
     if (result != ResultOk) {
         promise->setFailed(result);
         return;
@@ -136,9 +136,9 @@ void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::str
 }
 
 void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& topicName, Result result,
-                                                             LookupDataResultPtr data,
+                                                             const LookupDataResultPtr& data,
                                                              const ClientConnectionWeakPtr& clientCnx,
-                                                             LookupDataResultPromisePtr promise) {
+                                                             const LookupDataResultPromisePtr& promise) {
     if (data) {
         LOG_DEBUG("PartitionMetadataLookup response for " << topicName << ", lookup-broker-url "
                                                           << data->getBrokerUrl());
@@ -185,7 +185,7 @@ Future<Result, SchemaInfo> BinaryProtoLookupService::getSchema(const TopicNamePt
 
 void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName, const std::string& version,
                                                     Result result, const ClientConnectionWeakPtr& clientCnx,
-                                                    GetSchemaPromisePtr promise) {
+                                                    const GetSchemaPromisePtr& promise) {
     if (result != ResultOk) {
         promise->setFailed(result);
         return;
@@ -197,7 +197,7 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName
                                                   << " version: " << version);
 
     conn->newGetSchema(topicName, version, requestId)
-        .addListener([promise](Result result, SchemaInfo schemaInfo) {
+        .addListener([promise](Result result, const SchemaInfo& schemaInfo) {
             if (result != ResultOk) {
                 promise->setFailed(result);
                 return;
@@ -210,7 +210,7 @@ void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string
                                                                CommandGetTopicsOfNamespace_Mode mode,
                                                                Result result,
                                                                const ClientConnectionWeakPtr& clientCnx,
-                                                               NamespaceTopicsPromisePtr promise) {
+                                                               const NamespaceTopicsPromisePtr& promise) {
     if (result != ResultOk) {
         promise->setFailed(result);
         return;
@@ -228,8 +228,9 @@ void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string
                                std::placeholders::_1, std::placeholders::_2, promise));
 }
 
-void BinaryProtoLookupService::getTopicsOfNamespaceListener(Result result, NamespaceTopicsPtr topicsPtr,
-                                                            NamespaceTopicsPromisePtr promise) {
+void BinaryProtoLookupService::getTopicsOfNamespaceListener(Result result,
+                                                            const NamespaceTopicsPtr& topicsPtr,
+                                                            const NamespaceTopicsPromisePtr& promise) {
     if (result != ResultOk) {
         promise->setFailed(ResultLookupError);
         return;

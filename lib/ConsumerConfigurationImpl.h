@@ -21,48 +21,45 @@
 
 #include <pulsar/ConsumerConfiguration.h>
 
-#include <chrono>
-
 namespace pulsar {
 struct ConsumerConfigurationImpl {
-    SchemaInfo schemaInfo;
     long unAckedMessagesTimeoutMs{0};
     long tickDurationInMs{1000};
-
     long negativeAckRedeliveryDelayMs{60000};
     long ackGroupingTimeMs{100};
     long ackGroupingMaxSize{1000};
+    long brokerConsumerStatsCacheTimeInMs{30 * 1000L};  // 30 seconds
+    long expireTimeOfIncompleteChunkedMessageMs{60000};
+    SchemaInfo schemaInfo;
+    ConsumerEventListenerPtr eventListener;
+    CryptoKeyReaderPtr cryptoKeyReader;
+    InitialPosition subscriptionInitialPosition{InitialPosition::InitialPositionLatest};
+    int patternAutoDiscoveryPeriod{60};
+    RegexSubscriptionMode regexSubscriptionMode{RegexSubscriptionMode::PersistentOnly};
+    int priorityLevel{0};
+    bool hasMessageListener{false};
+    bool hasConsumerEventListener{false};
+    bool readCompacted{false};
+    bool replicateSubscriptionStateEnabled{false};
+    bool autoAckOldestChunkedMessageOnQueueFull{false};
+    bool startMessageIdInclusive{false};
+    bool batchIndexAckEnabled{false};
+    bool ackReceiptEnabled{false};
+    bool startPaused{false};
+
+    size_t maxPendingChunkedMessage{10};
     ConsumerType consumerType{ConsumerExclusive};
     MessageListener messageListener;
-    bool hasMessageListener{false};
-    ConsumerEventListenerPtr eventListener;
-    bool hasConsumerEventListener{false};
     int receiverQueueSize{1000};
     int maxTotalReceiverQueueSizeAcrossPartitions{50000};
     std::string consumerName;
-    long brokerConsumerStatsCacheTimeInMs{30 * 1000L};  // 30 seconds
-    CryptoKeyReaderPtr cryptoKeyReader;
     ConsumerCryptoFailureAction cryptoFailureAction{ConsumerCryptoFailureAction::FAIL};
-    bool readCompacted{false};
-    InitialPosition subscriptionInitialPosition{InitialPosition::InitialPositionLatest};
     BatchReceivePolicy batchReceivePolicy{};
     DeadLetterPolicy deadLetterPolicy;
-    int patternAutoDiscoveryPeriod{60};
-    RegexSubscriptionMode regexSubscriptionMode{RegexSubscriptionMode::PersistentOnly};
-
-    bool replicateSubscriptionStateEnabled{false};
     std::map<std::string, std::string> properties;
     std::map<std::string, std::string> subscriptionProperties;
-    int priorityLevel{0};
     KeySharedPolicy keySharedPolicy;
-    size_t maxPendingChunkedMessage{10};
-    bool autoAckOldestChunkedMessageOnQueueFull{false};
-    bool startMessageIdInclusive{false};
-    long expireTimeOfIncompleteChunkedMessageMs{60000};
-    bool batchIndexAckEnabled{false};
     std::vector<ConsumerInterceptorPtr> interceptors;
-    bool ackReceiptEnabled{false};
-    bool startPaused{false};
 };
 }  // namespace pulsar
 #endif /* LIB_CONSUMERCONFIGURATIONIMPL_H_ */

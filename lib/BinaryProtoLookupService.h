@@ -72,21 +72,22 @@ class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
 
     void sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
                                             const ClientConnectionWeakPtr& clientCnx,
-                                            LookupDataResultPromisePtr promise);
+                                            const LookupDataResultPromisePtr& promise);
 
-    void handlePartitionMetadataLookup(const std::string& topicName, Result result, LookupDataResultPtr data,
+    void handlePartitionMetadataLookup(const std::string& topicName, Result result,
+                                       const LookupDataResultPtr& data,
                                        const ClientConnectionWeakPtr& clientCnx,
-                                       LookupDataResultPromisePtr promise);
+                                       const LookupDataResultPromisePtr& promise);
 
     void sendGetTopicsOfNamespaceRequest(const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode,
                                          Result result, const ClientConnectionWeakPtr& clientCnx,
-                                         NamespaceTopicsPromisePtr promise);
+                                         const NamespaceTopicsPromisePtr& promise);
 
     void sendGetSchemaRequest(const std::string& topicName, const std::string& version, Result result,
-                              const ClientConnectionWeakPtr& clientCnx, GetSchemaPromisePtr promise);
+                              const ClientConnectionWeakPtr& clientCnx, const GetSchemaPromisePtr& promise);
 
-    void getTopicsOfNamespaceListener(Result result, NamespaceTopicsPtr topicsPtr,
-                                      NamespaceTopicsPromisePtr promise);
+    void getTopicsOfNamespaceListener(Result result, const NamespaceTopicsPtr& topicsPtr,
+                                      const NamespaceTopicsPromisePtr& promise);
 
     uint64_t newRequestId();
 };

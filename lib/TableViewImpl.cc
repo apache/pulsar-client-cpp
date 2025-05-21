@@ -28,7 +28,7 @@ namespace pulsar {
 
 DECLARE_LOG_OBJECT()
 
-TableViewImpl::TableViewImpl(ClientImplPtr client, const std::string& topic,
+TableViewImpl::TableViewImpl(const ClientImplPtr& client, const std::string& topic,
                              const TableViewConfiguration& conf)
     : client_(client), topic_(topic), conf_(conf) {}
 
@@ -40,7 +40,7 @@ Future<Result, TableViewImplPtr> TableViewImpl::start() {
     readerConfiguration.setInternalSubscriptionName(conf_.subscriptionName);
 
     TableViewImplPtr self = shared_from_this();
-    ReaderCallback readerCallback = [self, promise](Result res, Reader reader) {
+    ReaderCallback readerCallback = [self, promise](Result res, const Reader& reader) {
         if (res == ResultOk) {
             self->reader_ = reader.impl_;
             self->readAllExistingMessages(promise, TimeUtils::currentTimeMillis(), 0);
@@ -76,15 +76,15 @@ std::unordered_map<std::string, std::string> TableViewImpl::snapshot() { return 
 
 std::size_t TableViewImpl::size() const { return data_.size(); }
 
-void TableViewImpl::forEach(TableViewAction action) { data_.forEach(action); }
+void TableViewImpl::forEach(const TableViewAction& action) { data_.forEach(action); }
 
-void TableViewImpl::forEachAndListen(TableViewAction action) {
+void TableViewImpl::forEachAndListen(const TableViewAction& action) {
     data_.forEach(action);
     Lock lock(listenersMutex_);
     listeners_.emplace_back(action);
 }
 
-void TableViewImpl::closeAsync(ResultCallback callback) {
+void TableViewImpl::closeAsync(const ResultCallback& callback) {
     if (reader_) {
         reader_->closeAsync([callback, this](Result result) {
             reader_.reset();
@@ -118,7 +118,7 @@ void TableViewImpl::handleMessage(const Message& msg) {
     }
 }
 
-void TableViewImpl::readAllExistingMessages(Promise<Result, TableViewImplPtr> promise, long startTime,
+void TableViewImpl::readAllExistingMessages(const Promise<Result, TableViewImplPtr>& promise, long startTime,
                                             long messagesRead) {
     std::weak_ptr<TableViewImpl> weakSelf{shared_from_this()};
     reader_->hasMessageAvailableAsync(

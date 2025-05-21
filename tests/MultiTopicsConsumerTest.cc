@@ -89,7 +89,7 @@ TEST(MultiTopicsConsumerTest, testSeekToNewerPosition) {
     consumer.close();
 
     // Test message listener
-    conf.setMessageListener([&messages](Consumer consumer, Message msg) { messages.add(msg); });
+    conf.setMessageListener([&messages](const Consumer& consumer, const Message& msg) { messages.add(msg); });
     messages.clear();
     messages.setMinNumMsgs(4);
     ASSERT_EQ(ResultOk, client.subscribe(topics, "sub-4", conf, consumer));

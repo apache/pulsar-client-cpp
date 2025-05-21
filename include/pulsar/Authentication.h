@@ -394,10 +394,7 @@ class PULSAR_PUBLIC AuthAthenz : public Authentication {
 // currently mainly works for access token
 class Oauth2TokenResult {
    public:
-    enum
-    {
-        undefined_expiration = -1
-    };
+    static constexpr int undefined_expiration = -1;
 
     Oauth2TokenResult();
     ~Oauth2TokenResult();

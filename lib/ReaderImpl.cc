@@ -36,9 +36,9 @@ ConsumerConfiguration consumerConfigOfReader;
 
 static ResultCallback emptyCallback;
 
-ReaderImpl::ReaderImpl(const ClientImplPtr client, const std::string& topic, int partitions,
-                       const ReaderConfiguration& conf, const ExecutorServicePtr listenerExecutor,
-                       ReaderCallback readerCreatedCallback)
+ReaderImpl::ReaderImpl(const ClientImplPtr& client, const std::string& topic, int partitions,
+                       const ReaderConfiguration& conf, const ExecutorServicePtr& listenerExecutor,
+                       const ReaderCallback& readerCreatedCallback)
     : topic_(topic),
       partitions_(partitions),
       client_(client),
@@ -46,7 +46,7 @@ ReaderImpl::ReaderImpl(const ClientImplPtr client, const std::string& topic, int
       readerCreatedCallback_(readerCreatedCallback) {}
 
 void ReaderImpl::start(const MessageId& startMessageId,
-                       std::function<void(const ConsumerImplBaseWeakPtr&)> callback) {
+                       const std::function<void(const ConsumerImplBaseWeakPtr&)>& callback) {
     ConsumerConfiguration consumerConf;
     consumerConf.setConsumerType(ConsumerExclusive);
     consumerConf.setReceiverQueueSize(readerConf_.getReceiverQueueSize());
@@ -130,7 +130,7 @@ Result ReaderImpl::readNext(Message& msg, int timeoutMs) {
     return res;
 }
 
-void ReaderImpl::readNextAsync(ReceiveCallback callback) {
+void ReaderImpl::readNextAsync(const ReceiveCallback& callback) {
     auto self = shared_from_this();
     consumer_->receiveAsync([self, callback](Result result, const Message& message) {
         self->acknowledgeIfNecessary(result, message);
@@ -138,7 +138,7 @@ void ReaderImpl::readNextAsync(ReceiveCallback callback) {
     });
 }
 
-void ReaderImpl::messageListener(Consumer consumer, const Message& msg) {
+void ReaderImpl::messageListener(const Consumer& consumer, const Message& msg) {
     readerListener_(Reader(shared_from_this()), msg);
     acknowledgeIfNecessary(ResultOk, msg);
 }
@@ -156,20 +156,20 @@ void ReaderImpl::acknowledgeIfNecessary(Result result, const Message& msg) {
     }
 }
 
-void ReaderImpl::closeAsync(ResultCallback callback) { consumer_->closeAsync(callback); }
+void ReaderImpl::closeAsync(const ResultCallback& callback) { consumer_->closeAsync(callback); }
 
-void ReaderImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
+void ReaderImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) {
     consumer_->hasMessageAvailableAsync(callback);
 }
 
-void ReaderImpl::seekAsync(const MessageId& msgId, ResultCallback callback) {
+void ReaderImpl::seekAsync(const MessageId& msgId, const ResultCallback& callback) {
     consumer_->seekAsync(msgId, callback);
 }
-void ReaderImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
+void ReaderImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
     consumer_->seekAsync(timestamp, callback);
 }
 
-void ReaderImpl::getLastMessageIdAsync(GetLastMessageIdCallback callback) {
+void ReaderImpl::getLastMessageIdAsync(const GetLastMessageIdCallback& callback) {
     consumer_->getLastMessageIdAsync([callback](Result result, const GetLastMessageIdResponse& response) {
         callback(result, response.getLastMessageId());
     });

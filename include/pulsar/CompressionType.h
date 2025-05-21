@@ -19,8 +19,10 @@
 #ifndef PULSAR_COMPRESSIONTYPE_H_
 #define PULSAR_COMPRESSIONTYPE_H_
 
+#include <cstdint>
+
 namespace pulsar {
-enum CompressionType
+enum CompressionType : std::uint8_t
 {
     CompressionNone = 0,
     CompressionLZ4 = 1,

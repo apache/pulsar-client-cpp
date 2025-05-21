@@ -22,7 +22,7 @@
 
 namespace pulsar {
 
-KeyValue::KeyValue(KeyValueImplPtr impl) : impl_(impl) {}
+KeyValue::KeyValue(KeyValueImplPtr impl) : impl_(std::move(impl)) {}
 
 KeyValue::KeyValue(std::string &&key, std::string &&value)
     : impl_(std::make_shared<KeyValueImpl>(std::move(key), std::move(value))) {}

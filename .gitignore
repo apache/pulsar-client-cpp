@@ -106,3 +106,6 @@ Testing
 .test-token.txt
 pkg/mac/.build
 pkg/mac/.install
+
+# Used in ./build-support/run_clang_tidy.sh
+files.txt

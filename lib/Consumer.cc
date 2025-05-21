@@ -31,7 +31,7 @@ static const std::string EMPTY_STRING;
 
 Consumer::Consumer() : impl_() {}
 
-Consumer::Consumer(ConsumerImplBasePtr impl) : impl_(impl) {}
+Consumer::Consumer(ConsumerImplBasePtr impl) : impl_(std::move(impl)) {}
 
 const std::string& Consumer::getTopic() const { return impl_ != NULL ? impl_->getTopic() : EMPTY_STRING; }
 
@@ -54,7 +54,7 @@ Result Consumer::unsubscribe() {
     return result;
 }
 
-void Consumer::unsubscribeAsync(ResultCallback callback) {
+void Consumer::unsubscribeAsync(const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -79,7 +79,7 @@ Result Consumer::receive(Message& msg, int timeoutMs) {
     return impl_->receive(msg, timeoutMs);
 }
 
-void Consumer::receiveAsync(ReceiveCallback callback) {
+void Consumer::receiveAsync(const ReceiveCallback& callback) {
     if (!impl_) {
         Message msg;
         callback(ResultConsumerNotInitialized, msg);
@@ -97,7 +97,7 @@ Result Consumer::batchReceive(Messages& msgs) {
     return promise.getFuture().get(msgs);
 }
 
-void Consumer::batchReceiveAsync(BatchReceiveCallback callback) {
+void Consumer::batchReceiveAsync(const BatchReceiveCallback& callback) {
     if (!impl_) {
         Messages msgs;
         callback(ResultConsumerNotInitialized, msgs);
@@ -130,7 +130,7 @@ Result Consumer::acknowledge(const MessageIdList& messageIdList) {
     return result;
 }
 
-void Consumer::acknowledgeAsync(const Message& message, ResultCallback callback) {
+void Consumer::acknowledgeAsync(const Message& message, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -139,7 +139,7 @@ void Consumer::acknowledgeAsync(const Message& message, ResultCallback callback)
     impl_->acknowledgeAsync(message.getMessageId(), callback);
 }
 
-void Consumer::acknowledgeAsync(const MessageId& messageId, ResultCallback callback) {
+void Consumer::acknowledgeAsync(const MessageId& messageId, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -148,7 +148,7 @@ void Consumer::acknowledgeAsync(const MessageId& messageId, ResultCallback callb
     impl_->acknowledgeAsync(messageId, callback);
 }
 
-void Consumer::acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) {
+void Consumer::acknowledgeAsync(const MessageIdList& messageIdList, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -173,11 +173,11 @@ Result Consumer::acknowledgeCumulative(const MessageId& messageId) {
     return result;
 }
 
-void Consumer::acknowledgeCumulativeAsync(const Message& message, ResultCallback callback) {
+void Consumer::acknowledgeCumulativeAsync(const Message& message, const ResultCallback& callback) {
     acknowledgeCumulativeAsync(message.getMessageId(), callback);
 }
 
-void Consumer::acknowledgeCumulativeAsync(const MessageId& messageId, ResultCallback callback) {
+void Consumer::acknowledgeCumulativeAsync(const MessageId& messageId, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -204,7 +204,7 @@ Result Consumer::close() {
     return result;
 }
 
-void Consumer::closeAsync(ResultCallback callback) {
+void Consumer::closeAsync(const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -244,7 +244,7 @@ Result Consumer::getBrokerConsumerStats(BrokerConsumerStats& brokerConsumerStats
     return promise.getFuture().get(brokerConsumerStats);
 }
 
-void Consumer::getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) {
+void Consumer::getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized, BrokerConsumerStats());
         return;
@@ -252,7 +252,7 @@ void Consumer::getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback)
     impl_->getBrokerConsumerStatsAsync(callback);
 }
 
-void Consumer::seekAsync(const MessageId& msgId, ResultCallback callback) {
+void Consumer::seekAsync(const MessageId& msgId, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -260,7 +260,7 @@ void Consumer::seekAsync(const MessageId& msgId, ResultCallback callback) {
     impl_->seekAsync(msgId, callback);
 }
 
-void Consumer::seekAsync(uint64_t timestamp, ResultCallback callback) {
+void Consumer::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -294,7 +294,7 @@ Result Consumer::seek(uint64_t timestamp) {
 
 bool Consumer::isConnected() const { return impl_ && impl_->isConnected(); }
 
-void Consumer::getLastMessageIdAsync(GetLastMessageIdCallback callback) {
+void Consumer::getLastMessageIdAsync(const GetLastMessageIdCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized, MessageId());
         return;

@@ -34,7 +34,7 @@ namespace pulsar {
 
 DECLARE_LOG_OBJECT();
 
-void AckGroupingTracker::doImmediateAck(const MessageId& msgId, ResultCallback callback,
+void AckGroupingTracker::doImmediateAck(const MessageId& msgId, const ResultCallback& callback,
                                         CommandAck_AckType ackType) const {
     const auto cnx = connectionSupplier_();
     if (!cnx) {
@@ -87,7 +87,8 @@ static std::ostream& operator<<(std::ostream& os, const std::set<MessageId>& msg
     return os;
 }
 
-void AckGroupingTracker::doImmediateAck(const std::set<MessageId>& msgIds, ResultCallback callback) const {
+void AckGroupingTracker::doImmediateAck(const std::set<MessageId>& msgIds,
+                                        const ResultCallback& callback) const {
     const auto cnx = connectionSupplier_();
     if (!cnx) {
         LOG_DEBUG("Connection is not ready, ACK failed for " << msgIds);

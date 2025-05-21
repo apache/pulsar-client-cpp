@@ -31,7 +31,7 @@ namespace pulsar {
 struct WaitForCallback {
     Promise<bool, Result> m_promise;
 
-    WaitForCallback(Promise<bool, Result> promise) : m_promise(promise) {}
+    WaitForCallback(Promise<bool, Result> promise) : m_promise(std::move(promise)) {}
 
     void operator()(Result result) { m_promise.setValue(result); }
 };

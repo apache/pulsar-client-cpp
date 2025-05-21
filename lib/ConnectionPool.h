@@ -41,7 +41,7 @@ using ExecutorServiceProviderPtr = std::shared_ptr<ExecutorServiceProvider>;
 
 class PULSAR_PUBLIC ConnectionPool {
    public:
-    ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
+    ConnectionPool(const ClientConfiguration& conf, const ExecutorServiceProviderPtr& executorProvider,
                    const AuthenticationPtr& authentication, const std::string& clientVersion);
 
     /**

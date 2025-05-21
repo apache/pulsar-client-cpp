@@ -21,7 +21,6 @@
 #include <pulsar/ConsoleLoggerFactory.h>
 
 #include <atomic>
-#include <iostream>
 
 namespace pulsar {
 
@@ -46,8 +45,8 @@ LoggerFactory* LogUtils::getLoggerFactory() {
 
 std::string LogUtils::getLoggerName(const std::string& path) {
     // Remove all directories from filename
-    int startIdx = path.find_last_of("/");
-    int endIdx = path.find_last_of(".");
+    int startIdx = path.find_last_of('/');
+    int endIdx = path.find_last_of('.');
     return path.substr(startIdx + 1, endIdx - startIdx - 1);
 }
 

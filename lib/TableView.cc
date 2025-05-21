@@ -25,7 +25,7 @@ namespace pulsar {
 
 TableView::TableView() {}
 
-TableView::TableView(TableViewImplPtr impl) : impl_(impl) {}
+TableView::TableView(TableViewImplPtr impl) : impl_(std::move(impl)) {}
 
 bool TableView::retrieveValue(const std::string& key, std::string& value) {
     if (impl_) {
@@ -62,19 +62,19 @@ std::size_t TableView::size() const {
     return 0;
 }
 
-void TableView::forEach(TableViewAction action) {
+void TableView::forEach(const TableViewAction& action) {
     if (impl_) {
         impl_->forEach(action);
     }
 }
 
-void TableView::forEachAndListen(TableViewAction action) {
+void TableView::forEachAndListen(const TableViewAction& action) {
     if (impl_) {
         impl_->forEachAndListen(action);
     }
 }
 
-void TableView::closeAsync(ResultCallback callback) {
+void TableView::closeAsync(const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;

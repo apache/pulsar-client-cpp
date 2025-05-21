@@ -28,7 +28,7 @@ static const std::string EMPTY_STRING;
 
 Producer::Producer() : impl_() {}
 
-Producer::Producer(ProducerImplBasePtr impl) : impl_(impl) {}
+Producer::Producer(const ProducerImplBasePtr& impl) : impl_(impl) {}
 
 const std::string& Producer::getTopic() const { return impl_ != NULL ? impl_->getTopic() : EMPTY_STRING; }
 
@@ -58,7 +58,7 @@ Result Producer::send(const Message& msg, MessageId& messageId) {
     return promise.getFuture().get(messageId);
 }
 
-void Producer::sendAsync(const Message& msg, SendCallback callback) {
+void Producer::sendAsync(const Message& msg, const SendCallback& callback) {
     if (!impl_) {
         callback(ResultProducerNotInitialized, msg.getMessageId());
         return;
@@ -82,7 +82,7 @@ Result Producer::close() {
     return result;
 }
 
-void Producer::closeAsync(CloseCallback callback) {
+void Producer::closeAsync(const CloseCallback& callback) {
     if (!impl_) {
         callback(ResultProducerNotInitialized);
         return;
@@ -100,7 +100,7 @@ Result Producer::flush() {
     return result;
 }
 
-void Producer::flushAsync(FlushCallback callback) {
+void Producer::flushAsync(const FlushCallback& callback) {
     if (!impl_) {
         callback(ResultProducerNotInitialized);
         return;

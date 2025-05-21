@@ -173,8 +173,8 @@ Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topi
     return promise.getFuture();
 }
 
-void HTTPLookupService::handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise promise,
-                                                         const std::string completeUrl) {
+void HTTPLookupService::handleNamespaceTopicsHTTPRequest(const NamespaceTopicsPromise &promise,
+                                                         const std::string &completeUrl) {
     std::string responseData;
     Result result = sendHTTPRequest(completeUrl, responseData);
 
@@ -185,12 +185,12 @@ void HTTPLookupService::handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise 
     }
 }
 
-Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData) {
+Result HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData) {
     long responseCode = -1;
     return sendHTTPRequest(completeUrl, responseData, responseCode);
 }
 
-Result HTTPLookupService::sendHTTPRequest(std::string completeUrl, std::string &responseData,
+Result HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData,
                                           long &responseCode) {
     // Authorization data
     AuthenticationDataPtr authDataContent;
@@ -351,7 +351,7 @@ NamespaceTopicsPtr HTTPLookupService::parseNamespaceTopicsData(const std::string
     return topicsResultPtr;
 }
 
-void HTTPLookupService::handleLookupHTTPRequest(LookupPromise promise, const std::string completeUrl,
+void HTTPLookupService::handleLookupHTTPRequest(const LookupPromise &promise, const std::string &completeUrl,
                                                 RequestType requestType) {
     std::string responseData;
     Result result = sendHTTPRequest(completeUrl, responseData);
@@ -364,7 +364,8 @@ void HTTPLookupService::handleLookupHTTPRequest(LookupPromise promise, const std
     }
 }
 
-void HTTPLookupService::handleGetSchemaHTTPRequest(GetSchemaPromise promise, const std::string completeUrl) {
+void HTTPLookupService::handleGetSchemaHTTPRequest(const GetSchemaPromise &promise,
+                                                   const std::string &completeUrl) {
     std::string responseData;
     long responseCode = -1;
     Result result = sendHTTPRequest(completeUrl, responseData, responseCode);

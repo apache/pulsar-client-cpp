@@ -74,7 +74,7 @@ class PULSAR_PUBLIC Reader {
      *
      * @param callback
      */
-    void readNextAsync(ReadNextCallback callback);
+    void readNextAsync(const ReadNextCallback& callback);
 
     /**
      * Close the reader and stop the broker to push more messages
@@ -88,12 +88,12 @@ class PULSAR_PUBLIC Reader {
      *
      * @param callback the callback that is triggered when the reader is closed
      */
-    void closeAsync(ResultCallback callback);
+    void closeAsync(const ResultCallback& callback);
 
     /**
      * Asynchronously check if there is any message available to read from the current position.
      */
-    void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
+    void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback);
 
     /**
      * Check if there is any message available to read from the current position.
@@ -130,7 +130,7 @@ class PULSAR_PUBLIC Reader {
      * @param messageId
      *            the message id where to reposition the subscription
      */
-    void seekAsync(const MessageId& msgId, ResultCallback callback);
+    void seekAsync(const MessageId& msgId, const ResultCallback& callback);
 
     /**
      * Asynchronously reset this reader to a specific message publish time.
@@ -138,7 +138,7 @@ class PULSAR_PUBLIC Reader {
      * @param timestamp
      *            the message publish time where to reposition the subscription
      */
-    void seekAsync(uint64_t timestamp, ResultCallback callback);
+    void seekAsync(uint64_t timestamp, const ResultCallback& callback);
 
     /**
      * @return Whether the reader is currently connected to the broker
@@ -149,7 +149,7 @@ class PULSAR_PUBLIC Reader {
      * Asynchronously get an ID of the last available message or a message ID with -1 as an entryId if the
      * topic is empty.
      */
-    void getLastMessageIdAsync(GetLastMessageIdCallback callback);
+    void getLastMessageIdAsync(const GetLastMessageIdCallback& callback);
 
     /**
      * Get an ID of the last available message or a message ID with -1 as an entryId if the topic is empty.
@@ -159,7 +159,7 @@ class PULSAR_PUBLIC Reader {
    private:
     typedef std::shared_ptr<ReaderImpl> ReaderImplPtr;
     ReaderImplPtr impl_;
-    explicit Reader(ReaderImplPtr);
+    explicit Reader(const ReaderImplPtr&);
 
     friend class PulsarFriend;
     friend class PulsarWrapper;

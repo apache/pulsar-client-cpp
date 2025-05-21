@@ -24,7 +24,6 @@
 
 #include "ConsumerTest.h"
 #include "HttpHelper.h"
-#include "PulsarFriend.h"
 #include "lib/Future.h"
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
@@ -37,8 +36,8 @@ using namespace pulsar;
 static std::string lookupUrl = "pulsar://localhost:6650";
 static std::string adminUrl = "http://localhost:8080/";
 
-void partitionedCallbackFunction(Result result, BrokerConsumerStats brokerConsumerStats, long expectedBacklog,
-                                 Latch& latch, int index, bool accurate) {
+void partitionedCallbackFunction(Result result, const BrokerConsumerStats& brokerConsumerStats,
+                                 long expectedBacklog, Latch& latch, int index, bool accurate) {
     ASSERT_EQ(result, ResultOk);
     MultiTopicsBrokerConsumerStatsImpl* statsPtr =
         (MultiTopicsBrokerConsumerStatsImpl*)(brokerConsumerStats.getImpl().get());
@@ -51,8 +50,9 @@ void partitionedCallbackFunction(Result result, BrokerConsumerStats brokerConsum
     latch.countdown();
 }
 
-void simpleCallbackFunction(Result result, BrokerConsumerStats brokerConsumerStats, Result expectedResult,
-                            uint64_t expectedBacklog, ConsumerType expectedConsumerType) {
+void simpleCallbackFunction(Result result, const BrokerConsumerStats& brokerConsumerStats,
+                            Result expectedResult, uint64_t expectedBacklog,
+                            ConsumerType expectedConsumerType) {
     LOG_DEBUG(brokerConsumerStats);
     ASSERT_EQ(result, expectedResult);
     ASSERT_EQ(brokerConsumerStats.getMsgBacklog(), expectedBacklog);

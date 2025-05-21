@@ -36,7 +36,7 @@ class PULSAR_PUBLIC EncryptionKeyInfoImpl {
 
     std::string& getKey();
 
-    void setKey(std::string key);
+    void setKey(const std::string& key);
 
     StringMap& getMetadata(void);
 

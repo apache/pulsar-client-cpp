@@ -39,7 +39,7 @@ static const std::string adminUrl = "http://localhost:8080/";
 
 class ReaderTest : public ::testing::TestWithParam<bool> {
    public:
-    void initTopic(std::string topicName) {
+    void initTopic(const std::string& topicName) {
         if (isMultiTopic_) {
             // call admin api to make it partitioned
             std::string url = adminUrl + "admin/v2/persistent/public/default/" + topicName + "/partitions";
@@ -903,7 +903,7 @@ TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
     MessageId secondMsgId;
     ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeValue).build(), secondMsgId));
 
-    auto assertStartMessageId = [&](bool inclusive, MessageId expectedMsgId) {
+    auto assertStartMessageId = [&](bool inclusive, const MessageId& expectedMsgId) {
         Reader reader;
         ReaderConfiguration readerConf;
         readerConf.setStartMessageIdInclusive(inclusive);

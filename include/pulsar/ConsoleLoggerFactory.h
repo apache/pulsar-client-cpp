@@ -21,6 +21,8 @@
 
 #include <pulsar/Logger.h>
 
+#include <memory>
+
 namespace pulsar {
 
 class ConsoleLoggerFactoryImpl;
