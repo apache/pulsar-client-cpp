@@ -31,4 +31,10 @@ for FILE in $FILES; do
 done
 # run-clang-tidy from older version of LLVM requires python but not python3 as the env, so we cannot run it directly
 SCRIPT=$(which run-clang-tidy)
-python3 $SCRIPT -p build -j $(nproc) $(cat files.txt)
+set +e
+nproc
+if [[ $? == 0 ]]; then
+    python3 $SCRIPT -p build -j$(nproc) $(cat files.txt)
+else
+    python3 $SCRIPT -p build -j8 $(cat files.txt)
+fi
