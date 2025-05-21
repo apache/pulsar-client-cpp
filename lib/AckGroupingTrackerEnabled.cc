@@ -20,6 +20,7 @@
 #include "AckGroupingTrackerEnabled.h"
 
 #include <climits>
+#include <memory>
 #include <mutex>
 
 #include "ClientConnection.h"
@@ -172,9 +173,10 @@ void AckGroupingTrackerEnabled::scheduleTimer() {
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     this->timer_ = this->executor_->createDeadlineTimer();
     this->timer_->expires_from_now(std::chrono::milliseconds(std::max(1L, this->ackGroupingTimeMs_)));
-    auto self = shared_from_this();
-    this->timer_->async_wait([this, self](const ASIO_ERROR& ec) -> void {
-        if (!ec) {
+    std::weak_ptr<AckGroupingTracker> weakSelf = shared_from_this();
+    this->timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) -> void {
+        auto self = weakSelf.lock();
+        if (self && !ec) {
             this->flush();
             this->scheduleTimer();
         }

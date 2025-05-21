@@ -1331,6 +1331,11 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     incomingMessages_.close();
 
     // Flush pending grouped ACK requests.
+    if (ackGroupingTrackerPtr_.use_count() != 1) {
+        LOG_ERROR("AckGroupingTracker is shared by other "
+                  << (ackGroupingTrackerPtr_.use_count() - 1)
+                  << " threads, which will prevent flushing the ACKs");
+    }
     ackGroupingTrackerPtr_.reset();
     negativeAcksTracker_->close();
 
