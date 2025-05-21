@@ -879,7 +879,7 @@ bool ProducerImpl::removeCorruptMessage(uint64_t sequenceId) {
         return true;
     }
 
-    std::unique_ptr<OpSendMsg> op{std::move(pendingMessagesQueue_.front().release())};
+    std::unique_ptr<OpSendMsg> op{pendingMessagesQueue_.front().release()};
     uint64_t expectedSequenceId = op->sendArgs->sequenceId;
     if (sequenceId > expectedSequenceId) {
         LOG_WARN(getName() << "Got ack failure for msg " << sequenceId                //
