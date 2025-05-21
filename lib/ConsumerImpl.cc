@@ -129,7 +129,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
     unsigned int statsIntervalInSeconds = client->getClientConfig().getStatsIntervalInSeconds();
     if (statsIntervalInSeconds) {
         consumerStatsBasePtr_ = std::make_shared<ConsumerStatsImpl>(
-            consumerStr_, client->getIOExecutorProvider()->get(), statsIntervalInSeconds);
+            consumerStr_, client->getIOExecutorProvider()->get()->createDeadlineTimer(),
+            statsIntervalInSeconds);
     } else {
         consumerStatsBasePtr_ = std::make_shared<ConsumerStatsDisabled>();
     }
