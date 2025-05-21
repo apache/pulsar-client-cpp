@@ -29,6 +29,6 @@ rm -f files.txt
 for FILE in $FILES; do
     echo $FILE >> files.txt
 done
-# On macOS, run-clang-tidy from llvm@17 requires python as the env, so we cannot run it directly
+# run-clang-tidy from older version of LLVM requires python but not python3 as the env, so we cannot run it directly
 SCRIPT=$(which run-clang-tidy)
 python3 $SCRIPT -p build -j $(nproc) $(cat files.txt)
