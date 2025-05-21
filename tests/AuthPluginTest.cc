@@ -338,6 +338,7 @@ void mockZTS(Latch& latch, int port) {
         }
     }
 
+    acceptor.close();
     LOG_INFO("-- MockZTS exiting");
 }
 }  // namespace testAthenz
