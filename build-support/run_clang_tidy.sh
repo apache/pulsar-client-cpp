@@ -29,4 +29,6 @@ rm -f files.txt
 for FILE in $FILES; do
     echo $FILE >> files.txt
 done
-run-clang-tidy -p build $(cat files.txt)
+# On macOS, run-clang-tidy from llvm@17 requires python as the env, so we cannot run it directly
+SCRIPT=$(which run-clang-tidy)
+python3 $SCRIPT -p build $(cat files.txt)

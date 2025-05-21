@@ -80,7 +80,7 @@ jobs:
   lint:
     name: Lint
     needs: formatting-check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:
@@ -107,7 +107,7 @@ jobs:
   unit-tests:
     name: Run unit tests
     needs: formatting-check
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
 
     steps:

@@ -124,7 +124,7 @@ KeyFile KeyFile::fromParamMap(ParamMap& params) {
         if (endPos == std::string::npos) {
             return "";
         }
-        const auto prefix = url.substr(startPos, endPos - startPos);
+        auto prefix = url.substr(startPos, endPos - startPos);
         startPos = endPos + 1;
         return prefix;
     };
