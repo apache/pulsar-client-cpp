@@ -245,7 +245,7 @@ jobs:
               -G "${{ matrix.generator }}" ${{ matrix.arch }} \
               -DUSE_ASIO=ON \
               -DBUILD_TESTS=OFF \
-              -DVCPKG_TARGET_TRIPLET="${{ matrix.triplet }}" \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
               -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
               -S .
           fi
@@ -287,7 +287,7 @@ jobs:
               -G "${{ matrix.generator }}" ${{ matrix.arch }} \
               -DUSE_ASIO=ON \
               -DBUILD_TESTS=OFF \
-              -DVCPKG_TARGET_TRIPLET="${{ matrix.triplet }}" \
+              -DVCPKG_TRIPLET="${{ matrix.triplet }}" \
               -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
               -DCMAKE_BUILD_TYPE=Debug \
               -S .
