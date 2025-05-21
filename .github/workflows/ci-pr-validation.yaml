@@ -77,6 +77,33 @@ jobs:
           cmake -S wireshark -B build-wireshark
           cmake --build build-wireshark
 
+  lint:
+    name: Lint
+    needs: formatting-check
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+
+    steps:
+      - name: checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Build the project
+        run: |
+          cmake -B build -DINTEGRATE_VCPKG=ON -DVCPKG_TRIPLET=x64-linux-release -DBUILD_TESTS=ON
+          cmake --build build -j8
+
+      - name: Tidy check
+        run: |
+          sudo apt-get install -y clang-tidy
+          ./build-support/run_clang_tidy.sh
+          if [[ $? -ne 0 ]]; then
+              echo "clang-tidy failed"
+              exit 1
+          fi
+
   unit-tests:
     name: Run unit tests
     needs: formatting-check
@@ -92,7 +119,7 @@ jobs:
 
       - name: Build core libraries
         run: |
-          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
+          cmake -B build -DINTEGRATE_VCPKG=ON -DVCPKG_TRIPLET=x64-linux-release -DBUILD_TESTS=OFF
           cmake --build build -j8
 
       - name: Check formatting
@@ -105,38 +132,29 @@ jobs:
 
       - name: Build tests
         run: |
-          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake -B build -DINTEGRATE_VCPKG=ON -DVCPKG_TRIPLET=x64-linux-release -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           cmake --build build -j8
 
       - name: Install gtest-parallel
         run: |
           sudo curl -o /gtest-parallel https://raw.githubusercontent.com/google/gtest-parallel/master/gtest_parallel.py 
 
-      - name: Tidy check
-        run: |
-          sudo apt-get install -y clang-tidy
-          ./build-support/run_clang_tidy.sh
-          if [[ $? -ne 0 ]]; then
-              echo "clang-tidy failed"
-              exit 1
-          fi
-
       - name: Run unit tests
         run: RETRY_FAILED=3 CMAKE_BUILD_DIRECTORY=./build ./run-unit-tests.sh
 
       - name: Build perf tools
         run: |
-          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
+          cmake -B build -DINTEGRATE_VCPKG=ON -DVCPKG_TRIPLET=x64-linux-release -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
           cmake --build build -j8
 
       - name: Verify custom vcpkg installation
         run: |
           mv vcpkg /tmp/
-          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DVCPKG_TRIPLET=x64-linux-release -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
 
   cpp20-build:
     name: Build with the C++20 standard
-    needs: formatting-check
+    needs: lint
     runs-on: ubuntu-22.04
     timeout-minutes: 60
 
@@ -279,7 +297,7 @@ jobs:
   package:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
     runs-on: ubuntu-22.04
-    needs: unit-tests
+    needs: [lint, unit-tests]
     timeout-minutes: 500
 
     strategy:
@@ -323,7 +341,7 @@ jobs:
     timeout-minutes: 120
     name: Build CPP Client on macOS with static dependencies
     runs-on: macos-14
-    needs: formatting-check
+    needs: lint
     steps:
       - name: checkout
         uses: actions/checkout@v3
@@ -338,7 +356,7 @@ jobs:
   check-completion:
     name: Check Completion
     runs-on: ubuntu-latest
-    needs: [formatting-check, wireshark-dissector-build, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
+    needs: [formatting-check, wireshark-dissector-build, lint, unit-tests, cpp20-build, cpp-build-windows, package, cpp-build-macos]
 
     steps:
       - run: true

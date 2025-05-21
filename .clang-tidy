@@ -28,11 +28,5 @@ Checks: >
   performance-*,
   -performance-inefficient-string-concatenation
 WarningsAsErrors: '*'
-HeaderFileExtensions:
-  - ''
-  - h
-ImplementationFileExtensions:
-  - cc
 HeaderFilterRegex: '^(?!.*PulsarApi\.pb\.h$).*$'
 FormatStyle:   none
-SystemHeaders: false
