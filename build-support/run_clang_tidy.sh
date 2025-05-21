@@ -31,4 +31,4 @@ for FILE in $FILES; do
 done
 # On macOS, run-clang-tidy from llvm@17 requires python as the env, so we cannot run it directly
 SCRIPT=$(which run-clang-tidy)
-python3 $SCRIPT -p build $(cat files.txt)
+python3 $SCRIPT -p build -j $(nproc) $(cat files.txt)
