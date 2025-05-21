@@ -34,7 +34,5 @@ HeaderFileExtensions:
 ImplementationFileExtensions:
   - cc
 HeaderFilterRegex: '^(?!.*PulsarApi\.pb\.h$).*$'
-FormatStyle:     none
-CheckOptions:
-  performance-move-const-arg.CheckTriviallyCopyableMove: 'false'
+FormatStyle:   none
 SystemHeaders: false
