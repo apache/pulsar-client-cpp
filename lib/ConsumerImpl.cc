@@ -592,11 +592,16 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
                         << metadata.has_num_messages_in_batch());
 
     uint32_t numOfMessageReceived = m.impl_->metadata.num_messages_in_batch();
-    if (this->ackGroupingTrackerPtr_->isDuplicate(m.getMessageId())) {
+    auto ackGroupingTrackerPtr = ackGroupingTrackerPtr_;
+    if (ackGroupingTrackerPtr == nullptr) {  // The consumer is closing
+        return;
+    }
+    if (ackGroupingTrackerPtr->isDuplicate(m.getMessageId())) {
         LOG_DEBUG(getName() << " Ignoring message as it was ACKed earlier by same consumer.");
         increaseAvailablePermits(cnx, numOfMessageReceived);
         return;
     }
+    ackGroupingTrackerPtr.reset();
 
     if (metadata.has_num_messages_in_batch()) {
         BitSet::Data words(msg.ack_set_size());
