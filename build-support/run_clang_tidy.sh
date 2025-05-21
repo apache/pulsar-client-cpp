@@ -29,4 +29,4 @@ rm -f files.txt
 for FILE in $FILES; do
     echo $FILE >> files.txt
 done
-run-clang-tidy -p build -j8 $(cat files.txt)
+run-clang-tidy -p build $(cat files.txt)
