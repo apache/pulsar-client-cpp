@@ -92,7 +92,7 @@ jobs:
 
       - name: Build the project
         run: |
-          cmake -B build -DINTEGRATE_VCPKG=ON -DVCPKG_TARGET_TRIPLET=x64-linux-release -DBUILD_TESTS=ON
+          cmake -B build -DINTEGRATE_VCPKG=ON -DVCPKG_TARGET_TRIPLET=x64-linux-release -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           cmake --build build -j8
 
       - name: Tidy check
