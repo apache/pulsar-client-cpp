@@ -38,3 +38,4 @@ if [[ $? == 0 ]]; then
 else
     python3 $SCRIPT -p build -j8 $(cat files.txt)
 fi
+rm -f files.txt
