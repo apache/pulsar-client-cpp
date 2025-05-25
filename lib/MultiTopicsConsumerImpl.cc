@@ -328,7 +328,7 @@ void MultiTopicsConsumerImpl::unsubscribeAsync(const ResultCallback& originalCal
 
     auto callback = [this, originalCallback](Result result) {
         if (result == ResultOk) {
-            shutdown();
+            internalShutdown();
             LOG_INFO(getName() << "Unsubscribed successfully");
         } else {
             state_ = Ready;
@@ -452,7 +452,7 @@ void MultiTopicsConsumerImpl::closeAsync(const ResultCallback& originalCallback)
     auto callback = [weakSelf, originalCallback](Result result) {
         auto self = weakSelf.lock();
         if (self) {
-            self->shutdown();
+            self->internalShutdown();
             if (result != ResultOk) {
                 LOG_WARN(self->getName() << "Failed to close consumer: " << result);
                 if (result != ResultAlreadyClosed) {
@@ -735,7 +735,7 @@ void MultiTopicsConsumerImpl::negativeAcknowledge(const MessageId& msgId) {
     }
 }
 
-MultiTopicsConsumerImpl::~MultiTopicsConsumerImpl() { shutdown(); }
+MultiTopicsConsumerImpl::~MultiTopicsConsumerImpl() { internalShutdown(); }
 
 Future<Result, ConsumerImplBaseWeakPtr> MultiTopicsConsumerImpl::getConsumerCreatedFuture() {
     return multiTopicsConsumerCreatedPromise_.getFuture();
@@ -746,7 +746,9 @@ const std::string& MultiTopicsConsumerImpl::getTopic() const { return topic(); }
 
 const std::string& MultiTopicsConsumerImpl::getName() const { return consumerStr_; }
 
-void MultiTopicsConsumerImpl::shutdown() {
+void MultiTopicsConsumerImpl::shutdown() { internalShutdown(); }
+
+void MultiTopicsConsumerImpl::internalShutdown() {
     cancelTimers();
     incomingMessages_.clear();
     topicsPartitions_.clear();

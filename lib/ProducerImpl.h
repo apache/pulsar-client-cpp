@@ -84,7 +84,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     void sendAsync(const Message& msg, SendCallback callback) override;
     void closeAsync(CloseCallback callback) override;
     void start() override;
-    void shutdown();
+    void shutdown() override;
+    void internalShutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
     Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;

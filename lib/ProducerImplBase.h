@@ -42,6 +42,7 @@ class ProducerImplBase {
     virtual void closeAsync(CloseCallback callback) = 0;
     virtual void start() = 0;
     virtual bool isClosed() = 0;
+    virtual void shutdown() = 0;
     virtual const std::string& getTopic() const = 0;
     virtual Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() = 0;
     virtual void triggerFlush() = 0;

@@ -121,7 +121,8 @@ class ConsumerImpl : public ConsumerImplBase {
     void acknowledgeCumulativeAsync(const MessageId& msgId, const ResultCallback& callback) override;
     void closeAsync(const ResultCallback& callback) override;
     void start() override;
-    void shutdown();
+    void shutdown() override;
+    void internalShutdown();
     bool isClosed() override;
     bool isOpen() override;
     Result pauseMessageListener() override;

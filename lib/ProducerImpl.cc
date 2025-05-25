@@ -115,7 +115,7 @@ ProducerImpl::ProducerImpl(const ClientImplPtr& client, const TopicName& topicNa
 
 ProducerImpl::~ProducerImpl() {
     LOG_DEBUG(producerStr_ << "~ProducerImpl");
-    shutdown();
+    internalShutdown();
     printStats();
     if (state_ == Ready || state_ == Pending) {
         LOG_WARN(producerStr_ << "Destroyed producer which was not properly closed");
@@ -993,7 +993,9 @@ void ProducerImpl::start() {
     }
 }
 
-void ProducerImpl::shutdown() {
+void ProducerImpl::shutdown() { internalShutdown(); }
+
+void ProducerImpl::internalShutdown() {
     resetCnx();
     interceptors_->close();
     auto client = client_.lock();

@@ -79,7 +79,7 @@ MessageRoutingPolicyPtr PartitionedProducerImpl::getMessageRouter() {
     }
 }
 
-PartitionedProducerImpl::~PartitionedProducerImpl() { shutdown(); }
+PartitionedProducerImpl::~PartitionedProducerImpl() { internalShutdown(); }
 // override
 const std::string& PartitionedProducerImpl::getTopic() const { return topic_; }
 
@@ -244,7 +244,9 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
 }
 
 // override
-void PartitionedProducerImpl::shutdown() {
+void PartitionedProducerImpl::shutdown() { internalShutdown(); }
+
+void PartitionedProducerImpl::internalShutdown() {
     cancelTimers();
     interceptors_->close();
     auto client = client_.lock();
@@ -284,7 +286,7 @@ int64_t PartitionedProducerImpl::getLastSequenceId() const {
 void PartitionedProducerImpl::closeAsync(CloseCallback originalCallback) {
     auto closeCallback = [this, originalCallback](Result result) {
         if (result == ResultOk) {
-            shutdown();
+            internalShutdown();
         }
         if (originalCallback) {
             originalCallback(result);

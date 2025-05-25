@@ -739,15 +739,25 @@ void ClientImpl::shutdown() {
     auto producers = producers_.move();
     auto consumers = consumers_.move();
 
-    auto numProducers = producers.size();
-    auto numConsumers = consumers.size();
-    // Call the destructors out of the lock to avoid deadlocks
-    producers.clear();
-    consumers.clear();
-
-    if (numProducers + numConsumers > 0) {
-        LOG_DEBUG(numProducers << " producers and " << numConsumers << " consumers have been shutdown.");
+    for (auto&& kv : producers) {
+        ProducerImplBasePtr producer = kv.second.lock();
+        if (producer) {
+            producer->shutdown();
+        }
     }
+
+    for (auto&& kv : consumers) {
+        ConsumerImplBasePtr consumer = kv.second.lock();
+        if (consumer) {
+            consumer->shutdown();
+        }
+    }
+
+    if (producers.size() + consumers.size() > 0) {
+        LOG_DEBUG(producers.size() << " producers and " << consumers.size()
+                                   << " consumers have been shutdown.");
+    }
+
     if (!pool_.close()) {
         // pool_ has already been closed. It means shutdown() has been called before.
         return;

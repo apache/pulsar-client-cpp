@@ -63,6 +63,7 @@ class ConsumerImplBase : public HandlerBase {
     virtual void acknowledgeCumulativeAsync(const MessageId& msgId, const ResultCallback& callback) = 0;
     virtual void closeAsync(const ResultCallback& callback) = 0;
     virtual void start() = 0;
+    virtual void shutdown() = 0;
     virtual bool isClosed() = 0;
     virtual bool isOpen() = 0;
     virtual Result pauseMessageListener() = 0;

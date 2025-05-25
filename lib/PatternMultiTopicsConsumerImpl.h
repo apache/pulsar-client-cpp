@@ -54,6 +54,7 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
                                    const std::string& subscriptionName, const ConsumerConfiguration& conf,
                                    const LookupServicePtr& lookupServicePtr_,
                                    const ConsumerInterceptorsPtr& interceptors);
+    ~PatternMultiTopicsConsumerImpl() override;
 
     const PULSAR_REGEX_NAMESPACE::regex getPattern();
 
@@ -67,9 +68,8 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
     static NamespaceTopicsPtr topicsListsMinus(std::vector<std::string>& list1,
                                                std::vector<std::string>& list2);
 
-    virtual void closeAsync(const ResultCallback& callback);
-    virtual void start();
-    virtual void shutdown();
+    void closeAsync(const ResultCallback& callback) override;
+    void start() override;
 
    private:
     const std::string patternString_;

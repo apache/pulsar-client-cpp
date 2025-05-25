@@ -179,7 +179,7 @@ ConsumerImpl::~ConsumerImpl() {
             LOG_WARN(consumerStr_ << "Client is destroyed and cannot send the CloseConsumer command");
         }
     }
-    shutdown();
+    internalShutdown();
 }
 
 void ConsumerImpl::setPartitionIndex(int partitionIndex) { partitionIndex_ = partitionIndex; }
@@ -373,7 +373,7 @@ void ConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
 
     auto callback = [this, originalCallback](Result result) {
         if (result == ResultOk) {
-            shutdown();
+            internalShutdown();
             LOG_INFO(getName() << "Unsubscribed successfully");
         } else {
             state_ = Ready;
@@ -1312,7 +1312,7 @@ void ConsumerImpl::disconnectConsumer(const boost::optional<std::string>& assign
 
 void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     auto callback = [this, originalCallback](Result result, bool alreadyClosed = false) {
-        shutdown();
+        internalShutdown();
         if (result == ResultOk) {
             if (!alreadyClosed) {
                 LOG_INFO(getName() << "Closed consumer " << consumerId_);
@@ -1368,7 +1368,9 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
 
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
 
-void ConsumerImpl::shutdown() {
+void ConsumerImpl::shutdown() { internalShutdown(); }
+
+void ConsumerImpl::internalShutdown() {
     ackGroupingTrackerPtr_.reset();
     incomingMessages_.clear();
     possibleSendToDeadLetterTopicMessages_.clear();

@@ -242,9 +242,9 @@ void PatternMultiTopicsConsumerImpl::start() {
     }
 }
 
-void PatternMultiTopicsConsumerImpl::shutdown() {
+PatternMultiTopicsConsumerImpl::~PatternMultiTopicsConsumerImpl() {
     cancelTimers();
-    MultiTopicsConsumerImpl::shutdown();
+    internalShutdown();
 }
 
 void PatternMultiTopicsConsumerImpl::closeAsync(const ResultCallback& callback) {
