@@ -322,7 +322,7 @@ TEST(ProducerTest, testWaitForExclusiveProducer) {
 
     Latch latch(1);
     client.createProducerAsync(topicName, producerConfiguration2,
-                               [&latch, &producer2](Result res, Producer producer) {
+                               [&latch, &producer2](Result res, const Producer& producer) {
                                    ASSERT_EQ(ResultOk, res);
                                    producer2 = producer;
                                    latch.countdown();
@@ -357,7 +357,7 @@ TEST(ProducerTest, testExclusiveWithFencingProducer) {
 
     Latch latch(1);
     client.createProducerAsync(topicName, producerConfiguration2,
-                               [&latch, &producer2](Result res, Producer producer) {
+                               [&latch, &producer2](Result res, const Producer& producer) {
                                    // producer2 will be fenced
                                    ASSERT_EQ(ResultProducerFenced, res);
                                    latch.countdown();
@@ -385,7 +385,7 @@ TEST(ProducerTest, testExclusiveWithFencingProducer) {
     producerConfiguration2.setAccessMode(ProducerConfiguration::WaitForExclusive);
     Latch latch2(1);
     client.createProducerAsync(topicName, producerConfiguration2,
-                               [&latch2, &producer4](Result res, Producer producer) {
+                               [&latch2, &producer4](Result res, const Producer& producer) {
                                    // producer4 will be success
                                    ASSERT_EQ(ResultOk, res);
                                    producer4 = producer;

@@ -19,9 +19,6 @@
 
 #include "ConsumerStatsImpl.h"
 
-#include <functional>
-
-#include "lib/ExecutorService.h"
 #include "lib/LogUtils.h"
 #include "lib/Utils.h"
 
@@ -30,11 +27,9 @@ DECLARE_LOG_OBJECT();
 
 using Lock = std::unique_lock<std::mutex>;
 
-ConsumerStatsImpl::ConsumerStatsImpl(std::string consumerStr, ExecutorServicePtr executor,
+ConsumerStatsImpl::ConsumerStatsImpl(const std::string& consumerStr, DeadlineTimerPtr timer,
                                      unsigned int statsIntervalInSeconds)
-    : consumerStr_(consumerStr),
-      timer_(executor->createDeadlineTimer()),
-      statsIntervalInSeconds_(statsIntervalInSeconds) {}
+    : consumerStr_(consumerStr), timer_(std::move(timer)), statsIntervalInSeconds_(statsIntervalInSeconds) {}
 
 ConsumerStatsImpl::ConsumerStatsImpl(const ConsumerStatsImpl& stats)
     : consumerStr_(stats.consumerStr_),

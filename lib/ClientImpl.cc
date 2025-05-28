@@ -148,8 +148,8 @@ LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) 
     return it->second;
 }
 
-void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfiguration conf,
-                                     CreateProducerCallback callback, bool autoDownloadSchema) {
+void ClientImpl::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
+                                     const CreateProducerCallback& callback, bool autoDownloadSchema) {
     if (conf.isChunkingEnabled() && conf.getBatchingEnabled()) {
         throw std::invalid_argument("Batching and chunking of messages can't be enabled together");
     }
@@ -170,7 +170,7 @@ void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfigura
     if (autoDownloadSchema) {
         auto self = shared_from_this();
         lookupServicePtr_->getSchema(topicName).addListener(
-            [self, topicName, callback](Result res, SchemaInfo topicSchema) {
+            [self, topicName, callback](Result res, const SchemaInfo& topicSchema) {
                 if (res != ResultOk) {
                     callback(res, Producer());
                     return;
@@ -188,9 +188,9 @@ void ClientImpl::createProducerAsync(const std::string& topic, ProducerConfigura
     }
 }
 
-void ClientImpl::handleCreateProducer(const Result result, const LookupDataResultPtr partitionMetadata,
-                                      TopicNamePtr topicName, ProducerConfiguration conf,
-                                      CreateProducerCallback callback) {
+void ClientImpl::handleCreateProducer(Result result, const LookupDataResultPtr& partitionMetadata,
+                                      const TopicNamePtr& topicName, const ProducerConfiguration& conf,
+                                      const CreateProducerCallback& callback) {
     if (!result) {
         ProducerImplBasePtr producer;
 
@@ -219,8 +219,9 @@ void ClientImpl::handleCreateProducer(const Result result, const LookupDataResul
     }
 }
 
-void ClientImpl::handleProducerCreated(Result result, ProducerImplBaseWeakPtr producerBaseWeakPtr,
-                                       CreateProducerCallback callback, ProducerImplBasePtr producer) {
+void ClientImpl::handleProducerCreated(Result result, const ProducerImplBaseWeakPtr& producerBaseWeakPtr,
+                                       const CreateProducerCallback& callback,
+                                       const ProducerImplBasePtr& producer) {
     if (result == ResultOk) {
         auto address = producer.get();
         auto existingProducer = producers_.putIfAbsent(address, producer);
@@ -238,7 +239,7 @@ void ClientImpl::handleProducerCreated(Result result, ProducerImplBaseWeakPtr pr
 }
 
 void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
-                                   const ReaderConfiguration& conf, ReaderCallback callback) {
+                                   const ReaderConfiguration& conf, const ReaderCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -260,7 +261,7 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
 }
 
 void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
-                                      TableViewCallback callback) {
+                                      const TableViewCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -277,7 +278,7 @@ void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewC
 
     TableViewImplPtr tableViewPtr =
         std::make_shared<TableViewImpl>(shared_from_this(), topicName->toString(), conf);
-    tableViewPtr->start().addListener([callback](Result result, TableViewImplPtr tableViewImplPtr) {
+    tableViewPtr->start().addListener([callback](Result result, const TableViewImplPtr& tableViewImplPtr) {
         if (result == ResultOk) {
             callback(result, TableView{tableViewImplPtr});
         } else {
@@ -286,9 +287,9 @@ void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewC
     });
 }
 
-void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDataResultPtr partitionMetadata,
-                                            TopicNamePtr topicName, MessageId startMessageId,
-                                            ReaderConfiguration conf, ReaderCallback callback) {
+void ClientImpl::handleReaderMetadataLookup(Result result, const LookupDataResultPtr& partitionMetadata,
+                                            const TopicNamePtr& topicName, const MessageId& startMessageId,
+                                            const ReaderConfiguration& conf, const ReaderCallback& callback) {
     if (result != ResultOk) {
         LOG_ERROR("Error Checking/Getting Partition Metadata while creating readeron "
                   << topicName->toString() << " -- " << result);
@@ -325,7 +326,8 @@ void ClientImpl::handleReaderMetadataLookup(const Result result, const LookupDat
 }
 
 void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
-                                         const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                                         const ConsumerConfiguration& conf,
+                                         const SubscribeCallback& callback) {
     TopicNamePtr topicNamePtr = TopicName::get(regexPattern);
 
     Lock lock(mutex_);
@@ -372,12 +374,12 @@ void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const 
                                subscriptionName, conf, callback));
 }
 
-void ClientImpl::createPatternMultiTopicsConsumer(const Result result, const NamespaceTopicsPtr topics,
+void ClientImpl::createPatternMultiTopicsConsumer(Result result, const NamespaceTopicsPtr& topics,
                                                   const std::string& regexPattern,
                                                   CommandGetTopicsOfNamespace_Mode mode,
                                                   const std::string& subscriptionName,
                                                   const ConsumerConfiguration& conf,
-                                                  SubscribeCallback callback) {
+                                                  const SubscribeCallback& callback) {
     if (result == ResultOk) {
         ConsumerImplBasePtr consumer;
 
@@ -403,7 +405,7 @@ void ClientImpl::createPatternMultiTopicsConsumer(const Result result, const Nam
 }
 
 void ClientImpl::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
-                                const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                                const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     TopicNamePtr topicNamePtr;
 
     Lock lock(mutex_);
@@ -439,7 +441,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& topics, const st
 }
 
 void ClientImpl::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
-                                const ConsumerConfiguration& conf, SubscribeCallback callback) {
+                                const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -465,9 +467,9 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
                   std::placeholders::_2, topicName, subscriptionName, conf, callback));
 }
 
-void ClientImpl::handleSubscribe(const Result result, const LookupDataResultPtr partitionMetadata,
-                                 TopicNamePtr topicName, const std::string& subscriptionName,
-                                 ConsumerConfiguration conf, SubscribeCallback callback) {
+void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
+                                 const TopicNamePtr& topicName, const std::string& subscriptionName,
+                                 ConsumerConfiguration conf, const SubscribeCallback& callback) {
     if (result == ResultOk) {
         // generate random name if not supplied by the customer.
         if (conf.getConsumerName().empty()) {
@@ -509,8 +511,9 @@ void ClientImpl::handleSubscribe(const Result result, const LookupDataResultPtr 
     }
 }
 
-void ClientImpl::handleConsumerCreated(Result result, ConsumerImplBaseWeakPtr consumerImplBaseWeakPtr,
-                                       SubscribeCallback callback, ConsumerImplBasePtr consumer) {
+void ClientImpl::handleConsumerCreated(Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr,
+                                       const SubscribeCallback& callback,
+                                       const ConsumerImplBasePtr& consumer) {
     if (result == ResultOk) {
         auto address = consumer.get();
         auto existingConsumer = consumers_.putIfAbsent(address, consumer);
@@ -602,8 +605,8 @@ GetConnectionFuture ClientImpl::connect(const std::string& redirectedClusterURI,
     return promise.getFuture();
 }
 
-void ClientImpl::handleGetPartitions(const Result result, const LookupDataResultPtr partitionMetadata,
-                                     TopicNamePtr topicName, GetPartitionsCallback callback) {
+void ClientImpl::handleGetPartitions(Result result, const LookupDataResultPtr& partitionMetadata,
+                                     const TopicNamePtr& topicName, const GetPartitionsCallback& callback) {
     if (result != ResultOk) {
         LOG_ERROR("Error getting topic partitions metadata: " << result);
         callback(result, StringList());
@@ -623,7 +626,7 @@ void ClientImpl::handleGetPartitions(const Result result, const LookupDataResult
     callback(ResultOk, partitions);
 }
 
-void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, GetPartitionsCallback callback) {
+void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetPartitionsCallback& callback) {
     TopicNamePtr topicName;
     {
         Lock lock(mutex_);
@@ -642,7 +645,7 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, GetPartiti
                   std::placeholders::_2, topicName, callback));
 }
 
-void ClientImpl::closeAsync(CloseCallback callback) {
+void ClientImpl::closeAsync(const CloseCallback& callback) {
     if (state_ != Open) {
         if (callback) {
             callback(ResultAlreadyClosed);
@@ -693,7 +696,8 @@ void ClientImpl::closeAsync(CloseCallback callback) {
     lookupCount_ = 0;
 }
 
-void ClientImpl::handleClose(Result result, SharedInt numberOfOpenHandlers, ResultCallback callback) {
+void ClientImpl::handleClose(Result result, const SharedInt& numberOfOpenHandlers,
+                             const ResultCallback& callback) {
     Result expected = ResultOk;
     if (!closingError.compare_exchange_strong(expected, result)) {
         LOG_DEBUG("Tried to updated closingError, but already set to "
@@ -753,6 +757,7 @@ void ClientImpl::shutdown() {
         LOG_DEBUG(producers.size() << " producers and " << consumers.size()
                                    << " consumers have been shutdown.");
     }
+
     if (!pool_.close()) {
         // pool_ has already been closed. It means shutdown() has been called before.
         return;

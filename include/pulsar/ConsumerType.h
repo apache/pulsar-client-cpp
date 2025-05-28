@@ -19,8 +19,10 @@
 #ifndef PULSAR_CPP_CONSUMERTYPE_H
 #define PULSAR_CPP_CONSUMERTYPE_H
 
+#include <cstdint>
+
 namespace pulsar {
-enum ConsumerType
+enum ConsumerType : uint8_t
 {
     /**
      * There can be only 1 consumer on the same topic with the same consumerName

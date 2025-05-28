@@ -83,7 +83,7 @@ class PULSAR_PUBLIC Consumer {
      *
      * @param callback the callback to get notified when the operation is complete
      */
-    void unsubscribeAsync(ResultCallback callback);
+    void unsubscribeAsync(const ResultCallback& callback);
 
     /**
      * Receive a single message.
@@ -134,10 +134,10 @@ class PULSAR_PUBLIC Consumer {
      * </p>
      * @param ReceiveCallback will be completed when message is available
      */
-    void receiveAsync(ReceiveCallback callback);
+    void receiveAsync(const ReceiveCallback& callback);
 
     template <typename T>
-    void receiveAsync(std::function<void(Result result, const TypedMessage<T>&)> callback,
+    void receiveAsync(const std::function<void(Result result, const TypedMessage<T>&)>& callback,
                       typename TypedMessage<T>::Decoder decoder) {
         receiveAsync([callback, decoder](Result result, const Message& msg) {
             callback(result, TypedMessage<T>{msg, decoder});
@@ -167,7 +167,7 @@ class PULSAR_PUBLIC Consumer {
      * </p>
      * @param BatchReceiveCallback will be completed when messages are available.
      */
-    void batchReceiveAsync(BatchReceiveCallback callback);
+    void batchReceiveAsync(const BatchReceiveCallback& callback);
 
     /**
      * Acknowledge the reception of a single message.
@@ -209,7 +209,7 @@ class PULSAR_PUBLIC Consumer {
      * @param message the message to acknowledge
      * @param callback callback that will be triggered when the message has been acknowledged
      */
-    void acknowledgeAsync(const Message& message, ResultCallback callback);
+    void acknowledgeAsync(const Message& message, const ResultCallback& callback);
 
     /**
      * Asynchronously acknowledge the reception of a single message.
@@ -220,7 +220,7 @@ class PULSAR_PUBLIC Consumer {
      * @param messageId the messageId to acknowledge
      * @param callback the callback that is triggered when the message has been acknowledged or not
      */
-    void acknowledgeAsync(const MessageId& messageId, ResultCallback callback);
+    void acknowledgeAsync(const MessageId& messageId, const ResultCallback& callback);
 
     /**
      * Asynchronously acknowledge the consumption of a list of message.
@@ -228,7 +228,7 @@ class PULSAR_PUBLIC Consumer {
      * @param callback the callback that is triggered when the message has been acknowledged or not
      * @return
      */
-    void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback);
+    void acknowledgeAsync(const MessageIdList& messageIdList, const ResultCallback& callback);
 
     /**
      * Acknowledge the reception of all the messages in the stream up to (and including)
@@ -239,7 +239,7 @@ class PULSAR_PUBLIC Consumer {
      *
      * Cumulative acknowledge cannot be used when the consumer type is set to ConsumerShared.
      *
-     * It's equivalent to calling asyncAcknowledgeCumulative(const Message&, ResultCallback) and
+     * It's equivalent to calling asyncAcknowledgeCumulative(const Message&, const ResultCallback&) and
      * waiting for the callback to be triggered.
      *
      * @param message the last message in the stream to acknowledge
@@ -258,8 +258,8 @@ class PULSAR_PUBLIC Consumer {
      *
      * Cumulative acknowledge cannot be used when the consumer type is set to ConsumerShared.
      *
-     * It is equivalent to calling the asyncAcknowledgeCumulative(const Message&, ResultCallback) method and
-     * waiting for the callback to be triggered.
+     * It is equivalent to calling the asyncAcknowledgeCumulative(const Message&, const ResultCallback&)
+     * method and waiting for the callback to be triggered.
      *
      * @param messageId the last messageId in the stream to acknowledge
      * @return ResultOk if the message is successfully acknowledged. All previously delivered messages for
@@ -277,7 +277,7 @@ class PULSAR_PUBLIC Consumer {
      * @param message the message to acknowledge
      * @param callback callback that will be triggered when the message has been acknowledged
      */
-    void acknowledgeCumulativeAsync(const Message& message, ResultCallback callback);
+    void acknowledgeCumulativeAsync(const Message& message, const ResultCallback& callback);
 
     /**
      * Asynchronously acknowledge the reception of all the messages in the stream up to (and
@@ -289,7 +289,7 @@ class PULSAR_PUBLIC Consumer {
      * @param messageId the messageId to acknowledge
      * @param callback the callback that is triggered when the message has been acknowledged or not
      */
-    void acknowledgeCumulativeAsync(const MessageId& messageId, ResultCallback callback);
+    void acknowledgeCumulativeAsync(const MessageId& messageId, const ResultCallback& callback);
 
     /**
      * Acknowledge the failure to process a single message.
@@ -364,7 +364,7 @@ class PULSAR_PUBLIC Consumer {
      * Asynchronously close the consumer and stop the broker to push more messages
      *
      */
-    void closeAsync(ResultCallback callback);
+    void closeAsync(const ResultCallback& callback);
 
     /**
      * Pause receiving messages via the messageListener, till resumeMessageListener() is called.
@@ -413,7 +413,7 @@ class PULSAR_PUBLIC Consumer {
      * @param callback - callback function to get the brokerConsumerStats,
      *                   if result is ResultOk then the brokerConsumerStats will be populated
      */
-    void getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback);
+    void getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback);
 
     /**
      * Reset the subscription associated with this consumer to a specific message id.
@@ -445,7 +445,7 @@ class PULSAR_PUBLIC Consumer {
      * @param messageId
      *            the message id where to reposition the subscription
      */
-    virtual void seekAsync(const MessageId& messageId, ResultCallback callback);
+    virtual void seekAsync(const MessageId& messageId, const ResultCallback& callback);
 
     /**
      * Asynchronously reset the subscription associated with this consumer to a specific message publish time.
@@ -453,7 +453,7 @@ class PULSAR_PUBLIC Consumer {
      * @param timestamp
      *            the message publish time where to reposition the subscription
      */
-    virtual void seekAsync(uint64_t timestamp, ResultCallback callback);
+    virtual void seekAsync(uint64_t timestamp, const ResultCallback& callback);
 
     /**
      * @return Whether the consumer is currently connected to the broker
@@ -464,7 +464,7 @@ class PULSAR_PUBLIC Consumer {
      * Asynchronously get an ID of the last available message or a message ID with -1 as an entryId if the
      * topic is empty.
      */
-    void getLastMessageIdAsync(GetLastMessageIdCallback callback);
+    void getLastMessageIdAsync(const GetLastMessageIdCallback& callback);
 
     /**
      * Get an ID of the last available message or a message ID with -1 as an entryId if the topic is empty.

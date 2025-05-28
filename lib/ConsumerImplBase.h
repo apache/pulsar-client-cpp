@@ -36,15 +36,15 @@ class OpBatchReceive {
    public:
     OpBatchReceive();
     explicit OpBatchReceive(const BatchReceiveCallback& batchReceiveCallback);
-    const BatchReceiveCallback batchReceiveCallback_;
+    BatchReceiveCallback batchReceiveCallback_;
     const int64_t createAt_;
 };
 
 class ConsumerImplBase : public HandlerBase {
    public:
     virtual ~ConsumerImplBase(){};
-    ConsumerImplBase(ClientImplPtr client, const std::string& topic, Backoff backoff,
-                     const ConsumerConfiguration& conf, ExecutorServicePtr listenerExecutor);
+    ConsumerImplBase(const ClientImplPtr& client, const std::string& topic, Backoff backoff,
+                     const ConsumerConfiguration& conf, const ExecutorServicePtr& listenerExecutor);
     std::shared_ptr<ConsumerImplBase> shared_from_this() noexcept {
         return std::dynamic_pointer_cast<ConsumerImplBase>(HandlerBase::shared_from_this());
     }
@@ -55,13 +55,13 @@ class ConsumerImplBase : public HandlerBase {
     virtual const std::string& getSubscriptionName() const = 0;
     virtual Result receive(Message& msg) = 0;
     virtual Result receive(Message& msg, int timeout) = 0;
-    virtual void receiveAsync(ReceiveCallback callback) = 0;
-    void batchReceiveAsync(BatchReceiveCallback callback);
-    virtual void unsubscribeAsync(ResultCallback callback) = 0;
-    virtual void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) = 0;
-    virtual void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) = 0;
-    virtual void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) = 0;
-    virtual void closeAsync(ResultCallback callback) = 0;
+    virtual void receiveAsync(const ReceiveCallback& callback) = 0;
+    void batchReceiveAsync(const BatchReceiveCallback& callback);
+    virtual void unsubscribeAsync(const ResultCallback& callback) = 0;
+    virtual void acknowledgeAsync(const MessageId& msgId, const ResultCallback& callback) = 0;
+    virtual void acknowledgeAsync(const MessageIdList& messageIdList, const ResultCallback& callback) = 0;
+    virtual void acknowledgeCumulativeAsync(const MessageId& msgId, const ResultCallback& callback) = 0;
+    virtual void closeAsync(const ResultCallback& callback) = 0;
     virtual void start() = 0;
     virtual void shutdown() = 0;
     virtual bool isClosed() = 0;
@@ -71,16 +71,16 @@ class ConsumerImplBase : public HandlerBase {
     virtual void redeliverUnacknowledgedMessages() = 0;
     virtual void redeliverUnacknowledgedMessages(const std::set<MessageId>& messageIds) = 0;
     virtual int getNumOfPrefetchedMessages() const = 0;
-    virtual void getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) = 0;
-    virtual void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) = 0;
-    virtual void seekAsync(const MessageId& msgId, ResultCallback callback) = 0;
-    virtual void seekAsync(uint64_t timestamp, ResultCallback callback) = 0;
+    virtual void getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback) = 0;
+    virtual void getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& callback) = 0;
+    virtual void seekAsync(const MessageId& msgId, const ResultCallback& callback) = 0;
+    virtual void seekAsync(uint64_t timestamp, const ResultCallback& callback) = 0;
     virtual void negativeAcknowledge(const MessageId& msgId) = 0;
     virtual bool isConnected() const = 0;
     virtual uint64_t getNumberOfConnectedConsumer() = 0;
     // overrided methods from HandlerBase
     virtual const std::string& getName() const override = 0;
-    virtual void hasMessageAvailableAsync(HasMessageAvailableCallback callback) = 0;
+    virtual void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) = 0;
 
     const std::string& getConsumerName() const noexcept { return consumerName_; }
 

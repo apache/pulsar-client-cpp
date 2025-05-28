@@ -78,7 +78,7 @@ TEST(ReaderConfigurationTest, testCustomConfig) {
 
     ReaderConfiguration readerConf;
     readerConf.setSchema(schema);
-    readerConf.setReaderListener([](Reader, const Message&) {});
+    readerConf.setReaderListener([](const Reader&, const Message&) {});
     readerConf.setReceiverQueueSize(2000);
     readerConf.setReaderName("my-reader");
     readerConf.setReadCompacted(true);

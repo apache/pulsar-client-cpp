@@ -25,7 +25,7 @@ using namespace pulsar;
 static void verifyServiceURIFailure(const std::string& uriString, const std::string& errorMsg) {
     try {
         ServiceURI uri{uriString};
-        std::cerr << uriString << " should be invalid" << std::endl;
+        std::cerr << uriString << " should be invalid" << '\n';
         FAIL();
     } catch (const std::invalid_argument& e) {
         EXPECT_EQ(errorMsg, e.what());

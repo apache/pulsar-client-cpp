@@ -21,6 +21,7 @@
 
 #include <pulsar/defines.h>
 
+#include <cstdint>
 #include <iosfwd>
 
 namespace pulsar {
@@ -28,7 +29,7 @@ namespace pulsar {
 /**
  * Collection of return codes
  */
-enum Result
+enum Result : int8_t
 {
     ResultRetryable = -1,  /// An internal error code used for retry
     ResultOk = 0,          /// Operation successful

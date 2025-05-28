@@ -38,7 +38,8 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
-ConnectionPool::ConnectionPool(const ClientConfiguration& conf, ExecutorServiceProviderPtr executorProvider,
+ConnectionPool::ConnectionPool(const ClientConfiguration& conf,
+                               const ExecutorServiceProviderPtr& executorProvider,
                                const AuthenticationPtr& authentication, const std::string& clientVersion)
     : clientConfiguration_(conf),
       executorProvider_(executorProvider),

@@ -22,7 +22,8 @@
 #include "BrokerConsumerStatsImplBase.h"
 
 namespace pulsar {
-BrokerConsumerStats::BrokerConsumerStats(std::shared_ptr<BrokerConsumerStatsImplBase> impl) : impl_(impl) {}
+BrokerConsumerStats::BrokerConsumerStats(std::shared_ptr<BrokerConsumerStatsImplBase> impl)
+    : impl_(std::move(impl)) {}
 
 std::shared_ptr<BrokerConsumerStatsImplBase> BrokerConsumerStats::getImpl() const { return impl_; }
 

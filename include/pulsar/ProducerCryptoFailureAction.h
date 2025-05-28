@@ -19,9 +19,11 @@
 #ifndef PRODUCERCRYPTOFAILUREACTION_H_
 #define PRODUCERCRYPTOFAILUREACTION_H_
 
+#include <cstdint>
+
 namespace pulsar {
 
-enum class ProducerCryptoFailureAction
+enum class ProducerCryptoFailureAction : uint8_t
 {
     FAIL,  // This is the default option to fail send if crypto operation fails
     SEND   // Ignore crypto failure and proceed with sending unencrypted messages

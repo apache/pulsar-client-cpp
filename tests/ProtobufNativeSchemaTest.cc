@@ -131,7 +131,7 @@ TEST(ProtobufNativeSchemaTest, testEndToEnd) {
 
 TEST(ProtobufNativeSchemaTest, testBase64WithPadding) {
     const auto schemaInfo = createProtobufNativeSchema(::padding::demo::Person::descriptor());
-    const auto schemaJson = schemaInfo.getSchema();
+    const auto& schemaJson = schemaInfo.getSchema();
     size_t pos = schemaJson.find(R"(","rootMessageTypeName":)");
     ASSERT_NE(pos, std::string::npos);
     ASSERT_TRUE(pos > 0);

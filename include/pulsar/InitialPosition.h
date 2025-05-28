@@ -19,8 +19,10 @@
 #ifndef PULSAR_CPP_INITIAL_POSITION_H
 #define PULSAR_CPP_INITIAL_POSITION_H
 
+#include <cstdint>
+
 namespace pulsar {
-enum InitialPosition
+enum InitialPosition : uint8_t
 {
     InitialPositionLatest,
     InitialPositionEarliest

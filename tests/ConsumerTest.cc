@@ -61,7 +61,7 @@ namespace pulsar {
 
 class ConsumerStateEventListener : public ConsumerEventListener {
    public:
-    ConsumerStateEventListener(std::string name) { name_ = name; }
+    ConsumerStateEventListener(std::string name) { name_ = std::move(name); }
 
     void becameActive(Consumer consumer, int partitionId) override {
         LOG_INFO("Received consumer active event, partitionId:" << partitionId << ", name: " << name_);

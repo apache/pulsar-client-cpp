@@ -19,6 +19,8 @@
 #ifndef PULSAR_CPP_HTTPLOOKUPSERVICE_H
 #define PULSAR_CPP_HTTPLOOKUPSERVICE_H
 
+#include <cstdint>
+
 #include "ClientImpl.h"
 #include "LookupService.h"
 #include "Url.h"
@@ -31,7 +33,7 @@ using NamespaceTopicsPromisePtr = std::shared_ptr<NamespaceTopicsPromise>;
 using GetSchemaPromise = Promise<Result, SchemaInfo>;
 
 class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
-    enum RequestType
+    enum RequestType : uint8_t
     {
         Lookup,
         PartitionMetaData
@@ -55,13 +57,14 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     static LookupDataResultPtr parseLookupData(const std::string&);
     static NamespaceTopicsPtr parseNamespaceTopicsData(const std::string&);
 
-    void handleLookupHTTPRequest(LookupPromise, const std::string, RequestType);
-    void handleNamespaceTopicsHTTPRequest(NamespaceTopicsPromise promise, const std::string completeUrl);
-    void handleGetSchemaHTTPRequest(GetSchemaPromise promise, const std::string completeUrl);
+    void handleLookupHTTPRequest(const LookupPromise&, const std::string&, RequestType);
+    void handleNamespaceTopicsHTTPRequest(const NamespaceTopicsPromise& promise,
+                                          const std::string& completeUrl);
+    void handleGetSchemaHTTPRequest(const GetSchemaPromise& promise, const std::string& completeUrl);
 
-    Result sendHTTPRequest(std::string completeUrl, std::string& responseData);
+    Result sendHTTPRequest(const std::string& completeUrl, std::string& responseData);
 
-    Result sendHTTPRequest(std::string completeUrl, std::string& responseData, long& responseCode);
+    Result sendHTTPRequest(const std::string& completeUrl, std::string& responseData, long& responseCode);
 
    public:
     HTTPLookupService(const std::string&, const ClientConfiguration&, const AuthenticationPtr&);

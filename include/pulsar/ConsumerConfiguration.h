@@ -117,7 +117,7 @@ class PULSAR_PUBLIC ConsumerConfiguration {
      *
      * @param keySharedPolicy The {@link KeySharedPolicy} want to specify
      */
-    ConsumerConfiguration& setKeySharedPolicy(KeySharedPolicy keySharedPolicy);
+    ConsumerConfiguration& setKeySharedPolicy(const KeySharedPolicy& keySharedPolicy);
 
     /**
      * @return the KeyShared subscription policy

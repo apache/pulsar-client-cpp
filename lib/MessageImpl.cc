@@ -122,7 +122,7 @@ void MessageImpl::convertPayloadToKeyValue(const pulsar::SchemaInfo& schemaInfo)
                                        getKeyValueEncodingType(schemaInfo));
 }
 
-KeyValueEncodingType MessageImpl::getKeyValueEncodingType(SchemaInfo schemaInfo) {
+KeyValueEncodingType MessageImpl::getKeyValueEncodingType(const SchemaInfo& schemaInfo) {
     if (schemaInfo.getSchemaType() != KEY_VALUE) {
         throw std::invalid_argument("Schema not key value type.");
     }

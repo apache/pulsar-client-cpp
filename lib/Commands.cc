@@ -138,7 +138,7 @@ SharedBuffer Commands::newPartitionMetadataRequest(const std::string& topic, uin
     CommandPartitionedTopicMetadata* partitionMetadata = cmd.mutable_partitionmetadata();
     partitionMetadata->set_topic(topic);
     partitionMetadata->set_request_id(requestId);
-    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_partitionmetadata();
     return buffer;
 }
@@ -154,7 +154,7 @@ SharedBuffer Commands::newLookup(const std::string& topic, const bool authoritat
     lookup->set_authoritative(authoritative);
     lookup->set_request_id(requestId);
     lookup->set_advertised_listener_name(listenerName);
-    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_lookuptopic();
     return buffer;
 }
@@ -173,7 +173,7 @@ SharedBuffer Commands::newGetSchema(const std::string& topic, const std::string&
         getSchema->set_schema_version(version);
     }
 
-    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_getschema();
     return buffer;
 }
@@ -186,7 +186,7 @@ SharedBuffer Commands::newConsumerStats(uint64_t consumerId, uint64_t requestId)
     CommandConsumerStats* consumerStats = cmd.mutable_consumerstats();
     consumerStats->set_consumer_id(consumerId);
     consumerStats->set_request_id(requestId);
-    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_consumerstats();
     return buffer;
 }
@@ -334,7 +334,7 @@ SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string&
                                     const std::map<std::string, std::string>& subscriptionProperties,
                                     const SchemaInfo& schemaInfo,
                                     CommandSubscribe_InitialPosition subscriptionInitialPosition,
-                                    bool replicateSubscriptionState, KeySharedPolicy keySharedPolicy,
+                                    bool replicateSubscriptionState, const KeySharedPolicy& keySharedPolicy,
                                     int priorityLevel) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::SUBSCRIBE);
@@ -618,7 +618,7 @@ SharedBuffer Commands::newGetLastMessageId(uint64_t consumerId, uint64_t request
     CommandGetLastMessageId* getLastMessageId = cmd.mutable_getlastmessageid();
     getLastMessageId->set_consumer_id(consumerId);
     getLastMessageId->set_request_id(requestId);
-    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_getlastmessageid();
     return buffer;
 }
@@ -632,7 +632,7 @@ SharedBuffer Commands::newGetTopicsOfNamespace(const std::string& nsName,
     getTopics->set_namespace_(nsName);
     getTopics->set_mode(static_cast<proto::CommandGetTopicsOfNamespace_Mode>(mode));
 
-    const SharedBuffer buffer = writeMessageWithSize(cmd);
+    SharedBuffer buffer = writeMessageWithSize(cmd);
     cmd.clear_gettopicsofnamespace();
     return buffer;
 }

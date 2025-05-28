@@ -44,8 +44,8 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
    public:
     AckGroupingTracker(std::function<ClientConnectionPtr()> connectionSupplier,
                        std::function<uint64_t()> requestIdSupplier, uint64_t consumerId, bool waitResponse)
-        : connectionSupplier_(connectionSupplier),
-          requestIdSupplier_(requestIdSupplier),
+        : connectionSupplier_(std::move(connectionSupplier)),
+          requestIdSupplier_(std::move(requestIdSupplier)),
           consumerId_(consumerId),
           waitResponse_(waitResponse) {}
 
@@ -71,14 +71,16 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] msgId ID of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledge(const MessageId& msgId, ResultCallback callback) { callback(ResultOk); }
+    virtual void addAcknowledge(const MessageId& msgId, const ResultCallback& callback) {
+        callback(ResultOk);
+    }
 
     /**
      * Adding message ID list into ACK group for individual ACK.
      * @param[in] msgIds of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the messages are acknowledged
      */
-    virtual void addAcknowledgeList(const MessageIdList& msgIds, ResultCallback callback) {
+    virtual void addAcknowledgeList(const MessageIdList& msgIds, const ResultCallback& callback) {
         callback(ResultOk);
     }
 
@@ -87,19 +89,9 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] msgId ID of the message to be ACKed.
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
-    virtual void addAcknowledgeCumulative(const MessageId& msgId, ResultCallback callback) {
+    virtual void addAcknowledgeCumulative(const MessageId& msgId, const ResultCallback& callback) {
         callback(ResultOk);
     }
-
-    /**
-     * Flush all the pending grouped ACKs (as flush() does), and stop period ACKs sending.
-     */
-    virtual void close() {}
-
-    /**
-     * Flush all the pending grouped ACKs and send them to the broker.
-     */
-    virtual void flush() {}
 
     /**
      * Flush all the pending grouped ACKs (as flush() does), and clean all records about ACKed
@@ -108,8 +100,9 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
     virtual void flushAndClean() {}
 
    protected:
-    void doImmediateAck(const MessageId& msgId, ResultCallback callback, CommandAck_AckType ackType) const;
-    void doImmediateAck(const std::set<MessageId>& msgIds, ResultCallback callback) const;
+    void doImmediateAck(const MessageId& msgId, const ResultCallback& callback,
+                        CommandAck_AckType ackType) const;
+    void doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback) const;
 
    private:
     const std::function<ClientConnectionPtr()> connectionSupplier_;

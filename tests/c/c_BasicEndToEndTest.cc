@@ -42,7 +42,7 @@ static void send_callback(pulsar_result async_result, pulsar_message_id_t *msg_i
     send_ctx->result = async_result;
     if (async_result == pulsar_result_Ok) {
         const char *msg_id_str = pulsar_message_id_str(msg_id);
-        send_ctx->msg_id = (char *)malloc(strlen(msg_id_str) * sizeof(char));
+        send_ctx->msg_id = (char *)malloc(strlen(msg_id_str) * sizeof(char) + 1);
         strcpy(send_ctx->msg_id, msg_id_str);
     }
     send_ctx->promise->set_value();
@@ -55,7 +55,7 @@ static void receive_callback(pulsar_result async_result, pulsar_message_t *msg, 
     if (async_result == pulsar_result_Ok &&
         pulsar_consumer_acknowledge(receive_ctx->consumer, msg) == pulsar_result_Ok) {
         const char *data = (const char *)pulsar_message_get_data(msg);
-        receive_ctx->data = (char *)malloc(strlen(data) * sizeof(char));
+        receive_ctx->data = (char *)malloc(strlen(data) * sizeof(char) + 1);
         strcpy(receive_ctx->data, data);
     }
     receive_ctx->promise->set_value();

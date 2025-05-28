@@ -25,11 +25,11 @@ namespace pulsar {
 
 EncryptionKeyInfo::EncryptionKeyInfo() : impl_(new EncryptionKeyInfoImpl()) {}
 
-EncryptionKeyInfo::EncryptionKeyInfo(EncryptionKeyInfoImplPtr impl) : impl_(impl) {}
+EncryptionKeyInfo::EncryptionKeyInfo(const EncryptionKeyInfoImplPtr& impl) : impl_(impl) {}
 
 std::string& EncryptionKeyInfo::getKey() { return impl_->getKey(); }
 
-void EncryptionKeyInfo::setKey(std::string key) { impl_->setKey(key); }
+void EncryptionKeyInfo::setKey(const std::string& key) { impl_->setKey(key); }
 
 EncryptionKeyInfo::StringMap& EncryptionKeyInfo::getMetadata() { return impl_->getMetadata(); }
 

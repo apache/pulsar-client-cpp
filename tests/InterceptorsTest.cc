@@ -21,6 +21,7 @@
 #include <pulsar/ConsumerInterceptor.h>
 #include <pulsar/ProducerInterceptor.h>
 
+#include <cstdint>
 #include <random>
 #include <utility>
 
@@ -109,7 +110,7 @@ class ProducerPartitionsChangeInterceptor : public ProducerInterceptor {
     Latch latch_;
 };
 
-void createPartitionedTopic(std::string topic) {
+void createPartitionedTopic(const std::string& topic) {
     std::string topicOperateUrl = adminUrl + "admin/v2/persistent/public/default/" + topic + "/partitions";
 
     int res = makePutRequest(topicOperateUrl, "2");
@@ -229,7 +230,7 @@ class ConsumerExceptionInterceptor : public ConsumerInterceptor {
     Latch latch_;
 };
 
-enum TopicType
+enum TopicType : uint8_t
 {
     Single,
     Partitioned,
@@ -294,7 +295,7 @@ class ConsumerInterceptorsTest : public ::testing::TestWithParam<std::tuple<Topi
         consumerConf_.setReceiverQueueSize(std::get<1>(GetParam()));
     }
 
-    void createPartitionedTopic(std::string topic) {
+    void createPartitionedTopic(const std::string& topic) {
         std::string topicOperateUrl = adminUrl + "admin/v2/persistent/" +
                                       topic.substr(std::string("persistent://").length()) + "/partitions";
 

@@ -40,11 +40,11 @@ build-support/generate-source-archive.sh $DEST_PATH
 build-support/download-release-artifacts.py $WORKFLOW_ID $DEST_PATH
 
 pushd "$DEST_PATH"
-if [[ -d x64-windows-static.tar.gz ]]; then
+if [[ -d x64-windows-static ]]; then
     tar cvzf x64-windows-static.tar.gz x64-windows-static
     rm -rf x64-windows-static/
 fi
-if [[ -d x86-windows-static.tar.gz ]]; then
+if [[ -d x86-windows-static ]]; then
     tar cvzf x86-windows-static.tar.gz x86-windows-static
     rm -rf x86-windows-static/
 fi

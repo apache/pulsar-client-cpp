@@ -20,7 +20,9 @@
 #include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
 
+#include <array>
 #include <boost/algorithm/string.hpp>
+#include <sstream>
 #ifdef USE_ASIO
 #include <asio.hpp>
 #else
@@ -305,39 +307,106 @@ TEST(AuthPluginTest, testTlsDetectClientCertSignedByICA) {
     ASSERT_EQ(ResultOk, res);
 }
 
+// There is a bug that clang-tidy could report memory leak for boost::algorithm::split, see
+// https://github.com/boostorg/algorithm/issues/63.
+static std::vector<std::string> split(const std::string& s, char separator) {
+    std::vector<std::string> tokens;
+    size_t startPos = 0;
+    while (startPos < s.size()) {
+        auto pos = s.find(separator, startPos);
+        if (pos == std::string::npos) {
+            tokens.emplace_back(s.substr(startPos));
+            break;
+        }
+        tokens.emplace_back(s.substr(startPos, pos - startPos));
+        startPos = pos + 1;
+    }
+    return tokens;
+}
+
 namespace testAthenz {
 std::string principalToken;
+
+// ASIO::ip::tcp::iostream could call a virtual function during destruction, so the clang-tidy will fail by
+// clang-analyzer-optin.cplusplus.VirtualCall. Here we write a simple stream to read lines from socket.
+class SocketStream {
+   public:
+    SocketStream(ASIO::ip::tcp::socket& socket) : socket_(socket) {}
+
+    bool getline(std::string& line) {
+        auto pos = buffer_.find('\n', bufferPos_);
+        if (pos != std::string::npos) {
+            line = buffer_.substr(bufferPos_, pos - bufferPos_);
+            bufferPos_ = pos + 1;
+            return true;
+        }
+
+        std::array<char, 1024> buffer;
+        ASIO_ERROR error;
+        auto length = socket_.read_some(ASIO::buffer(buffer.data(), buffer.size()), error);
+        if (error == ASIO::error::eof) {
+            return false;
+        } else if (error) {
+            LOG_ERROR("Failed to read from socket: " << error.message());
+            return false;
+        }
+        buffer_.append(buffer.data(), length);
+
+        pos = buffer_.find('\n', bufferPos_);
+        if (pos != std::string::npos) {
+            line = buffer_.substr(bufferPos_, pos - bufferPos_);
+            bufferPos_ = pos + 1;
+        } else {
+            line = "";
+        }
+        return true;
+    }
+
+   private:
+    ASIO::ip::tcp::socket& socket_;
+    std::string buffer_;
+    size_t bufferPos_{0};
+};
+
 void mockZTS(Latch& latch, int port) {
     LOG_INFO("-- MockZTS started");
     ASIO::io_service io;
-    ASIO::ip::tcp::iostream stream;
     ASIO::ip::tcp::acceptor acceptor(io, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), port));
 
     LOG_INFO("-- MockZTS waiting for connnection");
     latch.countdown();
-    acceptor.accept(*stream.rdbuf());
+    ASIO::ip::tcp::socket socket(io);
+    acceptor.accept(socket);
     LOG_INFO("-- MockZTS got connection");
 
     std::string headerLine;
-    while (getline(stream, headerLine)) {
-        std::vector<std::string> kv;
-        boost::algorithm::split(kv, headerLine, boost::is_any_of(" "));
+    SocketStream stream(socket);
+    while (stream.getline(headerLine)) {
+        if (headerLine.empty()) {
+            continue;
+        }
+        auto kv = split(headerLine, ' ');
         if (kv[0] == "Athenz-Principal-Auth:") {
             principalToken = kv[1];
         }
 
-        if (headerLine == "\r" || headerLine == "\n" || headerLine == "\r\n") {
+        if (headerLine == "\r") {
+            std::ostringstream stream;
             std::string mockToken = "{\"token\":\"mockToken\",\"expiryTime\":4133980800}";
-            stream << "HTTP/1.1 200 OK" << std::endl;
-            stream << "Host: localhost" << std::endl;
-            stream << "Content-Type: application/json" << std::endl;
-            stream << "Content-Length: " << mockToken.size() << std::endl;
-            stream << std::endl;
-            stream << mockToken << std::endl;
+            stream << "HTTP/1.1 200 OK" << '\n';
+            stream << "Host: localhost" << '\n';
+            stream << "Content-Type: application/json" << '\n';
+            stream << "Content-Length: " << mockToken.size() << '\n';
+            stream << '\n';
+            stream << mockToken << '\n';
+            auto response = stream.str();
+            socket.send(ASIO::const_buffer(response.c_str(), response.length()));
             break;
         }
     }
 
+    socket.close();
+    acceptor.close();
     LOG_INFO("-- MockZTS exiting");
 }
 }  // namespace testAthenz
@@ -365,11 +434,9 @@ TEST(AuthPluginTest, testAthenz) {
     ASSERT_EQ(data->getHttpHeaders(), "Athenz-Role-Auth: mockToken");
     ASSERT_EQ(data->getCommandData(), "mockToken");
     zts.join();
-    std::vector<std::string> kvs;
-    boost::algorithm::split(kvs, testAthenz::principalToken, boost::is_any_of(";"));
+    auto kvs = split(testAthenz::principalToken, ';');
     for (std::vector<std::string>::iterator itr = kvs.begin(); itr != kvs.end(); itr++) {
-        std::vector<std::string> kv;
-        boost::algorithm::split(kv, *itr, boost::is_any_of("="));
+        auto kv = split(*itr, '=');
         if (kv[0] == "d") {
             ASSERT_EQ(kv[1], "pulsar.test.tenant");
         } else if (kv[0] == "n") {
@@ -440,11 +507,9 @@ TEST(AuthPluginTest, testAuthFactoryAthenz) {
     zts.join();
     LOG_INFO("Done zts.join()");
 
-    std::vector<std::string> kvs;
-    boost::algorithm::split(kvs, testAthenz::principalToken, boost::is_any_of(";"));
+    auto kvs = split(testAthenz::principalToken, ';');
     for (std::vector<std::string>::iterator itr = kvs.begin(); itr != kvs.end(); itr++) {
-        std::vector<std::string> kv;
-        boost::algorithm::split(kv, *itr, boost::is_any_of("="));
+        auto kv = split(*itr, '=');
         if (kv[0] == "d") {
             ASSERT_EQ(kv[1], "pulsar.test2.tenant");
         } else if (kv[0] == "n") {
