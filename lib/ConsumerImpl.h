@@ -23,6 +23,7 @@
 
 #include <boost/optional.hpp>
 #include <boost/variant.hpp>
+#include <cstdint>
 #include <functional>
 #include <list>
 #include <memory>
@@ -66,7 +67,7 @@ class BrokerEntryMetadata;
 class MessageMetadata;
 }  // namespace proto
 
-enum ConsumerTopicType
+enum ConsumerTopicType : uint8_t
 {
     NonPartitioned,
     Partitioned
@@ -85,12 +86,12 @@ enum class SeekStatus : std::uint8_t
 
 class ConsumerImpl : public ConsumerImplBase {
    public:
-    ConsumerImpl(const ClientImplPtr client, const std::string& topic, const std::string& subscriptionName,
+    ConsumerImpl(const ClientImplPtr& client, const std::string& topic, const std::string& subscriptionName,
                  const ConsumerConfiguration&, bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
-                 const ExecutorServicePtr listenerExecutor = ExecutorServicePtr(), bool hasParent = false,
+                 const ExecutorServicePtr& listenerExecutor = ExecutorServicePtr(), bool hasParent = false,
                  const ConsumerTopicType consumerTopicType = NonPartitioned,
                  Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
-                 boost::optional<MessageId> startMessageId = boost::none);
+                 const boost::optional<MessageId>& startMessageId = boost::none);
     ~ConsumerImpl();
     void setPartitionIndex(int partitionIndex);
     int getPartitionIndex();
@@ -113,14 +114,15 @@ class ConsumerImpl : public ConsumerImplBase {
     const std::string& getTopic() const override;
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
-    void receiveAsync(ReceiveCallback callback) override;
-    void unsubscribeAsync(ResultCallback callback) override;
-    void acknowledgeAsync(const MessageId& msgId, ResultCallback callback) override;
-    void acknowledgeAsync(const MessageIdList& messageIdList, ResultCallback callback) override;
-    void acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) override;
-    void closeAsync(ResultCallback callback) override;
+    void receiveAsync(const ReceiveCallback& callback) override;
+    void unsubscribeAsync(const ResultCallback& callback) override;
+    void acknowledgeAsync(const MessageId& msgId, const ResultCallback& callback) override;
+    void acknowledgeAsync(const MessageIdList& messageIdList, const ResultCallback& callback) override;
+    void acknowledgeCumulativeAsync(const MessageId& msgId, const ResultCallback& callback) override;
+    void closeAsync(const ResultCallback& callback) override;
     void start() override;
     void shutdown() override;
+    void internalShutdown();
     bool isClosed() override;
     bool isOpen() override;
     Result pauseMessageListener() override;
@@ -129,14 +131,14 @@ class ConsumerImpl : public ConsumerImplBase {
     void redeliverUnacknowledgedMessages(const std::set<MessageId>& messageIds) override;
     const std::string& getName() const override;
     int getNumOfPrefetchedMessages() const override;
-    void getBrokerConsumerStatsAsync(BrokerConsumerStatsCallback callback) override;
-    void getLastMessageIdAsync(BrokerGetLastMessageIdCallback callback) override;
-    void seekAsync(const MessageId& msgId, ResultCallback callback) override;
-    void seekAsync(uint64_t timestamp, ResultCallback callback) override;
+    void getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback) override;
+    void getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& callback) override;
+    void seekAsync(const MessageId& msgId, const ResultCallback& callback) override;
+    void seekAsync(uint64_t timestamp, const ResultCallback& callback) override;
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
-    void hasMessageAvailableAsync(HasMessageAvailableCallback callback) override;
+    void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) override;
 
     virtual void disconnectConsumer();
     virtual void disconnectConsumer(const boost::optional<std::string>& assignedBrokerUrl);
@@ -184,7 +186,7 @@ class ConsumerImpl : public ConsumerImplBase {
                                                 const BitSet& ackSet, int redeliveryCount);
     bool isPriorBatchIndex(int32_t idx);
     bool isPriorEntryIndex(int64_t idx);
-    void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, BrokerConsumerStatsCallback);
+    void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, const BrokerConsumerStatsCallback&);
 
     bool decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
                                 const proto::MessageMetadata& metadata, SharedBuffer& payload);
@@ -199,7 +201,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void trackMessage(const MessageId& messageId);
     void internalGetLastMessageIdAsync(const BackoffPtr& backoff, TimeDuration remainTime,
                                        const DeadlineTimerPtr& timer,
-                                       BrokerGetLastMessageIdCallback callback);
+                                       const BrokerGetLastMessageIdCallback& callback);
 
     void clearReceiveQueue();
     using SeekArg = boost::variant<uint64_t, MessageId>;
@@ -213,9 +215,9 @@ class ConsumerImpl : public ConsumerImplBase {
         return os;
     }
 
-    void seekAsyncInternal(long requestId, SharedBuffer seek, const SeekArg& seekArg,
-                           ResultCallback callback);
-    void processPossibleToDLQ(const MessageId& messageId, ProcessDLQCallBack cb);
+    void seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
+                           const ResultCallback& callback);
+    void processPossibleToDLQ(const MessageId& messageId, const ProcessDLQCallBack& cb);
 
     std::mutex mutexForReceiveWithZeroQueueSize;
     const ConsumerConfiguration config_;
@@ -277,9 +279,9 @@ class ConsumerImpl : public ConsumerImplBase {
         ChunkedMessageCtx(const ChunkedMessageCtx&) = delete;
         // Here we don't use =default to be compatible with GCC 4.8
         ChunkedMessageCtx(ChunkedMessageCtx&& rhs) noexcept
-            : totalChunks_(rhs.totalChunks_),
-              chunkedMsgBuffer_(std::move(rhs.chunkedMsgBuffer_)),
-              chunkedMessageIds_(std::move(rhs.chunkedMessageIds_)) {}
+            : totalChunks_(rhs.totalChunks_), chunkedMsgBuffer_(std::move(rhs.chunkedMsgBuffer_)) {
+            std::swap(chunkedMessageIds_, rhs.chunkedMessageIds_);
+        }
 
         bool validateChunkId(int chunkId) const noexcept { return chunkId == numChunks(); }
 
@@ -295,7 +297,11 @@ class ConsumerImpl : public ConsumerImplBase {
 
         const std::vector<MessageId>& getChunkedMessageIds() const noexcept { return chunkedMessageIds_; }
 
-        std::vector<MessageId> moveChunkedMessageIds() noexcept { return std::move(chunkedMessageIds_); }
+        std::vector<MessageId> moveChunkedMessageIds() noexcept {
+            std::vector<MessageId> result;
+            result.swap(chunkedMessageIds_);
+            return result;
+        }
 
         long getReceivedTimeMs() const noexcept { return receivedTimeMs_; }
 
@@ -335,7 +341,7 @@ class ConsumerImpl : public ConsumerImplBase {
     ConsumerInterceptorsPtr interceptors_;
 
     void triggerCheckExpiredChunkedTimer();
-    void discardChunkMessages(std::string uuid, MessageId messageId, bool autoAck);
+    void discardChunkMessages(const std::string& uuid, const MessageId& messageId, bool autoAck);
 
     /**
      * Process a chunk. If the chunk is the last chunk of a message, concatenate all buffered chunks into the

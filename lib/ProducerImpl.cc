@@ -48,7 +48,7 @@ DECLARE_LOG_OBJECT()
 
 using std::chrono::milliseconds;
 
-ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
+ProducerImpl::ProducerImpl(const ClientImplPtr& client, const TopicName& topicName,
                            const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
                            int32_t partition, bool retryOnCreationError)
     : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
@@ -114,11 +114,11 @@ ProducerImpl::ProducerImpl(ClientImplPtr client, const TopicName& topicName,
 }
 
 ProducerImpl::~ProducerImpl() {
-    LOG_DEBUG(getName() << "~ProducerImpl");
-    shutdown();
+    LOG_DEBUG(producerStr_ << "~ProducerImpl");
+    internalShutdown();
     printStats();
     if (state_ == Ready || state_ == Pending) {
-        LOG_WARN(getName() << "Destroyed producer which was not properly closed");
+        LOG_WARN(producerStr_ << "Destroyed producer which was not properly closed");
     }
 }
 
@@ -352,7 +352,7 @@ void ProducerImpl::failPendingMessages(Result result, bool withLock) {
     }
 }
 
-void ProducerImpl::resendMessages(ClientConnectionPtr cnx) {
+void ProducerImpl::resendMessages(const ClientConnectionPtr& cnx) {
     if (pendingMessagesQueue_.empty()) {
         return;
     }
@@ -879,7 +879,7 @@ bool ProducerImpl::removeCorruptMessage(uint64_t sequenceId) {
         return true;
     }
 
-    std::unique_ptr<OpSendMsg> op{std::move(pendingMessagesQueue_.front().release())};
+    std::unique_ptr<OpSendMsg> op{pendingMessagesQueue_.front().release()};
     uint64_t expectedSequenceId = op->sendArgs->sequenceId;
     if (sequenceId > expectedSequenceId) {
         LOG_WARN(getName() << "Got ack failure for msg " << sequenceId                //
@@ -993,7 +993,9 @@ void ProducerImpl::start() {
     }
 }
 
-void ProducerImpl::shutdown() {
+void ProducerImpl::shutdown() { internalShutdown(); }
+
+void ProducerImpl::internalShutdown() {
     resetCnx();
     interceptors_->close();
     auto client = client_.lock();

@@ -33,12 +33,13 @@ namespace pulsar {
 class ClientImpl;
 class ConsumerImplBase;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
+using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
 
 class UnAckedMessageTrackerEnabled : public std::enable_shared_from_this<UnAckedMessageTrackerEnabled>,
                                      public UnAckedMessageTrackerInterface {
    public:
-    UnAckedMessageTrackerEnabled(long timeoutMs, ClientImplPtr, ConsumerImplBase&);
-    UnAckedMessageTrackerEnabled(long timeoutMs, long tickDuration, ClientImplPtr, ConsumerImplBase&);
+    UnAckedMessageTrackerEnabled(long timeoutMs, const ClientImplPtr&, ConsumerImplBase&);
+    UnAckedMessageTrackerEnabled(long timeoutMs, long tickDuration, const ClientImplPtr&, ConsumerImplBase&);
     void start() override;
     void stop() override;
     bool add(const MessageId& msgId) override;
@@ -58,7 +59,7 @@ class UnAckedMessageTrackerEnabled : public std::enable_shared_from_this<UnAcked
     std::deque<std::set<MessageId>> timePartitions;
     std::recursive_mutex lock_;
     ConsumerImplBase& consumerReference_;
-    ClientImplPtr client_;
+    ClientImplWeakPtr client_;
     DeadlineTimerPtr timer_;  // DO NOT place this before client_!
     long timeoutMs_;
     long tickDurationInMs_;

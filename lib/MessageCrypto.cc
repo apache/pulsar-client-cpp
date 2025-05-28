@@ -145,7 +145,7 @@ std::string MessageCrypto::stringToHex(const std::string& inputStr, size_t len) 
 }
 
 Result MessageCrypto::addPublicKeyCipher(const std::set<std::string>& keyNames,
-                                         const CryptoKeyReaderPtr keyReader) {
+                                         const CryptoKeyReaderPtr& keyReader) {
     Lock lock(mutex_);
 
     // Generate data key
@@ -166,7 +166,7 @@ Result MessageCrypto::addPublicKeyCipher(const std::set<std::string>& keyNames,
     return result;
 }
 
-Result MessageCrypto::addPublicKeyCipher(const std::string& keyName, const CryptoKeyReaderPtr keyReader) {
+Result MessageCrypto::addPublicKeyCipher(const std::string& keyName, const CryptoKeyReaderPtr& keyReader) {
     if (keyName.empty()) {
         LOG_ERROR(logCtx_ << "Keyname is empty ");
         return ResultCryptoError;
@@ -222,7 +222,7 @@ bool MessageCrypto::removeKeyCipher(const std::string& keyName) {
     return true;
 }
 
-bool MessageCrypto::encrypt(const std::set<std::string>& encKeys, const CryptoKeyReaderPtr keyReader,
+bool MessageCrypto::encrypt(const std::set<std::string>& encKeys, const CryptoKeyReaderPtr& keyReader,
                             proto::MessageMetadata& msgMetadata, SharedBuffer& payload,
                             SharedBuffer& encryptedPayload) {
     if (!encKeys.size()) {
@@ -493,7 +493,7 @@ bool MessageCrypto::getKeyAndDecryptData(const proto::MessageMetadata& msgMetada
 }
 
 bool MessageCrypto::decrypt(const proto::MessageMetadata& msgMetadata, SharedBuffer& payload,
-                            const CryptoKeyReaderPtr keyReader, SharedBuffer& decryptedPayload) {
+                            const CryptoKeyReaderPtr& keyReader, SharedBuffer& decryptedPayload) {
     // Attempt to decrypt using the existing key
     if (getKeyAndDecryptData(msgMetadata, payload, decryptedPayload)) {
         return true;

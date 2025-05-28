@@ -97,7 +97,7 @@ class PULSAR_PUBLIC Producer {
      * @param msg message to publish
      * @param callback the callback to get notification of the completion
      */
-    void sendAsync(const Message& msg, SendCallback callback);
+    void sendAsync(const Message& msg, const SendCallback& callback);
 
     /**
      * Flush all the messages buffered in the client and wait until all messages have been successfully
@@ -109,7 +109,7 @@ class PULSAR_PUBLIC Producer {
      * Flush all the messages buffered in the client and wait until all messages have been successfully
      * persisted.
      */
-    void flushAsync(FlushCallback callback);
+    void flushAsync(const FlushCallback& callback);
 
     /**
      * Get the last sequence id that was published by this producer.
@@ -153,7 +153,7 @@ class PULSAR_PUBLIC Producer {
      * triggered when all pending write requests are persisted. In case of errors,
      * pending writes will not be retried.
      */
-    void closeAsync(CloseCallback callback);
+    void closeAsync(const CloseCallback& callback);
 
     /**
      * @return Whether the producer is currently connected to the broker
@@ -161,7 +161,7 @@ class PULSAR_PUBLIC Producer {
     bool isConnected() const;
 
    private:
-    explicit Producer(ProducerImplBasePtr);
+    explicit Producer(const ProducerImplBasePtr&);
 
     friend class ClientImpl;
     friend class PulsarFriend;

@@ -29,7 +29,7 @@ static const std::string EMPTY_STRING;
 
 Reader::Reader() : impl_() {}
 
-Reader::Reader(ReaderImplPtr impl) : impl_(impl) {}
+Reader::Reader(const ReaderImplPtr& impl) : impl_(impl) {}
 
 const std::string& Reader::getTopic() const { return impl_ != NULL ? impl_->getTopic() : EMPTY_STRING; }
 
@@ -49,7 +49,7 @@ Result Reader::readNext(Message& msg, int timeoutMs) {
     return impl_->readNext(msg, timeoutMs);
 }
 
-void Reader::readNextAsync(ReadNextCallback callback) {
+void Reader::readNextAsync(const ReadNextCallback& callback) {
     if (!impl_) {
         return callback(ResultConsumerNotInitialized, {});
     }
@@ -66,7 +66,7 @@ Result Reader::close() {
     return result;
 }
 
-void Reader::closeAsync(ResultCallback callback) {
+void Reader::closeAsync(const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -75,7 +75,7 @@ void Reader::closeAsync(ResultCallback callback) {
     impl_->closeAsync(callback);
 }
 
-void Reader::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
+void Reader::hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized, false);
         return;
@@ -91,7 +91,7 @@ Result Reader::hasMessageAvailable(bool& hasMessageAvailable) {
     return promise.getFuture().get(hasMessageAvailable);
 }
 
-void Reader::seekAsync(const MessageId& msgId, ResultCallback callback) {
+void Reader::seekAsync(const MessageId& msgId, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -99,7 +99,7 @@ void Reader::seekAsync(const MessageId& msgId, ResultCallback callback) {
     impl_->seekAsync(msgId, callback);
 }
 
-void Reader::seekAsync(uint64_t timestamp, ResultCallback callback) {
+void Reader::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized);
         return;
@@ -125,7 +125,7 @@ Result Reader::seek(uint64_t timestamp) {
 
 bool Reader::isConnected() const { return impl_ && impl_->isConnected(); }
 
-void Reader::getLastMessageIdAsync(GetLastMessageIdCallback callback) {
+void Reader::getLastMessageIdAsync(const GetLastMessageIdCallback& callback) {
     if (!impl_) {
         callback(ResultConsumerNotInitialized, MessageId());
         return;

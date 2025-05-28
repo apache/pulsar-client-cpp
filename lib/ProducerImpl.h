@@ -71,7 +71,7 @@ class MessageMetadata;
 
 class ProducerImpl : public HandlerBase, public ProducerImplBase {
    public:
-    ProducerImpl(ClientImplPtr client, const TopicName& topic,
+    ProducerImpl(const ClientImplPtr& client, const TopicName& topic,
                  const ProducerConfiguration& producerConfiguration,
                  const ProducerInterceptorsPtr& interceptors, int32_t partition = -1,
                  bool retryOnCreationError = false);
@@ -85,6 +85,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     void closeAsync(CloseCallback callback) override;
     void start() override;
     void shutdown() override;
+    void internalShutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
     Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
@@ -143,7 +144,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     Result handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
                                 const ResponseData& responseData);
 
-    void resendMessages(ClientConnectionPtr cnx);
+    void resendMessages(const ClientConnectionPtr& cnx);
 
     void refreshEncryptionKey(const ASIO_ERROR& ec);
     bool encryptMessage(proto::MessageMetadata& metadata, SharedBuffer& payload,

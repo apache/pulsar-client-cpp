@@ -23,6 +23,8 @@
 #include <pulsar/Logger.h>
 #include <pulsar/defines.h>
 
+#include <cstdint>
+
 namespace pulsar {
 class PulsarWrapper;
 struct ClientConfigurationImpl;
@@ -32,7 +34,7 @@ class PULSAR_PUBLIC ClientConfiguration {
     ~ClientConfiguration();
     ClientConfiguration(const ClientConfiguration&);
     ClientConfiguration& operator=(const ClientConfiguration&);
-    enum ProxyProtocol
+    enum ProxyProtocol : uint8_t
     {
         SNI = 0
     };

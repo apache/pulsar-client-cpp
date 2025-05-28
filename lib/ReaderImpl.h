@@ -58,35 +58,36 @@ extern PULSAR_PUBLIC ConsumerConfiguration consumerConfigOfReader;
 
 class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl> {
    public:
-    ReaderImpl(const ClientImplPtr client, const std::string& topic, int partitions,
-               const ReaderConfiguration& conf, const ExecutorServicePtr listenerExecutor,
-               ReaderCallback readerCreatedCallback);
+    ReaderImpl(const ClientImplPtr& client, const std::string& topic, int partitions,
+               const ReaderConfiguration& conf, const ExecutorServicePtr& listenerExecutor,
+               const ReaderCallback& readerCreatedCallback);
 
-    void start(const MessageId& startMessageId, std::function<void(const ConsumerImplBaseWeakPtr&)> callback);
+    void start(const MessageId& startMessageId,
+               const std::function<void(const ConsumerImplBaseWeakPtr&)>& callback);
 
     const std::string& getTopic() const;
 
     Result readNext(Message& msg);
     Result readNext(Message& msg, int timeoutMs);
-    void readNextAsync(ReceiveCallback callback);
+    void readNextAsync(const ReceiveCallback& callback);
 
-    void closeAsync(ResultCallback callback);
+    void closeAsync(const ResultCallback& callback);
 
     Future<Result, ReaderImplWeakPtr> getReaderCreatedFuture();
 
     ConsumerImplBasePtr getConsumer() const noexcept { return consumer_; }
 
-    void hasMessageAvailableAsync(HasMessageAvailableCallback callback);
+    void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback);
 
-    void seekAsync(const MessageId& msgId, ResultCallback callback);
-    void seekAsync(uint64_t timestamp, ResultCallback callback);
+    void seekAsync(const MessageId& msgId, const ResultCallback& callback);
+    void seekAsync(uint64_t timestamp, const ResultCallback& callback);
 
-    void getLastMessageIdAsync(GetLastMessageIdCallback callback);
+    void getLastMessageIdAsync(const GetLastMessageIdCallback& callback);
 
     bool isConnected() const;
 
    private:
-    void messageListener(Consumer consumer, const Message& msg);
+    void messageListener(const Consumer& consumer, const Message& msg);
 
     void acknowledgeIfNecessary(Result result, const Message& msg);
 

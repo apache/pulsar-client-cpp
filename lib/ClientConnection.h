@@ -23,6 +23,7 @@
 #include <pulsar/defines.h>
 
 #include <atomic>
+#include <cstdint>
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
 #include <asio/io_service.hpp>
@@ -113,7 +114,7 @@ struct ResponseData {
 typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;
 
 class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<ClientConnection> {
-    enum State
+    enum State : uint8_t
     {
         Pending,
         TcpConnected,
@@ -135,7 +136,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      *
      */
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                     ExecutorServicePtr executor, const ClientConfiguration& clientConfiguration,
+                     const ExecutorServicePtr& executor, const ClientConfiguration& clientConfiguration,
                      const AuthenticationPtr& authentication, const std::string& clientVersion,
                      ConnectionPool& pool, size_t poolIndex);
     ~ClientConnection();
@@ -167,17 +168,17 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     Future<Result, ClientConnectionWeakPtr> getCloseFuture();
 
     void newTopicLookup(const std::string& topicName, bool authoritative, const std::string& listenerName,
-                        const uint64_t requestId, LookupDataResultPromisePtr promise);
+                        uint64_t requestId, const LookupDataResultPromisePtr& promise);
 
-    void newPartitionedMetadataLookup(const std::string& topicName, const uint64_t requestId,
-                                      LookupDataResultPromisePtr promise);
+    void newPartitionedMetadataLookup(const std::string& topicName, uint64_t requestId,
+                                      const LookupDataResultPromisePtr& promise);
 
     void sendCommand(const SharedBuffer& cmd);
     void sendCommandInternal(const SharedBuffer& cmd);
     void sendMessage(const std::shared_ptr<SendArguments>& args);
 
-    void registerProducer(int producerId, ProducerImplPtr producer);
-    void registerConsumer(int consumerId, ConsumerImplPtr consumer);
+    void registerProducer(int producerId, const ProducerImplPtr& producer);
+    void registerConsumer(int consumerId, const ConsumerImplPtr& consumer);
 
     void removeProducer(int producerId);
     void removeConsumer(int consumerId);
@@ -186,7 +187,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Send a request with a specific Id over the connection. The future will be
      * triggered when the response for this request is received
      */
-    Future<Result, ResponseData> sendRequestWithId(SharedBuffer cmd, int requestId);
+    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId);
 
     const std::string& brokerAddress() const;
 
@@ -260,18 +261,18 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void handlePulsarConnected(const proto::CommandConnected& cmdConnected);
 
-    void handleResolve(const ASIO_ERROR& err, ASIO::ip::tcp::resolver::iterator endpointIterator);
+    void handleResolve(const ASIO_ERROR& err, const ASIO::ip::tcp::resolver::iterator& endpointIterator);
 
     void handleSend(const ASIO_ERROR& err, const SharedBuffer& cmd);
     void handleSendPair(const ASIO_ERROR& err);
     void sendPendingCommands();
-    void newLookup(const SharedBuffer& cmd, const uint64_t requestId, LookupDataResultPromisePtr promise);
+    void newLookup(const SharedBuffer& cmd, uint64_t requestId, const LookupDataResultPromisePtr& promise);
 
-    void handleRequestTimeout(const ASIO_ERROR& ec, PendingRequestData pendingRequestData);
+    void handleRequestTimeout(const ASIO_ERROR& ec, const PendingRequestData& pendingRequestData);
 
-    void handleLookupTimeout(const ASIO_ERROR&, LookupRequestData);
+    void handleLookupTimeout(const ASIO_ERROR&, const LookupRequestData&);
 
-    void handleGetLastMessageIdTimeout(const ASIO_ERROR&, LastMessageIdRequestData data);
+    void handleGetLastMessageIdTimeout(const ASIO_ERROR&, const LastMessageIdRequestData& data);
 
     void handleKeepAliveTimeout();
 
@@ -392,7 +393,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
 
-    void handleConsumerStatsTimeout(const ASIO_ERROR& ec, std::vector<uint64_t> consumerStatsRequests);
+    void handleConsumerStatsTimeout(const ASIO_ERROR& ec, const std::vector<uint64_t>& consumerStatsRequests);
 
     void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
     uint32_t maxPendingLookupRequest_;

@@ -19,11 +19,9 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <functional>
-#include <memory>
 #include <mutex>
 
 #include "ConsumerTest.h"
@@ -41,7 +39,7 @@ static std::string lookupUrl = "pulsar://localhost:6650";
 static std::string adminUrl = "http://localhost:8080";
 static std::string contentBase = "msg-";
 
-static void messageListenerFunction(Consumer consumer, const Message& msg, Latch& latch) {
+static void messageListenerFunction(const Consumer& consumer, const Message& msg, Latch& latch) {
     ASSERT_EQ(0, ConsumerTest::getNumOfMessagesInQueue(consumer));
     std::ostringstream ss;
     ss << contentBase << globalCount;
@@ -128,12 +126,12 @@ TEST(ZeroQueueSizeTest, testMessageListener) {
 }
 
 static ConsumerConfiguration zeroQueueSharedConsumerConf(
-    const std::string& name, std::function<void(Consumer, const Message&)> callback) {
+    const std::string& name, const std::function<void(Consumer, const Message&)>& callback) {
     ConsumerConfiguration conf;
     conf.setConsumerType(ConsumerShared);
     conf.setReceiverQueueSize(0);
     conf.setSubscriptionInitialPosition(InitialPositionEarliest);
-    conf.setMessageListener([name, callback](Consumer consumer, const Message& msg) {
+    conf.setMessageListener([name, callback](const Consumer& consumer, const Message& msg) {
         LOG_INFO(name << " received " << msg.getDataAsString() << " from " << msg.getMessageId());
         callback(consumer, msg);
     });

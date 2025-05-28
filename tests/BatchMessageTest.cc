@@ -307,7 +307,7 @@ TEST(BatchMessageTest, testSmallReceiverQueueSize) {
     ProducerStatsImplPtr producerStatsImplPtr = PulsarFriend::getProducerStatsPtr(producer);
     // Send Asynchronously
     std::atomic_int numOfMessagesProduced{0};
-    std::string prefix = testName;
+    const auto& prefix = testName;
     for (int i = 0; i < numOfMessages; i++) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg =
@@ -400,7 +400,7 @@ TEST(BatchMessageTest, testIndividualAck) {
 
     // Send Asynchronously
     std::atomic_int numOfMessagesProduced{0};
-    std::string prefix = testName;
+    const auto& prefix = testName;
     for (int i = 0; i < numOfMessages; i++) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg =
@@ -552,7 +552,7 @@ TEST(BatchMessageTest, testCumulativeAck) {
 
     // Send Asynchronously
     std::atomic_int numOfMessagesProduced{0};
-    std::string prefix = testName;
+    const auto& prefix = testName;
     for (int i = 0; i < numOfMessages; i++) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg =
@@ -671,7 +671,7 @@ TEST(BatchMessageTest, testMixedAck) {
 
     // Send Asynchronously
     std::atomic_int numOfMessagesProduced{0};
-    std::string prefix = testName;
+    const auto& prefix = testName;
     for (int i = 0; i < numOfMessages; i++) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg =
@@ -779,7 +779,7 @@ TEST(BatchMessageTest, testPermits) {
 
     // Send Asynchronously
     std::atomic_int numOfMessagesProduced{0};
-    std::string prefix = testName;
+    const auto& prefix = testName;
     for (int i = 0; i < numOfMessages; i++) {
         std::string messageContent = prefix + std::to_string(i);
         Message msg =

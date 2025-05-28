@@ -20,6 +20,7 @@
 
 #include <pulsar/defines.h>
 
+#include <cstdint>
 #include <iosfwd>
 #include <map>
 #include <memory>
@@ -30,7 +31,7 @@ namespace pulsar {
 /**
  *  Encoding types of supported KeyValueSchema for Pulsar messages.
  */
-enum class KeyValueEncodingType
+enum class KeyValueEncodingType : uint8_t
 {
     /**
      * Key is stored as message key, while value is stored as message payload.
@@ -46,9 +47,9 @@ enum class KeyValueEncodingType
 // Return string representation of result code
 PULSAR_PUBLIC const char *strEncodingType(pulsar::KeyValueEncodingType encodingType);
 
-PULSAR_PUBLIC KeyValueEncodingType enumEncodingType(std::string encodingTypeStr);
+PULSAR_PUBLIC KeyValueEncodingType enumEncodingType(const std::string &encodingTypeStr);
 
-enum SchemaType
+enum SchemaType : int8_t
 {
     /**
      * No schema defined
@@ -134,7 +135,7 @@ enum SchemaType
 // Return string representation of result code
 PULSAR_PUBLIC const char *strSchemaType(SchemaType schemaType);
 
-PULSAR_PUBLIC SchemaType enumSchemaType(std::string schemaTypeStr);
+PULSAR_PUBLIC SchemaType enumSchemaType(const std::string &schemaTypeStr);
 
 class SchemaInfoImpl;
 

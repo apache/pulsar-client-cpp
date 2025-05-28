@@ -46,8 +46,8 @@ class SharedBuffer {
     SharedBuffer& operator=(const SharedBuffer&) = default;
 
     // Move constructor.
-    SharedBuffer(SharedBuffer&& right) { *this = std::move(right); }
-    SharedBuffer& operator=(SharedBuffer&& right) {
+    SharedBuffer(SharedBuffer&& right) noexcept { *this = std::move(right); }
+    SharedBuffer& operator=(SharedBuffer&& right) noexcept {
         this->data_ = std::move(right.data_);
 
         this->ptr_ = right.ptr_;

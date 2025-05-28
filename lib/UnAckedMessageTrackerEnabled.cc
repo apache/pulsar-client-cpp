@@ -32,7 +32,11 @@ namespace pulsar {
 
 void UnAckedMessageTrackerEnabled::timeoutHandler() {
     timeoutHandlerHelper();
-    ExecutorServicePtr executorService = client_->getIOExecutorProvider()->get();
+    auto client = client_.lock();
+    if (client == nullptr) {
+        return;
+    }
+    ExecutorServicePtr executorService = client->getIOExecutorProvider()->get();
     timer_ = executorService->createDeadlineTimer();
     timer_->expires_from_now(std::chrono::milliseconds(tickDurationInMs_));
     std::weak_ptr<UnAckedMessageTrackerEnabled> weakSelf{shared_from_this()};
@@ -73,12 +77,12 @@ void UnAckedMessageTrackerEnabled::timeoutHandlerHelper() {
     }
 }
 
-UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, const ClientImplPtr client,
+UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, const ClientImplPtr& client,
                                                            ConsumerImplBase& consumer)
     : UnAckedMessageTrackerEnabled(timeoutMs, timeoutMs, client, consumer) {}
 
 UnAckedMessageTrackerEnabled::UnAckedMessageTrackerEnabled(long timeoutMs, long tickDurationInMs,
-                                                           const ClientImplPtr client,
+                                                           const ClientImplPtr& client,
                                                            ConsumerImplBase& consumer)
     : consumerReference_(consumer),
       client_(client),

@@ -75,7 +75,7 @@ class ProducerStatsImpl : public std::enable_shared_from_this<ProducerStatsImpl>
     void scheduleTimer();
 
    public:
-    ProducerStatsImpl(std::string, ExecutorServicePtr, unsigned int);
+    ProducerStatsImpl(std::string, const ExecutorServicePtr&, unsigned int);
 
     ProducerStatsImpl(const ProducerStatsImpl& stats);
 

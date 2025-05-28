@@ -45,9 +45,9 @@ std::string ProducerStatsImpl::latencyToString(const LatencyAccumulator& obj) {
     return os.str();
 }
 
-ProducerStatsImpl::ProducerStatsImpl(std::string producerStr, ExecutorServicePtr executor,
+ProducerStatsImpl::ProducerStatsImpl(std::string producerStr, const ExecutorServicePtr& executor,
                                      unsigned int statsIntervalInSeconds)
-    : producerStr_(producerStr),
+    : producerStr_(std::move(producerStr)),
       latencyAccumulator_(boost::accumulators::tag::extended_p_square::probabilities = probs),
       totalLatencyAccumulator_(boost::accumulators::tag::extended_p_square::probabilities = probs),
       timer_(executor->createDeadlineTimer()),

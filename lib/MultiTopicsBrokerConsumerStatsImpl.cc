@@ -152,7 +152,7 @@ BrokerConsumerStats MultiTopicsBrokerConsumerStatsImpl::getBrokerConsumerStats(i
     return statsList_[index];
 }
 
-void MultiTopicsBrokerConsumerStatsImpl::add(BrokerConsumerStats stats, int index) {
+void MultiTopicsBrokerConsumerStatsImpl::add(const BrokerConsumerStats& stats, int index) {
     statsList_[index] = stats;
 }
 

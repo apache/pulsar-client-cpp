@@ -116,11 +116,12 @@ TEST(ClientTest, testConnectTimeout) {
 
     std::promise<Result> promiseLow;
     clientLow.createProducerAsync(
-        topic, [&promiseLow](Result result, Producer producer) { promiseLow.set_value(result); });
+        topic, [&promiseLow](Result result, const Producer &producer) { promiseLow.set_value(result); });
 
     std::promise<Result> promiseDefault;
-    clientDefault.createProducerAsync(
-        topic, [&promiseDefault](Result result, Producer producer) { promiseDefault.set_value(result); });
+    clientDefault.createProducerAsync(topic, [&promiseDefault](Result result, const Producer &producer) {
+        promiseDefault.set_value(result);
+    });
 
     auto futureLow = promiseLow.get_future();
     ASSERT_EQ(futureLow.wait_for(std::chrono::milliseconds(1500)), std::future_status::ready);
@@ -334,7 +335,8 @@ class PulsarWrapper {
 
 // When `subscription` is empty, get client versions of the producers.
 // Otherwise, get client versions of the consumers under the subscribe.
-static std::vector<std::string> getClientVersions(const std::string &topic, std::string subscription = "") {
+static std::vector<std::string> getClientVersions(const std::string &topic,
+                                                  const std::string &subscription = "") {
     boost::property_tree::ptree root;
     const auto error = getTopicStats(topic, root);
     if (!error.empty()) {
@@ -403,7 +405,7 @@ TEST(ClientTest, testConnectionClose) {
 
     const auto topic = "client-test-connection-close";
     for (auto &client : clients) {
-        auto testClose = [&client](ClientConnectionWeakPtr weakCnx) {
+        auto testClose = [&client](const ClientConnectionWeakPtr &weakCnx) {
             auto cnx = weakCnx.lock();
             ASSERT_TRUE(cnx);
 

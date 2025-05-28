@@ -90,14 +90,14 @@ TEST(LookupServiceTest, basicLookup) {
 
     Future<Result, LookupDataResultPtr> partitionFuture = lookupService.getPartitionMetadataAsync(topicName);
     LookupDataResultPtr lookupData;
-    Result result = partitionFuture.get(lookupData);
+    partitionFuture.get(lookupData);
     ASSERT_TRUE(lookupData != NULL);
     ASSERT_EQ(0, lookupData->getPartitions());
 
     const auto topicNamePtr = TopicName::get("topic");
     auto future = lookupService.getBroker(*topicNamePtr);
     LookupService::LookupResult lookupResult;
-    result = future.get(lookupResult);
+    auto result = future.get(lookupResult);
 
     ASSERT_EQ(ResultOk, result);
     ASSERT_EQ(url, lookupResult.logicalAddress);
