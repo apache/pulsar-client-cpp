@@ -1561,6 +1561,10 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, ResultCallback callback) {
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
 
 void ConsumerImpl::hasMessageAvailableAsync(HasMessageAvailableCallback callback) {
+    if (!incomingMessages_.empty()) {
+        callback(ResultOk, true);
+        return;
+    }
     bool compareMarkDeletePosition;
     {
         std::lock_guard<std::mutex> lock{mutexForMessageId_};
@@ -1726,6 +1730,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, SharedBuffer seek, const Se
         hasSoughtByTimestamp_.store(true, std::memory_order_release);
     } else {
         seekMessageId_ = *boost::get<MessageId>(&seekArg);
+        hasSoughtByTimestamp_.store(false, std::memory_order_release);
     }
     seekStatus_ = SeekStatus::IN_PROGRESS;
     seekCallback_ = std::move(callback);
