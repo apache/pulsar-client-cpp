@@ -103,3 +103,42 @@ TEST(MultiTopicsConsumerTest, testSeekToNewerPosition) {
 
     client.close();
 }
+
+TEST(MultiTopicsConsumerTest, testAcknowledgeInvalidMessageId) {
+    const std::string topicPrefix = "multi-topics-consumer-ack-invalid-msg-id";
+    Client client{lookupUrl};
+    std::vector<std::string> topics(2);
+    for (size_t i = 0; i < topics.size(); i++) {
+        Producer producer;
+        auto topic = topicPrefix + unique_str();
+        ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-" + std::to_string(i)).build()));
+        topics[i] = std::move(topic);
+    }
+
+    Consumer consumer;
+    ConsumerConfiguration conf;
+    conf.setSubscriptionInitialPosition(InitialPositionEarliest);
+    ASSERT_EQ(ResultOk, client.subscribe(topics, "sub", conf, consumer));
+
+    std::vector<MessageId> msgIds(topics.size());
+    for (size_t i = 0; i < topics.size(); i++) {
+        Message msg;
+        ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+        std::string serialized;
+        msg.getMessageId().serialize(serialized);
+        msgIds[i] = MessageId::deserialize(serialized);
+    }
+
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msgIds[0]));
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msgIds));
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledgeCumulative(msgIds[1]));
+
+    msgIds[0].setTopicName("invalid-topic");
+    msgIds[1].setTopicName("invalid-topic");
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msgIds[0]));
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msgIds));
+    ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledgeCumulative(msgIds[1]));
+
+    client.close();
+}
