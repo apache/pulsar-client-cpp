@@ -650,6 +650,14 @@ void MultiTopicsConsumerImpl::notifyPendingReceivedCallback(Result result, const
     callback(result, msg);
 }
 
+static void logErrorTopicNameForAcknowledge(const std::string& topic) {
+    if (topic.empty()) {
+        LOG_ERROR("MessageId without a topic name cannot be acknowledged for a multi-topics consumer");
+    } else {
+        LOG_ERROR("Message of topic: " << topic << " not in consumers");
+    }
+}
+
 void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCallback callback) {
     if (state_ != Ready) {
         interceptors_->onAcknowledge(Consumer(shared_from_this()), ResultAlreadyClosed, msgId);
@@ -658,19 +666,14 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageId& msgId, ResultCal
     }
 
     const std::string& topicPartitionName = msgId.getTopicName();
-    if (topicPartitionName.empty()) {
-        LOG_ERROR("MessageId without a topic name cannot be acknowledged for a multi-topics consumer");
-        callback(ResultOperationNotSupported);
-        return;
-    }
     auto optConsumer = consumers_.find(topicPartitionName);
 
     if (optConsumer) {
         unAckedMessageTrackerPtr_->remove(msgId);
         optConsumer.value()->acknowledgeAsync(msgId, callback);
     } else {
-        LOG_ERROR("Message of topic: " << topicPartitionName << " not in unAckedMessageTracker");
-        callback(ResultUnknownError);
+        logErrorTopicNameForAcknowledge(topicPartitionName);
+        callback(ResultOperationNotSupported);
     }
 }
 
@@ -684,7 +687,7 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
     for (const MessageId& messageId : messageIdList) {
         auto topicName = messageId.getTopicName();
         if (topicName.empty()) {
-            LOG_ERROR("MessageId without a topic name cannot be acknowledged for a multi-topics consumer");
+            logErrorTopicNameForAcknowledge(topicName);
             callback(ResultOperationNotSupported);
             return;
         }
@@ -710,18 +713,21 @@ void MultiTopicsConsumerImpl::acknowledgeAsync(const MessageIdList& messageIdLis
             unAckedMessageTrackerPtr_->remove(kv.second);
             optConsumer.value()->acknowledgeAsync(kv.second, cb);
         } else {
-            LOG_ERROR("Message of topic: " << kv.first << " not in consumers");
-            callback(ResultUnknownError);
+            logErrorTopicNameForAcknowledge(kv.first);
+            callback(ResultOperationNotSupported);
         }
     }
 }
 
 void MultiTopicsConsumerImpl::acknowledgeCumulativeAsync(const MessageId& msgId, ResultCallback callback) {
-    msgId.getTopicName();
+    const auto& topic = msgId.getTopicName();
     auto optConsumer = consumers_.find(msgId.getTopicName());
     if (optConsumer) {
         unAckedMessageTrackerPtr_->removeMessagesTill(msgId);
         optConsumer.value()->acknowledgeCumulativeAsync(msgId, callback);
+    } else {
+        logErrorTopicNameForAcknowledge(topic);
+        callback(ResultOperationNotSupported);
     }
 }
 
