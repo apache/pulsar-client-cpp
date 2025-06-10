@@ -21,7 +21,9 @@
 #include <pulsar/Reader.h>
 #include <time.h>
 
+#include <future>
 #include <string>
+#include <thread>
 
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
@@ -850,7 +852,7 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
     ASSERT_FALSE(hasMessageAvailable);
 }
 
-TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
+TEST_F(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
     using namespace std::chrono;
     const auto topic = "test-has-message-available-after-seek-timestamp-" + std::to_string(time(nullptr));
     Producer producer;
@@ -862,12 +864,10 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
 
     auto createReader = [this, &topic](Reader& reader, const MessageId& msgId) {
         ASSERT_EQ(ResultOk, client.createReader(topic, msgId, {}, reader));
-        if (GetParam()) {
-            if (msgId == MessageId::earliest()) {
-                EXPECT_HAS_MESSAGE_AVAILABLE(reader, true);
-            } else {
-                EXPECT_HAS_MESSAGE_AVAILABLE(reader, false);
-            }
+        if (msgId == MessageId::earliest()) {
+            EXPECT_HAS_MESSAGE_AVAILABLE(reader, true);
+        } else {
+            EXPECT_HAS_MESSAGE_AVAILABLE(reader, false);
         }
     };
 
@@ -886,6 +886,22 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
         ASSERT_EQ(ResultOk, reader.seek(timestampBeforeSend));
         EXPECT_HAS_MESSAGE_AVAILABLE(reader, true);
     }
+
+    // Test `hasMessageAvailableAsync` will complete immediately if the incoming message queue is non-empty
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::latest(), {}, reader));
+    reader.seek(timestampBeforeSend);
+    std::promise<std::thread::id> threadIdPromise;
+
+    waitUntil(seconds(3),
+              [&reader] { return PulsarFriend::getConsumer(reader)->getNumOfPrefetchedMessages() > 0; });
+    reader.hasMessageAvailableAsync([&threadIdPromise](Result result, bool hasMessageAvailable) {
+        ASSERT_EQ(ResultOk, result);
+        ASSERT_TRUE(hasMessageAvailable);
+        threadIdPromise.set_value(std::this_thread::get_id());
+    });
+    auto threadId = threadIdPromise.get_future().get();
+    ASSERT_EQ(threadId, std::this_thread::get_id());
 }
 
 TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
