@@ -76,7 +76,6 @@ target_include_directories(PULSAR_OBJECT_LIB PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_BINARY_DIR}/include")
 
-option(LINK_STATIC_GCC_CXX "Link statically to libgcc and libstdc++" OFF)
 include(CheckCXXSymbolExists)
 if (BUILD_DYNAMIC_LIB)
     add_library(pulsarShared SHARED $<TARGET_OBJECTS:PULSAR_OBJECT_LIB>)
@@ -93,10 +92,6 @@ if (BUILD_DYNAMIC_LIB)
     endif()
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_link_options(pulsarShared PRIVATE -Wl,-Bsymbolic)
-    endif ()
-    check_cxx_symbol_exists(__GLIBCXX__ iostream GLIBCXX)
-    if (GLIBCXX AND LINK_STATIC_GCC_CXX)
-        target_link_libraries(pulsarShared PUBLIC -static-libgcc -static-libstdc++)
     endif ()
 endif()
 
