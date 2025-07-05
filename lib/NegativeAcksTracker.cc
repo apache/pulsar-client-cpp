@@ -19,14 +19,20 @@
 
 #include "NegativeAcksTracker.h"
 
+#include <bits/stdint-uintn.h>
+
 #include <functional>
 #include <set>
+#include <utility>
 
 #include "ClientImpl.h"
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
 #include "MessageIdUtil.h"
+#include "pulsar/MessageBuilder.h"
+#include "pulsar/MessageId.h"
+#include "pulsar/MessageIdBuilder.h"
 DECLARE_LOG_OBJECT()
 
 namespace pulsar {
@@ -75,13 +81,22 @@ void NegativeAcksTracker::handleTimer(const ASIO_ERROR &ec) {
 
     auto now = Clock::now();
 
+    // The map is sorted by time, so we can exit immediately when we traverse to a time that does not match
     for (auto it = nackedMessages_.begin(); it != nackedMessages_.end();) {
-        if (it->second < now) {
-            messagesToRedeliver.insert(it->first);
-            it = nackedMessages_.erase(it);
-        } else {
-            ++it;
+        if (it->first > now) {
+            // We are done with all the messages that need to be redelivered
+            break;
         }
+
+        auto ledgerMap = it->second;
+        for (auto ledgerIt = ledgerMap.begin(); ledgerIt != ledgerMap.end(); ++ledgerIt) {
+            auto entrySet = ledgerIt->second;
+            for (auto setIt = entrySet.begin(); setIt != entrySet.end(); ++setIt) {
+                messagesToRedeliver.insert(
+                    MessageIdBuilder().ledgerId(ledgerIt->first).entryId(*setIt).build());
+            }
+        }
+        it = nackedMessages_.erase(it);
     }
     lock.unlock();
 
@@ -99,7 +114,7 @@ void NegativeAcksTracker::add(const MessageId &m) {
     {
         std::lock_guard<std::mutex> lock{mutex_};
         // Erase batch id to group all nacks from same batch
-        nackedMessages_[msgId] = now + nackDelay_;
+        nackedMessages_[now][msgId.ledgerId()].add((uint64_t)msgId.entryId());
     }
 
     scheduleTimer();

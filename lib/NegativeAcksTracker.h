@@ -27,6 +27,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <roaring/roaring64map.hh>
+#include <unordered_map>
 
 #include "AsioDefines.h"
 #include "AsioTimer.h"
@@ -39,6 +41,7 @@ class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
+using LedgerId = int64_t;
 
 class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTracker> {
    public:
@@ -65,7 +68,7 @@ class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTrac
     std::chrono::milliseconds nackDelay_;
     std::chrono::milliseconds timerInterval_;
     typedef typename std::chrono::steady_clock Clock;
-    std::map<MessageId, Clock::time_point> nackedMessages_;
+    std::map<Clock::time_point, std::unordered_map<LedgerId, roaring::Roaring64Map>> nackedMessages_;
 
     const DeadlineTimerPtr timer_;
     std::atomic_bool closed_{false};

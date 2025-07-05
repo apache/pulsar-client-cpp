@@ -124,6 +124,7 @@ if (INTEGRATE_VCPKG)
     find_package(protobuf CONFIG REQUIRED)
     find_package(zstd CONFIG REQUIRED)
     find_package(Snappy CONFIG REQUIRED)
+    find_package(roaring CONFIG REQUIRED)
     set(COMMON_LIBS CURL::libcurl
         ZLIB::ZLIB
         OpenSSL::SSL
@@ -131,6 +132,9 @@ if (INTEGRATE_VCPKG)
         protobuf::libprotobuf
         $<IF:$<TARGET_EXISTS:zstd::libzstd_shared>,zstd::libzstd_shared,zstd::libzstd_static>
         Snappy::snappy
+        roaring::roaring
+        roaring::roaring-headers
+        roaring::roaring-headers-cpp
         )
     if (USE_ASIO)
         find_package(asio CONFIG REQUIRED)
