@@ -42,6 +42,11 @@ using ClientImplPtr = std::shared_ptr<ClientImpl>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 using LedgerId = int64_t;
+#if __cplusplus >= 202002L
+using ConditionalRoaringMap = Roaring64Map;
+#else
+using ConditionalRoaringMap = roaring::Roaring64Map;
+#endif
 
 class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTracker> {
    public:
@@ -68,7 +73,7 @@ class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTrac
     std::chrono::milliseconds nackDelay_;
     std::chrono::milliseconds timerInterval_;
     typedef typename std::chrono::steady_clock Clock;
-    std::map<Clock::time_point, std::unordered_map<LedgerId, roaring::Roaring64Map>> nackedMessages_;
+    std::map<Clock::time_point, std::unordered_map<LedgerId, ConditionalRoaringMap>> nackedMessages_;
 
     const DeadlineTimerPtr timer_;
     std::atomic_bool closed_{false};

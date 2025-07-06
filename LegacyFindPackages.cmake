@@ -93,6 +93,8 @@ endif ()
 message("Protobuf_INCLUDE_DIRS: " ${Protobuf_INCLUDE_DIRS})
 message("Protobuf_LIBRARIES: " ${Protobuf_LIBRARIES})
 
+find_package(roaring REQUIRED)
+
 # NOTE: CMake might not find curl and zlib on some platforms like Ubuntu, in this case, find them manually
 set(CURL_NO_CURL_CMAKE ON)
 find_package(curl QUIET)
@@ -129,6 +131,7 @@ if (LINK_STATIC AND NOT VCPKG_TRIPLET)
 elseif (LINK_STATIC AND VCPKG_TRIPLET)
     find_package(Protobuf REQUIRED)
     message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    find_package(roaring REQUIRED)
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(ZLIB_LIBRARIES NAMES zlibd)
     else ()
