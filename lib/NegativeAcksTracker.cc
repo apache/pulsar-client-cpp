@@ -19,7 +19,7 @@
 
 #include "NegativeAcksTracker.h"
 
-#include <bits/stdint-uintn.h>
+#include <cstdint>
 
 #include <functional>
 #include <set>

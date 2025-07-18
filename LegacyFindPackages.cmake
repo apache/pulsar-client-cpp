@@ -93,8 +93,6 @@ endif ()
 message("Protobuf_INCLUDE_DIRS: " ${Protobuf_INCLUDE_DIRS})
 message("Protobuf_LIBRARIES: " ${Protobuf_LIBRARIES})
 
-find_package(roaring REQUIRED)
-
 # NOTE: CMake might not find curl and zlib on some platforms like Ubuntu, in this case, find them manually
 set(CURL_NO_CURL_CMAKE ON)
 find_package(curl QUIET)
@@ -117,6 +115,17 @@ message("ZLIB_INCLUDE_DIRS: " ${ZLIB_INCLUDE_DIRS})
 message("ZLIB_LIBRARIES: " ${ZLIB_LIBRARIES})
 if (NOT ZLIB_INCLUDE_DIRS OR NOT ZLIB_LIBRARIES)
     message(FATAL_ERROR "Could not find zlib")
+endif ()
+
+find_package(roaring QUIET)
+if (NOT ROARING_FOUND)
+    find_path(ROARING_INCLUDE_DIRS NAMES roaring/roaring.hh)
+    find_library(ROARING_LIBRARIES NAMES roaring libroaring)
+endif ()
+message("ROARING_INCLUDE_DIRS: " ${ROARING_INCLUDE_DIRS})
+message("ROARING_LIBRARIES: " ${ROARING_LIBRARIES})
+if (NOT ROARING_INCLUDE_DIRS OR NOT ROARING_LIBRARIES)
+    message(FATAL_ERROR "Could not find libroaring")
 endif ()
 
 if (LINK_STATIC AND NOT VCPKG_TRIPLET)
@@ -234,6 +243,7 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
   ${ZLIB_INCLUDE_DIRS}
+  ${ROARING_INCLUDE_DIRS}
   ${CURL_INCLUDE_DIRS}
   ${Protobuf_INCLUDE_DIRS}
   ${GTEST_INCLUDE_PATH}
@@ -249,6 +259,7 @@ set(COMMON_LIBS
   ${CURL_LIBRARIES}
   ${OPENSSL_LIBRARIES}
   ${ZLIB_LIBRARIES}
+  ${ROARING_LIBRARIES}
   ${ADDITIONAL_LIBRARIES}
   ${CMAKE_DL_LIBS}
 )
