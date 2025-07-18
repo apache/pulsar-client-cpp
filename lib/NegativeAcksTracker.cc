@@ -20,7 +20,6 @@
 #include "NegativeAcksTracker.h"
 
 #include <cstdint>
-
 #include <functional>
 #include <set>
 #include <utility>
