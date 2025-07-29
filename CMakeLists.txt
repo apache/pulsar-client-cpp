@@ -133,8 +133,6 @@ if (INTEGRATE_VCPKG)
         $<IF:$<TARGET_EXISTS:zstd::libzstd_shared>,zstd::libzstd_shared,zstd::libzstd_static>
         Snappy::snappy
         roaring::roaring
-        roaring::roaring-headers
-        roaring::roaring-headers-cpp
         )
     if (USE_ASIO)
         find_package(asio CONFIG REQUIRED)
