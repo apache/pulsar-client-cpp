@@ -26,4 +26,4 @@ zstd: 1.5.5
 snappy: 1.1.10
 openssl: 1.1.1w
 curl: 8.6.0
-roaring: 0.2.66
+roaring: 4.3.1
