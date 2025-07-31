@@ -72,6 +72,7 @@ class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTrac
 
     std::chrono::milliseconds nackDelay_;
     std::chrono::milliseconds timerInterval_;
+    int nackPrecisionBit_;
     typedef typename std::chrono::steady_clock Clock;
     std::map<Clock::time_point, std::unordered_map<LedgerId, ConditionalRoaringMap>> nackedMessages_;
 

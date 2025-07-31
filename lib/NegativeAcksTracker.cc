@@ -46,6 +46,7 @@ NegativeAcksTracker::NegativeAcksTracker(const ClientImplPtr &client, ConsumerIm
     nackDelay_ =
         std::chrono::milliseconds(std::max(conf.getNegativeAckRedeliveryDelayMs(), MIN_NACK_DELAY_MILLIS));
     timerInterval_ = std::chrono::milliseconds((long)(nackDelay_.count() / 3));
+    nackPrecisionBit_ = conf.getNegativeAckPrecisionBitCnt();
     LOG_DEBUG("Created negative ack tracker with delay: " << nackDelay_.count() << " ms - Timer interval: "
                                                           << timerInterval_.count());
 }
@@ -106,14 +107,27 @@ void NegativeAcksTracker::handleTimer(const ASIO_ERROR &ec) {
     scheduleTimer();
 }
 
+std::chrono::steady_clock::time_point trimLowerBit(const std::chrono::steady_clock::time_point &tp,
+                                                   int bits) {
+    // get origin timestamp in nanoseconds
+    auto timestamp = std::chrono::duration_cast<std::chrono::nanoseconds>(tp.time_since_epoch()).count();
+
+    // trim lower bits
+    auto trimmedTimestamp = timestamp & (~((1LL << bits) - 1));
+
+    return std::chrono::steady_clock::time_point(std::chrono::nanoseconds(trimmedTimestamp));
+}
+
 void NegativeAcksTracker::add(const MessageId &m) {
     auto msgId = discardBatch(m);
     auto now = Clock::now();
 
     {
         std::lock_guard<std::mutex> lock{mutex_};
+        auto trimmedTimestamp = trimLowerBit(now + nackDelay_, nackPrecisionBit_);
+        // If the timestamp is already in the map, we can just add the message to the existing entry
         // Erase batch id to group all nacks from same batch
-        nackedMessages_[now][msgId.ledgerId()].add((uint64_t)msgId.entryId());
+        nackedMessages_[trimmedTimestamp][msgId.ledgerId()].add((uint64_t)msgId.entryId());
     }
 
     scheduleTimer();
