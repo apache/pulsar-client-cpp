@@ -42,7 +42,7 @@ using ClientImplPtr = std::shared_ptr<ClientImpl>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 using LedgerId = int64_t;
-#if __cplusplus >= 202002L
+#ifdef ROARING_NAMESPACE_GLOBAL
 using ConditionalRoaringMap = Roaring64Map;
 #else
 using ConditionalRoaringMap = roaring::Roaring64Map;
