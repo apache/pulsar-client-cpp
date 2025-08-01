@@ -3249,12 +3249,6 @@ TEST(BasicEndToEndTest, testNegativeAcksWithPartitions) {
     testNegativeAcks(topicName, true);
 }
 
-int64_t getCurrentTimeMs() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-               std::chrono::system_clock::now().time_since_epoch())
-        .count();
-}
-
 void testNegativeAckPrecisionBitCnt(const std::string &topic, int precisionBitCnt) {
     constexpr int delayMs = 2000;
     const int64_t timeDeviation = 1L << precisionBitCnt;
@@ -3283,11 +3277,11 @@ void testNegativeAckPrecisionBitCnt(const std::string &topic, int precisionBitCn
     consumer.receive(received);
     consumer.negativeAcknowledge(received);
 
-    int64_t expectedRedeliveryTime = getCurrentTimeMs() + delayMs;
+    int64_t expectedRedeliveryTime = TimeUtils::currentTimeMillis() + delayMs;
 
     Message redelivered;
     consumer.receive(redelivered);
-    int64_t now = getCurrentTimeMs();
+    int64_t now = TimeUtils::currentTimeMillis();
     ASSERT_GE(now, expectedRedeliveryTime - timeDeviation);
     ASSERT_EQ(redelivered.getDataAsString(), "test-0");
 
