@@ -3249,6 +3249,54 @@ TEST(BasicEndToEndTest, testNegativeAcksWithPartitions) {
     testNegativeAcks(topicName, true);
 }
 
+void testNegativeAckPrecisionBitCnt(const std::string &topic, int precisionBitCnt) {
+    constexpr int delayMs = 2000;
+    const int64_t timeDeviation = 1L << precisionBitCnt;
+
+    Client client(lookupUrl);
+
+    Consumer consumer;
+    ConsumerConfiguration conf;
+    conf.setNegativeAckRedeliveryDelayMs(delayMs);
+    conf.setNegativeAckPrecisionBitCnt(precisionBitCnt);
+
+    Result result = client.subscribe(topic, "sub1", conf, consumer);
+    ASSERT_EQ(ResultOk, result);
+
+    Producer producer;
+    ProducerConfiguration producerConf;
+    result = client.createProducer(topic, producerConf, producer);
+    ASSERT_EQ(ResultOk, result);
+
+    Message msg = MessageBuilder().setContent("test-0").build();
+    producer.sendAsync(msg, nullptr);
+    producer.flush();
+
+    // receive and trigger negative ack
+    Message received;
+    consumer.receive(received);
+    consumer.negativeAcknowledge(received);
+
+    int64_t expectedRedeliveryTime = TimeUtils::currentTimeMillis() + delayMs;
+
+    Message redelivered;
+    consumer.receive(redelivered);
+    int64_t now = TimeUtils::currentTimeMillis();
+    ASSERT_GE(now, expectedRedeliveryTime - timeDeviation);
+    ASSERT_EQ(redelivered.getDataAsString(), "test-0");
+
+    consumer.acknowledge(redelivered);
+    client.shutdown();
+}
+
+TEST(BasicEndToEndTest, testNegativeAckPrecisionBitCnt) {
+    for (int precisionBitCnt = 1; precisionBitCnt <= 12; precisionBitCnt++) {
+        std::string topic = "testNegativeAckPrecisionBitCnt-" + std::to_string(precisionBitCnt) + "-" +
+                            std::to_string(time(nullptr));
+        testNegativeAckPrecisionBitCnt(topic, precisionBitCnt);
+    }
+}
+
 static long regexTestMessagesReceived = 0;
 
 static void regexMessageListenerFunction(const Consumer &consumer, const Message &msg) {

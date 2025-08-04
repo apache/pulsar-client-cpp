@@ -52,6 +52,7 @@ TEST(ConsumerConfigurationTest, testDefaultConfig) {
     ASSERT_EQ(conf.getUnAckedMessagesTimeoutMs(), 0);
     ASSERT_EQ(conf.getTickDurationInMs(), 1000);
     ASSERT_EQ(conf.getNegativeAckRedeliveryDelayMs(), 60000);
+    ASSERT_EQ(conf.getNegativeAckPrecisionBitCnt(), 8);
     ASSERT_EQ(conf.getAckGroupingTimeMs(), 100);
     ASSERT_EQ(conf.getAckGroupingMaxSize(), 1000);
     ASSERT_EQ(conf.getBrokerConsumerStatsCacheTimeInMs(), 30000);
@@ -113,6 +114,9 @@ TEST(ConsumerConfigurationTest, testCustomConfig) {
 
     conf.setNegativeAckRedeliveryDelayMs(10000);
     ASSERT_EQ(conf.getNegativeAckRedeliveryDelayMs(), 10000);
+
+    conf.setNegativeAckPrecisionBitCnt(4);
+    ASSERT_EQ(conf.getNegativeAckPrecisionBitCnt(), 4);
 
     conf.setAckGroupingTimeMs(200);
     ASSERT_EQ(conf.getAckGroupingTimeMs(), 200);

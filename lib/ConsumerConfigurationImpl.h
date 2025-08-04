@@ -26,6 +26,7 @@ struct ConsumerConfigurationImpl {
     long unAckedMessagesTimeoutMs{0};
     long tickDurationInMs{1000};
     long negativeAckRedeliveryDelayMs{60000};
+    int negativeAckPrecisionBitCnt{8};
     long ackGroupingTimeMs{100};
     long ackGroupingMaxSize{1000};
     long brokerConsumerStatsCacheTimeInMs{30 * 1000L};  // 30 seconds

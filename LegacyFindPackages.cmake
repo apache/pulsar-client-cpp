@@ -117,6 +117,25 @@ if (NOT ZLIB_INCLUDE_DIRS OR NOT ZLIB_LIBRARIES)
     message(FATAL_ERROR "Could not find zlib")
 endif ()
 
+find_package(roaring QUIET)
+if (NOT ROARING_FOUND)
+    find_path(ROARING_INCLUDE_DIRS NAMES roaring/roaring.hh)
+    find_library(ROARING_LIBRARIES NAMES roaring libroaring)
+endif ()
+message("ROARING_INCLUDE_DIRS: " ${ROARING_INCLUDE_DIRS})
+message("ROARING_LIBRARIES: " ${ROARING_LIBRARIES})
+if (NOT ROARING_INCLUDE_DIRS OR NOT ROARING_LIBRARIES)
+    message(FATAL_ERROR "Could not find libroaring")
+endif ()
+file(READ "${ROARING_INCLUDE_DIRS}/roaring/roaring.hh" ROARING_HEADER_CONTENTS)
+string(REGEX MATCH "namespace roaring" ROARING_HAS_NAMESPACE "${ROARING_HEADER_CONTENTS}")
+if (ROARING_HAS_NAMESPACE)
+    message(STATUS "Roaring64Map is in namespace roaring")
+else ()
+    message(STATUS "Roaring64Map is in global namespace")
+    add_definitions(-DROARING_NAMESPACE_GLOBAL)
+endif ()
+
 if (LINK_STATIC AND NOT VCPKG_TRIPLET)
     find_library(LIB_ZSTD NAMES libzstd.a)
     message(STATUS "ZStd: ${LIB_ZSTD}")
@@ -129,6 +148,7 @@ if (LINK_STATIC AND NOT VCPKG_TRIPLET)
 elseif (LINK_STATIC AND VCPKG_TRIPLET)
     find_package(Protobuf REQUIRED)
     message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    find_package(roaring REQUIRED)
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(ZLIB_LIBRARIES NAMES zlibd)
     else ()
@@ -231,6 +251,7 @@ include_directories(
   ${Boost_INCLUDE_DIRS}
   ${OPENSSL_INCLUDE_DIR}
   ${ZLIB_INCLUDE_DIRS}
+  ${ROARING_INCLUDE_DIRS}
   ${CURL_INCLUDE_DIRS}
   ${Protobuf_INCLUDE_DIRS}
   ${GTEST_INCLUDE_PATH}
@@ -246,6 +267,7 @@ set(COMMON_LIBS
   ${CURL_LIBRARIES}
   ${OPENSSL_LIBRARIES}
   ${ZLIB_LIBRARIES}
+  ${ROARING_LIBRARIES}
   ${ADDITIONAL_LIBRARIES}
   ${CMAKE_DL_LIBS}
 )

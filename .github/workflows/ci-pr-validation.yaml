@@ -167,7 +167,7 @@ jobs:
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev \
             protobuf-compiler libprotobuf-dev libboost-dev \
             libboost-dev libboost-program-options-dev \
-            libzstd-dev libsnappy-dev libgmock-dev libgtest-dev
+            libzstd-dev libsnappy-dev libgmock-dev libgtest-dev libroaring-dev
       - name: CMake
         run: cmake -B build -DBUILD_PERF_TOOLS=ON -DCMAKE_CXX_STANDARD=20
       - name: Build
@@ -188,16 +188,16 @@ jobs:
       matrix:
         include:
           - name: 'Windows x64'
-            os: windows-2019
+            os: windows-2022
             triplet: x64-windows-static
             suffix: 'windows-win64'
-            generator: 'Visual Studio 16 2019'
+            generator: 'Visual Studio 17 2022'
             arch: '-A x64'
           - name: 'Windows x86'
-            os: windows-2019
+            os: windows-2022
             triplet: x86-windows-static
             suffix: 'windows-win32'
-            generator: 'Visual Studio 16 2019'
+            generator: 'Visual Studio 17 2022'
             arch: '-A Win32'
 
     steps:

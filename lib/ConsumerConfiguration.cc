@@ -134,6 +134,16 @@ void ConsumerConfiguration::setAckGroupingTimeMs(long ackGroupingMillis) {
     impl_->ackGroupingTimeMs = ackGroupingMillis;
 }
 
+int ConsumerConfiguration::getNegativeAckPrecisionBitCnt() const { return impl_->negativeAckPrecisionBitCnt; }
+
+void ConsumerConfiguration::setNegativeAckPrecisionBitCnt(int negativeAckPrecisionBitCnt) {
+    if (negativeAckPrecisionBitCnt < 0) {
+        throw std::invalid_argument(
+            "Consumer Config Exception: NegativeAckPrecisionBitCnt should be nonnegative number.");
+    }
+    impl_->negativeAckPrecisionBitCnt = negativeAckPrecisionBitCnt;
+}
+
 long ConsumerConfiguration::getAckGroupingTimeMs() const { return impl_->ackGroupingTimeMs; }
 
 void ConsumerConfiguration::setAckGroupingMaxSize(long maxGroupingSize) {

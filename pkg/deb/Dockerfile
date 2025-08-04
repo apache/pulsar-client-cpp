@@ -19,7 +19,7 @@
 
 # Build pulsar client library in Centos with tools to
 
-FROM debian:10
+FROM debian:11
 
 ARG PLATFORM
 
@@ -32,7 +32,8 @@ RUN apt-get update -y && \
         perl \
         dpkg-dev \
         python3 \
-        python3-pip
+        python3-pip \
+        git
 
 RUN pip3 install pyyaml
 
@@ -90,6 +91,15 @@ RUN SNAPPY_VERSION=$(dep-version.py snappy) && \
     CXXFLAGS="-fPIC -O3" cmake . -DSNAPPY_BUILD_TESTS=OFF -DSNAPPY_BUILD_BENCHMARKS=OFF && \
     make -j8 && make install && \
     rm -rf /snappy-${SNAPPY_VERSION} /${SNAPPY_VERSION}.tar.gz
+
+# Roaring
+RUN ROARING_VERSION=$(dep-version.py roaring) && \
+    curl -O -L  https://github.com/RoaringBitmap/CRoaring/archive/refs/tags/v${ROARING_VERSION}.tar.gz && \
+    tar xfz v${ROARING_VERSION}.tar.gz && \
+    cd CRoaring-${ROARING_VERSION} && \
+    mkdir build && cd build && CXXFLAGS="-fPIC -O3" cmake .. && \
+    make -j8 && make install && \
+    rm -rf /v${ROARING_VERSION}.tar.gz /CRoaring-${ROARING_VERSION}
 
 RUN OPENSSL_VERSION=$(dep-version.py openssl) && \
     OPENSSL_VERSION_UNDERSCORE=$(echo $OPENSSL_VERSION | sed 's/\./_/g') && \

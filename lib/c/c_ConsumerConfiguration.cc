@@ -121,6 +121,16 @@ long pulsar_configure_get_negative_ack_redelivery_delay_ms(
     return consumer_configuration->consumerConfiguration.getNegativeAckRedeliveryDelayMs();
 }
 
+void pulsar_configure_set_negative_ack_precision_bit_cnt(
+    pulsar_consumer_configuration_t *consumer_configuration, int negativeAckPrecisionBitCnt) {
+    consumer_configuration->consumerConfiguration.setNegativeAckPrecisionBitCnt(negativeAckPrecisionBitCnt);
+}
+
+int pulsar_configure_get_negative_ack_precision_bit_cnt(
+    pulsar_consumer_configuration_t *consumer_configuration) {
+    return consumer_configuration->consumerConfiguration.getNegativeAckPrecisionBitCnt();
+}
+
 void pulsar_configure_set_ack_grouping_time_ms(pulsar_consumer_configuration_t *consumer_configuration,
                                                long ackGroupingMillis) {
     consumer_configuration->consumerConfiguration.setAckGroupingTimeMs(ackGroupingMillis);
