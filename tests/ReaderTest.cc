@@ -885,6 +885,16 @@ TEST_F(ReaderSeekTest, testHasMessageAvailableAfterSeekTimestamp) {
         createReader(reader, msgId);
         ASSERT_EQ(ResultOk, reader.seek(timestampBeforeSend));
         EXPECT_HAS_MESSAGE_AVAILABLE(reader, true);
+
+        bool hasMessageAvailable;
+        while (true) {
+            ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+            if (!hasMessageAvailable) {
+                break;
+            }
+            Message msg;
+            ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
+        }
     }
 
     // Test `hasMessageAvailableAsync` will complete immediately if the incoming message queue is non-empty

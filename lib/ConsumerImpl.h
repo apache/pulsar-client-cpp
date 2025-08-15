@@ -266,6 +266,7 @@ class ConsumerImpl : public ConsumerImplBase {
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
     std::atomic<bool> hasSoughtByTimestamp_{false};
 
+    bool hasSoughtByTimestamp() const { return hasSoughtByTimestamp_.load(std::memory_order_acquire); }
     bool duringSeek() const { return seekStatus_ != SeekStatus::NOT_STARTED; }
 
     class ChunkedMessageCtx {

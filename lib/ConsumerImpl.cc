@@ -1113,7 +1113,11 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  */
 void ConsumerImpl::clearReceiveQueue() {
     if (duringSeek()) {
-        if (!hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
+        if (hasSoughtByTimestamp()) {
+            // Invalidate startMessageId_ so that isPriorBatchIndex and isPriorEntryIndex checks will be
+            // skipped, and hasMessageAvailableAsync won't use startMessageId_ in compare.
+            startMessageId_ = boost::none;
+        } else {
             startMessageId_ = seekMessageId_.get();
         }
         SeekStatus expected = SeekStatus::COMPLETED;
@@ -1578,10 +1582,16 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
     {
         std::lock_guard<std::mutex> lock{mutexForMessageId_};
         compareMarkDeletePosition =
-            (lastDequedMessageId_ == MessageId::earliest()) &&
-            (startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest());
+            // there is no message received by consumer, so we cannot compare the last position with the last
+            // received position
+            lastDequedMessageId_ == MessageId::earliest() &&
+            // If the start message id is latest, we should seek to the actual last message first.
+            (startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest() ||
+             // If there is a previous seek operation by timestamp, the start message id will be incorrect, so
+             // we cannot compare the start positin with the last position.
+             hasSoughtByTimestamp());
     }
-    if (compareMarkDeletePosition || hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
+    if (compareMarkDeletePosition) {
         auto self = get_shared_this_ptr();
         getLastMessageIdAsync([self, callback](Result result, const GetLastMessageIdResponse& response) {
             if (result != ResultOk) {
@@ -1600,8 +1610,7 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                     callback(ResultOk, false);
                 }
             };
-            if (self->config_.isStartMessageIdInclusive() &&
-                !self->hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
+            if (self->config_.isStartMessageIdInclusive() && !self->hasSoughtByTimestamp()) {
                 self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
                     if (result != ResultOk) {
                         callback(result, {});
@@ -1766,7 +1775,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                     // It's during reconnection, complete the seek future after connection is established
                     seekStatus_ = SeekStatus::COMPLETED;
                 } else {
-                    if (!hasSoughtByTimestamp_.load(std::memory_order_acquire)) {
+                    if (!hasSoughtByTimestamp()) {
                         startMessageId_ = seekMessageId_.get();
                     }
                     seekCallback_.release()(result);
