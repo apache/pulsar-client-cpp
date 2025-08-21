@@ -1588,7 +1588,7 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
             // If the start message id is latest, we should seek to the actual last message first.
             (startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest() ||
              // If there is a previous seek operation by timestamp, the start message id will be incorrect, so
-             // we cannot compare the start positin with the last position.
+             // we cannot compare the start position with the last position.
              hasSoughtByTimestamp());
     }
     if (compareMarkDeletePosition) {
