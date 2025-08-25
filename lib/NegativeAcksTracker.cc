@@ -88,9 +88,9 @@ void NegativeAcksTracker::handleTimer(const ASIO_ERROR &ec) {
             break;
         }
 
-        auto ledgerMap = it->second;
+        const auto &ledgerMap = it->second;
         for (auto ledgerIt = ledgerMap.begin(); ledgerIt != ledgerMap.end(); ++ledgerIt) {
-            auto entrySet = ledgerIt->second;
+            const auto &entrySet = ledgerIt->second;
             for (auto setIt = entrySet.begin(); setIt != entrySet.end(); ++setIt) {
                 messagesToRedeliver.insert(
                     MessageIdBuilder().ledgerId(ledgerIt->first).entryId(*setIt).build());
