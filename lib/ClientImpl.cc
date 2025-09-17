@@ -21,7 +21,9 @@
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/Version.h>
 
+#include <algorithm>
 #include <chrono>
+#include <iterator>
 #include <random>
 #include <sstream>
 
@@ -404,10 +406,17 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
     }
 }
 
-void ClientImpl::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
-                                const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
+void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
+                                const std::string& subscriptionName, const ConsumerConfiguration& conf,
+                                const SubscribeCallback& callback) {
     TopicNamePtr topicNamePtr;
 
+    // Remove duplicates from the list of topics
+    auto topics = originalTopics;
+    std::sort(topics.begin(), topics.end());
+    auto it = std::unique(topics.begin(), topics.end());
+    auto newSize = std::distance(topics.begin(), it);
+    topics.resize(newSize);
     Lock lock(mutex_);
     if (state_ != Open) {
         lock.unlock();

@@ -1499,4 +1499,24 @@ TEST(ConsumerTest, testReconnectWhenFirstConnectTimedOut) {
     client.close();
 }
 
+TEST(ConsumerTest, testDuplicatedTopics) {
+    Client client{lookupUrl};
+    auto topicPrefix = "consumer-test-duplicated-topics" + std::to_string(time(nullptr));
+    std::array<std::string, 3> uniqueTopics{topicPrefix + "0", topicPrefix + "1", topicPrefix + "2"};
+    std::vector<std::string> topics{uniqueTopics[1], uniqueTopics[0], uniqueTopics[2], uniqueTopics[1],
+                                    uniqueTopics[2]};
+
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topics, "sub", consumer));
+
+    for (size_t i = 0; i < uniqueTopics.size(); i++) {
+        Producer producer;
+        ASSERT_EQ(ResultOk, client.createProducer(topics[i], producer));
+        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-" + std::to_string(i)).build()));
+        Message msg;
+        ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+        ASSERT_EQ("msg-" + std::to_string(i), msg.getDataAsString());
+    }
+}
+
 }  // namespace pulsar
