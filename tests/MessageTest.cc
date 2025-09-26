@@ -147,3 +147,8 @@ TEST(MessageTest, testMessageImplKeyValuePayloadCovert) {
         ASSERT_EQ(deMsgImpl.keyValuePtr->getValueAsString(), valueContent);
     }
 }
+
+TEST(MessageTest, testGetTopicNameOnProducerMessage) {
+    auto msg = MessageBuilder().setContent("test").build();
+    ASSERT_TRUE(msg.getTopicName().empty());
+}
