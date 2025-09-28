@@ -88,7 +88,10 @@ void MessageImpl::setTopicName(const std::shared_ptr<std::string>& topicName) {
     messageId.setTopicName(topicName);
 }
 
-const std::string& MessageImpl::getTopicName() { return *topicName_; }
+const std::string& MessageImpl::getTopicName() {
+    static const std::string emptyString = "";
+    return topicName_ ? *topicName_ : emptyString;
+}
 
 int MessageImpl::getRedeliveryCount() { return redeliveryCount_; }
 
