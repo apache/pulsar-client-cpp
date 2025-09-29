@@ -17,7 +17,7 @@
 # under the License.
 #
 
-# Maintainer: "Apache Pulsar <dev@pulsar.apache.org>"
+# Maintainer: Apache Pulsar <dev@pulsar.apache.org>
 
 pkgname="apache-pulsar-client"
 pkgver="$VERSION"
