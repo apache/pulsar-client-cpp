@@ -41,12 +41,17 @@ build() {
     git clone https://github.com/microsoft/vcpkg.git
     mv vcpkg $ROOT_DIR/
     export VCPKG_FORCE_SYSTEM_BINARIES=1
-    set -e
+    set +e
     cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_MAKE_PROGRAM=make \
         -DCMAKE_INSTALL_PREFIX="$pkgdir" \
         -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON \
         $ROOT_DIR
+    if [[ $? -ne 0 ]]; then
+        cat $ROOT_DIR/vcpkg/buildtrees/detect_compiler/*.log
+        exit 1
+    fi
+    set -e
     cmake --build build -j8
 }
 
