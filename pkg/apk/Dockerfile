@@ -36,4 +36,5 @@ RUN apk add \
       ninja \
       zip \
       unzip \
-      openssl-dev
+      openssl-dev \
+      sudo

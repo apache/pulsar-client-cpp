@@ -36,7 +36,7 @@ export VERSION=`echo $POM_VERSION | sed -E 's/\-[a-zA-Z]+//'`
 
 echo "VERSION: $VERSION"
 
-abuild-keygen -a -i -n
-abuild -F -c -r
+sudo abuild-keygen -a -i -n
+sudo abuild -F -c -r
 
 cp -r /root/packages/pkg ./build
