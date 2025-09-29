@@ -38,10 +38,3 @@ RUN apk add \
       unzip \
       openssl-dev \
       sudo
-
-# Build latest CMake for vcpkg
-RUN curl -O -L https://github.com/Kitware/CMake/releases/download/v3.31.9/cmake-3.31.9.tar.gz \
-    && tar zxf cmake-3.31.9.tar.gz \
-    && cd cmake-3.31.9 \
-    && ./configure && make -j8 && make install \
-    && cd .. && rm -rf cmake-3.31.9 cmake-3.31.9.tar.gz

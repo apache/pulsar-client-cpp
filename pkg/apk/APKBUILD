@@ -40,9 +40,7 @@ build() {
 	fi
     git clone https://github.com/microsoft/vcpkg.git
     mv vcpkg $ROOT_DIR/
-    if [[ $PLATFORM == "aarch64" ]]; then
-        export VCPKG_FORCE_SYSTEM_BINARIES=1
-    fi
+    export VCPKG_FORCE_SYSTEM_BINARIES=1
     set -e
     cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_MAKE_PROGRAM=make \
