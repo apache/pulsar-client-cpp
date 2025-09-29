@@ -25,7 +25,7 @@ ROOT_DIR=$(git rev-parse --show-toplevel)
 IMAGE_NAME=${1:-apachepulsar/pulsar-build:alpine-3.16-arm64}
 
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
-        --env PLATFORM=arm64 \
+        --env PLATFORM=aarch64 \
         $IMAGE_NAME \
         /pulsar-client-cpp/pkg/apk/build-apk.sh
 
