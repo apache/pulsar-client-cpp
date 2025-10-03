@@ -370,7 +370,7 @@ class SocketStream {
 
 void mockZTS(Latch& latch, int port) {
     LOG_INFO("-- MockZTS started");
-    ASIO::io_service io;
+    ASIO::io_context io;
     ASIO::ip::tcp::acceptor acceptor(io, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), port));
 
     LOG_INFO("-- MockZTS waiting for connnection");
