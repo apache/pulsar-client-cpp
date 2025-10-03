@@ -151,11 +151,11 @@ class SharedBuffer {
 
     inline bool writable() const { return writableBytes() > 0; }
 
-    ASIO::const_buffers_1 const_asio_buffer() const {
-        return ASIO::const_buffers_1(ptr_ + readIdx_, readableBytes());
+    ASIO::const_buffer const_asio_buffer() const {
+        return ASIO::const_buffer(ptr_ + readIdx_, readableBytes());
     }
 
-    ASIO::mutable_buffers_1 asio_buffer() {
+    ASIO::mutable_buffer asio_buffer() {
         assert(data_);
         return ASIO::buffer(ptr_ + writeIdx_, writableBytes());
     }
