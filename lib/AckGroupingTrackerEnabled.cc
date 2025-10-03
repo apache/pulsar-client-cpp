@@ -121,8 +121,7 @@ AckGroupingTrackerEnabled::~AckGroupingTrackerEnabled() {
     this->flush();
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     if (this->timer_) {
-        ASIO_ERROR ec;
-        this->timer_->cancel(ec);
+        cancelTimer(*this->timer_);
     }
 }
 
@@ -172,7 +171,7 @@ void AckGroupingTrackerEnabled::scheduleTimer() {
 
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     this->timer_ = this->executor_->createDeadlineTimer();
-    this->timer_->expires_from_now(std::chrono::milliseconds(std::max(1L, this->ackGroupingTimeMs_)));
+    this->timer_->expires_after(std::chrono::milliseconds(std::max(1L, this->ackGroupingTimeMs_)));
     std::weak_ptr<AckGroupingTracker> weakSelf = shared_from_this();
     this->timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) -> void {
         auto self = weakSelf.lock();

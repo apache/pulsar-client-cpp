@@ -38,8 +38,8 @@ void ExecutorService::start() {
             try {
                 io_context_.run();
                 LOG_DEBUG("Event loop of ExecutorService exits successfully");
-            } catch (const ASIO_ERROR &e) {
-                LOG_ERROR("Failed to run io_context: " << e.message());
+            } catch (const ASIO_SYSTEM_ERROR &e) {
+                LOG_ERROR("Failed to run io_context: " << e.what());
             }
         }
         {

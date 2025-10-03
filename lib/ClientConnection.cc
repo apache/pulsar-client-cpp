@@ -317,7 +317,7 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         // Only send keep-alive probes if the broker supports it
         keepAliveTimer_ = executor_->createDeadlineTimer();
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(std::chrono::seconds(keepAliveIntervalInSeconds_));
+            keepAliveTimer_->expires_after(std::chrono::seconds(keepAliveIntervalInSeconds_));
             auto weakSelf = weak_from_this();
             keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
@@ -362,7 +362,7 @@ void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerSta
     // If the close operation has reset the consumerStatsRequestTimer_ then the use_count will be zero
     // Check if we have a timer still before we set the request timer to pop again.
     if (consumerStatsRequestTimer_) {
-        consumerStatsRequestTimer_->expires_from_now(operationsTimeout_);
+        consumerStatsRequestTimer_->expires_after(operationsTimeout_);
         auto weakSelf = weak_from_this();
         consumerStatsRequestTimer_->async_wait([weakSelf, consumerStatsRequests](const ASIO_ERROR& err) {
             auto self = weakSelf.lock();
@@ -621,32 +621,12 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
         ptr->connectTimeoutTask_->stop();
     });
 
-    ASIO::async_connect(socket_, results, [weakSelf](const ASIO_ERROR& err, const tcp::endpoint& endpoint) {
+    ASIO::async_connect(*socket_, results, [weakSelf](const ASIO_ERROR& err, const tcp::endpoint& endpoint) {
         auto self = weakSelf.lock();
         if (self) {
             self->handleTcpConnected(err, endpoint);
         }
     });
-
-    // TODO: use the new resolver results API to iterate over endpoints
-    /*
-    LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
-    connectTimeoutTask_->start();
-    if (endpointIterator != tcp::resolver::iterator()) {
-        LOG_DEBUG(cnxString_ << "Resolved hostname " << endpointIterator->host_name()  //
-                             << " to " << endpointIterator->endpoint());
-        socket_->async_connect(*endpointIterator, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
-            auto self = weakSelf.lock();
-            if (self) {
-                self->handleTcpConnected(err, endpointIterator);
-            }
-        });
-    } else {
-        LOG_WARN(cnxString_ << "No IP address found");
-        close();
-        return;
-    }
-    */
 }
 
 void ClientConnection::readNextCommand() {
@@ -1050,7 +1030,7 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId,
     LookupRequestData requestData;
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_from_now(operationsTimeout_);
+    requestData.timer->expires_after(operationsTimeout_);
     auto weakSelf = weak_from_this();
     requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
@@ -1190,7 +1170,7 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
 
     PendingRequestData requestData;
     requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_from_now(operationsTimeout_);
+    requestData.timer->expires_after(operationsTimeout_);
     auto weakSelf = weak_from_this();
     requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
@@ -1245,7 +1225,7 @@ void ClientConnection::handleKeepAliveTimeout() {
         // be zero And we do not attempt to dereference the pointer.
         Lock lock(mutex_);
         if (keepAliveTimer_) {
-            keepAliveTimer_->expires_from_now(std::chrono::seconds(keepAliveIntervalInSeconds_));
+            keepAliveTimer_->expires_after(std::chrono::seconds(keepAliveIntervalInSeconds_));
             auto weakSelf = weak_from_this();
             keepAliveTimer_->async_wait([weakSelf](const ASIO_ERROR&) {
                 auto self = weakSelf.lock();
@@ -1307,12 +1287,12 @@ void ClientConnection::close(Result result, bool detach) {
     numOfPendingLookupRequest_ = 0;
 
     if (keepAliveTimer_) {
-        keepAliveTimer_->cancel();
+        cancelTimer(*keepAliveTimer_);
         keepAliveTimer_.reset();
     }
 
     if (consumerStatsRequestTimer_) {
-        consumerStatsRequestTimer_->cancel();
+        cancelTimer(*consumerStatsRequestTimer_);
         consumerStatsRequestTimer_.reset();
     }
 
@@ -1424,7 +1404,7 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     LastMessageIdRequestData requestData;
     requestData.promise = promise;
     requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_from_now(operationsTimeout_);
+    requestData.timer->expires_after(operationsTimeout_);
     auto weakSelf = weak_from_this();
     requestData.timer->async_wait([weakSelf, requestData](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
@@ -1472,7 +1452,7 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
     lock.unlock();
 
     auto weakSelf = weak_from_this();
-    timer->expires_from_now(operationsTimeout_);
+    timer->expires_after(operationsTimeout_);
     timer->async_wait([this, weakSelf, requestId](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (!self) {
@@ -1559,7 +1539,7 @@ void ClientConnection::handleSuccess(const proto::CommandSuccess& success) {
         lock.unlock();
 
         requestData.promise.setValue({});
-        requestData.timer->cancel();
+        cancelTimer(*requestData.timer);
     }
 }
 
@@ -1571,7 +1551,8 @@ void ClientConnection::handlePartitionedMetadataResponse(
     Lock lock(mutex_);
     auto it = pendingLookupRequests_.find(partitionMetadataResponse.request_id());
     if (it != pendingLookupRequests_.end()) {
-        it->second.timer->cancel();
+        cancelTimer(*it->second.timer);
+
         LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
         pendingLookupRequests_.erase(it);
         numOfPendingLookupRequest_--;
@@ -1650,7 +1631,7 @@ void ClientConnection::handleLookupTopicRespose(
     Lock lock(mutex_);
     auto it = pendingLookupRequests_.find(lookupTopicResponse.request_id());
     if (it != pendingLookupRequests_.end()) {
-        it->second.timer->cancel();
+        cancelTimer(*it->second.timer);
         LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
         pendingLookupRequests_.erase(it);
         numOfPendingLookupRequest_--;
@@ -1728,7 +1709,7 @@ void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess
                 data.topicEpoch = boost::none;
             }
             requestData.promise.setValue(data);
-            requestData.timer->cancel();
+            cancelTimer(*requestData.timer);
         }
     }
 }
@@ -1748,7 +1729,7 @@ void ClientConnection::handleError(const proto::CommandError& error) {
         lock.unlock();
 
         requestData.promise.setFailed(result);
-        requestData.timer->cancel();
+        cancelTimer(*requestData.timer);
     } else {
         PendingGetLastMessageIdRequestsMap::iterator it =
             pendingGetLastMessageIdRequests_.find(error.request_id());
@@ -2041,8 +2022,8 @@ void ClientConnection::unsafeRemovePendingRequest(long requestId) {
     auto it = pendingRequests_.find(requestId);
     if (it != pendingRequests_.end()) {
         it->second.promise.setFailed(ResultDisconnected);
-        ASIO_ERROR ec;
-        it->second.timer->cancel(ec);
+        cancelTimer(*it->second.timer);
+
         pendingRequests_.erase(it);
     }
 }

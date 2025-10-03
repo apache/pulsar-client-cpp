@@ -50,9 +50,8 @@ HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, 
       redirectedClusterURI_("") {}
 
 HandlerBase::~HandlerBase() {
-    ASIO_ERROR ignored;
-    timer_->cancel(ignored);
-    creationTimer_->cancel(ignored);
+    cancelTimer(*timer_);
+    cancelTimer(*creationTimer_);
 }
 
 void HandlerBase::start() {
@@ -61,15 +60,14 @@ void HandlerBase::start() {
     if (state_.compare_exchange_strong(state, Pending)) {
         grabCnx();
     }
-    creationTimer_->expires_from_now(operationTimeut_);
+    creationTimer_->expires_after(operationTimeut_);
     std::weak_ptr<HandlerBase> weakSelf{shared_from_this()};
     creationTimer_->async_wait([this, weakSelf](const ASIO_ERROR& error) {
         auto self = weakSelf.lock();
         if (self && !error) {
             LOG_WARN("Cancel the pending reconnection due to the start timeout");
             connectionFailed(ResultTimeout);
-            ASIO_ERROR ignored;
-            timer_->cancel(ignored);
+            cancelTimer(*timer_);
         }
     });
 }
@@ -133,8 +131,7 @@ void HandlerBase::grabCnx(const boost::optional<std::string>& assignedBrokerUrl)
                     connectionTimeMs_ =
                         duration_cast<milliseconds>(high_resolution_clock::now() - before).count();
                     // Prevent the creationTimer_ from cancelling the timer_ in future
-                    ASIO_ERROR ignored;
-                    creationTimer_->cancel(ignored);
+                    cancelTimer(*creationTimer_);
                     LOG_INFO("Finished connecting to broker after " << connectionTimeMs_ << " ms")
                 } else if (isResultRetryable(result)) {
                     scheduleReconnection();
@@ -188,7 +185,7 @@ void HandlerBase::scheduleReconnection(const boost::optional<std::string>& assig
         TimeDuration delay = assignedBrokerUrl ? std::chrono::milliseconds(0) : backoff_.next();
 
         LOG_INFO(getName() << "Schedule reconnection in " << (toMillis(delay) / 1000.0) << " s");
-        timer_->expires_from_now(delay);
+        timer_->expires_after(delay);
         // passing shared_ptr here since time_ will get destroyed, so tasks will be cancelled
         // so we will not run into the case where grabCnx is invoked on out of scope handler
         auto name = getName();

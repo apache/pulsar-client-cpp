@@ -29,3 +29,12 @@
 #include "AsioDefines.h"
 
 using DeadlineTimerPtr = std::shared_ptr<ASIO::steady_timer>;
+
+inline void cancelTimer(ASIO::steady_timer& timer) {
+    try {
+        timer.cancel();
+    } catch (const ASIO_SYSTEM_ERROR& ignored) {
+        // Most of the time the exception can be ignored unless the following logic depends on the fact that
+        // the timer is cancelled.
+    }
+}
