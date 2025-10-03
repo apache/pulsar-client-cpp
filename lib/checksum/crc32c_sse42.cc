@@ -15,18 +15,8 @@
  ******************************************************************************/
 #include "crc32c_sse42.h"
 
-#include <boost/version.hpp>
-#if BOOST_VERSION >= 105500
-#include <boost/predef.h>
-#else
-#if _MSC_VER
-#pragma message("Boost version is < 1.55, disable CRC32C")
-#else
-#warning "Boost version is < 1.55, disable CRC32C"
-#endif
-#endif
-
 #include <assert.h>
+#include <boost/predef.h>
 #include <stdlib.h>
 
 #include "gf2.hpp"

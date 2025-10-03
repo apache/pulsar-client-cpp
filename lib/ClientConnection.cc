@@ -178,13 +178,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       executor_(executor),
       resolver_(executor_->createTcpResolver()),
       socket_(executor_->createSocket()),
-#if defined(USE_ASIO) || BOOST_VERSION >= 107000
       strand_(ASIO::make_strand(executor_->getIOService().get_executor())),
-#elif BOOST_VERSION >= 106600
-      strand_(executor_->getIOService().get_executor()),
-#else
-      strand_(executor_->getIOService()),
-#endif
       logicalAddress_(logicalAddress),
       physicalAddress_(physicalAddress),
       cnxString_("[<none> -> " + physicalAddress + "] "),
