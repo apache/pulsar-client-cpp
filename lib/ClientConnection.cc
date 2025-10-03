@@ -41,6 +41,14 @@
 #include "auth/InitialAuthData.h"
 #include "checksum/ChecksumProvider.h"
 
+#ifdef USE_ASIO
+#include <asio/connect.hpp>
+#include <asio/ssl/host_name_verification.hpp>
+#else
+#include <boost/asio/connect.hpp>
+#include <boost/asio/ssl/host_name_verification.hpp>
+#endif
+
 DECLARE_LOG_OBJECT()
 
 using namespace ASIO::ip;
@@ -266,7 +274,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         if (!clientConfiguration.isTlsAllowInsecureConnection() && clientConfiguration.isValidateHostName()) {
             LOG_DEBUG("Validating hostname for " << serviceUrl.host() << ":" << serviceUrl.port());
             std::string urlHost = isSniProxy_ ? proxyUrl.host() : serviceUrl.host();
-            tlsSocket_->set_verify_callback(ASIO::ssl::rfc2818_verification(urlHost));
+            tlsSocket_->set_verify_callback(ASIO::ssl::host_name_verification(urlHost));
         }
 
         LOG_DEBUG("TLS SNI Host: " << serviceUrl.host());
@@ -394,7 +402,7 @@ typedef ASIO::detail::socket_option::integer<IPPROTO_TCP, TCP_KEEPIDLE> tcp_keep
  *  if async_connect without any error, connected_ would be set to true
  *  at this point the connection is deemed valid to be used by clients of this class
  */
-void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::iterator endpointIterator) {
+void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endpoint& endpoint) {
     if (!err) {
         std::stringstream cnxStringStream;
         try {
@@ -478,35 +486,6 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, tcp::resolver::
                                         ASIO::bind_executor(strand_, callback));
         } else {
             handleHandshake(ASIO_SUCCESS);
-        }
-    } else if (endpointIterator != tcp::resolver::iterator()) {
-        LOG_WARN(cnxString_ << "Failed to establish connection: " << err.message());
-        // The connection failed. Try the next endpoint in the list.
-        ASIO_ERROR closeError;
-        socket_->close(closeError);  // ignore the error of close
-        if (closeError) {
-            LOG_WARN(cnxString_ << "Failed to close socket: " << err.message());
-        }
-        connectTimeoutTask_->stop();
-        ++endpointIterator;
-        if (endpointIterator != tcp::resolver::iterator()) {
-            LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
-            connectTimeoutTask_->start();
-            tcp::endpoint endpoint = *endpointIterator;
-            auto weakSelf = weak_from_this();
-            socket_->async_connect(endpoint, [weakSelf, endpointIterator](const ASIO_ERROR& err) {
-                auto self = weakSelf.lock();
-                if (self) {
-                    self->handleTcpConnected(err, endpointIterator);
-                }
-            });
-        } else {
-            if (err == ASIO::error::operation_aborted) {
-                // TCP connect timeout, which is not retryable
-                close();
-            } else {
-                close(ResultRetryable);
-            }
         }
     } else {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
@@ -603,18 +582,18 @@ void ClientConnection::tcpConnectAsync() {
     }
 
     LOG_DEBUG(cnxString_ << "Resolving " << service_url.host() << ":" << service_url.port());
-    tcp::resolver::query query(service_url.host(), std::to_string(service_url.port()));
+
     auto weakSelf = weak_from_this();
-    resolver_->async_resolve(query,
-                             [weakSelf](const ASIO_ERROR& err, const tcp::resolver::iterator& iterator) {
+    resolver_->async_resolve(service_url.host(), std::to_string(service_url.port()),
+                             [weakSelf](const ASIO_ERROR& err, tcp::resolver::results_type results) {
                                  auto self = weakSelf.lock();
                                  if (self) {
-                                     self->handleResolve(err, iterator);
+                                     self->handleResolve(err, results);
                                  }
                              });
 }
 
-void ClientConnection::handleResolve(const ASIO_ERROR& err, const tcp::resolver::iterator& endpointIterator) {
+void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::results_type& results) {
     if (err) {
         std::string hostUrl = isSniProxy_ ? cnxString_ : proxyServiceUrl_;
         LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
@@ -642,6 +621,15 @@ void ClientConnection::handleResolve(const ASIO_ERROR& err, const tcp::resolver:
         ptr->connectTimeoutTask_->stop();
     });
 
+    ASIO::async_connect(socket_, results, [weakSelf](const ASIO_ERROR& err, const tcp::endpoint& endpoint) {
+        auto self = weakSelf.lock();
+        if (self) {
+            self->handleTcpConnected(err, endpoint);
+        }
+    });
+
+    // TODO: use the new resolver results API to iterate over endpoints
+    /*
     LOG_DEBUG(cnxString_ << "Connecting to " << endpointIterator->endpoint() << "...");
     connectTimeoutTask_->start();
     if (endpointIterator != tcp::resolver::iterator()) {
@@ -658,6 +646,7 @@ void ClientConnection::handleResolve(const ASIO_ERROR& err, const tcp::resolver:
         close();
         return;
     }
+    */
 }
 
 void ClientConnection::readNextCommand() {

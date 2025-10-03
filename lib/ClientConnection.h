@@ -238,7 +238,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * although not usable at this point, since this is just tcp connection
      * Pulsar - Connect/Connected has yet to happen
      */
-    void handleTcpConnected(const ASIO_ERROR& err, ASIO::ip::tcp::resolver::iterator endpointIterator);
+    void handleTcpConnected(const ASIO_ERROR& err, const ASIO::ip::tcp::endpoint& endpoint);
 
     void handleHandshake(const ASIO_ERROR& err);
 
@@ -261,7 +261,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void handlePulsarConnected(const proto::CommandConnected& cmdConnected);
 
-    void handleResolve(const ASIO_ERROR& err, const ASIO::ip::tcp::resolver::iterator& endpointIterator);
+    void handleResolve(ASIO_ERROR err, const ASIO::ip::tcp::resolver::results_type& results);
 
     void handleSend(const ASIO_ERROR& err, const SharedBuffer& cmd);
     void handleSendPair(const ASIO_ERROR& err);
