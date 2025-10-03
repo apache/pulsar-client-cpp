@@ -489,7 +489,11 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
         }
     } else {
         LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
-        close(ResultRetryable);
+        if (err == ASIO::error::operation_aborted) {
+            close();
+        } else {
+            close(ResultRetryable);
+        }
     }
 }
 
@@ -620,7 +624,7 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
         }
         ptr->connectTimeoutTask_->stop();
     });
-
+    connectTimeoutTask_->start();
     ASIO::async_connect(*socket_, results, [weakSelf](const ASIO_ERROR& err, const tcp::endpoint& endpoint) {
         auto self = weakSelf.lock();
         if (self) {
