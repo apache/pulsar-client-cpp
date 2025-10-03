@@ -26,13 +26,13 @@
 #include <cstdint>
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
-#include <asio/io_service.hpp>
+#include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
 #include <asio/ssl/stream.hpp>
 #include <asio/strand.hpp>
 #else
 #include <boost/asio/bind_executor.hpp>
-#include <boost/asio/io_service.hpp>
+#include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/strand.hpp>
@@ -325,7 +325,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     SocketPtr socket_;
     TlsSocketPtr tlsSocket_;
-    ASIO::strand<ASIO::io_service::executor_type> strand_;
+    ASIO::strand<ASIO::io_context::executor_type> strand_;
 
     const std::string logicalAddress_;
     /*
