@@ -23,8 +23,8 @@
 // the orignal MurmurHash3 source code.
 #include "Murmur3_32Hash.h"
 
-#include <boost/version.hpp>
 #include <boost/predef.h>
+
 #include <limits>
 
 #if BOOST_COMP_MSVC
