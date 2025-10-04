@@ -68,8 +68,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
 
     void cancel() {
         promise_.setFailed(ResultDisconnected);
-        ASIO_ERROR ec;
-        timer_->cancel(ec);
+        cancelTimer(*timer_);
     }
 
    private:
@@ -107,7 +106,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
             }
 
             auto delay = std::min(backoff_.next(), remainingTime);
-            timer_->expires_from_now(delay);
+            timer_->expires_after(delay);
 
             auto nextRemainingTime = remainingTime - delay;
             LOG_INFO("Reschedule " << name_ << " for " << toMillis(delay)

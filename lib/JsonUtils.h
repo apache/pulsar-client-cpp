@@ -28,14 +28,7 @@ template <typename Ptree>
 inline std::string toJson(const Ptree& pt) {
     std::ostringstream oss;
     boost::property_tree::write_json(oss, pt, false);
-    // For Boost < 1.86, boost::property_tree will write a endline at the end
-#if BOOST_VERSION < 108600
-    auto s = oss.str();
-    s.pop_back();
-    return s;
-#else
     return oss.str();
-#endif
 }
 
 }  // namespace pulsar

@@ -56,7 +56,7 @@ void NegativeAcksTracker::scheduleTimer() {
         return;
     }
     std::weak_ptr<NegativeAcksTracker> weakSelf{shared_from_this()};
-    timer_->expires_from_now(timerInterval_);
+    timer_->expires_after(timerInterval_);
     timer_->async_wait([weakSelf](const ASIO_ERROR &ec) {
         if (auto self = weakSelf.lock()) {
             self->handleTimer(ec);
@@ -135,8 +135,7 @@ void NegativeAcksTracker::add(const MessageId &m) {
 
 void NegativeAcksTracker::close() {
     closed_ = true;
-    ASIO_ERROR ec;
-    timer_->cancel(ec);
+    cancelTimer(*timer_);
     std::lock_guard<std::mutex> lock(mutex_);
     nackedMessages_.clear();
 }

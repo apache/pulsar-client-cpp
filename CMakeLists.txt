@@ -19,15 +19,19 @@
 
 cmake_minimum_required(VERSION 3.13)
 
-option(USE_ASIO "Use Asio instead of Boost.Asio" OFF)
-
 option(INTEGRATE_VCPKG "Integrate with Vcpkg" OFF)
 if (INTEGRATE_VCPKG)
-    set(USE_ASIO ON)
+    option(USE_ASIO "Use Asio instead of Boost.Asio" ON)
     if (NOT CMAKE_TOOLCHAIN_FILE)
         set(CMAKE_TOOLCHAIN_FILE "${CMAKE_SOURCE_DIR}/vcpkg/scripts/buildsystems/vcpkg.cmake")
     endif ()
+    if (NOT USE_ASIO)
+        list(APPEND VCPKG_MANIFEST_FEATURES "boost-asio")
+    endif ()
+else ()
+    option(USE_ASIO "Use Asio instead of Boost.Asio" OFF)
 endif ()
+message(STATUS "USE_ASIO: ${USE_ASIO}")
 
 option(BUILD_TESTS "Build tests" ON)
 message(STATUS "BUILD_TESTS:  " ${BUILD_TESTS})
