@@ -570,7 +570,7 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& c
         bool isFirstMessage = batchMessageContainer_->isFirstMessageToAdd(msg);
         bool isFull = batchMessageContainer_->add(msg, callback);
         if (isFirstMessage) {
-            batchTimer_->expires_from_now(milliseconds(conf_.getBatchingMaxPublishDelayMs()));
+            batchTimer_->expires_after(milliseconds(conf_.getBatchingMaxPublishDelayMs()));
             auto weakSelf = weak_from_this();
             batchTimer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
                 auto self = weakSelf.lock();
@@ -699,7 +699,7 @@ void ProducerImpl::releaseSemaphoreForSendOp(const OpSendMsg& op) {
 PendingFailures ProducerImpl::batchMessageAndSend(const FlushCallback& flushCallback) {
     PendingFailures failures;
     LOG_DEBUG("batchMessageAndSend " << *batchMessageContainer_);
-    batchTimer_->cancel();
+    cancelTimer(*batchTimer_);
     if (batchMessageContainer_->isEmpty()) {
         return failures;
     }
@@ -1009,9 +1009,8 @@ void ProducerImpl::internalShutdown() {
 
 void ProducerImpl::cancelTimers() noexcept {
     dataKeyRefreshTask_.stop();
-    ASIO_ERROR ec;
-    batchTimer_->cancel(ec);
-    sendTimer_->cancel(ec);
+    cancelTimer(*batchTimer_);
+    cancelTimer(*sendTimer_);
 }
 
 bool ProducerImplCmp::operator()(const ProducerImplPtr& a, const ProducerImplPtr& b) const {
@@ -1032,7 +1031,7 @@ void ProducerImpl::startSendTimeoutTimer() {
 }
 
 void ProducerImpl::asyncWaitSendTimeout(DurationType expiryTime) {
-    sendTimer_->expires_from_now(expiryTime);
+    sendTimer_->expires_after(expiryTime);
 
     auto weakSelf = weak_from_this();
     sendTimer_->async_wait([weakSelf](const ASIO_ERROR& err) {

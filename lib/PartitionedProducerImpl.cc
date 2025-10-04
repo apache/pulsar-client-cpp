@@ -421,7 +421,7 @@ void PartitionedProducerImpl::flushAsync(FlushCallback callback) {
 
 void PartitionedProducerImpl::runPartitionUpdateTask() {
     auto weakSelf = weak_from_this();
-    partitionsUpdateTimer_->expires_from_now(partitionsUpdateInterval_);
+    partitionsUpdateTimer_->expires_after(partitionsUpdateInterval_);
     partitionsUpdateTimer_->async_wait([weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (self) {
@@ -524,8 +524,7 @@ uint64_t PartitionedProducerImpl::getNumberOfConnectedProducer() {
 
 void PartitionedProducerImpl::cancelTimers() noexcept {
     if (partitionsUpdateTimer_) {
-        ASIO_ERROR ec;
-        partitionsUpdateTimer_->cancel(ec);
+        cancelTimer(*partitionsUpdateTimer_);
     }
 }
 

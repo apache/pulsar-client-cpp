@@ -59,7 +59,7 @@ void ConsumerStatsImpl::flushAndReset(const ASIO_ERROR& ec) {
     LOG_INFO(oss.str());
 }
 
-ConsumerStatsImpl::~ConsumerStatsImpl() { timer_->cancel(); }
+ConsumerStatsImpl::~ConsumerStatsImpl() { cancelTimer(*timer_); }
 
 void ConsumerStatsImpl::start() { scheduleTimer(); }
 
@@ -80,7 +80,7 @@ void ConsumerStatsImpl::messageAcknowledged(Result res, CommandAck_AckType ackTy
 }
 
 void ConsumerStatsImpl::scheduleTimer() {
-    timer_->expires_from_now(std::chrono::seconds(statsIntervalInSeconds_));
+    timer_->expires_after(std::chrono::seconds(statsIntervalInSeconds_));
     std::weak_ptr<ConsumerStatsImpl> weakSelf{shared_from_this()};
     timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();

@@ -9,19 +9,19 @@
       "features": [
         "openssl"
       ],
-      "version>=": "1.28.2"
+      "version>=": "1.32.0"
     },
     {
       "name": "boost-accumulators",
-      "version>=": "1.83.0"
+      "version>=": "1.88.0"
     },
     {
       "name": "boost-format",
-      "version>=": "1.83.0"
+      "version>=": "1.88.0"
     },
     {
       "name": "boost-property-tree",
-      "version>=": "1.83.0"
+      "version>=": "1.88.0"
     },
     {
       "name": "curl",
@@ -61,12 +61,21 @@
     }
   ],
   "features": {
+    "boost-asio": {
+      "description": "Use Boost.Asio instead of standalone Asio",
+      "dependencies": [
+        {
+          "name": "boost-asio",
+          "version>=": "1.88.0"
+        }
+      ]
+    },
     "perf": {
       "description": "Build Performance Tool",
       "dependencies": [
         {
           "name": "boost-program-options",
-          "version>=": "1.83.0"
+          "version>=": "1.88.0"
         }
       ]
     },
@@ -81,10 +90,6 @@
     }
   },
   "overrides": [
-    {
-      "name": "asio",
-      "version": "1.28.2"
-    },
     {
       "name": "protobuf",
       "version": "3.21.12"

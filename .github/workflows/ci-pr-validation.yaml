@@ -142,6 +142,11 @@ jobs:
       - name: Run unit tests
         run: RETRY_FAILED=3 CMAKE_BUILD_DIRECTORY=./build ./run-unit-tests.sh
 
+      - name: Build with Boost.Asio
+        run: |
+          cmake -B build-boost-asio -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON
+          cmake --build build-boost-asio -j8
+
       - name: Build perf tools
         run: |
           cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON

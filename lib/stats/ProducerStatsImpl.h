@@ -20,17 +20,14 @@
 #ifndef PULSAR_PRODUCER_STATS_IMPL_HEADER
 #define PULSAR_PRODUCER_STATS_IMPL_HEADER
 
-#include <map>
-
-#if BOOST_VERSION >= 106400
-#include <boost/serialization/array_wrapper.hpp>
-#endif
 #include <boost/accumulators/accumulators.hpp>
 #include <boost/accumulators/framework/accumulator_set.hpp>
 #include <boost/accumulators/framework/features.hpp>
 #include <boost/accumulators/statistics.hpp>
 #include <boost/accumulators/statistics/extended_p_square.hpp>
+#include <boost/serialization/array_wrapper.hpp>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <vector>
