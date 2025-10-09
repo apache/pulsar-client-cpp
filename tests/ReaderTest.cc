@@ -67,7 +67,9 @@ TEST_P(ReaderTest, testSimpleReader) {
     ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
 
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+    ProducerConfiguration producerConf;
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     for (int i = 0; i < 10; i++) {
         std::string content = "my-message-" + std::to_string(i);
@@ -142,7 +144,9 @@ TEST_P(ReaderTest, testReaderAfterMessagesWerePublished) {
     initTopic(topicName);
 
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+    ProducerConfiguration producerConf;
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     for (int i = 0; i < 10; i++) {
         std::string content = "my-message-" + std::to_string(i);
@@ -176,7 +180,9 @@ TEST_P(ReaderTest, testMultipleReaders) {
     initTopic(topicName);
 
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+    ProducerConfiguration producerConf;
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     for (int i = 0; i < 10; i++) {
         std::string content = "my-message-" + std::to_string(i);
@@ -263,7 +269,9 @@ TEST_P(ReaderTest, testReaderOnSpecificMessage) {
     initTopic(topicName);
 
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+    ProducerConfiguration producerConf;
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     for (int i = 0; i < 10; i++) {
         std::string content = "my-message-" + std::to_string(i);
@@ -459,6 +467,7 @@ TEST_P(ReaderTest, testReaderReachEndOfTopicMessageWithoutBatches) {
     Producer producer;
     ProducerConfiguration producerConf;
     producerConf.setBatchingEnabled(false);
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     // 2. create reader, and expect hasMessageAvailable return false since no message produced.
