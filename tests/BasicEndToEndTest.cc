@@ -1698,7 +1698,7 @@ TEST(BasicEndToEndTest, testSeekOnPartitionedTopic) {
     std::string subName = "sub-testSeekOnPartitionedTopic";
     Producer producer;
     ProducerConfiguration conf;
-    conf.setRoutingMode(ProducerRoutingMode::UseSinglePartition);
+    conf.setRoutingMode(ProducerConfiguration::UseSinglePartition);
 
     Promise<Result, Producer> producerPromise;
     client.createProducerAsync(topicName, conf, WaitForCallbackValue<Producer>(producerPromise));
