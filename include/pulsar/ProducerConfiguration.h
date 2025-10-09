@@ -237,7 +237,7 @@ class PULSAR_PUBLIC ProducerConfiguration {
     /**
      * Set the message routing modes for partitioned topics.
      *
-     * Default: UseSinglePartition
+     * Default: RoundRobinDistribution
      *
      * @param PartitionsRoutingMode partition routing mode.
      * @return
