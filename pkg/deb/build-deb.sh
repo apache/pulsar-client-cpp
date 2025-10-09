@@ -20,6 +20,10 @@
 
 set -e -x
 
+if [[ $# -gt 0 ]]; then
+    CMAKE_ARCH=$1
+fi
+
 cd /pulsar-client-cpp
 SRC_ROOT_DIR=$(pwd)
 cd pkg/deb
@@ -37,12 +41,28 @@ cd BUILD
 tar xfz $SRC_ROOT_DIR/apache-pulsar-client-cpp-$POM_VERSION.tar.gz
 pushd $CPP_DIR
 
-# link libraries for protoc
-export LD_LIBRARY_PATH=/usr/local/lib:$LD_LIBRARY_PATH
+git clone https://github.com/microsoft/vcpkg.git
+# The cmake from debian:11 is 3.18, while vcpkg needs cmake >= 3.21 to build
+if [[ $CMAKE_ARCH ]]; then
+    export CMAKE_VERSION=3.31.9
+    curl -O -L https://github.com/Kitware/CMake/releases/download/v$CMAKE_VERSION/cmake-$CMAKE_VERSION-linux-$CMAKE_ARCH.tar.gz
+    export PATH=$PWD/cmake-$CMAKE_VERSION-linux-$CMAKE_ARCH/bin/:$PATH
+    tar zxf cmake-*.tar.gz
+fi
+cmake --version
 
 chmod +x $(find . -name "*.sh")
-cmake . -DBUILD_TESTS=OFF -DBUILD_PERF_TOOLS=OFF -DLINK_STATIC=ON
-make -j 3
+if [[ $CMAKE_ARCH == "aarch64" ]]; then
+    export VCPKG_FORCE_SYSTEM_BINARIES=1
+fi
+cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
+    -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON
+cmake --build build -j8
+./build-support/merge_archives_vcpkg.sh $PWD/build
+
+cp build/lib/libpulsar.a lib/libpulsar.a
+cp build/lib/libpulsar.so lib/libpulsar.so
+cp build/libpulsarwithdeps.a lib/libpulsarwithdeps.a
 popd
 
 DEST_DIR=apache-pulsar-client
