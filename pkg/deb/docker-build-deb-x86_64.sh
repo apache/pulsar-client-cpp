@@ -27,4 +27,5 @@ IMAGE_NAME=${1:-apachepulsar/pulsar-build:debian-9-2.11-x86_64}
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
         --env PLATFORM=amd64 \
         $IMAGE_NAME \
-        /pulsar-client-cpp/pkg/deb/build-deb.sh
+        /pulsar-client-cpp/pkg/deb/build-deb.sh \
+        x86_64
