@@ -229,7 +229,9 @@ TEST_P(ReaderTest, testReaderOnLastMessage) {
     initTopic(topicName);
 
     Producer producer;
-    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+    ProducerConfiguration producerConf;
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
     for (int i = 0; i < 10; i++) {
         std::string content = "my-message-" + std::to_string(i);
