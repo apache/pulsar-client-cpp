@@ -1697,9 +1697,11 @@ TEST(BasicEndToEndTest, testSeekOnPartitionedTopic) {
 
     std::string subName = "sub-testSeekOnPartitionedTopic";
     Producer producer;
+    ProducerConfiguration conf;
+    conf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
 
     Promise<Result, Producer> producerPromise;
-    client.createProducerAsync(topicName, WaitForCallbackValue<Producer>(producerPromise));
+    client.createProducerAsync(topicName, conf, WaitForCallbackValue<Producer>(producerPromise));
     Future<Result, Producer> producerFuture = producerPromise.getFuture();
     Result result = producerFuture.get(producer);
     ASSERT_EQ(ResultOk, result);
