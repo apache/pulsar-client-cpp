@@ -35,9 +35,6 @@ MessageCrypto::MessageCrypto(const std::string& logCtx, bool keyGenNeeded)
       ivLen_(12),
       iv_(new unsigned char[ivLen_]),
       logCtx_(logCtx) {
-    SSL_library_init();
-    SSL_load_error_strings();
-
     if (!keyGenNeeded) {
         mdCtx_ = EVP_MD_CTX_create();
         EVP_MD_CTX_init(mdCtx_);
@@ -50,9 +47,9 @@ MessageCrypto::MessageCrypto(const std::string& logCtx, bool keyGenNeeded)
 
 MessageCrypto::~MessageCrypto() {}
 
-RSA* MessageCrypto::loadPublicKey(std::string& pubKeyStr) {
+EVP_PKEY* MessageCrypto::loadPublicKey(std::string& pubKeyStr) {
     BIO* pubBio = NULL;
-    RSA* rsaPub = NULL;
+    EVP_PKEY* rsaPub = NULL;
 
     pubBio = BIO_new_mem_buf((char*)pubKeyStr.c_str(), -1);
     if (pubBio == NULL) {
@@ -60,7 +57,7 @@ RSA* MessageCrypto::loadPublicKey(std::string& pubKeyStr) {
         return rsaPub;
     }
 
-    rsaPub = PEM_read_bio_RSA_PUBKEY(pubBio, NULL, NULL, NULL);
+    rsaPub = PEM_read_bio_PUBKEY(pubBio, NULL, NULL, NULL);
     if (rsaPub == NULL) {
         LOG_ERROR(logCtx_ << " Failed to load public key");
     }
@@ -69,9 +66,9 @@ RSA* MessageCrypto::loadPublicKey(std::string& pubKeyStr) {
     return rsaPub;
 }
 
-RSA* MessageCrypto::loadPrivateKey(std::string& privateKeyStr) {
+EVP_PKEY* MessageCrypto::loadPrivateKey(std::string& privateKeyStr) {
     BIO* privBio = NULL;
-    RSA* rsaPriv = NULL;
+    EVP_PKEY* rsaPriv = NULL;
 
     privBio = BIO_new_mem_buf((char*)privateKeyStr.c_str(), -1);
     if (privBio == NULL) {
@@ -79,13 +76,66 @@ RSA* MessageCrypto::loadPrivateKey(std::string& privateKeyStr) {
         return rsaPriv;
     }
 
-    rsaPriv = PEM_read_bio_RSAPrivateKey(privBio, NULL, NULL, NULL);
+    rsaPriv = PEM_read_bio_PrivateKey(privBio, NULL, NULL, NULL);
     if (rsaPriv == NULL) {
         LOG_ERROR(logCtx_ << " Failed to load private key");
     }
 
     BIO_free(privBio);
     return rsaPriv;
+}
+
+bool MessageCrypto::rsaDecrypt(EVP_PKEY_CTX* ctx, const std::string& in,
+                               boost::scoped_array<unsigned char>& out, size_t& outLen) {
+    if (EVP_PKEY_decrypt_init(ctx) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to initialize decryption");
+        return false;
+    }
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to set RSA padding");
+        return false;
+    }
+    auto inStr_ = reinterpret_cast<unsigned const char*>(in.c_str());
+    size_t rsaSize;
+    if (EVP_PKEY_decrypt(ctx, NULL, &rsaSize, inStr_, in.size()) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to determine decrypt buffer size");
+        return false;
+    }
+    if (rsaSize != outLen) {
+        outLen = rsaSize;
+        out.reset(new unsigned char[outLen]);
+    }
+    if (EVP_PKEY_decrypt(ctx, out.get(), &outLen, inStr_, in.size()) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to decrypt.");
+        return false;
+    }
+    return true;
+}
+
+bool MessageCrypto::rsaEncrypt(EVP_PKEY_CTX* ctx, boost::scoped_array<unsigned char>& in, size_t inLen,
+                               boost::scoped_array<unsigned char>& out, size_t& outLen) {
+    if (EVP_PKEY_encrypt_init(ctx) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to initialize encryption");
+        return false;
+    }
+    if (EVP_PKEY_CTX_set_rsa_padding(ctx, RSA_PKCS1_OAEP_PADDING) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to set RSA padding");
+        return false;
+    }
+    size_t rsaSize;
+    if (EVP_PKEY_encrypt(ctx, NULL, &rsaSize, in.get(), inLen) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to determine encrypt buffer size");
+        return false;
+    }
+    if (rsaSize != outLen) {
+        outLen = rsaSize;
+        out.reset(new unsigned char[rsaSize]);
+    }
+    if (EVP_PKEY_encrypt(ctx, out.get(), &outLen, in.get(), inLen) <= 0) {
+        LOG_ERROR(logCtx_ << "Failed to encrypt.");
+        return false;
+    }
+    return true;
 }
 
 bool MessageCrypto::getDigest(const std::string& keyName, const void* input, unsigned int inputLen,
@@ -181,24 +231,29 @@ Result MessageCrypto::addPublicKeyCipher(const std::string& keyName, const Crypt
         return result;
     }
 
-    RSA* pubKey = loadPublicKey(keyInfo.getKey());
+    auto* pubKey = loadPublicKey(keyInfo.getKey());
     if (pubKey == NULL) {
         LOG_ERROR(logCtx_ << "Failed to load public key " << keyName);
         return ResultCryptoError;
     }
     LOG_DEBUG(logCtx_ << " Public key " << keyName << " loaded successfully.");
 
-    int inSize = RSA_size(pubKey);
-    boost::scoped_array<unsigned char> encryptedKey(new unsigned char[inSize]);
-
-    int outSize =
-        RSA_public_encrypt(dataKeyLen_, dataKey_.get(), encryptedKey.get(), pubKey, RSA_PKCS1_OAEP_PADDING);
-
-    if (inSize != outSize) {
-        LOG_ERROR(logCtx_ << "Ciphertext is length not matching input key length for key " << keyName);
+    boost::scoped_array<unsigned char> encryptedKey{nullptr};
+    size_t encryptedKeyLen{0};
+    auto* ctx = EVP_PKEY_CTX_new(pubKey, NULL);
+    if (!ctx) {
+        LOG_ERROR(logCtx_ << "Failed to create EVP_PKEY_CTX for " << keyName);
+        EVP_PKEY_free(pubKey);
         return ResultCryptoError;
     }
-    std::string encryptedKeyStr(reinterpret_cast<char*>(encryptedKey.get()), inSize);
+    bool encrypted = rsaEncrypt(ctx, dataKey_, dataKeyLen_, encryptedKey, encryptedKeyLen);
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(pubKey);
+    if (!encrypted) {
+        LOG_ERROR(logCtx_ << "Failed to encrypt with " << keyName);
+        return ResultCryptoError;
+    }
+    std::string encryptedKeyStr(reinterpret_cast<char*>(encryptedKey.get()), encryptedKeyLen);
     std::shared_ptr<EncryptionKeyInfo> eki(new EncryptionKeyInfo());
     eki->setKey(encryptedKeyStr);
     eki->setMetadata(keyInfo.getMetadata());
@@ -353,7 +408,7 @@ bool MessageCrypto::decryptDataKey(const proto::EncryptionKeys& encKeys, const C
     keyReader.getPrivateKey(keyName, keyMeta, keyInfo);
 
     // Convert key from string to RSA key
-    RSA* privKey = loadPrivateKey(keyInfo.getKey());
+    auto* privKey = loadPrivateKey(keyInfo.getKey());
     if (privKey == NULL) {
         LOG_ERROR(logCtx_ << " Failed to load private key " << keyName);
         return false;
@@ -361,11 +416,16 @@ bool MessageCrypto::decryptDataKey(const proto::EncryptionKeys& encKeys, const C
     LOG_DEBUG(logCtx_ << " Private key " << keyName << " loaded successfully.");
 
     // Decrypt data key
-    int outSize = RSA_private_decrypt(encryptedDataKey.size(),
-                                      reinterpret_cast<unsigned const char*>(encryptedDataKey.c_str()),
-                                      dataKey_.get(), privKey, RSA_PKCS1_OAEP_PADDING);
-
-    if (outSize == -1) {
+    auto* ctx = EVP_PKEY_CTX_new(privKey, NULL);
+    if (!ctx) {
+        LOG_ERROR(logCtx_ << "Failed to create EVP_PKEY_CTX for " << keyName);
+        EVP_PKEY_free(privKey);
+        return false;
+    }
+    bool decrypted = rsaDecrypt(ctx, encryptedDataKey, dataKey_, dataKeyLen_);
+    EVP_PKEY_CTX_free(ctx);
+    EVP_PKEY_free(privKey);
+    if (!decrypted) {
         LOG_ERROR(logCtx_ << "Failed to decrypt AES key for " << keyName);
         return false;
     }

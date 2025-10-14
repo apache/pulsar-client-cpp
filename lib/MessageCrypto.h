@@ -104,7 +104,7 @@ class MessageCrypto {
     typedef std::unique_lock<std::mutex> Lock;
     std::mutex mutex_;
 
-    int dataKeyLen_;
+    size_t dataKeyLen_;
     boost::scoped_array<unsigned char> dataKey_;
 
     int tagLen_;
@@ -125,8 +125,12 @@ class MessageCrypto {
 
     EVP_MD_CTX* mdCtx_;
 
-    RSA* loadPublicKey(std::string& pubKeyStr);
-    RSA* loadPrivateKey(std::string& privateKeyStr);
+    EVP_PKEY* loadPublicKey(std::string& pubKeyStr);
+    EVP_PKEY* loadPrivateKey(std::string& privateKeyStr);
+    bool rsaDecrypt(EVP_PKEY_CTX* ctx, const std::string& in, boost::scoped_array<unsigned char>& out,
+                    size_t& outLen);
+    bool rsaEncrypt(EVP_PKEY_CTX* ctx, boost::scoped_array<unsigned char>& in, size_t inLen,
+                    boost::scoped_array<unsigned char>& out, size_t& outLen);
     bool getDigest(const std::string& keyName, const void* input, unsigned int inputLen,
                    unsigned char keyDigest[], unsigned int& digestLen);
     void removeExpiredDataKey();
