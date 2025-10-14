@@ -226,9 +226,9 @@ const std::string ZTSClient::getPrincipalToken() const {
     const char *unsignedToken = unsignedTokenString.c_str();
     unsigned char signature[BUFSIZ] = {};
     unsigned char hash[SHA256_DIGEST_LENGTH] = {};
-    unsigned int siglen;
+    size_t siglen;
     FILE *fp;
-    RSA *privateKey;
+    EVP_PKEY *privateKey;
 
     if (privateKeyUri_.scheme == "data") {
         if (privateKeyUri_.mediaTypeAndEncodingType != "application/x-pem-file;base64") {
@@ -249,7 +249,7 @@ const std::string ZTSClient::getPrincipalToken() const {
             free(decodeStr);
             return "";
         }
-        privateKey = PEM_read_bio_RSAPrivateKey(bio, NULL, NULL, NULL);
+        privateKey = PEM_read_bio_PrivateKey(bio, NULL, NULL, NULL);
         BIO_free(bio);
         free(decodeStr);
         if (privateKey == NULL) {
@@ -263,7 +263,7 @@ const std::string ZTSClient::getPrincipalToken() const {
             return "";
         }
 
-        privateKey = PEM_read_RSAPrivateKey(fp, NULL, NULL, NULL);
+        privateKey = PEM_read_PrivateKey(fp, NULL, NULL, NULL);
         fclose(fp);
         if (privateKey == NULL) {
             LOG_ERROR("Failed to read private key: " << privateKeyUri_.path);
@@ -275,14 +275,36 @@ const std::string ZTSClient::getPrincipalToken() const {
     }
 
     SHA256((unsigned char *)unsignedToken, unsignedTokenString.length(), hash);
-    RSA_sign(NID_sha256, hash, SHA256_DIGEST_LENGTH, signature, &siglen, privateKey);
+    auto *ctx = EVP_MD_CTX_new();
+    if (ctx == NULL) {
+        LOG_ERROR("Failed to create EVP_MD_CTX.");
+        return "";
+    }
+
+    bool sign = rsaSign(ctx, privateKey, signature, &siglen, hash);
+    EVP_MD_CTX_free(ctx);
+    if (!sign) {
+        LOG_ERROR("Failed to sign with " << privateKeyUri_.path);
+        return "";
+    }
 
     std::string principalToken = unsignedTokenString + ";s=" + ybase64Encode(signature, siglen);
     LOG_DEBUG("Created signed principal token: " << principalToken);
 
-    RSA_free(privateKey);
+    EVP_PKEY_free(privateKey);
 
     return principalToken;
+}
+
+bool ZTSClient::rsaSign(EVP_MD_CTX *ctx, EVP_PKEY *privateKey, unsigned char *signature, size_t *siglen,
+                        unsigned char *hash) const {
+    if (EVP_DigestSignInit(ctx, NULL, EVP_sha256(), NULL, privateKey) != 1) {
+        return false;
+    }
+    if (EVP_DigestSign(ctx, signature, siglen, hash, SHA256_DIGEST_LENGTH) != 1) {
+        return false;
+    }
+    return true;
 }
 
 std::mutex cacheMtx_;

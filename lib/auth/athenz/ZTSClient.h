@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <openssl/evp.h>
 #include <pulsar/defines.h>
 
 #include <map>
@@ -63,6 +64,8 @@ class PULSAR_PUBLIC ZTSClient {
     static UriSt parseUri(const char* uri);
     static bool checkRequiredParams(std::map<std::string, std::string>& params,
                                     const std::vector<std::string>& requiredParams);
+    bool rsaSign(EVP_MD_CTX* ctx, EVP_PKEY* privateKey, unsigned char* signature, size_t* siglen,
+                 unsigned char* hash) const;
 
     friend class ZTSClientWrapper;
 };
