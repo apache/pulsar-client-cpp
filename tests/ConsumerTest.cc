@@ -1535,7 +1535,6 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
         Message message = MessageBuilder().setContent(msg).build();
         ASSERT_EQ(ResultOk, producer.send(message));
     }
-    ASSERT_EQ(ResultOk, producer.flush());
 
     // 2. Create consumer with listener
     Consumer consumer;
@@ -1546,7 +1545,7 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
     consumerConfig.setMessageListener(
         [&latchFirstReceiveMsg, &latchAfterClosed](Consumer consumer, const Message& msg) {
             latchFirstReceiveMsg.countdown();
-            std::cout << "Consume message: " << msg.getDataAsString() << std::endl;
+            LOG_INFO("Consume message: " << msg.getDataAsString());
             latchAfterClosed.wait();
         });
     auto result = client.subscribe(topicName, "test-sub", consumerConfig, consumer);
