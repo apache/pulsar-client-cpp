@@ -1543,11 +1543,12 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
     consumerConfig.setSubscriptionInitialPosition(InitialPositionEarliest);
     Latch latchFirstReceiveMsg(1);
     Latch latchAfterClosed(1);
-    consumerConfig.setMessageListener([&latchFirstReceiveMsg, &latchAfterClosed](Consumer consumer, const Message& msg) {
-        latchFirstReceiveMsg.countdown();
-        std::cout << "Consume message: " << msg.getDataAsString() << std::endl;
-        latchAfterClosed.wait();
-    });
+    consumerConfig.setMessageListener(
+        [&latchFirstReceiveMsg, &latchAfterClosed](Consumer consumer, const Message& msg) {
+            latchFirstReceiveMsg.countdown();
+            std::cout << "Consume message: " << msg.getDataAsString() << std::endl;
+            latchAfterClosed.wait();
+        });
     auto result = client.subscribe(topicName, "test-sub", consumerConfig, consumer);
     ASSERT_EQ(ResultOk, result);
 
@@ -1559,6 +1560,5 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
-
 
 }  // namespace pulsar
