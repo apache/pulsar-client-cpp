@@ -127,7 +127,7 @@ void NegativeAcksTracker::add(const MessageId &m) {
         auto trimmedTimestamp = trimLowerBit(now + nackDelay_, nackPrecisionBit_);
         // If the timestamp is already in the map, we can just add the message to the existing entry
         // Erase batch id to group all nacks from same batch
-        nackedMessages_[trimmedTimestamp][msgId.ledgerId()].add((uint64_t)msgId.entryId());
+        nackedMessages_[trimmedTimestamp][msgId.ledgerId()].insert(msgId.entryId());
     }
 
     scheduleTimer();

@@ -44,10 +44,6 @@
       "version>=": "3.21.12"
     },
     {
-      "name": "roaring",
-      "version>=": "4.3.1"
-    },
-    {
       "name": "snappy",
       "version>=": "1.1.10"
     },

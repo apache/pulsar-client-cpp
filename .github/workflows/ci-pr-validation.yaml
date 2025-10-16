@@ -172,7 +172,7 @@ jobs:
           sudo apt-get install -y libcurl4-openssl-dev libssl-dev \
             protobuf-compiler libprotobuf-dev libboost-dev \
             libboost-dev libboost-program-options-dev \
-            libzstd-dev libsnappy-dev libgmock-dev libgtest-dev libroaring-dev
+            libzstd-dev libsnappy-dev libgmock-dev libgtest-dev
       - name: CMake
         run: cmake -B build -DBUILD_PERF_TOOLS=ON -DCMAKE_CXX_STANDARD=20
       - name: Build
@@ -340,6 +340,8 @@ jobs:
 
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
+
+      # TODO: verify the pre-built package works without linking issue
 
   cpp-build-macos:
     timeout-minutes: 120
