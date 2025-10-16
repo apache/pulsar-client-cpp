@@ -556,7 +556,9 @@ void MultiTopicsConsumerImpl::messageReceived(const Consumer& consumer, const Me
 
 void MultiTopicsConsumerImpl::internalListener(const Consumer& consumer) {
     Message m;
-    incomingMessages_.pop(m);
+    if (!incomingMessages_.pop(m)) {
+        return;
+    }
     try {
         Consumer self{get_shared_this_ptr()};
         messageProcessed(m);
