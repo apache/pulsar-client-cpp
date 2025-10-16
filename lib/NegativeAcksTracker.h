@@ -27,8 +27,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
-#include <roaring/roaring64map.hh>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "AsioDefines.h"
 #include "AsioTimer.h"
@@ -42,11 +42,6 @@ using ClientImplPtr = std::shared_ptr<ClientImpl>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 using LedgerId = int64_t;
-#ifdef ROARING_NAMESPACE_GLOBAL
-using ConditionalRoaringMap = Roaring64Map;
-#else
-using ConditionalRoaringMap = roaring::Roaring64Map;
-#endif
 
 class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTracker> {
    public:
@@ -74,7 +69,7 @@ class NegativeAcksTracker : public std::enable_shared_from_this<NegativeAcksTrac
     std::chrono::milliseconds timerInterval_;
     int nackPrecisionBit_;
     typedef typename std::chrono::steady_clock Clock;
-    std::map<Clock::time_point, std::unordered_map<LedgerId, ConditionalRoaringMap>> nackedMessages_;
+    std::map<Clock::time_point, std::unordered_map<LedgerId, std::unordered_set<int64_t>>> nackedMessages_;
 
     const DeadlineTimerPtr timer_;
     std::atomic_bool closed_{false};
