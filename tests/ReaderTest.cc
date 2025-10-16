@@ -645,6 +645,7 @@ TEST_P(ReaderTest, testHasMessageAvailableWhenCreated) {
 
     ProducerConfiguration producerConf;
     producerConf.setBatchingMaxMessages(3);
+    producerConf.setPartitionsRoutingMode(ProducerConfiguration::UseSinglePartition);
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConf, producer));
 
