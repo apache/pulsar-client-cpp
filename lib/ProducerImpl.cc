@@ -273,8 +273,8 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
             }
         }
 
-        if (result == ResultProducerFenced) {
-            state_ = Producer_Fenced;
+        if (result == ResultProducerFenced || result == ResultTopicTerminated) {
+            state_ = result == ResultProducerFenced ? Producer_Fenced : Terminated;
             failPendingMessages(result, false);
             auto client = client_.lock();
             if (client) {
@@ -449,6 +449,9 @@ bool ProducerImpl::isValidProducerState(const SendCallback& callback) const {
             return false;
         case HandlerBase::Producer_Fenced:
             callback(ResultProducerFenced, {});
+            return false;
+        case HandlerBase::Terminated:
+            callback(ResultTopicTerminated, {});
             return false;
         case HandlerBase::NotStarted:
         case HandlerBase::Failed:

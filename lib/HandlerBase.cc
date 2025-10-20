@@ -171,6 +171,7 @@ void HandlerBase::handleDisconnection(Result result, const ClientConnectionPtr& 
         case Closing:
         case Closed:
         case Producer_Fenced:
+        case Terminated:
         case Failed:
             LOG_DEBUG(getName() << "Ignoring connection closed event since the handler is not used anymore");
             break;
