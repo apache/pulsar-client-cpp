@@ -27,6 +27,7 @@
 #include <set>
 
 #include "ProtoApiEnums.h"
+#include "lib/HandlerBase.h"
 
 namespace pulsar {
 
@@ -34,6 +35,7 @@ class ClientConnection;
 using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
 using ResultCallback = std::function<void(Result)>;
+using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
 
 /**
  * @class AckGroupingTracker
@@ -42,10 +44,8 @@ using ResultCallback = std::function<void(Result)>;
  */
 class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracker> {
    public:
-    AckGroupingTracker(std::function<ClientConnectionPtr()> connectionSupplier,
-                       std::function<uint64_t()> requestIdSupplier, uint64_t consumerId, bool waitResponse)
-        : connectionSupplier_(std::move(connectionSupplier)),
-          requestIdSupplier_(std::move(requestIdSupplier)),
+    AckGroupingTracker(std::function<uint64_t()> requestIdSupplier, uint64_t consumerId, bool waitResponse)
+        : requestIdSupplier_(std::move(requestIdSupplier)),
           consumerId_(consumerId),
           waitResponse_(waitResponse) {}
 
@@ -53,8 +53,10 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
 
     /**
      * Start tracking the ACK requests.
+     *
+     * @param[in] handler the handler to get a ClientConnection for sending the ACK requests.
      */
-    virtual void start() {}
+    virtual void start(const HandlerBaseWeakPtr& handler) { handler_ = handler; }
 
     /**
      * Since ACK requests are grouped and delayed, we need to do some best-effort duplicate check to
@@ -99,15 +101,39 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      */
     virtual void flushAndClean() {}
 
+    /**
+     * Close the ACK grouping tracker, which will prevent further ACK requests being sent.
+     */
+    virtual void close() { isClosed_.store(true, std::memory_order_relaxed); }
+
    protected:
     void doImmediateAck(const MessageId& msgId, const ResultCallback& callback,
                         CommandAck_AckType ackType) const;
     void doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback) const;
+    bool isClosed() const noexcept { return isClosed_.load(std::memory_order_relaxed); }
+    bool validateClosed(const ResultCallback& callback) const {
+        if (isClosed()) {
+            if (callback) {
+                callback(ResultAlreadyClosed);
+            }
+            return true;
+        }
+        return false;
+    }
 
    private:
-    const std::function<ClientConnectionPtr()> connectionSupplier_;
+    std::weak_ptr<HandlerBase> handler_;
     const std::function<uint64_t()> requestIdSupplier_;
     const uint64_t consumerId_;
+    std::atomic_bool isClosed_{false};
+
+    ClientConnectionPtr getConnection() const {
+        auto handler = handler_.lock();
+        if (!handler) {
+            return nullptr;
+        }
+        return handler->getCnx().lock();
+    }
 
    protected:
     const bool waitResponse_;

@@ -45,7 +45,10 @@ static int compare(const MessageId& lhs, const MessageId& rhs) {
     }
 }
 
-void AckGroupingTrackerEnabled::start() { this->scheduleTimer(); }
+void AckGroupingTrackerEnabled::start(const HandlerBaseWeakPtr& handler) {
+    AckGroupingTracker::start(handler);
+    this->scheduleTimer();
+}
 
 bool AckGroupingTrackerEnabled::isDuplicate(const MessageId& msgId) {
     {
@@ -62,6 +65,9 @@ bool AckGroupingTrackerEnabled::isDuplicate(const MessageId& msgId) {
 }
 
 void AckGroupingTrackerEnabled::addAcknowledge(const MessageId& msgId, const ResultCallback& callback) {
+    if (validateClosed(callback)) {
+        return;
+    }
     std::lock_guard<std::recursive_mutex> lock(this->rmutexPendingIndAcks_);
     this->pendingIndividualAcks_.insert(msgId);
     if (waitResponse_) {
@@ -76,6 +82,9 @@ void AckGroupingTrackerEnabled::addAcknowledge(const MessageId& msgId, const Res
 
 void AckGroupingTrackerEnabled::addAcknowledgeList(const MessageIdList& msgIds,
                                                    const ResultCallback& callback) {
+    if (validateClosed(callback)) {
+        return;
+    }
     std::lock_guard<std::recursive_mutex> lock(this->rmutexPendingIndAcks_);
     for (const auto& msgId : msgIds) {
         this->pendingIndividualAcks_.emplace(msgId);
@@ -92,6 +101,9 @@ void AckGroupingTrackerEnabled::addAcknowledgeList(const MessageIdList& msgIds,
 
 void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId,
                                                          const ResultCallback& callback) {
+    if (validateClosed(callback)) {
+        return;
+    }
     std::unique_lock<std::mutex> lock(this->mutexCumulativeAckMsgId_);
     bool completeCallback = true;
     if (compare(msgId, this->nextCumulativeAckMsgId_) > 0) {
@@ -115,10 +127,15 @@ void AckGroupingTrackerEnabled::addAcknowledgeCumulative(const MessageId& msgId,
         callback(ResultOk);
     }
 }
-
 AckGroupingTrackerEnabled::~AckGroupingTrackerEnabled() {
-    isClosed_ = true;
-    this->flush();
+    std::lock_guard<std::mutex> lock(this->mutexTimer_);
+    if (this->timer_) {
+        cancelTimer(*this->timer_);
+    }
+}
+
+void AckGroupingTrackerEnabled::close() {
+    AckGroupingTracker::close();
     std::lock_guard<std::mutex> lock(this->mutexTimer_);
     if (this->timer_) {
         cancelTimer(*this->timer_);
@@ -165,7 +182,7 @@ void AckGroupingTrackerEnabled::flushAndClean() {
 }
 
 void AckGroupingTrackerEnabled::scheduleTimer() {
-    if (isClosed_) {
+    if (isClosed()) {
         return;
     }
 

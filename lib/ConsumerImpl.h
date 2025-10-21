@@ -246,7 +246,7 @@ class ConsumerImpl : public ConsumerImplBase {
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
     BrokerConsumerStatsImpl brokerConsumerStats_;
     std::shared_ptr<NegativeAcksTracker> negativeAcksTracker_;
-    AckGroupingTrackerPtr ackGroupingTrackerPtr_;
+    const AckGroupingTrackerPtr ackGroupingTrackerPtr_;
 
     MessageCryptoPtr msgCrypto_;
     const bool readCompacted_;

@@ -25,6 +25,7 @@
 #include <atomic>
 #include <chrono>
 #include <ctime>
+#include <future>
 #include <map>
 #include <mutex>
 #include <set>
@@ -1542,12 +1543,19 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
     consumerConfig.setSubscriptionInitialPosition(InitialPositionEarliest);
     Latch latchFirstReceiveMsg(1);
     Latch latchAfterClosed(1);
-    consumerConfig.setMessageListener(
-        [&latchFirstReceiveMsg, &latchAfterClosed](Consumer consumer, const Message& msg) {
-            latchFirstReceiveMsg.countdown();
-            LOG_INFO("Consume message: " << msg.getDataAsString());
-            latchAfterClosed.wait();
-        });
+
+    std::promise<std::vector<Result>> ackResultsPromise;
+    consumerConfig.setMessageListener([&latchFirstReceiveMsg, &latchAfterClosed, &ackResultsPromise](
+                                          Consumer consumer, const Message& msg) {
+        latchFirstReceiveMsg.countdown();
+        LOG_INFO("Consume message: " << msg.getDataAsString());
+        latchAfterClosed.wait();
+        std::vector<Result> results(3);
+        results[0] = consumer.acknowledge(msg);
+        results[1] = consumer.acknowledgeCumulative(msg);
+        results[2] = consumer.acknowledge(std::vector<MessageId>{msg.getMessageId()});
+        ackResultsPromise.set_value(results);
+    });
     auto result = client.subscribe(topicName, "test-sub", consumerConfig, consumer);
     ASSERT_EQ(ResultOk, result);
 
@@ -1555,6 +1563,11 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
     latchFirstReceiveMsg.wait();
     ASSERT_EQ(ResultOk, consumer.close());
     latchAfterClosed.countdown();
+    const auto ackResults = ackResultsPromise.get_future().get();
+    ASSERT_EQ(3, ackResults.size());
+    for (size_t i = 0; i < ackResults.size(); i++) {
+        ASSERT_EQ(ResultAlreadyClosed, ackResults[i]) << "ack result[" << i << "] " << ackResults[i];
+    }
 
     ASSERT_EQ(ResultOk, producer.close());
     ASSERT_EQ(ResultOk, client.close());

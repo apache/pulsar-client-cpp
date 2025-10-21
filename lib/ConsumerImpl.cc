@@ -74,6 +74,25 @@ static boost::optional<MessageId> getStartMessageId(const boost::optional<Messag
     return startMessageId;
 }
 
+static AckGroupingTracker* newAckGroupingTracker(const ClientImplPtr& client, const std::string& topic,
+                                                 uint64_t consumerId, const ConsumerConfiguration& config) {
+    const auto requestIdGenerator = client->getRequestIdGenerator();
+    const auto requestIdSupplier = [requestIdGenerator] { return (*requestIdGenerator)++; };
+
+    if (TopicName::get(topic)->isPersistent()) {
+        if (config.getAckGroupingTimeMs() > 0) {
+            return new AckGroupingTrackerEnabled(
+                requestIdSupplier, consumerId, config.isAckReceiptEnabled(), config.getAckGroupingTimeMs(),
+                config.getAckGroupingMaxSize(), client->getIOExecutorProvider()->get());
+        } else {
+            return new AckGroupingTrackerDisabled(requestIdSupplier, consumerId,
+                                                  config.isAckReceiptEnabled());
+        }
+    } else {
+        return new AckGroupingTracker(requestIdSupplier, consumerId, config.isAckReceiptEnabled());
+    }
+}
+
 ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic,
                            const std::string& subscriptionName, const ConsumerConfiguration& conf,
                            bool isPersistent, const ConsumerInterceptorsPtr& interceptors,
@@ -105,6 +124,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
       consumerStr_("[" + topic + ", " + subscriptionName + ", " + std::to_string(consumerId_) + "] "),
       messageListenerRunning_(!conf.isStartPaused()),
       negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
+      ackGroupingTrackerPtr_(newAckGroupingTracker(client, topic, consumerId_, conf)),
       readCompacted_(conf.isReadCompacted()),
       startMessageId_(getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
@@ -198,38 +218,7 @@ const std::string& ConsumerImpl::getTopic() const { return topic(); }
 
 void ConsumerImpl::start() {
     HandlerBase::start();
-
-    std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
-    auto connectionSupplier = [weakSelf]() -> ClientConnectionPtr {
-        auto self = weakSelf.lock();
-        if (!self) {
-            return nullptr;
-        }
-        return self->getCnx().lock();
-    };
-
-    // NOTE: start() is always called in `ClientImpl`'s method, so lock() returns not null
-    const auto requestIdGenerator = client_.lock()->getRequestIdGenerator();
-    const auto requestIdSupplier = [requestIdGenerator] { return (*requestIdGenerator)++; };
-
-    // Initialize ackGroupingTrackerPtr_ here because the get_shared_this_ptr() was not initialized until the
-    // constructor completed.
-    if (TopicName::get(topic())->isPersistent()) {
-        if (config_.getAckGroupingTimeMs() > 0) {
-            ackGroupingTrackerPtr_.reset(new AckGroupingTrackerEnabled(
-                connectionSupplier, requestIdSupplier, consumerId_, config_.isAckReceiptEnabled(),
-                config_.getAckGroupingTimeMs(), config_.getAckGroupingMaxSize(),
-                client_.lock()->getIOExecutorProvider()->get()));
-        } else {
-            ackGroupingTrackerPtr_.reset(new AckGroupingTrackerDisabled(
-                connectionSupplier, requestIdSupplier, consumerId_, config_.isAckReceiptEnabled()));
-        }
-    } else {
-        LOG_INFO(getName() << "ACK will NOT be sent to broker for this non-persistent topic.");
-        ackGroupingTrackerPtr_.reset(new AckGroupingTracker(connectionSupplier, requestIdSupplier,
-                                                            consumerId_, config_.isAckReceiptEnabled()));
-    }
-    ackGroupingTrackerPtr_->start();
+    ackGroupingTrackerPtr_->start(std::static_pointer_cast<HandlerBase>(shared_from_this()));
 }
 
 void ConsumerImpl::beforeConnectionChange(ClientConnection& cnx) { cnx.removeConsumer(consumerId_); }
@@ -591,17 +580,16 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
     LOG_DEBUG(getName() << " metadata.has_num_messages_in_batch() = "
                         << metadata.has_num_messages_in_batch());
 
-    uint32_t numOfMessageReceived = m.impl_->metadata.num_messages_in_batch();
-    auto ackGroupingTrackerPtr = ackGroupingTrackerPtr_;
-    if (ackGroupingTrackerPtr == nullptr) {  // The consumer is closing
+    const auto state = state_.load(std::memory_order_relaxed);
+    if (state == Closing || state == Closed) {
         return;
     }
-    if (ackGroupingTrackerPtr->isDuplicate(m.getMessageId())) {
+    uint32_t numOfMessageReceived = m.impl_->metadata.num_messages_in_batch();
+    if (ackGroupingTrackerPtr_->isDuplicate(m.getMessageId())) {
         LOG_DEBUG(getName() << " Ignoring message as it was ACKed earlier by same consumer.");
         increaseAvailablePermits(cnx, numOfMessageReceived);
         return;
     }
-    ackGroupingTrackerPtr.reset();
 
     if (metadata.has_num_messages_in_batch()) {
         BitSet::Data words(msg.ack_set_size());
@@ -1340,12 +1328,8 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     incomingMessages_.close();
 
     // Flush pending grouped ACK requests.
-    if (ackGroupingTrackerPtr_.use_count() != 1) {
-        LOG_ERROR("AckGroupingTracker is shared by other "
-                  << (ackGroupingTrackerPtr_.use_count() - 1)
-                  << " threads, which will prevent flushing the ACKs");
-    }
-    ackGroupingTrackerPtr_.reset();
+    ackGroupingTrackerPtr_->flushAndClean();
+    ackGroupingTrackerPtr_->close();
     negativeAcksTracker_->close();
 
     ClientConnectionPtr cnx = getCnx().lock();
@@ -1369,13 +1353,12 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
         .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
-
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
 
 void ConsumerImpl::shutdown() { internalShutdown(); }
 
 void ConsumerImpl::internalShutdown() {
-    ackGroupingTrackerPtr_.reset();
+    ackGroupingTrackerPtr_->close();
     incomingMessages_.clear();
     possibleSendToDeadLetterTopicMessages_.clear();
     resetCnx();

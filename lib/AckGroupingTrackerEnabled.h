@@ -45,11 +45,10 @@ using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
  */
 class AckGroupingTrackerEnabled : public AckGroupingTracker {
    public:
-    AckGroupingTrackerEnabled(const std::function<ClientConnectionPtr()>& connectionSupplier,
-                              const std::function<uint64_t()>& requestIdSupplier, uint64_t consumerId,
+    AckGroupingTrackerEnabled(const std::function<uint64_t()>& requestIdSupplier, uint64_t consumerId,
                               bool waitResponse, long ackGroupingTimeMs, long ackGroupingMaxSize,
                               const ExecutorServicePtr& executor)
-        : AckGroupingTracker(connectionSupplier, requestIdSupplier, consumerId, waitResponse),
+        : AckGroupingTracker(requestIdSupplier, consumerId, waitResponse),
           ackGroupingTimeMs_(ackGroupingTimeMs),
           ackGroupingMaxSize_(ackGroupingMaxSize),
           executor_(executor) {
@@ -58,20 +57,19 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
 
     ~AckGroupingTrackerEnabled();
 
-    void start() override;
+    void start(const HandlerBaseWeakPtr& handler) override;
     bool isDuplicate(const MessageId& msgId) override;
     void addAcknowledge(const MessageId& msgId, const ResultCallback& callback) override;
     void addAcknowledgeList(const MessageIdList& msgIds, const ResultCallback& callback) override;
     void addAcknowledgeCumulative(const MessageId& msgId, const ResultCallback& callback) override;
-    void flush();
     void flushAndClean() override;
+    void close() override;
+
+   private:
+    void flush();
 
    protected:
-    //! Method for scheduling grouping timer.
     void scheduleTimer();
-
-    //! State
-    std::atomic_bool isClosed_{false};
 
     //! Next message ID to be cumulatively cumulatively.
     MessageId nextCumulativeAckMsgId_{MessageId::earliest()};
