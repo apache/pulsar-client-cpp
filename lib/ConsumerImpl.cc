@@ -74,19 +74,19 @@ static boost::optional<MessageId> getStartMessageId(const boost::optional<Messag
     return startMessageId;
 }
 
-static AckGroupingTracker* newAckGroupingTracker(const std::string& topic,
-                                                 const ConsumerConfiguration& config,
-                                                 const ClientImplPtr& client) {
+static std::shared_ptr<AckGroupingTracker> newAckGroupingTracker(const std::string& topic,
+                                                                 const ConsumerConfiguration& config,
+                                                                 const ClientImplPtr& client) {
     if (TopicName::get(topic)->isPersistent()) {
         if (config.getAckGroupingTimeMs() > 0) {
-            return new AckGroupingTrackerEnabled(config.getAckGroupingTimeMs(),
-                                                 config.getAckGroupingMaxSize(), config.isAckReceiptEnabled(),
-                                                 client->getIOExecutorProvider()->get());
+            return std::make_shared<AckGroupingTrackerEnabled>(
+                config.getAckGroupingTimeMs(), config.getAckGroupingMaxSize(), config.isAckReceiptEnabled(),
+                client->getIOExecutorProvider()->get());
         } else {
-            return new AckGroupingTrackerDisabled();
+            return std::make_shared<AckGroupingTrackerDisabled>();
         }
     } else {
-        return new AckGroupingTracker();
+        return std::make_shared<AckGroupingTracker>();
     }
 }
 
