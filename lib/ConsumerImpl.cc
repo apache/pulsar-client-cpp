@@ -267,6 +267,16 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     unAckedMessageTrackerPtr_->clear();
 
     ClientImplPtr client = client_.lock();
+
+    Lock lock{mutex_};
+    const auto state = state_.load();
+    if (state == Closing || state == Closed) {
+        lock.unlock();
+        Promise<Result, bool> promise;
+        promise.setFailed(ResultAlreadyClosed);
+        return promise.getFuture();
+    }
+
     long requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
         topic(), subscription_, consumerId_, requestId, getSubType(), getConsumerName(), subscriptionMode_,
@@ -1358,7 +1368,13 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     }
     ackGroupingTrackerPtr_.reset();
     negativeAcksTracker_->close();
+    cancelTimers();
 
+    // Prevent the race that
+    // 1. In `connectionOpened`, setCnx() is called and the state is Ready.
+    // 2. In this method, state is changed to Closing and a CloseConsumer request is sent.
+    // 3. In `connectionOpened`, a Subscribe request is sent.
+    std::lock_guard<std::mutex> lock{mutex_};
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
         // If connection is gone, also the consumer is closed on the broker side
@@ -1372,8 +1388,6 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
         callback(ResultOk);
         return;
     }
-
-    cancelTimers();
 
     int requestId = client->newRequestId();
     auto self = get_shared_this_ptr();
