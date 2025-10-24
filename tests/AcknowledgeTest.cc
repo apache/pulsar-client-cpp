@@ -375,6 +375,34 @@ TEST_F(AcknowledgeTest, testAckReceiptEnabled) {
     client.close();
 }
 
+TEST_F(AcknowledgeTest, testCloseConsumer) {
+    Client client(lookupUrl);
+    const auto topic = "test-close-consumer" + unique_str();
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ConsumerConfiguration consumerConfig;
+    consumerConfig.setAckGroupingTimeMs(60000);
+    consumerConfig.setAckGroupingMaxSize(100);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumerConfig, consumer));
+
+    producer.send(MessageBuilder().setContent("msg-0").build());
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+    consumer.acknowledgeAsync(
+        msg, nullptr);  // it just adds the msg id to the pending ack list due to the ack grouping configs
+    consumer.close();   // it will flush the pending ACK and prevent any further ack
+    ASSERT_EQ(ResultAlreadyClosed, consumer.acknowledge(msg));
+    ASSERT_EQ(ResultAlreadyClosed, consumer.acknowledgeCumulative(msg));
+    ASSERT_EQ(ResultAlreadyClosed, consumer.acknowledge(std::vector<MessageId>{msg.getMessageId()}));
+
+    producer.send(MessageBuilder().setContent("msg-1").build());
+    // Recreate the consumer to verify the first message is acknowledged
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumerConfig, consumer));
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+    ASSERT_EQ("msg-1", msg.getDataAsString());
+}
+
 INSTANTIATE_TEST_SUITE_P(BasicEndToEndTest, AcknowledgeTest,
                          testing::Combine(testing::Values(100, 0), testing::Values(true, false)),
                          [](const testing::TestParamInfo<std::tuple<int, bool>>& info) {
