@@ -1347,6 +1347,7 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
         .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
+
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
 
 void ConsumerImpl::shutdown() { internalShutdown(); }
