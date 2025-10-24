@@ -255,6 +255,8 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     if (duringSeek()) {
         ackGroupingTrackerPtr_->flushAndClean();
     }
+    // Set connection after flushing the ack tracker to avoid sending ACKs on the new connection
+    setCnx(cnx);
 
     Lock lockForMessageId(mutexForMessageId_);
     clearReceiveQueue();
@@ -265,6 +267,16 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     unAckedMessageTrackerPtr_->clear();
 
     ClientImplPtr client = client_.lock();
+
+    Lock lock{mutex_};
+    const auto state = state_.load();
+    if (state == Closing || state == Closed) {
+        lock.unlock();
+        Promise<Result, bool> promise;
+        promise.setFailed(ResultAlreadyClosed);
+        return promise.getFuture();
+    }
+
     long requestId = client->newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
         topic(), subscription_, consumerId_, requestId, getSubType(), getConsumerName(), subscriptionMode_,
@@ -312,7 +324,6 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
         LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
         {
             Lock mutexLock(mutex_);
-            setCnx(cnx);
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             state_ = Ready;
@@ -338,8 +349,14 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
         } else if (messageListener_) {
             sendFlowPermitsToBroker(cnx, 1);
         }
+        {
+            std::lock_guard<std::mutex> lock{subscribeMutex_};
+            subscribePromise_.setValue(true);  // trigger pending requests like seek or getLastMessageId
+        }
         consumerCreatedPromise_.setValue(get_shared_this_ptr());
     } else {
+        // TODO: it's not tested yet because it's hard to mock subscribe failure after reconnection
+        subscribePromise_.setFailed(result);
         if (result == ResultTimeout) {
             // Creating the consumer has timed out. We need to ensure the broker closes the consumer
             // in case it was indeed created, otherwise it might prevent new subscribe operation,
@@ -1311,6 +1328,10 @@ void ConsumerImpl::disconnectConsumer(const boost::optional<std::string>& assign
     LOG_INFO("Broker notification of Closed consumer: "
              << consumerId_ << (assignedBrokerUrl ? (" assignedBrokerUrl: " + assignedBrokerUrl.get()) : ""));
     resetCnx();
+    {
+        std::lock_guard<std::mutex> lock{subscribeMutex_};
+        subscribePromise_ = Promise<Result, bool>{};
+    }
     scheduleReconnection(assignedBrokerUrl);
 }
 
@@ -1347,7 +1368,13 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     }
     ackGroupingTrackerPtr_.reset();
     negativeAcksTracker_->close();
+    cancelTimers();
 
+    // Prevent the race that
+    // 1. In `connectionOpened`, setCnx() is called and the state is Ready.
+    // 2. In this method, state is changed to Closing and a CloseConsumer request is sent.
+    // 3. In `connectionOpened`, a Subscribe request is sent.
+    std::lock_guard<std::mutex> lock{mutex_};
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
         // If connection is gone, also the consumer is closed on the broker side
@@ -1361,8 +1388,6 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
         callback(ResultOk);
         return;
     }
-
-    cancelTimers();
 
     int requestId = client->newRequestId();
     auto self = get_shared_this_ptr();
@@ -1542,13 +1567,23 @@ void ConsumerImpl::seekAsync(const MessageId& msgId, const ResultCallback& callb
         return;
     }
 
-    ClientImplPtr client = client_.lock();
-    if (!client) {
-        LOG_ERROR(getName() << "Client is expired when seekAsync " << msgId);
-        return;
-    }
-    const auto requestId = client->newRequestId();
-    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId}, callback);
+    auto self = shared_from_this();
+    sendRequestAfterSubscribed([this, self, msgId, callback](Result result) {
+        if (result != ResultOk) {
+            if (callback) {
+                callback(result);
+            }
+            return;
+        }
+        ClientImplPtr client = client_.lock();
+        if (!client) {
+            LOG_ERROR(getName() << "Client is expired when seekAsync " << msgId);
+            return;
+        }
+        const auto requestId = client->newRequestId();
+        seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId},
+                          callback);
+    });
 }
 
 void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
@@ -1561,14 +1596,23 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback)
         return;
     }
 
-    ClientImplPtr client = client_.lock();
-    if (!client) {
-        LOG_ERROR(getName() << "Client is expired when seekAsync " << timestamp);
-        return;
-    }
-    const auto requestId = client->newRequestId();
-    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), SeekArg{timestamp},
-                      callback);
+    auto self = shared_from_this();
+    sendRequestAfterSubscribed([this, self, timestamp, callback](Result result) {
+        if (result != ResultOk) {
+            if (callback) {
+                callback(result);
+            }
+            return;
+        }
+        ClientImplPtr client = client_.lock();
+        if (!client) {
+            LOG_ERROR(getName() << "Client is expired when seekAsync " << timestamp);
+            return;
+        }
+        const auto requestId = client->newRequestId();
+        seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), SeekArg{timestamp},
+                          callback);
+    });
 }
 
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
@@ -1645,11 +1689,20 @@ void ConsumerImpl::getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& c
         return;
     }
 
-    TimeDuration operationTimeout = seconds(client_.lock()->conf().getOperationTimeoutSeconds());
-    BackoffPtr backoff = std::make_shared<Backoff>(milliseconds(100), operationTimeout * 2, milliseconds(0));
-    DeadlineTimerPtr timer = executor_->createDeadlineTimer();
-
-    internalGetLastMessageIdAsync(backoff, operationTimeout, timer, callback);
+    auto self = shared_from_this();
+    sendRequestAfterSubscribed([this, self, callback](Result result) {
+        if (result != ResultOk) {
+            if (callback) {
+                callback(result, {});
+            }
+            return;
+        }
+        TimeDuration operationTimeout = seconds(client_.lock()->conf().getOperationTimeoutSeconds());
+        BackoffPtr backoff =
+            std::make_shared<Backoff>(milliseconds(100), operationTimeout * 2, milliseconds(0));
+        DeadlineTimerPtr timer = executor_->createDeadlineTimer();
+        internalGetLastMessageIdAsync(backoff, operationTimeout, timer, callback);
+    });
 }
 
 void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, TimeDuration remainTime,
