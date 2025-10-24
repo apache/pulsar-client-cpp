@@ -3978,7 +3978,7 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerEnabledCumulativeAck) {
         clientImplPtr->getIOExecutorProvider()->get());
     tracker1->start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
     tracker1->addAcknowledgeCumulative(recvMsgId[numMsg - 1], nullptr);
-    tracker1.reset();
+    tracker1->flushAndClean();
     consumer.close();
 
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));
