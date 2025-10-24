@@ -74,22 +74,19 @@ static boost::optional<MessageId> getStartMessageId(const boost::optional<Messag
     return startMessageId;
 }
 
-static AckGroupingTracker* newAckGroupingTracker(const ClientImplPtr& client, const std::string& topic,
-                                                 uint64_t consumerId, const ConsumerConfiguration& config) {
-    const auto requestIdGenerator = client->getRequestIdGenerator();
-    const auto requestIdSupplier = [requestIdGenerator] { return (*requestIdGenerator)++; };
-
+static AckGroupingTracker* newAckGroupingTracker(const std::string& topic,
+                                                 const ConsumerConfiguration& config,
+                                                 const ClientImplPtr& client) {
     if (TopicName::get(topic)->isPersistent()) {
         if (config.getAckGroupingTimeMs() > 0) {
-            return new AckGroupingTrackerEnabled(
-                requestIdSupplier, consumerId, config.isAckReceiptEnabled(), config.getAckGroupingTimeMs(),
-                config.getAckGroupingMaxSize(), client->getIOExecutorProvider()->get());
+            return new AckGroupingTrackerEnabled(config.getAckGroupingTimeMs(),
+                                                 config.getAckGroupingMaxSize(), config.isAckReceiptEnabled(),
+                                                 client->getIOExecutorProvider()->get());
         } else {
-            return new AckGroupingTrackerDisabled(requestIdSupplier, consumerId,
-                                                  config.isAckReceiptEnabled());
+            return new AckGroupingTrackerDisabled();
         }
     } else {
-        return new AckGroupingTracker(requestIdSupplier, consumerId, config.isAckReceiptEnabled());
+        return new AckGroupingTracker();
     }
 }
 
@@ -124,13 +121,14 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
       consumerStr_("[" + topic + ", " + subscriptionName + ", " + std::to_string(consumerId_) + "] "),
       messageListenerRunning_(!conf.isStartPaused()),
       negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
-      ackGroupingTrackerPtr_(newAckGroupingTracker(client, topic, consumerId_, conf)),
+      ackGroupingTrackerPtr_(newAckGroupingTracker(topic, conf, client)),
       readCompacted_(conf.isReadCompacted()),
       startMessageId_(getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
       expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
-      interceptors_(interceptors) {
+      interceptors_(interceptors),
+      requestIdGenerator_(client->getRequestIdGenerator()) {
     // Initialize un-ACKed messages OT tracker.
     if (conf.getUnAckedMessagesTimeoutMs() != 0) {
         if (conf.getTickDurationInMs() > 0) {
@@ -189,9 +187,8 @@ ConsumerImpl::~ConsumerImpl() {
         LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
 
         ClientConnectionPtr cnx = getCnx().lock();
-        ClientImplPtr client = client_.lock();
-        if (client && cnx) {
-            int requestId = client->newRequestId();
+        if (cnx) {
+            auto requestId = newRequestId();
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
             cnx->removeConsumer(consumerId_);
             LOG_INFO(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
@@ -206,8 +203,6 @@ void ConsumerImpl::setPartitionIndex(int partitionIndex) { partitionIndex_ = par
 
 int ConsumerImpl::getPartitionIndex() { return partitionIndex_; }
 
-uint64_t ConsumerImpl::getConsumerId() { return consumerId_; }
-
 Future<Result, ConsumerImplBaseWeakPtr> ConsumerImpl::getConsumerCreatedFuture() {
     return consumerCreatedPromise_.getFuture();
 }
@@ -218,7 +213,7 @@ const std::string& ConsumerImpl::getTopic() const { return topic(); }
 
 void ConsumerImpl::start() {
     HandlerBase::start();
-    ackGroupingTrackerPtr_->start(std::static_pointer_cast<HandlerBase>(shared_from_this()));
+    ackGroupingTrackerPtr_->start(get_shared_this_ptr());
 }
 
 void ConsumerImpl::beforeConnectionChange(ClientConnection& cnx) { cnx.removeConsumer(consumerId_); }
@@ -254,7 +249,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     unAckedMessageTrackerPtr_->clear();
 
     ClientImplPtr client = client_.lock();
-    long requestId = client->newRequestId();
+    auto requestId = newRequestId();
     SharedBuffer cmd = Commands::newSubscribe(
         topic(), subscription_, consumerId_, requestId, getSubType(), getConsumerName(), subscriptionMode_,
         subscribeMessageId, readCompacted_, config_.getProperties(), config_.getSubscriptionProperties(),
@@ -333,7 +328,7 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
             // Creating the consumer has timed out. We need to ensure the broker closes the consumer
             // in case it was indeed created, otherwise it might prevent new subscribe operation,
             // since we are not closing the connection
-            int requestId = client_.lock()->newRequestId();
+            auto requestId = newRequestId();
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
         }
 
@@ -385,7 +380,7 @@ void ConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
         LOG_DEBUG(getName() << "Unsubscribe request sent for consumer - " << consumerId_);
         ClientImplPtr client = client_.lock();
         lock.unlock();
-        int requestId = client->newRequestId();
+        auto requestId = newRequestId();
         SharedBuffer cmd = Commands::newUnsubscribe(consumerId_, requestId);
         auto self = get_shared_this_ptr();
         cnx->sendRequestWithId(cmd, requestId)
@@ -1328,7 +1323,6 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     incomingMessages_.close();
 
     // Flush pending grouped ACK requests.
-    ackGroupingTrackerPtr_->flushAndClean();
     ackGroupingTrackerPtr_->close();
     negativeAcksTracker_->close();
 
@@ -1348,7 +1342,7 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
 
     cancelTimers();
 
-    int requestId = client->newRequestId();
+    auto requestId = newRequestId();
     auto self = get_shared_this_ptr();
     cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
         .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
@@ -1482,8 +1476,7 @@ void ConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback
     ClientConnectionPtr cnx = getCnx().lock();
     if (cnx) {
         if (cnx->getServerProtocolVersion() >= proto::v8) {
-            ClientImplPtr client = client_.lock();
-            uint64_t requestId = client->newRequestId();
+            auto requestId = newRequestId();
             LOG_DEBUG(getName() << " Sending ConsumerStats Command for Consumer - " << getConsumerId()
                                 << ", requestId - " << requestId);
 
@@ -1525,12 +1518,7 @@ void ConsumerImpl::seekAsync(const MessageId& msgId, const ResultCallback& callb
         return;
     }
 
-    ClientImplPtr client = client_.lock();
-    if (!client) {
-        LOG_ERROR(getName() << "Client is expired when seekAsync " << msgId);
-        return;
-    }
-    const auto requestId = client->newRequestId();
+    const auto requestId = newRequestId();
     seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId}, callback);
 }
 
@@ -1544,12 +1532,7 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback)
         return;
     }
 
-    ClientImplPtr client = client_.lock();
-    if (!client) {
-        LOG_ERROR(getName() << "Client is expired when seekAsync " << timestamp);
-        return;
-    }
-    const auto requestId = client->newRequestId();
+    const auto requestId = newRequestId();
     seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), SeekArg{timestamp},
                       callback);
 }
@@ -1641,8 +1624,7 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
     ClientConnectionPtr cnx = getCnx().lock();
     if (cnx) {
         if (cnx->getServerProtocolVersion() >= proto::v12) {
-            ClientImplPtr client = client_.lock();
-            uint64_t requestId = client->newRequestId();
+            auto requestId = newRequestId();
             LOG_DEBUG(getName() << " Sending getLastMessageId Command for Consumer - " << getConsumerId()
                                 << ", requestId - " << requestId);
 
@@ -1907,6 +1889,102 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const Proces
             });
         });
     }
+}
+
+void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const MessageId& msgId,
+                                  CommandAck_AckType ackType, const ResultCallback& callback) {
+    const auto& ackSet = Commands::getMessageIdImpl(msgId)->getBitSet();
+    if (config_.isAckReceiptEnabled()) {
+        auto requestId = newRequestId();
+        cnx->sendRequestWithId(
+               Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType, requestId),
+               requestId)
+            .addListener([callback](Result result, const ResponseData&) {
+                if (callback) {
+                    callback(result);
+                }
+            });
+    } else {
+        cnx->sendCommand(Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType));
+        if (callback) {
+            callback(ResultOk);
+        }
+    }
+}
+
+void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const std::set<MessageId>& msgIds,
+                                  const ResultCallback& callback) {
+    std::set<MessageId> ackMsgIds;
+
+    for (const auto& msgId : msgIds) {
+        if (auto chunkMessageId =
+                std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
+            auto msgIdList = chunkMessageId->getChunkedMessageIds();
+            ackMsgIds.insert(msgIdList.begin(), msgIdList.end());
+        } else {
+            ackMsgIds.insert(msgId);
+        }
+    }
+    if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
+        if (config_.isAckReceiptEnabled()) {
+            auto requestId = newRequestId();
+            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId)
+                .addListener([callback](Result result, const ResponseData&) {
+                    if (callback) {
+                        callback(result);
+                    }
+                });
+        } else {
+            cnx->sendCommand(Commands::newMultiMessageAck(consumerId_, ackMsgIds));
+            if (callback) {
+                callback(ResultOk);
+            }
+        }
+    } else {
+        auto count = std::make_shared<std::atomic<size_t>>(ackMsgIds.size());
+        auto wrappedCallback = [callback, count](Result result) {
+            if (--*count == 0 && callback) {
+                callback(result);
+            }
+        };
+        for (auto&& msgId : ackMsgIds) {
+            doImmediateAck(msgId, wrappedCallback, CommandAck_AckType_Individual);
+        }
+    }
+}
+
+void ConsumerImpl::doImmediateAck(const MessageId& msgId, const ResultCallback& callback,
+                                  CommandAck_AckType ackType) {
+    const auto cnx = getCnx().lock();
+    if (!cnx) {
+        if (callback) {
+            callback(ResultAlreadyClosed);
+        }
+        return;
+    }
+    if (ackType == CommandAck_AckType_Individual) {
+        // If it's individual ack, we need to acknowledge all message IDs in a chunked message Id
+        // If it's cumulative ack, we only need to ack the last message ID of a chunked message.
+        // ChunkedMessageId return last chunk message ID by default, so we don't need to handle it.
+        if (auto chunkMessageId =
+                std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
+            auto msgIdList = chunkMessageId->getChunkedMessageIds();
+            doImmediateAck(cnx, std::set<MessageId>(msgIdList.begin(), msgIdList.end()), callback);
+            return;
+        }
+    }
+    doImmediateAck(cnx, msgId, ackType, callback);
+}
+
+void ConsumerImpl::doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback) {
+    const auto cnx = getCnx().lock();
+    if (!cnx) {
+        if (callback) {
+            callback(ResultAlreadyClosed);
+        }
+        return;
+    }
+    doImmediateAck(cnx, msgIds, callback);
 }
 
 } /* namespace pulsar */

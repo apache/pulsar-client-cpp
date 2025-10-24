@@ -22,11 +22,8 @@
 #include <pulsar/MessageId.h>
 #include <pulsar/Result.h>
 
-#include <cstdint>
 #include <functional>
-#include <set>
 
-#include "ProtoApiEnums.h"
 #include "lib/HandlerBase.h"
 
 namespace pulsar {
@@ -35,7 +32,9 @@ class ClientConnection;
 using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 using ClientConnectionWeakPtr = std::weak_ptr<ClientConnection>;
 using ResultCallback = std::function<void(Result)>;
-using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
+class ConsumerImpl;
+using ConsumerImplPtr = std::shared_ptr<ConsumerImpl>;
+using ConsumerImplWeakPtr = std::weak_ptr<ConsumerImpl>;
 
 /**
  * @class AckGroupingTracker
@@ -44,19 +43,12 @@ using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
  */
 class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracker> {
    public:
-    AckGroupingTracker(std::function<uint64_t()> requestIdSupplier, uint64_t consumerId, bool waitResponse)
-        : requestIdSupplier_(std::move(requestIdSupplier)),
-          consumerId_(consumerId),
-          waitResponse_(waitResponse) {}
-
     virtual ~AckGroupingTracker() = default;
 
     /**
      * Start tracking the ACK requests.
-     *
-     * @param[in] handler the handler to get a ClientConnection for sending the ACK requests.
      */
-    virtual void start(const HandlerBaseWeakPtr& handler) { handler_ = handler; }
+    virtual void start(const ConsumerImplPtr& consumer) { consumer_ = consumer; }
 
     /**
      * Since ACK requests are grouped and delayed, we need to do some best-effort duplicate check to
@@ -74,7 +66,9 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
     virtual void addAcknowledge(const MessageId& msgId, const ResultCallback& callback) {
-        callback(ResultOk);
+        if (callback) {
+            callback(ResultOk);
+        }
     }
 
     /**
@@ -83,7 +77,9 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] callback the callback that is triggered when the messages are acknowledged
      */
     virtual void addAcknowledgeList(const MessageIdList& msgIds, const ResultCallback& callback) {
-        callback(ResultOk);
+        if (callback) {
+            callback(ResultOk);
+        }
     }
 
     /**
@@ -92,7 +88,9 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      * @param[in] callback the callback that is triggered when the message is acknowledged
      */
     virtual void addAcknowledgeCumulative(const MessageId& msgId, const ResultCallback& callback) {
-        callback(ResultOk);
+        if (callback) {
+            callback(ResultOk);
+        }
     }
 
     /**
@@ -101,42 +99,10 @@ class AckGroupingTracker : public std::enable_shared_from_this<AckGroupingTracke
      */
     virtual void flushAndClean() {}
 
-    /**
-     * Close the ACK grouping tracker, which will prevent further ACK requests being sent.
-     */
-    virtual void close() { isClosed_.store(true, std::memory_order_relaxed); }
+    virtual void close() {}
 
    protected:
-    void doImmediateAck(const MessageId& msgId, const ResultCallback& callback,
-                        CommandAck_AckType ackType) const;
-    void doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback) const;
-    bool isClosed() const noexcept { return isClosed_.load(std::memory_order_relaxed); }
-    bool validateClosed(const ResultCallback& callback) const {
-        if (isClosed()) {
-            if (callback) {
-                callback(ResultAlreadyClosed);
-            }
-            return true;
-        }
-        return false;
-    }
-
-   private:
-    std::weak_ptr<HandlerBase> handler_;
-    const std::function<uint64_t()> requestIdSupplier_;
-    const uint64_t consumerId_;
-    std::atomic_bool isClosed_{false};
-
-    ClientConnectionPtr getConnection() const {
-        auto handler = handler_.lock();
-        if (!handler) {
-            return nullptr;
-        }
-        return handler->getCnx().lock();
-    }
-
-   protected:
-    const bool waitResponse_;
+    ConsumerImplWeakPtr consumer_;
 
 };  // class AckGroupingTracker
 

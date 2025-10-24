@@ -38,7 +38,6 @@
 #include "lib/AckGroupingTrackerEnabled.h"
 #include "lib/ClientConnection.h"
 #include "lib/ClientImpl.h"
-#include "lib/Commands.h"
 #include "lib/ConsumerImpl.h"
 #include "lib/Future.h"
 #include "lib/Latch.h"
@@ -3633,7 +3632,7 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerDefaultBehavior) {
     ASSERT_EQ(configConsumer.getAckGroupingTimeMs(), 100);
     ASSERT_EQ(configConsumer.getAckGroupingMaxSize(), 1000);
 
-    AckGroupingTracker tracker{nullptr, 0, false};
+    AckGroupingTracker tracker;
     Message msg;
     ASSERT_FALSE(tracker.isDuplicate(msg.getMessageId()));
 }
@@ -3672,9 +3671,8 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerSingleAckBehavior) {
 
     // Send ACK.
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
-    AckGroupingTrackerDisabled tracker([&clientImplPtr] { return clientImplPtr->newRequestId(); },
-                                       consumerImpl.getConsumerId(), false);
-    tracker.start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+    AckGroupingTrackerDisabled tracker;
+    tracker.start(PulsarFriend::getConsumerImplPtr(consumer));
     for (auto msgIdx = 0; msgIdx < numMsg; ++msgIdx) {
         auto connPtr = connWeakPtr.lock();
         ASSERT_NE(connPtr, nullptr);
@@ -3706,8 +3704,6 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerMultiAckBehavior) {
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));
 
-    auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
-
     // Sending and receiving messages.
     for (auto count = 0; count < numMsg; ++count) {
         Message msg = MessageBuilder().setContent(std::string("MSG-") + std::to_string(count)).build();
@@ -3723,9 +3719,8 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerMultiAckBehavior) {
 
     // Send ACK.
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
-    AckGroupingTrackerDisabled tracker([&clientImplPtr] { return clientImplPtr->newRequestId(); },
-                                       consumerImpl.getConsumerId(), false);
-    tracker.start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+    AckGroupingTrackerDisabled tracker;
+    tracker.start(PulsarFriend::getConsumerImplPtr(consumer));
     tracker.addAcknowledgeList(recvMsgId, nullptr);
     consumer.close();
 
@@ -3753,7 +3748,6 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerDisabledIndividualAck) {
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));
-    auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
 
     // Sending and receiving messages.
     for (auto count = 0; count < numMsg; ++count) {
@@ -3769,8 +3763,8 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerDisabledIndividualAck) {
     }
 
     // Send ACK.
-    AckGroupingTrackerDisabled tracker(nullptr, consumerImpl.getConsumerId(), false);
-    tracker.start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+    AckGroupingTrackerDisabled tracker;
+    tracker.start(PulsarFriend::getConsumerImplPtr(consumer));
     for (auto &msgId : recvMsgId) {
         tracker.addAcknowledge(msgId, nullptr);
     }
@@ -3800,7 +3794,6 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerDisabledCumulativeAck) {
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));
-    auto &consumerImpl = PulsarFriend::getConsumerImpl(consumer);
 
     // Sending and receiving messages.
     for (auto count = 0; count < numMsg; ++count) {
@@ -3816,8 +3809,8 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerDisabledCumulativeAck) {
     }
 
     // Send ACK.
-    AckGroupingTrackerDisabled tracker(nullptr, consumerImpl.getConsumerId(), false);
-    tracker.start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+    AckGroupingTrackerDisabled tracker;
+    tracker.start(PulsarFriend::getConsumerImplPtr(consumer));
     auto &latestMsgId = *std::max_element(recvMsgId.begin(), recvMsgId.end());
     tracker.addAcknowledgeCumulative(latestMsgId, nullptr);
     consumer.close();
@@ -3859,7 +3852,6 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerEnabledIndividualAck) {
 
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));
-    auto consumerImpl = PulsarFriend::getConsumerImplPtr(consumer);
 
     // Sending and receiving messages.
     for (auto count = 0; count < numMsg; ++count) {
@@ -3875,9 +3867,8 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerEnabledIndividualAck) {
     }
 
     auto tracker = std::make_shared<AckGroupingTrackerEnabledMock>(
-        nullptr, consumerImpl->getConsumerId(), false, ackGroupingTimeMs, ackGroupingMaxSize,
-        clientImplPtr->getIOExecutorProvider()->get());
-    tracker->start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+        ackGroupingTimeMs, ackGroupingMaxSize, false, clientImplPtr->getIOExecutorProvider()->get());
+    tracker->start(PulsarFriend::getConsumerImplPtr(consumer));
     ASSERT_EQ(tracker->getPendingIndividualAcks().size(), 0);
     ASSERT_EQ(tracker->getAckGroupingTimeMs(), ackGroupingTimeMs);
     ASSERT_EQ(tracker->getAckGroupingMaxSize(), ackGroupingMaxSize);
@@ -3937,9 +3928,8 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerEnabledCumulativeAck) {
     std::sort(recvMsgId.begin(), recvMsgId.end());
 
     auto tracker0 = std::make_shared<AckGroupingTrackerEnabledMock>(
-        nullptr, consumerImpl0->getConsumerId(), false, ackGroupingTimeMs, ackGroupingMaxSize,
-        clientImplPtr->getIOExecutorProvider()->get());
-    tracker0->start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+        ackGroupingTimeMs, ackGroupingMaxSize, false, clientImplPtr->getIOExecutorProvider()->get());
+    tracker0->start(PulsarFriend::getConsumerImplPtr(consumer));
     ASSERT_EQ(tracker0->getNextCumulativeAckMsgId(), MessageId::earliest());
     ASSERT_FALSE(tracker0->requireCumulativeAck());
 
@@ -3974,11 +3964,10 @@ TEST(BasicEndToEndTest, testAckGroupingTrackerEnabledCumulativeAck) {
     auto ret = consumer.receive(msg, 1000);
     ASSERT_EQ(ResultTimeout, ret) << "Received redundant message: " << msg.getDataAsString();
     auto tracker1 = std::make_shared<AckGroupingTrackerEnabledMock>(
-        nullptr, consumerImpl1->getConsumerId(), false, ackGroupingTimeMs, ackGroupingMaxSize,
-        clientImplPtr->getIOExecutorProvider()->get());
-    tracker1->start(std::static_pointer_cast<HandlerBase>(PulsarFriend::getConsumerImplPtr(consumer)));
+        ackGroupingTimeMs, ackGroupingMaxSize, false, clientImplPtr->getIOExecutorProvider()->get());
+    tracker1->start(PulsarFriend::getConsumerImplPtr(consumer));
     tracker1->addAcknowledgeCumulative(recvMsgId[numMsg - 1], nullptr);
-    tracker1->flushAndClean();
+    tracker1->close();
     consumer.close();
 
     ASSERT_EQ(ResultOk, client.subscribe(topicName, subName, consumer));

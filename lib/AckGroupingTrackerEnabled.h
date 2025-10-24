@@ -21,8 +21,6 @@
 
 #include <pulsar/MessageId.h>
 
-#include <atomic>
-#include <cstdint>
 #include <mutex>
 #include <set>
 
@@ -35,9 +33,6 @@ class ClientImpl;
 using ClientImplPtr = std::shared_ptr<ClientImpl>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
-class HandlerBase;
-using HandlerBasePtr = std::shared_ptr<HandlerBase>;
-using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
 
 /**
  * @class AckGroupingTrackerEnabled
@@ -45,19 +40,18 @@ using HandlerBaseWeakPtr = std::weak_ptr<HandlerBase>;
  */
 class AckGroupingTrackerEnabled : public AckGroupingTracker {
    public:
-    AckGroupingTrackerEnabled(const std::function<uint64_t()>& requestIdSupplier, uint64_t consumerId,
-                              bool waitResponse, long ackGroupingTimeMs, long ackGroupingMaxSize,
+    AckGroupingTrackerEnabled(long ackGroupingTimeMs, long ackGroupingMaxSize, bool waitResponse,
                               const ExecutorServicePtr& executor)
-        : AckGroupingTracker(requestIdSupplier, consumerId, waitResponse),
-          ackGroupingTimeMs_(ackGroupingTimeMs),
+        : ackGroupingTimeMs_(ackGroupingTimeMs),
           ackGroupingMaxSize_(ackGroupingMaxSize),
+          waitResponse_(waitResponse),
           executor_(executor) {
         pendingIndividualCallbacks_.reserve(ackGroupingMaxSize);
     }
 
     ~AckGroupingTrackerEnabled();
 
-    void start(const HandlerBaseWeakPtr& handler) override;
+    void start(const ConsumerImplPtr& consumer) override;
     bool isDuplicate(const MessageId& msgId) override;
     void addAcknowledge(const MessageId& msgId, const ResultCallback& callback) override;
     void addAcknowledgeList(const MessageIdList& msgIds, const ResultCallback& callback) override;
@@ -66,7 +60,7 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
     void close() override;
 
    private:
-    void flush();
+    void flush(const ConsumerImplPtr& consumer);
 
    protected:
     void scheduleTimer();
@@ -87,6 +81,8 @@ class AckGroupingTrackerEnabled : public AckGroupingTracker {
 
     //! Max number of ACK requests can be grouped.
     const long ackGroupingMaxSize_;
+
+    const bool waitResponse_;
 
     //! ACK request sender's scheduled executor.
     const ExecutorServicePtr executor_;

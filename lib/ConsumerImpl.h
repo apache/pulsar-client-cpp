@@ -27,6 +27,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <set>
 #include <utility>
 
 #include "BrokerConsumerStatsImpl.h"
@@ -96,7 +97,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void setPartitionIndex(int partitionIndex);
     int getPartitionIndex();
     void sendFlowPermitsToBroker(const ClientConnectionPtr& cnx, int numMessages);
-    uint64_t getConsumerId();
+    uint64_t getConsumerId() const noexcept { return consumerId_; }
     void messageReceived(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
                          bool& isChecksumValid, proto::BrokerEntryMetadata& brokerEntryMetadata,
                          proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
@@ -124,6 +125,10 @@ class ConsumerImpl : public ConsumerImplBase {
     void shutdown() override;
     void internalShutdown();
     bool isClosed() override;
+    bool isClosingOrClosed() const noexcept {
+        const auto state = state_.load(std::memory_order_relaxed);
+        return state == Closing || state == Closed;
+    }
     bool isOpen() override;
     Result pauseMessageListener() override;
     Result resumeMessageListener() override;
@@ -151,6 +156,9 @@ class ConsumerImpl : public ConsumerImplBase {
     virtual bool isReadCompacted();
     void beforeConnectionChange(ClientConnection& cnx) override;
     void onNegativeAcksSend(const std::set<MessageId>& messageIds);
+
+    void doImmediateAck(const MessageId& msgId, const ResultCallback& callback, CommandAck_AckType ackType);
+    void doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback);
 
    protected:
     // overrided methods from HandlerBase
@@ -237,7 +245,7 @@ class ConsumerImpl : public ConsumerImplBase {
     std::queue<ReceiveCallback> pendingReceives_;
     std::atomic_int availablePermits_;
     const int receiverQueueRefillThreshold_;
-    uint64_t consumerId_;
+    const uint64_t consumerId_;
     const std::string consumerStr_;
     int32_t partitionIndex_ = -1;
     Promise<Result, ConsumerImplBaseWeakPtr> consumerCreatedPromise_;
@@ -340,6 +348,9 @@ class ConsumerImpl : public ConsumerImplBase {
     std::atomic_bool expireChunkMessageTaskScheduled_{false};
 
     ConsumerInterceptorsPtr interceptors_;
+    const std::shared_ptr<std::atomic<uint64_t>> requestIdGenerator_;
+
+    uint64_t newRequestId() const { return (*requestIdGenerator_)++; }
 
     void triggerCheckExpiredChunkedTimer();
     void discardChunkMessages(const std::string& uuid, const MessageId& messageId, bool autoAck);
@@ -378,6 +389,11 @@ class ConsumerImpl : public ConsumerImplBase {
             return lastMessageIdInBroker_ > lastDequedMessageId_;
         }
     }
+
+    void doImmediateAck(const ClientConnectionPtr& cnx, const MessageId& msgId, CommandAck_AckType ackType,
+                        const ResultCallback& callback);
+    void doImmediateAck(const ClientConnectionPtr& cnx, const std::set<MessageId>& msgIds,
+                        const ResultCallback& callback);
 
     friend class PulsarFriend;
     friend class MultiTopicsConsumerImpl;
