@@ -266,6 +266,21 @@ class ConsumerImpl : public ConsumerImplBase {
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
     std::atomic<bool> hasSoughtByTimestamp_{false};
 
+    mutable std::mutex subscribeMutex_;
+    Promise<Result, bool> subscribePromise_;
+
+    template <typename SendRequestFunc>
+    inline void sendRequestAfterSubscribed(SendRequestFunc&& sendRequest) {
+        Lock lock{subscribeMutex_};
+        if (subscribePromise_.isComplete()) {
+            lock.unlock();
+            sendRequest(ResultOk);
+        } else {
+            subscribePromise_.getFuture().addListener(
+                [sendRequest](Result result, bool) { sendRequest(result); });
+        }
+    }
+
     bool hasSoughtByTimestamp() const { return hasSoughtByTimestamp_.load(std::memory_order_acquire); }
     bool duringSeek() const { return seekStatus_ != SeekStatus::NOT_STARTED; }
 
