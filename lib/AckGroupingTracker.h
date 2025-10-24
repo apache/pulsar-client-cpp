@@ -24,8 +24,6 @@
 
 #include <functional>
 
-#include "lib/HandlerBase.h"
-
 namespace pulsar {
 
 class ClientConnection;
