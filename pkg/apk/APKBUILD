@@ -53,8 +53,11 @@ build() {
     fi
     set -e
     cmake --build build -j8
+    $ROOT_DIR/build-support/merge_archives_vcpkg.sh $PWD/build
 }
 
 package() {
+    set -x -e
     DESTDIR="$pkgdir" cmake --build build --target install
+    cp ./build/libpulsarwithdeps.a "$pkgdir/usr/lib/"
 }
