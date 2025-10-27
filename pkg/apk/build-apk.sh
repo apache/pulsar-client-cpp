@@ -40,3 +40,12 @@ sudo abuild-keygen -a -i -n
 abuild -F -c -r
 
 cp -r /root/packages/pkg ./build
+
+# Test installation
+apk add --allow-untrusted build/$PLATFORM/*.apk
+
+cd $ROOT_DIR/win-examples
+g++ -o dynamic.out -std=c++11 ./example.cc -Wl,-rpath=/usr/lib -lpulsar
+./dynamic.out
+g++ -o static.out -std=c++11 ./example.cc /usr/lib/libpulsarwithdeps.a -lpthread -ldl
+./static.out

@@ -44,7 +44,7 @@ build() {
     set +e
     cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_MAKE_PROGRAM=make \
-        -DCMAKE_INSTALL_PREFIX="$pkgdir" \
+        -DCMAKE_INSTALL_PREFIX="/usr" \
         -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON \
         $ROOT_DIR
     if [[ $? -ne 0 ]]; then
@@ -53,8 +53,11 @@ build() {
     fi
     set -e
     cmake --build build -j8
+    $ROOT_DIR/build-support/merge_archives_vcpkg.sh $PWD/build
 }
 
 package() {
-    cmake --build build --target install
+    set -x -e
+    DESTDIR="$pkgdir" cmake --build build --target install
+    cp ./build/libpulsarwithdeps.a "$pkgdir/usr/lib/"
 }
