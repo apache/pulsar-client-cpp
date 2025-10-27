@@ -19,26 +19,41 @@
 
 #include "AckGroupingTrackerDisabled.h"
 
-#include "ProtoApiEnums.h"
+#include "ConsumerImpl.h"
 
 namespace pulsar {
 
 void AckGroupingTrackerDisabled::addAcknowledge(const MessageId& msgId, const ResultCallback& callback) {
-    doImmediateAck(msgId, callback, CommandAck_AckType_Individual);
+    auto consumer = consumer_.lock();
+    if (consumer && !consumer->isClosingOrClosed()) {
+        consumer->doImmediateAck(msgId, callback, CommandAck_AckType_Individual);
+    } else if (callback) {
+        callback(ResultAlreadyClosed);
+    }
 }
 
 void AckGroupingTrackerDisabled::addAcknowledgeList(const MessageIdList& msgIds,
                                                     const ResultCallback& callback) {
-    std::set<MessageId> msgIdSet;
-    for (auto&& msgId : msgIds) {
-        msgIdSet.emplace(msgId);
+    auto consumer = consumer_.lock();
+    if (consumer && !consumer->isClosingOrClosed()) {
+        std::set<MessageId> uniqueMsgIds(msgIds.begin(), msgIds.end());
+        for (auto&& msgId : msgIds) {
+            uniqueMsgIds.insert(msgId);
+        }
+        consumer->doImmediateAck(uniqueMsgIds, callback);
+    } else if (callback) {
+        callback(ResultAlreadyClosed);
     }
-    doImmediateAck(msgIdSet, callback);
 }
 
 void AckGroupingTrackerDisabled::addAcknowledgeCumulative(const MessageId& msgId,
                                                           const ResultCallback& callback) {
-    doImmediateAck(msgId, callback, CommandAck_AckType_Cumulative);
+    auto consumer = consumer_.lock();
+    if (consumer && !consumer->isClosingOrClosed()) {
+        consumer->doImmediateAck(msgId, callback, CommandAck_AckType_Cumulative);
+    } else if (callback) {
+        callback(ResultAlreadyClosed);
+    }
 }
 
 }  // namespace pulsar
