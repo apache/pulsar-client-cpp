@@ -148,6 +148,11 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
         firstRequestIdAfterConnect_.store(requestId, std::memory_order_release);
     }
 
+    bool changeToReadyState() noexcept {
+        State expected = Pending;
+        return state_ == Ready || state_.compare_exchange_strong(expected, Ready);
+    }
+
    private:
     DeadlineTimerPtr timer_;
     DeadlineTimerPtr creationTimer_;

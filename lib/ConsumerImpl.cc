@@ -293,13 +293,40 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
     Result handleResult = ResultOk;
 
     if (result == ResultOk) {
-        LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
         {
             Lock mutexLock(mutex_);
+            if (!changeToReadyState()) {
+                resetCnx();
+                // The consumer has been
+                auto client = client_.lock();
+                if (client) {
+                    LOG_INFO(getName() << "Closing subscribed consumer since it was already closed");
+                    int requestId = client->newRequestId();
+                    auto name = getName();
+                    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
+                        .addListener([name](Result result, const ResponseData&) {
+                            if (result == ResultOk) {
+                                LOG_INFO(name << "Closed consumer successfully after subscribe completed");
+                            } else {
+                                LOG_WARN(name << "Failed to close consumer: " << strResult(result));
+                            }
+                        });
+                } else {
+                    // This should not happen normally because if client is destroyed, the connection pool
+                    // should also be closed, which means all connections should be closed. Close the
+                    // connection to let broker know this registered consumer is inactive.
+                    LOG_WARN(getName()
+                             << "Client already closed when subscribe completed, close the connection "
+                             << cnx->cnxString());
+                    cnx->close(ResultNotConnected);
+                }
+                return ResultAlreadyClosed;
+            }
+
+            LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
             setCnx(cnx);
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
-            state_ = Ready;
             backoff_.reset();
             if (!messageListener_ && config_.getReceiverQueueSize() == 0) {
                 // Complicated logic since we don't have a isLocked() function for mutex
