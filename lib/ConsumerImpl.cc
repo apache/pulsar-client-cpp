@@ -296,8 +296,6 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
         {
             Lock mutexLock(mutex_);
             if (!changeToReadyState()) {
-                resetCnx();
-                // The consumer has been
                 auto client = client_.lock();
                 if (client) {
                     LOG_INFO(getName() << "Closing subscribed consumer since it was already closed");
