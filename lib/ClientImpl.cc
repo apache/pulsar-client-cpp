@@ -674,6 +674,7 @@ void ClientImpl::closeAsync(const CloseCallback& callback) {
     state_ = Closing;
 
     memoryLimitController_.close();
+    lookupServicePtr_->close();
     for (const auto& it : redirectedClusterLookupServicePtrs_) {
         it.second->close();
     }
