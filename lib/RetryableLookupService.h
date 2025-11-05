@@ -18,8 +18,6 @@
  */
 #pragma once
 
-#include <chrono>
-
 #include "LookupDataResult.h"
 #include "LookupService.h"
 #include "NamespaceName.h"
@@ -41,10 +39,10 @@ class RetryableLookupService : public LookupService {
         : RetryableLookupService(std::forward<Args>(args)...) {}
 
     void close() override {
-        lookupCache_->clear();
-        partitionLookupCache_->clear();
-        namespaceLookupCache_->clear();
-        getSchemaCache_->clear();
+        lookupCache_->close();
+        partitionLookupCache_->close();
+        namespaceLookupCache_->close();
+        getSchemaCache_->close();
     }
 
     template <typename... Args>
@@ -89,7 +87,7 @@ class RetryableLookupService : public LookupService {
 
     RetryableLookupService(std::shared_ptr<LookupService> lookupService, TimeDuration timeout,
                            ExecutorServiceProviderPtr executorProvider)
-        : lookupService_(lookupService),
+        : lookupService_(std::move(lookupService)),
           lookupCache_(RetryableOperationCache<LookupResult>::create(executorProvider, timeout)),
           partitionLookupCache_(
               RetryableOperationCache<LookupDataResultPtr>::create(executorProvider, timeout)),

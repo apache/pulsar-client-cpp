@@ -21,6 +21,7 @@
 #include <pulsar/Client.h>
 
 #include <algorithm>
+#include <atomic>
 #include <boost/exception/all.hpp>
 #include <chrono>
 #include <future>
@@ -36,9 +37,11 @@
 #include "lib/Future.h"
 #include "lib/HTTPLookupService.h"
 #include "lib/LogUtils.h"
+#include "lib/LookupDataResult.h"
 #include "lib/RetryableLookupService.h"
 #include "lib/TimeUtils.h"
 #include "lib/Utils.h"
+#include "pulsar/Result.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -499,4 +502,63 @@ TEST(LookupServiceTest, testRedirectionLimit) {
             ASSERT_EQ(ResultTooManyLookupRequestException, result);
         }
     }
+}
+
+static std::atomic_bool firstTime{true};
+
+class MockLookupService : public BinaryProtoLookupService {
+   public:
+    using BinaryProtoLookupService::BinaryProtoLookupService;
+
+    Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
+        bool expected = true;
+        if (firstTime.compare_exchange_strong(expected, false)) {
+            // Trigger the retry
+            LOG_INFO("Fail the lookup for " << topicName->toString() << " intentionally");
+            Promise<Result, LookupDataResultPtr> promise;
+            promise.setFailed(ResultRetryable);
+            return promise.getFuture();
+        }
+        return BinaryProtoLookupService::getPartitionMetadataAsync(topicName);
+    }
+};
+
+TEST(LookupServiceTest, testAfterClientShutdown) {
+    auto client = std::make_shared<ClientImpl>("pulsar://localhost:6650", ClientConfiguration{},
+                                               [](const std::string& serviceUrl, const ClientConfiguration&,
+                                                  ConnectionPool& pool, const AuthenticationPtr&) {
+                                                   return std::make_shared<MockLookupService>(
+                                                       serviceUrl, pool, ClientConfiguration{});
+                                               });
+    std::promise<Result> promise;
+    client->subscribeAsync("lookup-service-test-after-client-shutdown", "sub", ConsumerConfiguration{},
+                           [&promise](Result result, const Consumer&) { promise.set_value(result); });
+    client->shutdown();
+    EXPECT_EQ(ResultDisconnected, promise.get_future().get());
+
+    firstTime = true;
+    std::promise<Result> promise2;
+    client->subscribeAsync("lookup-service-test-retry-after-destroyed", "sub", ConsumerConfiguration{},
+                           [&promise2](Result result, const Consumer&) { promise2.set_value(result); });
+    EXPECT_EQ(ResultAlreadyClosed, promise2.get_future().get());
+}
+
+TEST(LookupServiceTest, testRetryAfterDestroyed) {
+    auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
+    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), "");
+
+    auto internalLookupService =
+        std::make_shared<MockLookupService>("pulsar://localhost:6650", pool, ClientConfiguration{});
+    auto lookupService =
+        RetryableLookupService::create(internalLookupService, std::chrono::seconds(30), executorProvider);
+
+    // Simulate the race condition that `getPartitionMetadataAsync` is called after `close` is called on the
+    // lookup service.
+    lookupService->close();
+    std::atomic<Result> result{ResultUnknownError};
+    lookupService->getPartitionMetadataAsync(TopicName::get("lookup-service-test-retry-after-destroyed"))
+        .addListener([&result](Result innerResult, const LookupDataResultPtr&) { result = innerResult; });
+    EXPECT_EQ(ResultAlreadyClosed, result.load());
+    pool.close();
+    executorProvider->close();
 }

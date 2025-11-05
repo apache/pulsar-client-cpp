@@ -124,7 +124,7 @@ TEST_F(RetryableOperationCacheTest, testClear) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i), CountdownFunc{100}));
     }
     ASSERT_EQ(getSize(*cache), 10);
-    cache->clear();
+    cache->close();
     for (auto&& future : futures_) {
         int value;
         // All cancelled futures complete with ResultDisconnected and the default int value
