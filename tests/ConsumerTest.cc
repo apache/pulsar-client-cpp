@@ -1573,4 +1573,26 @@ TEST(ConsumerTest, testConsumerListenerShouldNotSegfaultAfterClose) {
     ASSERT_EQ(ResultOk, client.close());
 }
 
+TEST(ConsumerTest, testCloseAfterSeek) {
+    const auto topic = "test-close-after-seek-" + std::to_string(time(nullptr));
+    const auto subscription = "sub";
+    Client client(lookupUrl);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, subscription, consumer));
+    ASSERT_EQ(ResultOk, consumer.seek(TimeUtils::currentTimeMillis()));
+    consumer.closeAsync(nullptr);
+
+    // Test the previous consumer will be closed even after seek is done, at the moment the connection might
+    // not be established.
+    ASSERT_EQ(ResultOk, client.subscribe(topic, subscription, consumer));
+
+    // Test creating a consumer from a different client should also work for this case
+    Client anotherClient(lookupUrl);
+    consumer.closeAsync(nullptr);
+    ASSERT_EQ(ResultOk, anotherClient.subscribe(topic, subscription, consumer));
+
+    client.close();
+    anotherClient.close();
+}
+
 }  // namespace pulsar
