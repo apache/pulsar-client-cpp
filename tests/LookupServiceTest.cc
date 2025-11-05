@@ -37,11 +37,9 @@
 #include "lib/Future.h"
 #include "lib/HTTPLookupService.h"
 #include "lib/LogUtils.h"
-#include "lib/LookupDataResult.h"
 #include "lib/RetryableLookupService.h"
 #include "lib/TimeUtils.h"
 #include "lib/Utils.h"
-#include "pulsar/Result.h"
 
 DECLARE_LOG_OBJECT()
 
