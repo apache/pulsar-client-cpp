@@ -1585,7 +1585,14 @@ TEST(ConsumerTest, testCloseAfterSeek) {
     // Test the previous consumer will be closed even after seek is done, at the moment the connection might
     // not be established.
     ASSERT_EQ(ResultOk, client.subscribe(topic, subscription, consumer));
+
+    // Test creating a consumer from a different client should also work for this case
+    Client anotherClient(lookupUrl);
+    consumer.closeAsync(nullptr);
+    ASSERT_EQ(ResultOk, anotherClient.subscribe(topic, subscription, consumer));
+
     client.close();
+    anotherClient.close();
 }
 
 }  // namespace pulsar
