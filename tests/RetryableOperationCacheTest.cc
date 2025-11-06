@@ -118,7 +118,7 @@ TEST_F(RetryableOperationCacheTest, testTimeout) {
     }
 }
 
-TEST_F(RetryableOperationCacheTest, testClear) {
+TEST_F(RetryableOperationCacheTest, testClose) {
     auto cache = RetryableOperationCache<int>::create(provider_, std::chrono::seconds(30));
     for (int i = 0; i < 10; i++) {
         futures_.emplace_back(cache->run("key-" + std::to_string(i), CountdownFunc{100}));
