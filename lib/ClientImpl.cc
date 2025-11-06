@@ -78,7 +78,25 @@ typedef std::unique_lock<std::mutex> Lock;
 
 typedef std::vector<std::string> StringList;
 
+static LookupServicePtr defaultLookupServiceFactory(const std::string& serviceUrl,
+                                                    const ClientConfiguration& clientConfiguration,
+                                                    ConnectionPool& pool, const AuthenticationPtr& auth) {
+    if (ServiceNameResolver::useHttp(ServiceURI(serviceUrl))) {
+        LOG_DEBUG("Using HTTP Lookup");
+        return std::make_shared<HTTPLookupService>(serviceUrl, std::cref(clientConfiguration),
+                                                   std::cref(auth));
+    } else {
+        LOG_DEBUG("Using Binary Lookup");
+        return std::make_shared<BinaryProtoLookupService>(serviceUrl, std::ref(pool),
+                                                          std::cref(clientConfiguration));
+    }
+}
+
 ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
+    : ClientImpl(serviceUrl, clientConfiguration, &defaultLookupServiceFactory) {}
+
+ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
+                       LookupServiceFactory&& lookupServiceFactory)
     : mutex_(),
       state_(Open),
       clientConfiguration_(ClientConfiguration(clientConfiguration)
@@ -95,7 +113,8 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       consumerIdGenerator_(0),
       closingError(ResultOk),
       useProxy_(false),
-      lookupCount_(0L) {
+      lookupCount_(0L),
+      lookupServiceFactory_(std::move(lookupServiceFactory)) {
     std::unique_ptr<LoggerFactory> loggerFactory = clientConfiguration_.impl_->takeLogger();
     if (loggerFactory) {
         LogUtils::setLoggerFactory(std::move(loggerFactory));
@@ -106,19 +125,9 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
 ClientImpl::~ClientImpl() { shutdown(); }
 
 LookupServicePtr ClientImpl::createLookup(const std::string& serviceUrl) {
-    LookupServicePtr underlyingLookupServicePtr;
-    if (ServiceNameResolver::useHttp(ServiceURI(serviceUrl))) {
-        LOG_DEBUG("Using HTTP Lookup");
-        underlyingLookupServicePtr = std::make_shared<HTTPLookupService>(
-            serviceUrl, std::cref(clientConfiguration_), std::cref(clientConfiguration_.getAuthPtr()));
-    } else {
-        LOG_DEBUG("Using Binary Lookup");
-        underlyingLookupServicePtr = std::make_shared<BinaryProtoLookupService>(
-            serviceUrl, std::ref(pool_), std::cref(clientConfiguration_));
-    }
-
     auto lookupServicePtr = RetryableLookupService::create(
-        underlyingLookupServicePtr, clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
+        lookupServiceFactory_(serviceUrl, clientConfiguration_, pool_, clientConfiguration_.getAuthPtr()),
+        clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
     return lookupServicePtr;
 }
 
@@ -767,6 +776,7 @@ void ClientImpl::shutdown() {
                                    << " consumers have been shutdown.");
     }
 
+    lookupServicePtr_->close();
     if (!pool_.close()) {
         // pool_ has already been closed. It means shutdown() has been called before.
         return;

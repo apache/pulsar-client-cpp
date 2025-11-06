@@ -54,6 +54,8 @@ using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 
 class LookupService;
 using LookupServicePtr = std::shared_ptr<LookupService>;
+using LookupServiceFactory = std::function<LookupServicePtr(const std::string&, const ClientConfiguration&,
+                                                            ConnectionPool& pool, const AuthenticationPtr&)>;
 
 class ProducerImplBase;
 using ProducerImplBaseWeakPtr = std::weak_ptr<ProducerImplBase>;
@@ -70,6 +72,11 @@ std::string generateRandomName();
 class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
    public:
     ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
+
+    // only for tests
+    ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
+               LookupServiceFactory&& lookupServiceFactory);
+
     virtual ~ClientImpl();
 
     /**
@@ -205,6 +212,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     std::atomic<Result> closingError;
     std::atomic<bool> useProxy_;
     std::atomic<uint64_t> lookupCount_;
+    LookupServiceFactory lookupServiceFactory_;
 
     friend class Client;
 };

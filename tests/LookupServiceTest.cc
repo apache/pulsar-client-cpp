@@ -500,3 +500,65 @@ TEST(LookupServiceTest, testRedirectionLimit) {
         }
     }
 }
+
+class MockLookupService : public BinaryProtoLookupService {
+   public:
+    using BinaryProtoLookupService::BinaryProtoLookupService;
+
+    Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
+        bool expected = true;
+        if (firstTime_.compare_exchange_strong(expected, false)) {
+            // Trigger the retry
+            LOG_INFO("Fail the lookup for " << topicName->toString() << " intentionally");
+            Promise<Result, LookupDataResultPtr> promise;
+            promise.setFailed(ResultRetryable);
+            return promise.getFuture();
+        }
+        return BinaryProtoLookupService::getPartitionMetadataAsync(topicName);
+    }
+
+   private:
+    std::atomic_bool firstTime_{true};
+};
+
+TEST(LookupServiceTest, testAfterClientShutdown) {
+    auto client = std::make_shared<ClientImpl>("pulsar://localhost:6650", ClientConfiguration{},
+                                               [](const std::string& serviceUrl, const ClientConfiguration&,
+                                                  ConnectionPool& pool, const AuthenticationPtr&) {
+                                                   return std::make_shared<MockLookupService>(
+                                                       serviceUrl, pool, ClientConfiguration{});
+                                               });
+    std::promise<Result> promise;
+    client->subscribeAsync("lookup-service-test-after-client-shutdown", "sub", ConsumerConfiguration{},
+                           [&promise](Result result, const Consumer&) { promise.set_value(result); });
+    // When shutdown is called, there is a pending lookup request due to the 1st lookup is failed in
+    // MockLookupService. Verify shutdown will cancel it and return ResultDisconnected.
+    client->shutdown();
+    EXPECT_EQ(ResultDisconnected, promise.get_future().get());
+
+    // A new subscribeAsync call will fail immediately in the current thread
+    Result result = ResultOk;
+    client->subscribeAsync("lookup-service-test-retry-after-destroyed", "sub", ConsumerConfiguration{},
+                           [&result](Result innerResult, const Consumer&) { result = innerResult; });
+    EXPECT_EQ(ResultAlreadyClosed, result);
+}
+
+TEST(LookupServiceTest, testRetryAfterDestroyed) {
+    auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
+    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), "");
+
+    auto internalLookupService =
+        std::make_shared<MockLookupService>("pulsar://localhost:6650", pool, ClientConfiguration{});
+    auto lookupService =
+        RetryableLookupService::create(internalLookupService, std::chrono::seconds(30), executorProvider);
+
+    // Simulate the race condition that `getPartitionMetadataAsync` is called after `close` is called on the
+    // lookup service. It's expected the request fails immediately with ResultAlreadyClosed.
+    lookupService->close();
+    Result result = ResultOk;
+    lookupService->getPartitionMetadataAsync(TopicName::get("lookup-service-test-retry-after-destroyed"))
+        .addListener([&result](Result innerResult, const LookupDataResultPtr&) { result = innerResult; });
+    EXPECT_EQ(ResultAlreadyClosed, result);
+    pool.close();
+    executorProvider->close();
+}
