@@ -21,7 +21,6 @@
 #include <pulsar/Client.h>
 
 #include <algorithm>
-#include <atomic>
 #include <boost/exception/all.hpp>
 #include <chrono>
 #include <future>
@@ -502,15 +501,13 @@ TEST(LookupServiceTest, testRedirectionLimit) {
     }
 }
 
-static std::atomic_bool firstTime{true};
-
 class MockLookupService : public BinaryProtoLookupService {
    public:
     using BinaryProtoLookupService::BinaryProtoLookupService;
 
     Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
         bool expected = true;
-        if (firstTime.compare_exchange_strong(expected, false)) {
+        if (firstTime_.compare_exchange_strong(expected, false)) {
             // Trigger the retry
             LOG_INFO("Fail the lookup for " << topicName->toString() << " intentionally");
             Promise<Result, LookupDataResultPtr> promise;
@@ -519,6 +516,9 @@ class MockLookupService : public BinaryProtoLookupService {
         }
         return BinaryProtoLookupService::getPartitionMetadataAsync(topicName);
     }
+
+   private:
+    std::atomic_bool firstTime_{true};
 };
 
 TEST(LookupServiceTest, testAfterClientShutdown) {
@@ -531,14 +531,16 @@ TEST(LookupServiceTest, testAfterClientShutdown) {
     std::promise<Result> promise;
     client->subscribeAsync("lookup-service-test-after-client-shutdown", "sub", ConsumerConfiguration{},
                            [&promise](Result result, const Consumer&) { promise.set_value(result); });
+    // When shutdown is called, there is a pending lookup request due to the 1st lookup is failed in
+    // MockLookupService. Verify shutdown will cancel it and return ResultDisconnected.
     client->shutdown();
     EXPECT_EQ(ResultDisconnected, promise.get_future().get());
 
-    firstTime = true;
-    std::promise<Result> promise2;
+    // A new subscribeAsync call will fail immediately in the current thread
+    Result result = ResultOk;
     client->subscribeAsync("lookup-service-test-retry-after-destroyed", "sub", ConsumerConfiguration{},
-                           [&promise2](Result result, const Consumer&) { promise2.set_value(result); });
-    EXPECT_EQ(ResultAlreadyClosed, promise2.get_future().get());
+                           [&result](Result innerResult, const Consumer&) { result = innerResult; });
+    EXPECT_EQ(ResultAlreadyClosed, result);
 }
 
 TEST(LookupServiceTest, testRetryAfterDestroyed) {
@@ -551,12 +553,12 @@ TEST(LookupServiceTest, testRetryAfterDestroyed) {
         RetryableLookupService::create(internalLookupService, std::chrono::seconds(30), executorProvider);
 
     // Simulate the race condition that `getPartitionMetadataAsync` is called after `close` is called on the
-    // lookup service.
+    // lookup service. It's expected the request fails immediately with ResultAlreadyClosed.
     lookupService->close();
-    std::atomic<Result> result{ResultUnknownError};
+    Result result = ResultOk;
     lookupService->getPartitionMetadataAsync(TopicName::get("lookup-service-test-retry-after-destroyed"))
         .addListener([&result](Result innerResult, const LookupDataResultPtr&) { result = innerResult; });
-    EXPECT_EQ(ResultAlreadyClosed, result.load());
+    EXPECT_EQ(ResultAlreadyClosed, result);
     pool.close();
     executorProvider->close();
 }

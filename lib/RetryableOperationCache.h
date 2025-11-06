@@ -101,6 +101,9 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
         decltype(operations_) operations;
         {
             std::lock_guard<std::mutex> lock{mutex_};
+            if (closed_) {
+                return;
+            }
             operations.swap(operations_);
             closed_ = true;
         }
