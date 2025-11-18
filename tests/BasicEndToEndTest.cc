@@ -242,9 +242,20 @@ TEST(BasicEndToEndTest, testProduceConsume) {
     Message receivedMsg;
     consumer.receive(receivedMsg);
     ASSERT_EQ(content, receivedMsg.getDataAsString());
+    ASSERT_FALSE(receivedMsg.getProducerName().empty());
+    ASSERT_EQ(ResultOk, producer.close());
+
+    ProducerConfiguration conf;
+    conf.setProducerName("test-producer");
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, conf, producer));
+    producer.send(MessageBuilder().setContent("msg-2-content").build());
+    consumer.receive(receivedMsg);
+    ASSERT_EQ("msg-2-content", receivedMsg.getDataAsString());
+    ASSERT_EQ("test-producer", receivedMsg.getProducerName());
+    consumer.acknowledge(receivedMsg);
     ASSERT_EQ(ResultOk, consumer.unsubscribe());
     ASSERT_EQ(ResultOk, consumer.close());
-    ASSERT_EQ(ResultOk, producer.close());
+    ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, client.close());
 }
 

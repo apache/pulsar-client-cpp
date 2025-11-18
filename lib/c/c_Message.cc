@@ -140,3 +140,7 @@ const char *pulsar_message_get_schemaVersion(pulsar_message_t *message) {
 int pulsar_message_has_schema_version(pulsar_message_t *message) {
     return message->message.hasSchemaVersion();
 }
+
+const char *pulsar_message_get_producer_name(pulsar_message_t *message) {
+    return message->message.getProducerName().c_str();
+}

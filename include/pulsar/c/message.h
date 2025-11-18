@@ -215,6 +215,12 @@ PULSAR_PUBLIC const char *pulsar_message_get_schemaVersion(pulsar_message_t *mes
 
 PULSAR_PUBLIC void pulsar_message_set_schema_version(pulsar_message_t *message, const char *schemaVersion);
 
+/**
+ * Returns the producer name which produced this message. The pointer points to an internal string, so the
+ * caller should not free it.
+ */
+PULSAR_PUBLIC const char *pulsar_message_get_producer_name(pulsar_message_t *message);
+
 #ifdef __cplusplus
 }
 #endif

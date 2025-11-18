@@ -213,6 +213,13 @@ uint64_t Message::getPublishTimestamp() const { return impl_ ? impl_->getPublish
 
 uint64_t Message::getEventTimestamp() const { return impl_ ? impl_->getEventTimestamp() : 0ull; }
 
+const std::string& Message::getProducerName() const noexcept {
+    if (!impl_) {
+        return emptyString;
+    }
+    return impl_->metadata.producer_name();
+}
+
 bool Message::operator==(const Message& msg) const { return getMessageId() == msg.getMessageId(); }
 
 KeyValue Message::getKeyValueData() const { return KeyValue(impl_->keyValuePtr); }
