@@ -42,6 +42,7 @@ TEST(MessageTest, testMessageContents) {
     ASSERT_NE(myContents.c_str(), (char*)msg.getData());
     ASSERT_EQ(myContents, msg.getDataAsString());
     ASSERT_EQ(std::string("mycontents").length(), msg.getLength());
+    ASSERT_TRUE(msg.getProducerName().empty());
 }
 
 TEST(MessageTest, testAllocatedContents) {

@@ -34,6 +34,7 @@ struct receive_ctx {
     pulsar_result result;
     pulsar_consumer_t *consumer;
     char *data;
+    char *producer_name;
     std::promise<void> *promise;
 };
 
@@ -57,6 +58,9 @@ static void receive_callback(pulsar_result async_result, pulsar_message_t *msg, 
         const char *data = (const char *)pulsar_message_get_data(msg);
         receive_ctx->data = (char *)malloc(strlen(data) * sizeof(char) + 1);
         strcpy(receive_ctx->data, data);
+        const char *producer_name = pulsar_message_get_producer_name(msg);
+        receive_ctx->producer_name = (char *)malloc(strlen(producer_name) * sizeof(char) + 1);
+        strcpy(receive_ctx->producer_name, producer_name);
     }
     receive_ctx->promise->set_value();
     pulsar_message_free(msg);
@@ -71,6 +75,7 @@ TEST(c_BasicEndToEndTest, testAsyncProduceConsume) {
     pulsar_client_t *client = pulsar_client_create(lookup_url, conf);
 
     pulsar_producer_configuration_t *producer_conf = pulsar_producer_configuration_create();
+    pulsar_producer_configuration_set_producer_name(producer_conf, "test-producer");
     pulsar_producer_t *producer;
     pulsar_result result = pulsar_client_create_producer(client, topic_name, producer_conf, &producer);
     ASSERT_EQ(pulsar_result_Ok, result);
@@ -101,12 +106,14 @@ TEST(c_BasicEndToEndTest, testAsyncProduceConsume) {
     // receive asynchronously
     std::promise<void> receive_promise;
     std::future<void> receive_future = receive_promise.get_future();
-    struct receive_ctx receive_ctx = {pulsar_result_UnknownError, consumer, NULL, &receive_promise};
+    struct receive_ctx receive_ctx = {pulsar_result_UnknownError, consumer, NULL, NULL, &receive_promise};
     pulsar_consumer_receive_async(consumer, receive_callback, &receive_ctx);
     receive_future.get();
     ASSERT_EQ(pulsar_result_Ok, receive_ctx.result);
+    ASSERT_STREQ("test-producer", receive_ctx.producer_name);
     ASSERT_STREQ(content, receive_ctx.data);
-    delete receive_ctx.data;
+    free(receive_ctx.data);
+    free(receive_ctx.producer_name);
 
     ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_unsubscribe(consumer));
     ASSERT_EQ(pulsar_result_Ok, pulsar_consumer_close(consumer));

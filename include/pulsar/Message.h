@@ -195,6 +195,13 @@ class PULSAR_PUBLIC Message {
      */
     const std::string& getSchemaVersion() const;
 
+    /**
+     * Get the producer name which produced this message.
+     *
+     * @return the producer name or empty string if not available
+     */
+    const std::string& getProducerName() const noexcept;
+
     bool operator==(const Message& msg) const;
 
    protected:
