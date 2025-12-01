@@ -21,7 +21,6 @@
 
 #include <pulsar/Reader.h>
 
-#include <boost/optional.hpp>
 #include <boost/variant.hpp>
 #include <cstdint>
 #include <functional>
@@ -92,7 +91,7 @@ class ConsumerImpl : public ConsumerImplBase {
                  const ExecutorServicePtr& listenerExecutor = ExecutorServicePtr(), bool hasParent = false,
                  const ConsumerTopicType consumerTopicType = NonPartitioned,
                  Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
-                 const boost::optional<MessageId>& startMessageId = boost::none);
+                 const optional<MessageId>& startMessageId = optional<MessageId>());
     ~ConsumerImpl();
     void setPartitionIndex(int partitionIndex);
     int getPartitionIndex();
@@ -146,7 +145,7 @@ class ConsumerImpl : public ConsumerImplBase {
     void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) override;
 
     virtual void disconnectConsumer();
-    virtual void disconnectConsumer(const boost::optional<std::string>& assignedBrokerUrl);
+    virtual void disconnectConsumer(const optional<std::string>& assignedBrokerUrl);
     Result fetchSingleMessageFromBroker(Message& msg);
 
     virtual bool isCumulativeAcknowledgementAllowed(ConsumerType consumerType);
@@ -270,7 +269,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
     std::atomic<SeekStatus> seekStatus_{SeekStatus::NOT_STARTED};
     Synchronized<ResultCallback> seekCallback_{[](Result) {}};
-    Synchronized<boost::optional<MessageId>> startMessageId_;
+    Synchronized<optional<MessageId>> startMessageId_;
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
     std::atomic<bool> hasSoughtByTimestamp_{false};
 
@@ -368,10 +367,10 @@ class ConsumerImpl : public ConsumerImplBase {
      * @return the concatenated payload if chunks are concatenated into a completed message payload
      *   successfully, else Optional::empty()
      */
-    boost::optional<SharedBuffer> processMessageChunk(const SharedBuffer& payload,
-                                                      const proto::MessageMetadata& metadata,
-                                                      const proto::MessageIdData& messageIdData,
-                                                      const ClientConnectionPtr& cnx, MessageId& messageId);
+    optional<SharedBuffer> processMessageChunk(const SharedBuffer& payload,
+                                               const proto::MessageMetadata& metadata,
+                                               const proto::MessageIdData& messageIdData,
+                                               const ClientConnectionPtr& cnx, MessageId& messageId);
 
     bool hasMoreMessages() const {
         std::lock_guard<std::mutex> lock{mutexForMessageId_};

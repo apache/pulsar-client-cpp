@@ -59,8 +59,7 @@ DECLARE_LOG_OBJECT()
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 
-static boost::optional<MessageId> getStartMessageId(const boost::optional<MessageId>& startMessageId,
-                                                    bool inclusive) {
+static optional<MessageId> getStartMessageId(const optional<MessageId>& startMessageId, bool inclusive) {
     if (!inclusive || !startMessageId) {
         return startMessageId;
     }
@@ -69,7 +68,7 @@ static boost::optional<MessageId> getStartMessageId(const boost::optional<Messag
     auto chunkMsgIdImpl =
         dynamic_cast<const ChunkMessageIdImpl*>(Commands::getMessageIdImpl(startMessageId.value()).get());
     if (chunkMsgIdImpl) {
-        return boost::optional<MessageId>{chunkMsgIdImpl->getChunkedMessageIds().front()};
+        return optional<MessageId>{chunkMsgIdImpl->getChunkedMessageIds().front()};
     }
     return startMessageId;
 }
@@ -97,7 +96,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
                            bool hasParent /* = false by default */,
                            const ConsumerTopicType consumerTopicType /* = NonPartitioned by default */,
                            Commands::SubscriptionMode subscriptionMode,
-                           const boost::optional<MessageId>& startMessageId)
+                           const optional<MessageId>& startMessageId)
     : ConsumerImplBase(
           client, topic,
           Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
@@ -242,8 +241,9 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
 
     Lock lockForMessageId(mutexForMessageId_);
     clearReceiveQueue();
-    const auto subscribeMessageId =
-        (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId_.get() : boost::none;
+    const auto subscribeMessageId = (subscriptionMode_ == Commands::SubscriptionModeNonDurable)
+                                        ? startMessageId_.get()
+                                        : optional<MessageId>{};
     lockForMessageId.unlock();
 
     unAckedMessageTrackerPtr_->clear();
@@ -433,7 +433,7 @@ void ConsumerImpl::discardChunkMessages(const std::string& uuid, const MessageId
 
 void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
     checkExpiredChunkedTimer_->expires_after(milliseconds(expireTimeOfIncompleteChunkedMessageMs_));
-    std::weak_ptr<ConsumerImplBase> weakSelf{shared_from_this()};
+    auto weakSelf = weak_from_this();
     checkExpiredChunkedTimer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) -> void {
         auto self = weakSelf.lock();
         if (!self) {
@@ -464,11 +464,11 @@ void ConsumerImpl::triggerCheckExpiredChunkedTimer() {
     });
 }
 
-boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
-                                                                const proto::MessageMetadata& metadata,
-                                                                const proto::MessageIdData& messageIdData,
-                                                                const ClientConnectionPtr& cnx,
-                                                                MessageId& messageId) {
+optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& payload,
+                                                         const proto::MessageMetadata& metadata,
+                                                         const proto::MessageIdData& messageIdData,
+                                                         const ClientConnectionPtr& cnx,
+                                                         MessageId& messageId) {
     const auto chunkId = metadata.chunk_id();
     const auto& uuid = metadata.uuid();
     LOG_DEBUG("Process message chunk (chunkId: " << chunkId << ", uuid: " << uuid
@@ -521,14 +521,14 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
         lock.unlock();
         increaseAvailablePermits(cnx);
         trackMessage(messageId);
-        return boost::none;
+        return {};
     }
 
     chunkedMsgCtx.appendChunk(messageId, payload);
     if (!chunkedMsgCtx.isCompleted()) {
         lock.unlock();
         increaseAvailablePermits(cnx);
-        return boost::none;
+        return {};
     }
 
     messageId = std::make_shared<ChunkMessageIdImpl>(chunkedMsgCtx.moveChunkedMessageIds())->build();
@@ -541,7 +541,7 @@ boost::optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuff
     if (uncompressMessageIfNeeded(cnx, messageIdData, metadata, wholePayload, false)) {
         return wholePayload;
     } else {
-        return boost::none;
+        return {};
     }
 }
 
@@ -1124,7 +1124,7 @@ void ConsumerImpl::clearReceiveQueue() {
         if (hasSoughtByTimestamp()) {
             // Invalidate startMessageId_ so that isPriorBatchIndex and isPriorEntryIndex checks will be
             // skipped, and hasMessageAvailableAsync won't use startMessageId_ in compare.
-            startMessageId_ = boost::none;
+            startMessageId_ = optional<MessageId>{};
         } else {
             startMessageId_ = seekMessageId_.get();
         }
@@ -1313,11 +1313,11 @@ void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
     negativeAcksTracker_->add(messageId);
 }
 
-void ConsumerImpl::disconnectConsumer() { disconnectConsumer(boost::none); }
+void ConsumerImpl::disconnectConsumer() { disconnectConsumer(nullptr); }
 
-void ConsumerImpl::disconnectConsumer(const boost::optional<std::string>& assignedBrokerUrl) {
+void ConsumerImpl::disconnectConsumer(const optional<std::string>& assignedBrokerUrl) {
     LOG_INFO("Broker notification of Closed consumer: "
-             << consumerId_ << (assignedBrokerUrl ? (" assignedBrokerUrl: " + assignedBrokerUrl.get()) : ""));
+             << consumerId_ << (assignedBrokerUrl ? (" assignedBrokerUrl: " + *assignedBrokerUrl) : ""));
     resetCnx();
     scheduleReconnection(assignedBrokerUrl);
 }
@@ -1745,7 +1745,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
     seekCallback_ = callback;
     LOG_INFO(getName() << " Seeking subscription to " << seekArg);
 
-    std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
+    auto weakSelf = weak_from_this();
 
     cnx->sendRequestWithId(seek, requestId)
         .addListener([this, weakSelf, callback, originalSeekMessageId](Result result,
@@ -1851,9 +1851,9 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const Proces
     }
 
     for (const auto& message : messages.value()) {
-        std::weak_ptr<ConsumerImpl> weakSelf{get_shared_this_ptr()};
-        deadLetterProducer_->getFuture().addListener([weakSelf, message, messageId, cb](Result res,
-                                                                                        Producer producer) {
+        auto weakSelf = weak_from_this();
+        deadLetterProducer_->getFuture().addListener([this, weakSelf, message, messageId, cb](
+                                                         Result res, Producer producer) {
             auto self = weakSelf.lock();
             if (!self) {
                 return;
@@ -1872,30 +1872,29 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const Proces
             if (message.hasOrderingKey()) {
                 msgBuilder.setOrderingKey(message.getOrderingKey());
             }
-            producer.sendAsync(msgBuilder.build(), [weakSelf, originMessageId, messageId, cb](
+            producer.sendAsync(msgBuilder.build(), [this, weakSelf, originMessageId, messageId, cb](
                                                        Result res, const MessageId& messageIdInDLQ) {
                 auto self = weakSelf.lock();
                 if (!self) {
                     return;
                 }
                 if (res == ResultOk) {
-                    if (self->state_ != Ready) {
+                    if (state_ != Ready) {
                         LOG_WARN(
                             "Send to the DLQ successfully, but consumer is not ready. ignore acknowledge : "
-                            << self->state_);
+                            << state_);
                         cb(false);
                         return;
                     }
-                    self->possibleSendToDeadLetterTopicMessages_.remove(messageId);
-                    self->acknowledgeAsync(originMessageId, [weakSelf, originMessageId, cb](Result result) {
+                    possibleSendToDeadLetterTopicMessages_.remove(messageId);
+                    acknowledgeAsync(originMessageId, [this, weakSelf, originMessageId, cb](Result result) {
                         auto self = weakSelf.lock();
                         if (!self) {
                             return;
                         }
                         if (result != ResultOk) {
-                            LOG_WARN("{" << self->topic() << "} {" << self->subscription_ << "} {"
-                                         << self->getConsumerName() << "} Failed to acknowledge the message {"
-                                         << originMessageId
+                            LOG_WARN("{" << topic() << "} {" << subscription_ << "} {" << getConsumerName()
+                                         << "} Failed to acknowledge the message {" << originMessageId
                                          << "} of the original topic but send to the DLQ successfully : "
                                          << result);
                             cb(false);
@@ -1906,9 +1905,9 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const Proces
                         }
                     });
                 } else {
-                    LOG_WARN("{" << self->topic() << "} {" << self->subscription_ << "} {"
-                                 << self->getConsumerName() << "} Failed to send DLQ message to {"
-                                 << self->deadLetterPolicy_.getDeadLetterTopic() << "} for message id "
+                    LOG_WARN("{" << topic() << "} {" << subscription_ << "} {" << getConsumerName()
+                                 << "} Failed to send DLQ message to {"
+                                 << deadLetterPolicy_.getDeadLetterTopic() << "} for message id "
                                  << "{" << originMessageId << "} : " << res);
                     cb(false);
                 }

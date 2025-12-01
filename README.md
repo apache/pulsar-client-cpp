@@ -57,6 +57,9 @@ cmake -B build -DINTEGRATE_VCPKG=ON
 cmake --build build -j8
 ```
 
+> - Before 4.0.0, C++11 is required.
+> - Since 4.0.0, C++17 is required.
+
 The 1st step will download vcpkg and then install all dependencies according to the version description in [vcpkg.json](./vcpkg.json). The 2nd step will build the Pulsar C++ libraries under `./build/lib/`, where `./build` is the CMake build directory.
 
 > You can also add the CMAKE_TOOLCHAIN_FILE option if your system already have vcpkg installed.

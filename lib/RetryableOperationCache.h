@@ -80,7 +80,7 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
             operations_[key] = operation;
             lock.unlock();
 
-            std::weak_ptr<Self> weakSelf{this->shared_from_this()};
+            auto weakSelf = this->weak_from_this();
             future.addListener([this, weakSelf, key, operation](Result, const T&) {
                 auto self = weakSelf.lock();
                 if (!self) {

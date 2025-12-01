@@ -39,10 +39,9 @@ void UnAckedMessageTrackerEnabled::timeoutHandler() {
     ExecutorServicePtr executorService = client->getIOExecutorProvider()->get();
     timer_ = executorService->createDeadlineTimer();
     timer_->expires_after(std::chrono::milliseconds(tickDurationInMs_));
-    std::weak_ptr<UnAckedMessageTrackerEnabled> weakSelf{shared_from_this()};
+    auto weakSelf = weak_from_this();
     timer_->async_wait([weakSelf](const ASIO_ERROR& ec) {
-        auto self = weakSelf.lock();
-        if (self && !ec) {
+        if (auto self = weakSelf.lock(); self && !ec) {
             self->timeoutHandler();
         }
     });

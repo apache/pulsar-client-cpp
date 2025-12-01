@@ -25,7 +25,7 @@
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
 
-#include <boost/optional.hpp>
+#include <optional>
 #include <set>
 
 #include "ProtoApiEnums.h"
@@ -41,6 +41,7 @@ class MessageIdImpl;
 using MessageIdImplPtr = std::shared_ptr<MessageIdImpl>;
 class BitSet;
 struct SendArguments;
+using std::optional;
 
 namespace proto {
 class BaseCommand;
@@ -102,14 +103,16 @@ class Commands {
     static PairSharedBuffer newSend(SharedBuffer& headers, proto::BaseCommand& cmd, ChecksumType checksumType,
                                     const SendArguments& args);
 
-    static SharedBuffer newSubscribe(
-        const std::string& topic, const std::string& subscription, uint64_t consumerId, uint64_t requestId,
-        CommandSubscribe_SubType subType, const std::string& consumerName, SubscriptionMode subscriptionMode,
-        boost::optional<MessageId> startMessageId, bool readCompacted,
-        const std::map<std::string, std::string>& metadata,
-        const std::map<std::string, std::string>& subscriptionProperties, const SchemaInfo& schemaInfo,
-        CommandSubscribe_InitialPosition subscriptionInitialPosition, bool replicateSubscriptionState,
-        const KeySharedPolicy& keySharedPolicy, int priorityLevel = 0);
+    static SharedBuffer newSubscribe(const std::string& topic, const std::string& subscription,
+                                     uint64_t consumerId, uint64_t requestId,
+                                     CommandSubscribe_SubType subType, const std::string& consumerName,
+                                     SubscriptionMode subscriptionMode, optional<MessageId> startMessageId,
+                                     bool readCompacted, const std::map<std::string, std::string>& metadata,
+                                     const std::map<std::string, std::string>& subscriptionProperties,
+                                     const SchemaInfo& schemaInfo,
+                                     CommandSubscribe_InitialPosition subscriptionInitialPosition,
+                                     bool replicateSubscriptionState, const KeySharedPolicy& keySharedPolicy,
+                                     int priorityLevel = 0);
 
     static SharedBuffer newUnsubscribe(uint64_t consumerId, uint64_t requestId);
 
@@ -118,7 +121,7 @@ class Commands {
                                     const std::map<std::string, std::string>& metadata,
                                     const SchemaInfo& schemaInfo, uint64_t epoch,
                                     bool userProvidedProducerName, bool encrypted,
-                                    ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                    ProducerAccessMode accessMode, optional<uint64_t> topicEpoch,
                                     const std::string& initialSubscriptionName);
 
     static SharedBuffer newAck(uint64_t consumerId, int64_t ledgerId, int64_t entryId, const BitSet& ackSet,

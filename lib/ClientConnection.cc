@@ -21,7 +21,6 @@
 #include <openssl/x509.h>
 #include <pulsar/MessageIdBuilder.h>
 
-#include <boost/optional.hpp>
 #include <fstream>
 
 #include "AsioDefines.h"
@@ -1127,19 +1126,19 @@ void ClientConnection::sendPendingCommands() {
 
     if (--pendingWriteOperations_ > 0) {
         assert(!pendingWriteBuffers_.empty());
-        boost::any any = pendingWriteBuffers_.front();
+        auto any = pendingWriteBuffers_.front();
         pendingWriteBuffers_.pop_front();
 
         auto self = shared_from_this();
         if (any.type() == typeid(SharedBuffer)) {
-            SharedBuffer buffer = boost::any_cast<SharedBuffer>(any);
+            SharedBuffer buffer = std::any_cast<SharedBuffer>(any);
             asyncWrite(buffer.const_asio_buffer(),
                        customAllocWriteHandler(
                            [this, self, buffer](const ASIO_ERROR& err, size_t) { handleSend(err, buffer); }));
         } else {
             assert(any.type() == typeid(std::shared_ptr<SendArguments>));
 
-            auto args = boost::any_cast<std::shared_ptr<SendArguments>>(any);
+            auto args = std::any_cast<std::shared_ptr<SendArguments>>(any);
             BaseCommand outgoingCmd;
             PairSharedBuffer buffer =
                 Commands::newSend(outgoingBuffer_, outgoingCmd, getChecksumType(), *args);
@@ -1702,9 +1701,9 @@ void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess
                 data.schemaVersion = producerSuccess.schema_version();
             }
             if (producerSuccess.has_topic_epoch()) {
-                data.topicEpoch = boost::make_optional(producerSuccess.topic_epoch());
+                data.topicEpoch = std::make_optional(producerSuccess.topic_epoch());
             } else {
-                data.topicEpoch = boost::none;
+                data.topicEpoch = {};
             }
             requestData.promise.setValue(data);
             cancelTimer(*requestData.timer);
@@ -1805,7 +1804,7 @@ void ClientConnection::handleTopicMigrated(const proto::CommandTopicMigrated& co
     }
 }
 
-boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
+optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
     const proto::CommandCloseProducer& closeProducer) {
     if (tlsSocket_) {
         if (closeProducer.has_assignedbrokerserviceurltls()) {
@@ -1814,10 +1813,10 @@ boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
     } else if (closeProducer.has_assignedbrokerserviceurl()) {
         return closeProducer.assignedbrokerserviceurl();
     }
-    return boost::none;
+    return {};
 }
 
-boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
+optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
     const proto::CommandCloseConsumer& closeConsumer) {
     if (tlsSocket_) {
         if (closeConsumer.has_assignedbrokerserviceurltls()) {
@@ -1826,7 +1825,7 @@ boost::optional<std::string> ClientConnection::getAssignedBrokerServiceUrl(
     } else if (closeConsumer.has_assignedbrokerserviceurl()) {
         return closeConsumer.assignedbrokerserviceurl();
     }
-    return boost::none;
+    return {};
 }
 
 void ClientConnection::handleCloseProducer(const proto::CommandCloseProducer& closeProducer) {

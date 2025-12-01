@@ -55,7 +55,7 @@ void NegativeAcksTracker::scheduleTimer() {
     if (closed_) {
         return;
     }
-    std::weak_ptr<NegativeAcksTracker> weakSelf{shared_from_this()};
+    auto weakSelf = weak_from_this();
     timer_->expires_after(timerInterval_);
     timer_->async_wait([weakSelf](const ASIO_ERROR &ec) {
         if (auto self = weakSelf.lock()) {
