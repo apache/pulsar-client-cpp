@@ -981,7 +981,7 @@ void ProducerImpl::disconnectProducer(const optional<std::string>& assignedBroke
     scheduleReconnection(assignedBrokerUrl);
 }
 
-void ProducerImpl::disconnectProducer() { disconnectProducer(nullptr); }
+void ProducerImpl::disconnectProducer() { disconnectProducer(optional<std::string>{}); }
 
 void ProducerImpl::start() {
     HandlerBase::start();

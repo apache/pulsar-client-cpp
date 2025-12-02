@@ -1313,7 +1313,7 @@ void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
     negativeAcksTracker_->add(messageId);
 }
 
-void ConsumerImpl::disconnectConsumer() { disconnectConsumer(nullptr); }
+void ConsumerImpl::disconnectConsumer() { disconnectConsumer(optional<std::string>{}); }
 
 void ConsumerImpl::disconnectConsumer(const optional<std::string>& assignedBrokerUrl) {
     LOG_INFO("Broker notification of Closed consumer: "
