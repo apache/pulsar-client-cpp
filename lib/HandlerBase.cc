@@ -85,7 +85,7 @@ void HandlerBase::setCnx(const ClientConnectionPtr& cnx) {
     connection_ = cnx;
 }
 
-void HandlerBase::grabCnx() { grabCnx(optional<std::string>{}); }
+void HandlerBase::grabCnx() { grabCnx(std::nullopt); }
 
 Future<Result, ClientConnectionPtr> HandlerBase::getConnection(
     const ClientImplPtr& client, const optional<std::string>& assignedBrokerUrl) {
@@ -176,7 +176,7 @@ void HandlerBase::handleDisconnection(Result result, const ClientConnectionPtr& 
             break;
     }
 }
-void HandlerBase::scheduleReconnection() { scheduleReconnection(optional<std::string>{}); }
+void HandlerBase::scheduleReconnection() { scheduleReconnection(std::nullopt); }
 void HandlerBase::scheduleReconnection(const optional<std::string>& assignedBrokerUrl) {
     const auto state = state_.load();
 

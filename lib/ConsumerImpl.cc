@@ -241,9 +241,8 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
 
     Lock lockForMessageId(mutexForMessageId_);
     clearReceiveQueue();
-    const auto subscribeMessageId = (subscriptionMode_ == Commands::SubscriptionModeNonDurable)
-                                        ? startMessageId_.get()
-                                        : optional<MessageId>{};
+    const auto subscribeMessageId =
+        (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId_.get() : std::nullopt;
     lockForMessageId.unlock();
 
     unAckedMessageTrackerPtr_->clear();
@@ -1124,7 +1123,7 @@ void ConsumerImpl::clearReceiveQueue() {
         if (hasSoughtByTimestamp()) {
             // Invalidate startMessageId_ so that isPriorBatchIndex and isPriorEntryIndex checks will be
             // skipped, and hasMessageAvailableAsync won't use startMessageId_ in compare.
-            startMessageId_ = optional<MessageId>{};
+            startMessageId_ = std::nullopt;
         } else {
             startMessageId_ = seekMessageId_.get();
         }
@@ -1313,7 +1312,7 @@ void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
     negativeAcksTracker_->add(messageId);
 }
 
-void ConsumerImpl::disconnectConsumer() { disconnectConsumer(optional<std::string>{}); }
+void ConsumerImpl::disconnectConsumer() { disconnectConsumer(std::nullopt); }
 
 void ConsumerImpl::disconnectConsumer(const optional<std::string>& assignedBrokerUrl) {
     LOG_INFO("Broker notification of Closed consumer: "

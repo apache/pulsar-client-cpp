@@ -1703,7 +1703,7 @@ void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess
             if (producerSuccess.has_topic_epoch()) {
                 data.topicEpoch = std::make_optional(producerSuccess.topic_epoch());
             } else {
-                data.topicEpoch = {};
+                data.topicEpoch = std::nullopt;
             }
             requestData.promise.setValue(data);
             cancelTimer(*requestData.timer);
