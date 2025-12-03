@@ -19,13 +19,15 @@
 #pragma once
 
 #include <atomic>
-#include <boost/optional.hpp>
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
+using std::optional;
 
 namespace pulsar {
 
@@ -46,7 +48,7 @@ class SynchronizedHashMap {
     using Lock = std::lock_guard<MutexType>;
 
    public:
-    using OptValue = boost::optional<V>;
+    using OptValue = optional<V>;
     using PairVector = std::vector<std::pair<K, V>>;
     using MapType = std::unordered_map<K, V>;
     using Iterator = typename MapType::iterator;
@@ -60,12 +62,12 @@ class SynchronizedHashMap {
     }
 
     // Put a new key-value pair if the key does not exist.
-    // Return boost::none if the key already exists or the existing value.
+    // Return an empty optional if the key already exists or the existing value.
     OptValue putIfAbsent(const K& key, const V& value) {
         Lock lock(mutex_);
         auto pair = data_.emplace(key, value);
         if (pair.second) {
-            return boost::none;
+            return {};
         } else {
             return pair.first->second;
         }
@@ -157,7 +159,7 @@ class SynchronizedHashMap {
         if (it != data_.end()) {
             return it->second;
         } else {
-            return boost::none;
+            return {};
         }
     }
 
@@ -168,18 +170,18 @@ class SynchronizedHashMap {
                 return kv.second;
             }
         }
-        return boost::none;
+        return {};
     }
 
     OptValue remove(const K& key) {
         Lock lock(mutex_);
         auto it = data_.find(key);
         if (it != data_.end()) {
-            auto result = boost::make_optional(std::move(it->second));
+            auto result = std::make_optional(std::move(it->second));
             data_.erase(it);
             return result;
         } else {
-            return boost::none;
+            return {};
         }
     }
 

@@ -974,14 +974,14 @@ bool ProducerImpl::encryptMessage(proto::MessageMetadata& metadata, SharedBuffer
                                encryptedPayload);
 }
 
-void ProducerImpl::disconnectProducer(const boost::optional<std::string>& assignedBrokerUrl) {
+void ProducerImpl::disconnectProducer(const optional<std::string>& assignedBrokerUrl) {
     LOG_INFO("Broker notification of Closed producer: "
-             << producerId_ << (assignedBrokerUrl ? (" assignedBrokerUrl: " + assignedBrokerUrl.get()) : ""));
+             << producerId_ << (assignedBrokerUrl ? (" assignedBrokerUrl: " + *assignedBrokerUrl) : ""));
     resetCnx();
     scheduleReconnection(assignedBrokerUrl);
 }
 
-void ProducerImpl::disconnectProducer() { disconnectProducer(boost::none); }
+void ProducerImpl::disconnectProducer() { disconnectProducer(std::nullopt); }
 
 void ProducerImpl::start() {
     HandlerBase::start();

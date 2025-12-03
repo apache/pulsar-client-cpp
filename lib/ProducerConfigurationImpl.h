@@ -21,15 +21,16 @@
 
 #include <pulsar/ProducerConfiguration.h>
 
-#include <boost/optional.hpp>
-#include <memory>
+#include <optional>
+
+using std::optional;
 
 namespace pulsar {
 
 struct ProducerConfigurationImpl {
     SchemaInfo schemaInfo;
-    boost::optional<std::string> producerName;
-    boost::optional<int64_t> initialSequenceId;
+    optional<std::string> producerName;
+    optional<int64_t> initialSequenceId;
     int sendTimeoutMs{30000};
     CompressionType compressionType{CompressionNone};
     int maxPendingMessages{1000};

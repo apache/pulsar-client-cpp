@@ -26,7 +26,6 @@
 #include <boost/asio/steady_timer.hpp>
 #endif
 #include <atomic>
-#include <boost/optional.hpp>
 #include <list>
 #include <memory>
 
@@ -99,7 +98,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     bool ackReceived(uint64_t sequenceId, MessageId& messageId);
 
-    virtual void disconnectProducer(const boost::optional<std::string>& assignedBrokerUrl);
+    virtual void disconnectProducer(const optional<std::string>& assignedBrokerUrl);
     virtual void disconnectProducer();
 
     uint64_t getProducerId() const;
@@ -209,7 +208,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     MemoryLimitController& memoryLimitController_;
     const bool chunkingEnabled_;
-    boost::optional<uint64_t> topicEpoch;
+    optional<uint64_t> topicEpoch;
 
     ProducerInterceptorsPtr interceptors_;
 

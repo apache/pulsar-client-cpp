@@ -46,7 +46,7 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(const ClientImplPtr& client, co
                                                  const LookupServicePtr& lookupServicePtr,
                                                  const ConsumerInterceptorsPtr& interceptors,
                                                  Commands::SubscriptionMode subscriptionMode,
-                                                 const boost::optional<MessageId>& startMessageId)
+                                                 const optional<MessageId>& startMessageId)
     : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
                               lookupServicePtr, interceptors, subscriptionMode, startMessageId) {
     topicsPartitions_[topicName->toString()] = numPartitions;
@@ -56,7 +56,7 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(
     const ClientImplPtr& client, const std::vector<std::string>& topics, const std::string& subscriptionName,
     const TopicNamePtr& topicName, const ConsumerConfiguration& conf,
     const LookupServicePtr& lookupServicePtr, const ConsumerInterceptorsPtr& interceptors,
-    Commands::SubscriptionMode subscriptionMode, const boost::optional<MessageId>& startMessageId)
+    Commands::SubscriptionMode subscriptionMode, const optional<MessageId>& startMessageId)
     : ConsumerImplBase(client, topicName ? topicName->toString() : "EmptyTopics",
                        Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
                        client->getListenerExecutorProvider()->get()),
@@ -448,7 +448,7 @@ void MultiTopicsConsumerImpl::handleOneTopicUnsubscribedAsync(
 }
 
 void MultiTopicsConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
-    std::weak_ptr<MultiTopicsConsumerImpl> weakSelf{get_shared_this_ptr()};
+    auto weakSelf = weak_from_this();
     auto callback = [weakSelf, originalCallback](Result result) {
         auto self = weakSelf.lock();
         if (self) {
@@ -935,7 +935,7 @@ void MultiTopicsConsumerImpl::seekAsync(const MessageId& msgId, const ResultCall
 
     beforeSeek();
     auto weakSelf = weak_from_this();
-    optConsumer.get()->seekAsync(msgId, [this, weakSelf, callback](Result result) {
+    optConsumer.value()->seekAsync(msgId, [this, weakSelf, callback](Result result) {
         auto self = weakSelf.lock();
         if (self) {
             afterSeek();

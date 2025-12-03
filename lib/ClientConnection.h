@@ -22,6 +22,7 @@
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/defines.h>
 
+#include <any>
 #include <atomic>
 #include <cstdint>
 #ifdef USE_ASIO
@@ -37,8 +38,6 @@
 #include <boost/asio/ssl/stream.hpp>
 #include <boost/asio/strand.hpp>
 #endif
-#include <boost/any.hpp>
-#include <boost/optional.hpp>
 #include <deque>
 #include <functional>
 #include <memory>
@@ -53,6 +52,9 @@
 #include "SharedBuffer.h"
 #include "TimeUtils.h"
 #include "UtilAllocator.h"
+
+using std::optional;
+
 namespace pulsar {
 
 class PulsarFriend;
@@ -108,7 +110,7 @@ struct ResponseData {
     std::string producerName;
     int64_t lastSequenceId;
     std::string schemaVersion;
-    boost::optional<uint64_t> topicEpoch;
+    optional<uint64_t> topicEpoch;
 };
 
 typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;
@@ -140,10 +142,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
                      const AuthenticationPtr& authentication, const std::string& clientVersion,
                      ConnectionPool& pool, size_t poolIndex);
     ~ClientConnection();
-
-#if __cplusplus < 201703L
-    std::weak_ptr<ClientConnection> weak_from_this() noexcept { return shared_from_this(); }
-#endif
 
     /*
      * starts tcp connect_async
@@ -378,7 +376,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::unique_lock<std::mutex> Lock;
 
     // Pending buffers to write on the socket
-    std::deque<boost::any> pendingWriteBuffers_;
+    std::deque<std::any> pendingWriteBuffers_;
     int pendingWriteOperations_ = 0;
 
     SharedBuffer outgoingBuffer_;
@@ -426,8 +424,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleGetTopicOfNamespaceResponse(const proto::CommandGetTopicsOfNamespaceResponse&);
     void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
     void handleAckResponse(const proto::CommandAckResponse&);
-    boost::optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseProducer&);
-    boost::optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseConsumer&);
+    optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseProducer&);
+    optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseConsumer&);
     std::string getMigratedBrokerServiceUrl(const proto::CommandTopicMigrated&);
     // This method must be called when `mutex_` is held
     void unsafeRemovePendingRequest(long requestId);

@@ -50,11 +50,10 @@ ConsumerImplBase::ConsumerImplBase(const ClientImplPtr& client, const std::strin
 void ConsumerImplBase::triggerBatchReceiveTimerTask(long timeoutMs) {
     if (timeoutMs > 0) {
         batchReceiveTimer_->expires_after(std::chrono::milliseconds(timeoutMs));
-        std::weak_ptr<ConsumerImplBase> weakSelf{shared_from_this()};
+        auto weakSelf = weak_from_this();
         batchReceiveTimer_->async_wait([weakSelf](const ASIO_ERROR& ec) {
-            auto self = weakSelf.lock();
-            if (self && !ec) {
-                self->doBatchReceiveTimeTask();
+            if (auto self = weakSelf.lock(); self && !ec) {
+                std::static_pointer_cast<ConsumerImplBase>(self)->doBatchReceiveTimeTask();
             }
         });
     }

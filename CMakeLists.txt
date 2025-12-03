@@ -83,6 +83,10 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 MESSAGE(STATUS "Threads library: " ${CMAKE_THREAD_LIBS_INIT})
 
+if (NOT CMAKE_CXX_STANDARD)
+    set(CMAKE_CXX_STANDARD 17)
+endif ()
+
 # Compiler specific configuration:
 # https://stackoverflow.com/questions/10046114/in-cmake-how-can-i-test-if-the-compiler-is-clang
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
@@ -112,9 +116,6 @@ set(AUTOGEN_DIR ${PROJECT_BINARY_DIR}/generated)
 file(MAKE_DIRECTORY ${AUTOGEN_DIR})
 
 if (INTEGRATE_VCPKG)
-    if (NOT CMAKE_CXX_STANDARD)
-        set(CMAKE_CXX_STANDARD 11)
-    endif ()
     set(CMAKE_C_STANDARD 11)
     set(Boost_NO_BOOST_CMAKE ON)
     find_package(Boost REQUIRED)

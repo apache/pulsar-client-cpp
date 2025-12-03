@@ -81,7 +81,7 @@ void ConsumerStatsImpl::messageAcknowledged(Result res, CommandAck_AckType ackTy
 
 void ConsumerStatsImpl::scheduleTimer() {
     timer_->expires_after(std::chrono::seconds(statsIntervalInSeconds_));
-    std::weak_ptr<ConsumerStatsImpl> weakSelf{shared_from_this()};
+    auto weakSelf = weak_from_this();
     timer_->async_wait([this, weakSelf](const ASIO_ERROR& ec) {
         auto self = weakSelf.lock();
         if (!self) {

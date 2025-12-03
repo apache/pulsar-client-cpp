@@ -58,14 +58,14 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
                             const LookupServicePtr& lookupServicePtr,
                             const ConsumerInterceptorsPtr& interceptors,
                             Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
-                            const boost::optional<MessageId>& startMessageId = boost::none);
+                            const optional<MessageId>& startMessageId = optional<MessageId>{});
 
     MultiTopicsConsumerImpl(const ClientImplPtr& client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, const TopicNamePtr& topicName,
                             const ConsumerConfiguration& conf, const LookupServicePtr& lookupServicePtr_,
                             const ConsumerInterceptorsPtr& interceptors,
                             Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
-                            const boost::optional<MessageId>& startMessageId = boost::none);
+                            const optional<MessageId>& startMessageId = optional<MessageId>{});
 
     ~MultiTopicsConsumerImpl();
     // overrided methods from ConsumerImplBase
@@ -131,7 +131,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     const std::vector<std::string> topics_;
     std::queue<ReceiveCallback> pendingReceives_;
     const Commands::SubscriptionMode subscriptionMode_;
-    boost::optional<MessageId> startMessageId_;
+    optional<MessageId> startMessageId_;
     ConsumerInterceptorsPtr interceptors_;
     std::atomic_bool duringSeek_{false};
 

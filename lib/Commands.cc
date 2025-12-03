@@ -34,6 +34,7 @@
 #include "OpSendMsg.h"
 #include "PulsarApi.pb.h"
 #include "Url.h"
+#include "boost/throw_exception.hpp"
 #include "checksum/ChecksumProvider.h"
 
 using namespace pulsar;
@@ -329,7 +330,7 @@ SharedBuffer Commands::newAuthResponse(const AuthenticationPtr& authentication, 
 SharedBuffer Commands::newSubscribe(const std::string& topic, const std::string& subscription,
                                     uint64_t consumerId, uint64_t requestId, CommandSubscribe_SubType subType,
                                     const std::string& consumerName, SubscriptionMode subscriptionMode,
-                                    boost::optional<MessageId> startMessageId, bool readCompacted,
+                                    optional<MessageId> startMessageId, bool readCompacted,
                                     const std::map<std::string, std::string>& metadata,
                                     const std::map<std::string, std::string>& subscriptionProperties,
                                     const SchemaInfo& schemaInfo,
@@ -416,7 +417,7 @@ SharedBuffer Commands::newProducer(const std::string& topic, uint64_t producerId
                                    const std::map<std::string, std::string>& metadata,
                                    const SchemaInfo& schemaInfo, uint64_t epoch,
                                    bool userProvidedProducerName, bool encrypted,
-                                   ProducerAccessMode accessMode, boost::optional<uint64_t> topicEpoch,
+                                   ProducerAccessMode accessMode, optional<uint64_t> topicEpoch,
                                    const std::string& initialSubscriptionName) {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::PRODUCER);

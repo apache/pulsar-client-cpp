@@ -70,7 +70,7 @@ bool TableViewImpl::getValue(const std::string& key, std::string& value) const {
     return false;
 }
 
-bool TableViewImpl::containsKey(const std::string& key) const { return data_.find(key) != boost::none; }
+bool TableViewImpl::containsKey(const std::string& key) const { return static_cast<bool>(data_.find(key)); }
 
 std::unordered_map<std::string, std::string> TableViewImpl::snapshot() { return data_.move(); }
 
@@ -120,7 +120,7 @@ void TableViewImpl::handleMessage(const Message& msg) {
 
 void TableViewImpl::readAllExistingMessages(const Promise<Result, TableViewImplPtr>& promise, long startTime,
                                             long messagesRead) {
-    std::weak_ptr<TableViewImpl> weakSelf{shared_from_this()};
+    auto weakSelf = weak_from_this();
     reader_->hasMessageAvailableAsync(
         [weakSelf, promise, startTime, messagesRead](Result result, bool hasMessage) {
             auto self = weakSelf.lock();
