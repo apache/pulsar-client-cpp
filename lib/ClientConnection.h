@@ -22,6 +22,7 @@
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/defines.h>
 
+#include <any>
 #include <atomic>
 #include <cstdint>
 #ifdef USE_ASIO
