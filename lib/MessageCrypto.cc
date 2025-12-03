@@ -394,13 +394,13 @@ bool MessageCrypto::encrypt(const std::set<std::string>& encKeys, const CryptoKe
     return true;
 }
 
-bool MessageCrypto::decryptDataKey(const proto::EncryptionKeys& encKeys, const CryptoKeyReader& keyReader) {
-    const auto& keyName = encKeys.key();
-    const auto& encryptedDataKey = encKeys.value();
-    const auto& encKeyMeta = encKeys.metadata();
+bool MessageCrypto::decryptDataKey(const EncryptionKey& encKeys, const CryptoKeyReader& keyReader) {
+    const auto& keyName = encKeys.key;
+    const auto& encryptedDataKey = encKeys.value;
+    const auto& encKeyMeta = encKeys.metadata;
     StringMap keyMeta;
     for (auto iter = encKeyMeta.begin(); iter != encKeyMeta.end(); iter++) {
-        keyMeta[iter->key()] = iter->value();
+        keyMeta[iter->first] = iter->second;
     }
 
     // Read the private key info using callback
@@ -451,11 +451,10 @@ bool MessageCrypto::decryptDataKey(const proto::EncryptionKeys& encKeys, const C
     return true;
 }
 
-bool MessageCrypto::decryptData(const std::string& dataKeySecret, const proto::MessageMetadata& msgMetadata,
+bool MessageCrypto::decryptData(const std::string& dataKeySecret, const EncryptionContext& context,
                                 SharedBuffer& payload, SharedBuffer& decryptedPayload) {
     // unpack iv and encrypted data
-    msgMetadata.encryption_param().copy(reinterpret_cast<char*>(iv_.get()),
-                                        msgMetadata.encryption_param().size());
+    context.param().copy(reinterpret_cast<char*>(iv_.get()), context.param().size());
 
     EVP_CIPHER_CTX* cipherCtx = NULL;
     decryptedPayload = SharedBuffer::allocate(payload.readableBytes() + EVP_MAX_BLOCK_LENGTH + tagLen_);
@@ -518,15 +517,14 @@ bool MessageCrypto::decryptData(const std::string& dataKeySecret, const proto::M
     return true;
 }
 
-bool MessageCrypto::getKeyAndDecryptData(const proto::MessageMetadata& msgMetadata, SharedBuffer& payload,
+bool MessageCrypto::getKeyAndDecryptData(const EncryptionContext& context, SharedBuffer& payload,
                                          SharedBuffer& decryptedPayload) {
     SharedBuffer decryptedData;
     bool dataDecrypted = false;
 
-    for (auto iter = msgMetadata.encryption_keys().begin(); iter != msgMetadata.encryption_keys().end();
-         iter++) {
-        const std::string& keyName = iter->key();
-        const std::string& encDataKey = iter->value();
+    for (auto&& kv : context.keys()) {
+        const std::string& keyName = kv.key;
+        const std::string& encDataKey = kv.value;
         unsigned char keyDigest[EVP_MAX_MD_SIZE];
         unsigned int digestLen = 0;
         getDigest(keyName, encDataKey.c_str(), encDataKey.size(), keyDigest, digestLen);
@@ -539,7 +537,7 @@ bool MessageCrypto::getKeyAndDecryptData(const proto::MessageMetadata& msgMetada
             // retruns a different key, decryption fails. At this point, we would
             // call decryptDataKey to refresh the cache and come here again to decrypt.
             auto dataKeyEntry = dataKeyCacheIter->second;
-            if (decryptData(dataKeyEntry.first, msgMetadata, payload, decryptedPayload)) {
+            if (decryptData(dataKeyEntry.first, context, payload, decryptedPayload)) {
                 dataDecrypted = true;
                 break;
             }
@@ -552,17 +550,16 @@ bool MessageCrypto::getKeyAndDecryptData(const proto::MessageMetadata& msgMetada
     return dataDecrypted;
 }
 
-bool MessageCrypto::decrypt(const proto::MessageMetadata& msgMetadata, SharedBuffer& payload,
+bool MessageCrypto::decrypt(const EncryptionContext& context, SharedBuffer& payload,
                             const CryptoKeyReaderPtr& keyReader, SharedBuffer& decryptedPayload) {
     // Attempt to decrypt using the existing key
-    if (getKeyAndDecryptData(msgMetadata, payload, decryptedPayload)) {
+    if (getKeyAndDecryptData(context, payload, decryptedPayload)) {
         return true;
     }
 
     // Either first time, or decryption failed. Attempt to regenerate data key
     bool isDataKeyDecrypted = false;
-    for (int index = 0; index < msgMetadata.encryption_keys_size(); index++) {
-        const proto::EncryptionKeys& encKeys = msgMetadata.encryption_keys(index);
+    for (auto&& encKeys : context.keys()) {
         if (decryptDataKey(encKeys, *keyReader)) {
             isDataKeyDecrypted = true;
             break;
@@ -574,7 +571,7 @@ bool MessageCrypto::decrypt(const proto::MessageMetadata& msgMetadata, SharedBuf
         return false;
     }
 
-    return getKeyAndDecryptData(msgMetadata, payload, decryptedPayload);
+    return getKeyAndDecryptData(context, payload, decryptedPayload);
 }
 
 } /* namespace pulsar */

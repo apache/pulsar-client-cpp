@@ -64,6 +64,7 @@ using UnAckedMessageTrackerPtr = std::shared_ptr<UnAckedMessageTrackerInterface>
 namespace proto {
 class CommandMessage;
 class BrokerEntryMetadata;
+class MessageIdData;
 class MessageMetadata;
 }  // namespace proto
 
@@ -190,13 +191,20 @@ class ConsumerImpl : public ConsumerImplBase {
     void increaseAvailablePermits(const Message& msg);
     void drainIncomingMessageQueue(size_t count);
     uint32_t receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx, Message& batchedMessage,
-                                                const BitSet& ackSet, int redeliveryCount);
+                                                const BitSet& ackSet, int redeliveryCount,
+                                                const optional<EncryptionContext>& encryptionContext);
     bool isPriorBatchIndex(int32_t idx);
     bool isPriorEntryIndex(int64_t idx);
     void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, const BrokerConsumerStatsCallback&);
 
-    bool decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
-                                const proto::MessageMetadata& metadata, SharedBuffer& payload);
+    enum DecryptResult
+    {
+        DECRYPTED,
+        CONSUME_ENCRYPTED,
+        FAILED
+    };
+    DecryptResult decryptMessageIfNeeded(const ClientConnectionPtr&, const optional<EncryptionContext>&,
+                                         SharedBuffer& payload, const proto::MessageIdData&);
 
     // TODO - Convert these functions to lambda when we move to C++11
     Result receiveHelper(Message& msg);

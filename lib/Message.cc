@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <pulsar/EncryptionContext.h>
 #include <pulsar/Message.h>
 #include <pulsar/MessageBuilder.h>
 #include <pulsar/MessageIdBuilder.h>
@@ -24,10 +25,7 @@
 #include <iostream>
 
 #include "Int64SerDes.h"
-#include "KeyValueImpl.h"
 #include "MessageImpl.h"
-#include "PulsarApi.pb.h"
-#include "SharedBuffer.h"
 
 using namespace pulsar;
 
@@ -68,62 +66,7 @@ std::string Message::getDataAsString() const { return std::string((const char*)g
 
 Message::Message() : impl_() {}
 
-Message::Message(MessageImplPtr& impl) : impl_(impl) {}
-
-Message::Message(const MessageId& messageId, proto::BrokerEntryMetadata& brokerEntryMetadata,
-                 proto::MessageMetadata& metadata, SharedBuffer& payload)
-    : impl_(std::make_shared<MessageImpl>()) {
-    impl_->messageId = messageId;
-    impl_->brokerEntryMetadata = brokerEntryMetadata;
-    impl_->metadata = metadata;
-    impl_->payload = payload;
-}
-
-Message::Message(const MessageId& messageID, proto::BrokerEntryMetadata& brokerEntryMetadata,
-                 proto::MessageMetadata& metadata, SharedBuffer& payload,
-                 proto::SingleMessageMetadata& singleMetadata, const std::shared_ptr<std::string>& topicName)
-    : impl_(std::make_shared<MessageImpl>()) {
-    impl_->messageId = messageID;
-    impl_->brokerEntryMetadata = brokerEntryMetadata;
-    impl_->metadata = metadata;
-    impl_->payload = payload;
-    impl_->metadata.mutable_properties()->CopyFrom(singleMetadata.properties());
-    impl_->topicName_ = topicName;
-
-    impl_->metadata.clear_properties();
-    if (singleMetadata.properties_size() > 0) {
-        impl_->metadata.mutable_properties()->Reserve(singleMetadata.properties_size());
-        for (int i = 0; i < singleMetadata.properties_size(); i++) {
-            auto keyValue = proto::KeyValue().New();
-            *keyValue = singleMetadata.properties(i);
-            impl_->metadata.mutable_properties()->AddAllocated(keyValue);
-        }
-    }
-
-    if (singleMetadata.has_partition_key()) {
-        impl_->metadata.set_partition_key(singleMetadata.partition_key());
-    } else {
-        impl_->metadata.clear_partition_key();
-    }
-
-    if (singleMetadata.has_ordering_key()) {
-        impl_->metadata.set_ordering_key(singleMetadata.ordering_key());
-    } else {
-        impl_->metadata.clear_ordering_key();
-    }
-
-    if (singleMetadata.has_event_time()) {
-        impl_->metadata.set_event_time(singleMetadata.event_time());
-    } else {
-        impl_->metadata.clear_event_time();
-    }
-
-    if (singleMetadata.has_sequence_id()) {
-        impl_->metadata.set_sequence_id(singleMetadata.sequence_id());
-    } else {
-        impl_->metadata.clear_sequence_id();
-    }
-}
+Message::Message(const MessageImplPtr& impl) : impl_(impl) {}
 
 const MessageId& Message::getMessageId() const {
     if (!impl_) {
@@ -218,6 +161,13 @@ const std::string& Message::getProducerName() const noexcept {
         return emptyString;
     }
     return impl_->metadata.producer_name();
+}
+
+std::optional<const EncryptionContext*> Message::getEncryptionContext() const {
+    if (!impl_ || !impl_->encryptionContext_.has_value()) {
+        return std::nullopt;
+    }
+    return {&(*impl_->encryptionContext_)};
 }
 
 bool Message::operator==(const Message& msg) const { return getMessageId() == msg.getMessageId(); }

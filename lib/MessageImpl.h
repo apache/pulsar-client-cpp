@@ -19,14 +19,19 @@
 #ifndef LIB_MESSAGEIMPL_H_
 #define LIB_MESSAGEIMPL_H_
 
+#include <pulsar/EncryptionContext.h>
 #include <pulsar/Message.h>
 #include <pulsar/MessageId.h>
+
+#include <memory>
+#include <optional>
 
 #include "KeyValueImpl.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
 
-using namespace pulsar;
+using std::optional;
+
 namespace pulsar {
 
 class PulsarWrapper;
@@ -35,19 +40,13 @@ class BatchMessageContainer;
 
 class MessageImpl {
    public:
-    const Message::StringMap& properties();
+    explicit MessageImpl() : encryptionContext_(std::nullopt) {}
+    MessageImpl(const MessageId& messageId, const proto::BrokerEntryMetadata& brokerEntryMetadata,
+                const proto::MessageMetadata& metadata, const SharedBuffer& payload,
+                const optional<proto::SingleMessageMetadata>& singleMetadata,
+                const std::shared_ptr<std::string>& topicName, optional<EncryptionContext> encryptionContext);
 
-    proto::BrokerEntryMetadata brokerEntryMetadata;
-    proto::MessageMetadata metadata;
-    SharedBuffer payload;
-    std::shared_ptr<KeyValueImpl> keyValuePtr;
-    MessageId messageId;
-    ClientConnection* cnx_;
-    std::shared_ptr<std::string> topicName_;
-    int redeliveryCount_;
-    bool hasSchemaVersion_;
-    const std::string* schemaVersion_;
-    std::weak_ptr<class ConsumerImpl> consumerPtr_;
+    const Message::StringMap& properties();
 
     const std::string& getPartitionKey() const;
     bool hasPartitionKey() const;
@@ -80,6 +79,19 @@ class MessageImpl {
 
     friend class PulsarWrapper;
     friend class MessageBuilder;
+
+    MessageId messageId;
+    proto::BrokerEntryMetadata brokerEntryMetadata;
+    proto::MessageMetadata metadata;
+    SharedBuffer payload;
+    std::shared_ptr<KeyValueImpl> keyValuePtr;
+    ClientConnection* cnx_;
+    std::shared_ptr<std::string> topicName_;
+    int redeliveryCount_;
+    bool hasSchemaVersion_;
+    const std::string* schemaVersion_;
+    std::weak_ptr<class ConsumerImpl> consumerPtr_;
+    const optional<EncryptionContext> encryptionContext_;
 
    private:
     void setReplicationClusters(const std::vector<std::string>& clusters);

@@ -155,7 +155,8 @@ class Commands {
                                                           const std::vector<Message>& messages);
 
     static Message deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
-                                                   int32_t batchSize, const BatchMessageAckerPtr& acker);
+                                                   int32_t batchSize, const BatchMessageAckerPtr& acker,
+                                                   const optional<EncryptionContext>& encryptionContext);
 
     static MessageIdImplPtr getMessageIdImpl(const MessageId& messageId);
 

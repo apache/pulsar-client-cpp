@@ -19,22 +19,18 @@
 #ifndef MESSAGE_HPP_
 #define MESSAGE_HPP_
 
+#include <pulsar/EncryptionContext.h>
 #include <pulsar/defines.h>
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "KeyValue.h"
 #include "MessageId.h"
 
 namespace pulsar {
-namespace proto {
-class CommandMessage;
-class BrokerEntryMetadata;
-class MessageMetadata;
-class SingleMessageMetadata;
-}  // namespace proto
 
 class SharedBuffer;
 class MessageBuilder;
@@ -202,19 +198,19 @@ class PULSAR_PUBLIC Message {
      */
     const std::string& getProducerName() const noexcept;
 
+    /**
+     * @return the optional encryption context that is present when the message is encrypted, the pointer is
+     * valid as the Message instance is alive
+     */
+    std::optional<const EncryptionContext*> getEncryptionContext() const;
+
     bool operator==(const Message& msg) const;
 
    protected:
     typedef std::shared_ptr<MessageImpl> MessageImplPtr;
     MessageImplPtr impl_;
 
-    Message(MessageImplPtr& impl);
-    Message(const MessageId& messageId, proto::BrokerEntryMetadata& brokerEntryMetadata,
-            proto::MessageMetadata& metadata, SharedBuffer& payload);
-    /// Used for Batch Messages
-    Message(const MessageId& messageId, proto::BrokerEntryMetadata& brokerEntryMetadata,
-            proto::MessageMetadata& metadata, SharedBuffer& payload,
-            proto::SingleMessageMetadata& singleMetadata, const std::shared_ptr<std::string>& topicName);
+    Message(const MessageImplPtr& impl);
     friend class PartitionedProducerImpl;
     friend class MultiTopicsConsumerImpl;
     friend class MessageBuilder;

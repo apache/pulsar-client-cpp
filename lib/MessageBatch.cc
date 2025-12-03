@@ -49,7 +49,8 @@ MessageBatch& MessageBatch::parseFrom(const SharedBuffer& payload, uint32_t batc
 
     auto acker = BatchMessageAckerImpl::create(batchSize);
     for (int i = 0; i < batchSize; ++i) {
-        batch_.push_back(Commands::deSerializeSingleMessageInBatch(batchMessage_, i, batchSize, acker));
+        batch_.push_back(
+            Commands::deSerializeSingleMessageInBatch(batchMessage_, i, batchSize, acker, std::nullopt));
     }
     return *this;
 }

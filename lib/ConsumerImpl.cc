@@ -548,25 +548,27 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
                                    bool& isChecksumValid, proto::BrokerEntryMetadata& brokerEntryMetadata,
                                    proto::MessageMetadata& metadata, SharedBuffer& payload) {
     LOG_DEBUG(getName() << "Received Message -- Size: " << payload.readableBytes());
-
-    if (!decryptMessageIfNeeded(cnx, msg, metadata, payload)) {
-        // Message was discarded or not consumed due to decryption failure
-        return;
-    }
-
     if (!isChecksumValid) {
         // Message discarded for checksum error
         discardCorruptedMessage(cnx, msg.message_id(), CommandAck_ValidationError_ChecksumMismatch);
         return;
     }
 
-    auto redeliveryCount = msg.redelivery_count();
-    const bool isMessageUndecryptable =
-        metadata.encryption_keys_size() > 0 && !config_.getCryptoKeyReader().get() &&
-        config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::CONSUME;
+    auto encryptionContext = metadata.encryption_keys_size() > 0
+                                 ? optional<EncryptionContext>{std::in_place, metadata, false}
+                                 : std::nullopt;
 
+    auto decryptResult = decryptMessageIfNeeded(cnx, encryptionContext, payload, msg.message_id());
+    if (decryptResult == FAILED) {
+        // Message was discarded due to decryption failure or not consumed due to decryption failure
+        return;
+    } else if (decryptResult == CONSUME_ENCRYPTED) {
+        encryptionContext->isDecryptionFailed_ = true;
+    }
+
+    auto redeliveryCount = msg.redelivery_count();
     const bool isChunkedMessage = metadata.num_chunks_from_msg() > 1;
-    if (!isMessageUndecryptable && !isChunkedMessage) {
+    if (decryptResult == DECRYPTED && !isChunkedMessage) {
         if (!uncompressMessageIfNeeded(cnx, msg.message_id(), metadata, payload, true)) {
             // Message was discarded on decompression error
             return;
@@ -586,9 +588,9 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         }
     }
 
-    Message m(messageId, brokerEntryMetadata, metadata, payload);
+    Message m{std::make_shared<MessageImpl>(messageId, brokerEntryMetadata, metadata, payload, std::nullopt,
+                                            getTopicPtr(), std::move(encryptionContext))};
     m.impl_->cnx_ = cnx.get();
-    m.impl_->setTopicName(getTopicPtr());
     m.impl_->setRedeliveryCount(msg.redelivery_count());
 
     if (metadata.has_schema_version()) {
@@ -610,14 +612,16 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         return;
     }
 
-    if (metadata.has_num_messages_in_batch()) {
+    // When the decryption failed, the whole batch message will be treated as a single message.
+    if (metadata.has_num_messages_in_batch() && decryptResult == DECRYPTED) {
         BitSet::Data words(msg.ack_set_size());
         for (int i = 0; i < words.size(); i++) {
             words[i] = msg.ack_set(i);
         }
         BitSet ackSet{std::move(words)};
         Lock lock(mutex_);
-        numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, ackSet, msg.redelivery_count());
+        numOfMessageReceived =
+            receiveIndividualMessagesFromBatch(cnx, m, ackSet, msg.redelivery_count(), encryptionContext);
     } else {
         // try convert key value data.
         m.impl_->convertPayloadToKeyValue(config_.getSchema());
@@ -742,9 +746,9 @@ void ConsumerImpl::notifyPendingReceivedCallback(Result result, Message& msg,
 }
 
 // Zero Queue size is not supported with Batch Messages
-uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx,
-                                                          Message& batchedMessage, const BitSet& ackSet,
-                                                          int redeliveryCount) {
+uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(
+    const ClientConnectionPtr& cnx, Message& batchedMessage, const BitSet& ackSet, int redeliveryCount,
+    const optional<EncryptionContext>& encryptionContext) {
     auto batchSize = batchedMessage.impl_->metadata.num_messages_in_batch();
     LOG_DEBUG("Received Batch messages of size - " << batchSize
                                                    << " -- msgId: " << batchedMessage.getMessageId());
@@ -756,7 +760,8 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
     std::vector<Message> possibleToDeadLetter;
     for (int i = 0; i < batchSize; i++) {
         // This is a cheap copy since message contains only one shared pointer (impl_)
-        Message msg = Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize, acker);
+        Message msg =
+            Commands::deSerializeSingleMessageInBatch(batchedMessage, i, batchSize, acker, encryptionContext);
         msg.impl_->setRedeliveryCount(redeliveryCount);
         msg.impl_->setTopicName(batchedMessage.impl_->topicName_);
         msg.impl_->convertPayloadToKeyValue(config_.getSchema());
@@ -812,50 +817,51 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
     return batchSize - skippedMessages;
 }
 
-bool ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
-                                          const proto::MessageMetadata& metadata, SharedBuffer& payload) {
-    if (!metadata.encryption_keys_size()) {
-        return true;
+auto ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx,
+                                          const optional<EncryptionContext>& context, SharedBuffer& payload,
+                                          const proto::MessageIdData& msgId) -> DecryptResult {
+    if (!context.has_value()) {
+        return DECRYPTED;
     }
 
     // If KeyReader is not configured throw exception based on config param
     if (!config_.isEncryptionEnabled()) {
         if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::CONSUME) {
             LOG_WARN(getName() << "CryptoKeyReader is not implemented. Consuming encrypted message.");
-            return true;
+            return CONSUME_ENCRYPTED;
         } else if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::DISCARD) {
             LOG_WARN(getName() << "Skipping decryption since CryptoKeyReader is not implemented and config "
                                   "is set to discard");
-            discardCorruptedMessage(cnx, msg.message_id(), CommandAck_ValidationError_DecryptionError);
+            discardCorruptedMessage(cnx, msgId, CommandAck_ValidationError_DecryptionError);
         } else {
             LOG_ERROR(getName() << "Message delivery failed since CryptoKeyReader is not implemented to "
                                    "consume encrypted message");
-            auto messageId = MessageIdBuilder::from(msg.message_id()).build();
+            auto messageId = MessageIdBuilder::from(msgId).build();
             unAckedMessageTrackerPtr_->add(messageId);
         }
-        return false;
+        return FAILED;
     }
 
     SharedBuffer decryptedPayload;
-    if (msgCrypto_->decrypt(metadata, payload, config_.getCryptoKeyReader(), decryptedPayload)) {
+    if (msgCrypto_->decrypt(*context, payload, config_.getCryptoKeyReader(), decryptedPayload)) {
         payload = decryptedPayload;
-        return true;
+        return DECRYPTED;
     }
 
     if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::CONSUME) {
         // Note, batch message will fail to consume even if config is set to consume
         LOG_WARN(
             getName() << "Decryption failed. Consuming encrypted message since config is set to consume.");
-        return true;
+        return CONSUME_ENCRYPTED;
     } else if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::DISCARD) {
         LOG_WARN(getName() << "Discarding message since decryption failed and config is set to discard");
-        discardCorruptedMessage(cnx, msg.message_id(), CommandAck_ValidationError_DecryptionError);
+        discardCorruptedMessage(cnx, msgId, CommandAck_ValidationError_DecryptionError);
     } else {
         LOG_ERROR(getName() << "Message delivery failed since unable to decrypt incoming message");
-        auto messageId = MessageIdBuilder::from(msg.message_id()).build();
+        auto messageId = MessageIdBuilder::from(msgId).build();
         unAckedMessageTrackerPtr_->add(messageId);
     }
-    return false;
+    return FAILED;
 }
 
 bool ConsumerImpl::uncompressMessageIfNeeded(const ClientConnectionPtr& cnx,
