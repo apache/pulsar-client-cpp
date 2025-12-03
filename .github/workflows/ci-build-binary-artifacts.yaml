@@ -152,7 +152,7 @@ jobs:
             -DVCPKG_TRIPLET=${{ matrix.triplet }} \
             -DCMAKE_INSTALL_PREFIX=${{ env.INSTALL_DIR }} \
             -S .
-          cmake --build $BUILD_DIR --parallel --config Release
+          cmake --build $BUILD_DIR --config Release
           cmake --install $BUILD_DIR
           cp dependencies.txt ${{ env.INSTALL_DIR }}
 
@@ -180,7 +180,7 @@ jobs:
             -DCMAKE_INSTALL_PREFIX=$INSTALL_DIR_DEBUG \
             -DCMAKE_BUILD_TYPE=Debug \
             -S .
-          cmake --build $BUILD_DIR --parallel --config Debug
+          cmake --build $BUILD_DIR --config Debug
           cmake --install $BUILD_DIR --config Debug
           cp dependencies.txt $INSTALL_DIR_DEBUG
 

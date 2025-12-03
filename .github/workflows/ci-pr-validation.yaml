@@ -259,7 +259,7 @@ jobs:
         shell: bash
         run: |
           if [ "$RUNNER_OS" == "Windows" ]; then
-            cmake --build ./build-1 --parallel --config Release
+            cmake --build ./build-1 --config Release
             cmake --install ./build-1
           fi
 
@@ -296,7 +296,7 @@ jobs:
               -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_DIR }}" \
               -DCMAKE_BUILD_TYPE=Debug \
               -S .
-            cmake --build ./build-2 --parallel --config Debug
+            cmake --build ./build-2 --config Debug
           fi
 
   package:
