@@ -72,7 +72,7 @@ static std::vector<std::string> decryptValue(const char* data, size_t length,
     return values;
 }
 
-static void testDecryption(Client& client, const std::string& topic, bool decryptionSucceed,
+static void testDecryption(Client& client, const std::string& topic, bool withDecryption,
                            int numMessageReceived) {
     ProducerConfiguration producerConf;
     producerConf.setCompressionType(CompressionLZ4);
@@ -103,7 +103,7 @@ static void testDecryption(Client& client, const std::string& topic, bool decryp
 
     ConsumerConfiguration consumerConf;
     consumerConf.setSubscriptionInitialPosition(InitialPositionEarliest);
-    if (decryptionSucceed) {
+    if (withDecryption) {
         consumerConf.setCryptoKeyReader(getDefaultCryptoKeyReader());
     } else {
         consumerConf.setCryptoFailureAction(ConsumerCryptoFailureAction::CONSUME);
