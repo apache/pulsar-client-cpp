@@ -21,6 +21,7 @@
 
 #include <pulsar/Message.h>
 #include <pulsar/MessageId.h>
+
 #include <optional>
 
 #include "KeyValueImpl.h"
