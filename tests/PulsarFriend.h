@@ -217,8 +217,6 @@ class PulsarFriend {
         return waitUntil(std::chrono::seconds(3),
                          [producerImpl] { return !producerImpl->getCnx().expired(); });
     }
-
-    static auto getMessageImplPtr(const Message& message) { return message.impl_; }
 };
 }  // namespace pulsar
 

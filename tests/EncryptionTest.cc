@@ -27,7 +27,6 @@
 #include "lib/CompressionCodec.h"
 #include "lib/MessageCrypto.h"
 #include "lib/SharedBuffer.h"
-#include "tests/PulsarFriend.h"
 
 static std::string lookupUrl = "pulsar://localhost:6650";
 
@@ -122,6 +121,11 @@ static void testDecryption(Client& client, const std::string& topic, bool decryp
     for (int i = 0; i < numMessageReceived; i++) {
         Message msg;
         ASSERT_EQ(ResultOk, consumer.receive(msg, 3000));
+        if (i < numMessageReceived - 1) {
+            ASSERT_TRUE(msg.getEncryptionContext().has_value());
+        } else {
+            ASSERT_FALSE(msg.getEncryptionContext().has_value());
+        }
         for (auto&& value : decryptValue(static_cast<const char*>(msg.getData()), msg.getLength(),
                                          msg.getEncryptionContext())) {
             values.emplace_back(value);
