@@ -18,58 +18,7 @@
  */
 #include "MessageImpl.h"
 
-#include <utility>
-
-#include "PulsarApi.pb.h"
-
 namespace pulsar {
-
-MessageImpl::MessageImpl(const MessageId& messageId, const proto::BrokerEntryMetadata& brokerEntryMetadata,
-                         const proto::MessageMetadata& metadata, const SharedBuffer& payload,
-                         const optional<proto::SingleMessageMetadata>& singleMetadata,
-                         const std::shared_ptr<std::string>& topicName,
-                         optional<EncryptionContext> encryptionContext)
-    : messageId(messageId),
-      brokerEntryMetadata(brokerEntryMetadata),
-      metadata(metadata),
-      payload(payload),
-      topicName_(topicName),
-      encryptionContext_(std::move(encryptionContext)) {
-    if (singleMetadata.has_value()) {
-        this->metadata.clear_properties();
-        if (singleMetadata->properties_size() > 0) {
-            this->metadata.mutable_properties()->Reserve(singleMetadata->properties_size());
-            for (int i = 0; i < singleMetadata->properties_size(); i++) {
-                auto keyValue = proto::KeyValue().New();
-                *keyValue = singleMetadata->properties(i);
-                this->metadata.mutable_properties()->AddAllocated(keyValue);
-            }
-        }
-        if (singleMetadata->has_partition_key()) {
-            this->metadata.set_partition_key(singleMetadata->partition_key());
-        } else {
-            this->metadata.clear_partition_key();
-        }
-
-        if (singleMetadata->has_ordering_key()) {
-            this->metadata.set_ordering_key(singleMetadata->ordering_key());
-        } else {
-            this->metadata.clear_ordering_key();
-        }
-
-        if (singleMetadata->has_event_time()) {
-            this->metadata.set_event_time(singleMetadata->event_time());
-        } else {
-            this->metadata.clear_event_time();
-        }
-
-        if (singleMetadata->has_sequence_id()) {
-            this->metadata.set_sequence_id(singleMetadata->sequence_id());
-        } else {
-            this->metadata.clear_sequence_id();
-        }
-    }
-}
 
 const Message::StringMap& MessageImpl::properties() {
     if (properties_.size() == 0) {

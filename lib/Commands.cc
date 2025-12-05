@@ -906,8 +906,7 @@ uint64_t Commands::serializeSingleMessagesToBatchPayload(SharedBuffer& batchPayl
 }
 
 Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
-                                                  int32_t batchSize, const BatchMessageAckerPtr& acker,
-                                                  const optional<EncryptionContext>& encryptionContext) {
+                                                  int32_t batchSize, const BatchMessageAckerPtr& acker) {
     SharedBuffer& uncompressedPayload = batchedMessage.impl_->payload;
 
     // Format of batch message
@@ -927,13 +926,12 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
     const MessageId& m = batchedMessage.impl_->messageId;
     auto messageId = MessageIdBuilder::from(m).batchIndex(batchIndex).batchSize(batchSize).build();
     auto batchedMessageId = std::make_shared<BatchedMessageIdImpl>(*(messageId.impl_), acker);
+    Message singleMessage(MessageId{batchedMessageId}, batchedMessage.impl_->brokerEntryMetadata,
+                          batchedMessage.impl_->metadata, payload, metadata,
+                          batchedMessage.impl_->topicName_);
+    singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;
 
-    auto msgImpl = std::make_shared<MessageImpl>(messageId, batchedMessage.impl_->brokerEntryMetadata,
-                                                 batchedMessage.impl_->metadata, payload, metadata,
-                                                 batchedMessage.impl_->topicName_, encryptionContext);
-    msgImpl->cnx_ = batchedMessage.impl_->cnx_;
-
-    return Message(msgImpl);
+    return singleMessage;
 }
 
 MessageIdImplPtr Commands::getMessageIdImpl(const MessageId& messageId) { return messageId.impl_; }
