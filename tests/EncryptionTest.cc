@@ -19,11 +19,11 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 #include <pulsar/ConsumerCryptoFailureAction.h>
+#include <pulsar/MessageBatch.h>
 
 #include <optional>
 #include <stdexcept>
 
-#include "PulsarApi.pb.h"
 #include "lib/CompressionCodec.h"
 #include "lib/MessageCrypto.h"
 #include "lib/SharedBuffer.h"
@@ -61,15 +61,9 @@ static std::vector<std::string> decryptValue(const char* data, size_t length,
 
     std::vector<std::string> values;
     if (auto batchSize = context.value()->batchSize(); batchSize > 0) {
-        for (decltype(batchSize) i = 0; i < batchSize; i++) {
-            auto singleMetaSize = uncompressedPayload.readUnsignedInt();
-            proto::SingleMessageMetadata singleMeta;
-            singleMeta.ParseFromArray(uncompressedPayload.data(), singleMetaSize);
-            uncompressedPayload.consume(singleMetaSize);
-
-            auto payload = uncompressedPayload.slice(0, singleMeta.payload_size());
-            uncompressedPayload.consume(payload.readableBytes());
-            values.emplace_back(payload.data(), payload.readableBytes());
+        MessageBatch batch;
+        for (auto&& msg : batch.parseFrom(uncompressedPayload, batchSize).messages()) {
+            values.emplace_back(msg.getDataAsString());
         }
     } else {
         // non-batched message
