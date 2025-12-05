@@ -52,12 +52,6 @@ struct PULSAR_PUBLIC EncryptionKey {
  */
 class PULSAR_PUBLIC EncryptionContext {
    public:
-    explicit EncryptionContext() = default;
-    EncryptionContext(const EncryptionContext&) = default;
-    EncryptionContext(EncryptionContext&&) noexcept = default;
-    EncryptionContext& operator=(const EncryptionContext&) = default;
-    EncryptionContext& operator=(EncryptionContext&&) noexcept = default;
-
     using KeysType = std::vector<EncryptionKey>;
 
     /**
@@ -100,9 +94,11 @@ class PULSAR_PUBLIC EncryptionContext {
      */
     bool isDecryptionFailed() const noexcept { return isDecryptionFailed_; }
 
-    // It should be used only internally but it's exposed so that `std::make_optional` can construct the
-    // object in place with this constructor.
-    EncryptionContext(const proto::MessageMetadata& metadata, bool isDecryptionFailed);
+    /**
+     * It should be used only internally but it's exposed so that `std::make_optional` can construct the
+     * object in place with this constructor.
+     */
+    EncryptionContext(const proto::MessageMetadata&, bool);
 
    private:
     KeysType keys_;
