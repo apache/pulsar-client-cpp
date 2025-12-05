@@ -32,14 +32,10 @@ namespace proto {
 class MessageMetadata;
 }
 
-class Message;
-
 struct PULSAR_PUBLIC EncryptionKey {
     std::string key;
     std::string value;
     std::unordered_map<std::string, std::string> metadata;
-
-    explicit EncryptionKey() = default;
 
     EncryptionKey(const std::string& key, const std::string& value,
                   const decltype(EncryptionKey::metadata)& metadata)
@@ -95,8 +91,9 @@ class PULSAR_PUBLIC EncryptionContext {
     bool isDecryptionFailed() const noexcept { return isDecryptionFailed_; }
 
     /**
-     * It should be used only internally but it's exposed so that `std::make_optional` can construct the
-     * object in place with this constructor.
+     * This constructor is public to allow in-place construction via std::optional
+     * (e.g., `std::optional<EncryptionContext>(std::in_place, metadata, false)`),
+     * but should not be used directly in application code.
      */
     EncryptionContext(const proto::MessageMetadata&, bool);
 
@@ -108,6 +105,8 @@ class PULSAR_PUBLIC EncryptionContext {
     uint32_t uncompressedMessageSize_{0};
     int32_t batchSize_{-1};
     bool isDecryptionFailed_{false};
+
+    void setDecryptionFailed(bool failed) noexcept { isDecryptionFailed_ = failed; }
 
     friend class ConsumerImpl;
 };

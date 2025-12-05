@@ -195,7 +195,7 @@ class ConsumerImpl : public ConsumerImplBase {
     bool isPriorEntryIndex(int64_t idx);
     void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, const BrokerConsumerStatsCallback&);
 
-    enum DecryptionResult
+    enum class DecryptionResult : uint8_t
     {
         SUCCESS,
         CONSUME_ENCRYPTED,

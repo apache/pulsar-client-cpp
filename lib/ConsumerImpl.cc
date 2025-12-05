@@ -560,17 +560,17 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
                                  ? optional<EncryptionContext>(std::in_place, metadata, false)
                                  : std::nullopt;
     const auto decryptionResult = decryptMessageIfNeeded(cnx, msg, encryptionContext, payload);
-    if (decryptionResult == FAILED) {
+    if (decryptionResult == DecryptionResult::FAILED) {
         // Message was discarded or not consumed due to decryption failure
         return;
-    } else if (decryptionResult == CONSUME_ENCRYPTED && encryptionContext.has_value()) {
+    } else if (decryptionResult == DecryptionResult::CONSUME_ENCRYPTED && encryptionContext.has_value()) {
         // Message is encrypted, but we let the application consume it as-is
-        encryptionContext->isDecryptionFailed_ = true;
+        encryptionContext->setDecryptionFailed(true);
     }
 
     auto redeliveryCount = msg.redelivery_count();
     const bool isChunkedMessage = metadata.num_chunks_from_msg() > 1;
-    if (decryptionResult == SUCCESS && !isChunkedMessage) {
+    if (decryptionResult == DecryptionResult::SUCCESS && !isChunkedMessage) {
         if (!uncompressMessageIfNeeded(cnx, msg.message_id(), metadata, payload, true)) {
             // Message was discarded on decompression error
             return;
@@ -615,7 +615,7 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         return;
     }
 
-    if (metadata.has_num_messages_in_batch() && decryptionResult == SUCCESS) {
+    if (metadata.has_num_messages_in_batch() && decryptionResult == DecryptionResult::SUCCESS) {
         BitSet::Data words(msg.ack_set_size());
         for (int i = 0; i < words.size(); i++) {
             words[i] = msg.ack_set(i);
@@ -821,14 +821,14 @@ auto ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const 
                                           const optional<EncryptionContext>& context, SharedBuffer& payload)
     -> DecryptionResult {
     if (!context.has_value()) {
-        return SUCCESS;
+        return DecryptionResult::SUCCESS;
     }
 
     // If KeyReader is not configured throw exception based on config param
     if (!config_.isEncryptionEnabled()) {
         if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::CONSUME) {
             LOG_WARN(getName() << "CryptoKeyReader is not implemented. Consuming encrypted message.");
-            return CONSUME_ENCRYPTED;
+            return DecryptionResult::CONSUME_ENCRYPTED;
         } else if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::DISCARD) {
             LOG_WARN(getName() << "Skipping decryption since CryptoKeyReader is not implemented and config "
                                   "is set to discard");
@@ -839,20 +839,20 @@ auto ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const 
             auto messageId = MessageIdBuilder::from(msg.message_id()).build();
             unAckedMessageTrackerPtr_->add(messageId);
         }
-        return FAILED;
+        return DecryptionResult::FAILED;
     }
 
     SharedBuffer decryptedPayload;
     if (msgCrypto_->decrypt(*context, payload, config_.getCryptoKeyReader(), decryptedPayload)) {
         payload = decryptedPayload;
-        return SUCCESS;
+        return DecryptionResult::SUCCESS;
     }
 
     if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::CONSUME) {
         // Note, batch message will fail to consume even if config is set to consume
         LOG_WARN(
             getName() << "Decryption failed. Consuming encrypted message since config is set to consume.");
-        return CONSUME_ENCRYPTED;
+        return DecryptionResult::CONSUME_ENCRYPTED;
     } else if (config_.getCryptoFailureAction() == ConsumerCryptoFailureAction::DISCARD) {
         LOG_WARN(getName() << "Discarding message since decryption failed and config is set to discard");
         discardCorruptedMessage(cnx, msg.message_id(), CommandAck_ValidationError_DecryptionError);
@@ -861,7 +861,7 @@ auto ConsumerImpl::decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const 
         auto messageId = MessageIdBuilder::from(msg.message_id()).build();
         unAckedMessageTrackerPtr_->add(messageId);
     }
-    return FAILED;
+    return DecryptionResult::FAILED;
 }
 
 bool ConsumerImpl::uncompressMessageIfNeeded(const ClientConnectionPtr& cnx,
