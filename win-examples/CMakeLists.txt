@@ -20,6 +20,7 @@
 cmake_minimum_required(VERSION 3.4)
 project(pulsar-cpp-win-examples)
 
+set(CMAKE_CXX_STANDARD 17)
 find_path(PULSAR_INCLUDES NAMES "pulsar/Client.h")
 if (PULSAR_INCLUDES)
     message(STATUS "PULSAR_INCLUDES: " ${PULSAR_INCLUDES})

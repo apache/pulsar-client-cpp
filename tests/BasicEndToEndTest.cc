@@ -1465,6 +1465,10 @@ TEST(BasicEndToEndTest, testRSAEncryption) {
             expected << msgContent << msgNum;
             ASSERT_EQ(expected.str(), msgReceived.getDataAsString());
             ASSERT_EQ(ResultOk, consumer.acknowledge(msgReceived));
+            auto context = msgReceived.getEncryptionContext();
+            ASSERT_TRUE(context.has_value());
+            ASSERT_EQ(context.value()->keys().size(), 1);
+            ASSERT_EQ(context.value()->keys()[0].key, "client-rsa.pem");
         }
 
         ASSERT_EQ(ResultOk, consumer.unsubscribe());

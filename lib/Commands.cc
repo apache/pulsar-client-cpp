@@ -930,6 +930,7 @@ Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32
                           batchedMessage.impl_->metadata, payload, metadata,
                           batchedMessage.impl_->topicName_);
     singleMessage.impl_->cnx_ = batchedMessage.impl_->cnx_;
+    singleMessage.impl_->encryptionContext_ = batchedMessage.impl_->encryptionContext_;
 
     return singleMessage;
 }
