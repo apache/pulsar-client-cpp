@@ -39,8 +39,8 @@ SchemaInfo createProtobufNativeSchema(const google::protobuf::Descriptor* descri
     }
 
     const auto fileDescriptor = descriptor->file();
-    const std::string& rootMessageTypeName = descriptor->full_name();
-    const std::string& rootFileDescriptorName = fileDescriptor->name();
+    const std::string& rootMessageTypeName = std::string(descriptor->full_name());
+    const std::string& rootFileDescriptorName = std::string(fileDescriptor->name());
 
     FileDescriptorSet fileDescriptorSet;
     internalCollectFileDescriptors(fileDescriptor, fileDescriptorSet);
