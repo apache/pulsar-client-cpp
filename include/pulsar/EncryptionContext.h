@@ -82,8 +82,7 @@ class PULSAR_PUBLIC EncryptionContext {
 
     /**
      * When the `ConsumerConfiguration#getCryptoFailureAction` is set to `CONSUME`, the message will still be
-     * returned even if the decryption failed, in this case, the message payload is still not decrypted but
-     * users have no way to know that. This method is provided to let users know whether the decryption
+     * returned even if the decryption failed. This method is provided to let users know whether the decryption
      * failed.
      *
      * @return whether the decryption failed
