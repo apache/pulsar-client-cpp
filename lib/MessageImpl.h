@@ -22,9 +22,12 @@
 #include <pulsar/Message.h>
 #include <pulsar/MessageId.h>
 
+#include <optional>
+
 #include "KeyValueImpl.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
+#include "pulsar/EncryptionContext.h"
 
 using namespace pulsar;
 namespace pulsar {
@@ -48,6 +51,7 @@ class MessageImpl {
     bool hasSchemaVersion_;
     const std::string* schemaVersion_;
     std::weak_ptr<class ConsumerImpl> consumerPtr_;
+    std::optional<EncryptionContext> encryptionContext_;
 
     const std::string& getPartitionKey() const;
     bool hasPartitionKey() const;

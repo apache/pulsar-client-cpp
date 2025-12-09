@@ -220,6 +220,13 @@ const std::string& Message::getProducerName() const noexcept {
     return impl_->metadata.producer_name();
 }
 
+std::optional<const EncryptionContext*> Message::getEncryptionContext() const {
+    if (!impl_ || !impl_->encryptionContext_.has_value()) {
+        return std::nullopt;
+    }
+    return &impl_->encryptionContext_.value();
+}
+
 bool Message::operator==(const Message& msg) const { return getMessageId() == msg.getMessageId(); }
 
 KeyValue Message::getKeyValueData() const { return KeyValue(impl_->keyValuePtr); }

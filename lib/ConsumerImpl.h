@@ -195,8 +195,15 @@ class ConsumerImpl : public ConsumerImplBase {
     bool isPriorEntryIndex(int64_t idx);
     void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, const BrokerConsumerStatsCallback&);
 
-    bool decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
-                                const proto::MessageMetadata& metadata, SharedBuffer& payload);
+    enum class DecryptionResult : uint8_t
+    {
+        SUCCESS,
+        CONSUME_ENCRYPTED,
+        FAILED
+    };
+    DecryptionResult decryptMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::CommandMessage& msg,
+                                            const optional<EncryptionContext>& context,
+                                            SharedBuffer& payload);
 
     // TODO - Convert these functions to lambda when we move to C++11
     Result receiveHelper(Message& msg);

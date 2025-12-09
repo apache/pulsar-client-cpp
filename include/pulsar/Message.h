@@ -19,10 +19,12 @@
 #ifndef MESSAGE_HPP_
 #define MESSAGE_HPP_
 
+#include <pulsar/EncryptionContext.h>
 #include <pulsar/defines.h>
 
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "KeyValue.h"
@@ -201,6 +203,12 @@ class PULSAR_PUBLIC Message {
      * @return the producer name or empty string if not available
      */
     const std::string& getProducerName() const noexcept;
+
+    /**
+     * @return the optional encryption context that is present when the message is encrypted, the pointer is
+     * valid as the Message instance is alive
+     */
+    std::optional<const EncryptionContext*> getEncryptionContext() const;
 
     bool operator==(const Message& msg) const;
 
