@@ -207,7 +207,10 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
     }
 
     if (clientConfiguration.isUseTls()) {
-        ASIO::ssl::context ctx(ASIO::ssl::context::tlsv12_client);
+        ASIO::ssl::context ctx(ASIO::ssl::context::sslv23_client);
+        ctx.set_options(ASIO::ssl::context::default_workarounds | ASIO::ssl::context::no_sslv2 |
+                        ASIO::ssl::context::no_sslv3 | ASIO::ssl::context::no_tlsv1 |
+                        ASIO::ssl::context::no_tlsv1_1);
         Url serviceUrl;
         Url proxyUrl;
         Url::parse(physicalAddress, serviceUrl);
