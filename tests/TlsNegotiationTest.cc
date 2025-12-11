@@ -17,14 +17,16 @@
  * under the License.
  */
 #include <gtest/gtest.h>
-#include <pulsar/Client.h>
+#include <openssl/ssl.h>
 #include <pulsar/Authentication.h>
-#include "lib/AsioDefines.h"
+#include <pulsar/Client.h>
+
+#include <atomic>
 #include <future>
 #include <thread>
-#include <atomic>
+
+#include "lib/AsioDefines.h"
 #include "lib/LogUtils.h"
-#include <openssl/ssl.h>
 
 #ifdef USE_ASIO
 #include <asio.hpp>
@@ -47,23 +49,19 @@ static const std::string clientPrivateKeyPath = TEST_CONF_DIR "/client-key.pem";
 using namespace pulsar;
 
 class MockTlsServer {
-public:
+   public:
     MockTlsServer()
         : acceptor_(io_context_, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), 0)),
           ctx_(ASIO::ssl::context::sslv23) {
-        
-        ctx_.set_options(ASIO::ssl::context::default_workarounds |
-                         ASIO::ssl::context::no_sslv2 |
+        ctx_.set_options(ASIO::ssl::context::default_workarounds | ASIO::ssl::context::no_sslv2 |
                          ASIO::ssl::context::no_sslv3);
-        
+
         ctx_.use_certificate_chain_file(clientPublicKeyPath);
         ctx_.use_private_key_file(clientPrivateKeyPath, ASIO::ssl::context::pem);
         ctx_.set_verify_mode(ASIO::ssl::context::verify_none);
     }
 
-    int getPort() const {
-        return acceptor_.local_endpoint().port();
-    }
+    int getPort() const { return acceptor_.local_endpoint().port(); }
 
     void setTls12Only() {
         SSL_CTX* ssl_ctx = ctx_.native_handle();
@@ -88,12 +86,12 @@ public:
     bool acceptAndHandshake() {
         auto socket = std::make_shared<ASIO::ip::tcp::socket>(io_context_);
         acceptor_.accept(*socket);
-        
+
         ASIO::ssl::stream<ASIO::ip::tcp::socket&> ssl_stream(*socket, ctx_);
-        
+
         ASIO_ERROR error;
         ssl_stream.handshake(ASIO::ssl::stream_base::server, error);
-        
+
         if (error) {
             LOG_ERROR("Handshake failed: " << error.message());
             return false;
@@ -102,7 +100,7 @@ public:
         return true;
     }
 
-private:
+   private:
     ASIO::io_context io_context_;
     ASIO::ip::tcp::acceptor acceptor_;
     ASIO::ssl::context ctx_;
@@ -110,7 +108,7 @@ private:
 
 TEST(TlsNegotiationTest, testTls12) {
 #if !defined(TLS1_2_VERSION)
-    return; // Skip if TLS 1.2 is not available
+    return;  // Skip if TLS 1.2 is not available
 #endif
 
     MockTlsServer server;
@@ -128,20 +126,20 @@ TEST(TlsNegotiationTest, testTls12) {
     std::string serviceUrl = "pulsar+ssl://localhost:" + std::to_string(port);
     ClientConfiguration config;
     config.setTlsTrustCertsFilePath(caPath);
-    config.setTlsAllowInsecureConnection(true); // Self-signed certs match
+    config.setTlsAllowInsecureConnection(true);  // Self-signed certs match
     config.setValidateHostName(false);
 
     Client client(serviceUrl, config);
-    
-    // Trigger connection by creating a producer. 
+
+    // Trigger connection by creating a producer.
     // It will fail to create producer because mock server doesn't speak Pulsar,
     // but we only care about the handshake.
     Producer producer;
-    client.createProducerAsync("topic", [](Result, Producer){});
+    client.createProducerAsync("topic", [](Result, Producer) {});
 
     // Wait for handshake
     ASSERT_TRUE(handshakeFuture.get());
-    
+
     serverThread.join();
     client.close();
 }
@@ -149,7 +147,7 @@ TEST(TlsNegotiationTest, testTls12) {
 TEST(TlsNegotiationTest, testTls13) {
 #if !defined(TLS1_3_VERSION)
     LOG_INFO("Skipping TLS 1.3 test because OpenSSL does not support it");
-    return; 
+    return;
 #endif
 
     MockTlsServer server;
@@ -171,12 +169,11 @@ TEST(TlsNegotiationTest, testTls13) {
     config.setValidateHostName(false);
 
     Client client(serviceUrl, config);
-    
-    client.createProducerAsync("topic", [](Result, Producer){});
+
+    client.createProducerAsync("topic", [](Result, Producer) {});
 
     ASSERT_TRUE(handshakeFuture.get());
-    
+
     serverThread.join();
     client.close();
 }
-
