@@ -189,7 +189,8 @@ ConsumerImpl::~ConsumerImpl() {
         ClientConnectionPtr cnx = getCnx().lock();
         if (cnx) {
             auto requestId = newRequestId();
-            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
+            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
+                                   "CLOSE_CONSUMER");
             cnx->removeConsumer(consumerId_);
             LOG_INFO(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
         } else {
@@ -235,6 +236,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     // Register consumer so that we can handle other incomming commands (e.g. ACTIVE_CONSUMER_CHANGE) after
     // sending the subscribe request.
     cnx->registerConsumer(consumerId_, get_shared_this_ptr());
+    LOG_DEBUG(cnx->cnxString() << "Registered consumer " << consumerId_);
 
     if (duringSeek()) {
         ackGroupingTrackerPtr_->flushAndClean();
@@ -259,7 +261,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     // Keep a reference to ensure object is kept alive.
     auto self = get_shared_this_ptr();
     setFirstRequestIdAfterConnect(requestId);
-    cnx->sendRequestWithId(cmd, requestId)
+    cnx->sendRequestWithId(cmd, requestId, "SUBSCRIBE")
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateConsumer(cnx, result);
             if (handleResult == ResultOk) {
@@ -301,7 +303,8 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                     LOG_INFO(getName() << "Closing subscribed consumer since it was already closed");
                     int requestId = client->newRequestId();
                     auto name = getName();
-                    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
+                    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
+                                           "CLOSE_CONSUMER")
                         .addListener([name](Result result, const ResponseData&) {
                             if (result == ResultOk) {
                                 LOG_INFO(name << "Closed consumer successfully after subscribe completed");
@@ -354,7 +357,8 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
             // in case it was indeed created, otherwise it might prevent new subscribe operation,
             // since we are not closing the connection
             auto requestId = newRequestId();
-            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
+            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
+                                   "CLOSE_CONSUMER");
         }
 
         if (consumerCreatedPromise_.isComplete()) {
@@ -408,7 +412,7 @@ void ConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
         auto requestId = newRequestId();
         SharedBuffer cmd = Commands::newUnsubscribe(consumerId_, requestId);
         auto self = get_shared_this_ptr();
-        cnx->sendRequestWithId(cmd, requestId)
+        cnx->sendRequestWithId(cmd, requestId, "UNSUBSCRIBE")
             .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
     } else {
         Result result = ResultNotConnected;
@@ -1374,7 +1378,7 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
 
     auto requestId = newRequestId();
     auto self = get_shared_this_ptr();
-    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
+    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId, "CLOSE_CONSUMER")
         .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
 
@@ -1752,7 +1756,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
 
     auto weakSelf = weak_from_this();
 
-    cnx->sendRequestWithId(seek, requestId)
+    cnx->sendRequestWithId(seek, requestId, "SEEK")
         .addListener([this, weakSelf, callback, originalSeekMessageId](Result result,
                                                                        const ResponseData& responseData) {
             auto self = weakSelf.lock();
@@ -1928,7 +1932,7 @@ void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const MessageI
         auto requestId = newRequestId();
         cnx->sendRequestWithId(
                Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType, requestId),
-               requestId)
+               requestId, "ACK")
             .addListener([callback](Result result, const ResponseData&) {
                 if (callback) {
                     callback(result);
@@ -1958,7 +1962,8 @@ void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const std::set
     if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
         if (config_.isAckReceiptEnabled()) {
             auto requestId = newRequestId();
-            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId)
+            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId,
+                                   "ACK")
                 .addListener([callback](Result result, const ResponseData&) {
                     if (callback) {
                         callback(result);

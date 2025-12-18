@@ -185,7 +185,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Send a request with a specific Id over the connection. The future will be
      * triggered when the response for this request is received
      */
-    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId);
+    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId,
+                                                   const char* requestType);
 
     const std::string& brokerAddress() const;
 
@@ -264,7 +265,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleSend(const ASIO_ERROR& err, const SharedBuffer& cmd);
     void handleSendPair(const ASIO_ERROR& err);
     void sendPendingCommands();
-    void newLookup(const SharedBuffer& cmd, uint64_t requestId, const LookupDataResultPromisePtr& promise);
+    void newLookup(const SharedBuffer& cmd, uint64_t requestId, const char* requestType,
+                   const LookupDataResultPromisePtr& promise);
 
     void handleRequestTimeout(const ASIO_ERROR& ec, const PendingRequestData& pendingRequestData);
 
