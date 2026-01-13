@@ -123,6 +123,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         Ready,
         Disconnected
     };
+    using RequestDelayType =
+        std::unordered_map<std::string /* request type */, long /* delay in milliseconds */>;
 
    public:
     typedef std::shared_ptr<ASIO::ip::tcp::socket> SocketPtr;
@@ -208,6 +210,14 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
                                             uint64_t requestId);
+
+    void mockRequestDelay(RequestDelayType requestDelays) {
+        if (mockingRequests_) {
+            throw new std::runtime_error("Already mocking requests");
+        }
+        mockRequestDelays_.swap(requestDelays);
+        mockingRequests_ = true;
+    }
 
    private:
     struct PendingRequestData {
@@ -392,6 +402,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     unsigned int keepAliveIntervalInSeconds_;
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
+
+    // This map should only be modified before modifying `mockingRequests_` to true for thread safety, when
+    // `mockingRequests_` is false, this field will never be accessed
+    RequestDelayType mockRequestDelays_;
+    std::atomic_bool mockingRequests_{false};
 
     void handleConsumerStatsTimeout(const ASIO_ERROR& ec, const std::vector<uint64_t>& consumerStatsRequests);
 

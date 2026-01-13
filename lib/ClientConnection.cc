@@ -21,6 +21,7 @@
 #include <openssl/x509.h>
 #include <pulsar/MessageIdBuilder.h>
 
+#include <chrono>
 #include <fstream>
 
 #include "AsioDefines.h"
@@ -1189,7 +1190,44 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
     lock.unlock();
 
     LOG_DEBUG(cnxString_ << "Inserted request " << requestType << " (req_id: " << requestId << ")");
-    sendCommand(cmd);
+    if (mockingRequests_) {
+        if (auto iter = mockRequestDelays_.find(requestType); iter != mockRequestDelays_.end()) {
+            auto self = shared_from_this();
+            if (strcmp(requestType, "SEEK") == 0) {
+                // Mock the `CLOSE_CONSUMER` command sent by broker, for simplicity, disconnect all consumers
+                executor_->postWork([this, self] {
+                    std::vector<uint64_t> consumerIds;
+                    {
+                        Lock lock(mutex_);
+                        for (const auto& entry : consumers_) {
+                            if (auto consumer = entry.second.lock()) {
+                                consumerIds.push_back(consumer->getConsumerId());
+                            }
+                        }
+                    }
+                    for (auto consumerId : consumerIds) {
+                        proto::CommandCloseConsumer closeConsumerCmd;
+                        closeConsumerCmd.set_consumer_id(consumerId);
+                        self->handleCloseConsumer(closeConsumerCmd);
+                    }
+                });
+            }
+            auto timer = executor_->createDeadlineTimer();
+            timer->expires_after(std::chrono::milliseconds(iter->second));
+            LOG_INFO("Request " << requestType << " (req_id: " << requestId << ") is being delayed for "
+                                << iter->second << " ms");
+            timer->async_wait([self, cmd, requestId, timer](const ASIO_ERROR& ec) {
+                LOG_INFO("Complete request id: " << requestId);
+                proto::CommandSuccess success;
+                success.set_request_id(requestId);
+                self->handleSuccess(success);
+            });
+        } else {
+            sendCommand(cmd);
+        }
+    } else {
+        sendCommand(cmd);
+    }
     return requestData.promise.getFuture();
 }
 

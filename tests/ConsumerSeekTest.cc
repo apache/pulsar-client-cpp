@@ -24,7 +24,9 @@
 #include <string>
 
 #include "HttpHelper.h"
+#include "lib/Latch.h"
 #include "lib/LogUtils.h"
+#include "tests/PulsarFriend.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -198,6 +200,23 @@ TEST_F(ConsumerSeekTest, testNoInternalConsumer) {
     Consumer consumer;
     ASSERT_EQ(ResultOk, client_.subscribeWithRegex("testNoInternalConsumer.*", "sub", consumer));
     ASSERT_EQ(ResultOk, consumer.seek(MessageId::earliest()));
+}
+
+// Verify the `seek` method won't be blocked forever in any order of the Subscribe response and Seek response
+TEST_F(ConsumerSeekTest, testSubscribeSeekRaces) {
+    Client client(lookupUrl);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe("testSubscribeSeekRaces", "sub", consumer));
+
+    for (auto&& connection : PulsarFriend::getConnections(client)) {
+        connection->mockRequestDelay({{"SUBSCRIBE", 1000}, {"SEEK", 600}});
+    }
+
+    Latch latch(1);
+    consumer.seekAsync(0L, [&latch](Result result) { latch.countdown(); });
+    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
+
+    client.close();
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, ConsumerSeekTest, ::testing::Values(true, false));
