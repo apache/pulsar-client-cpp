@@ -226,10 +226,12 @@ class ConsumerImpl : public ConsumerImplBase {
     void seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
                            ResultCallback&& callback);
     void completeSeekCallback(Result result) {
-        if (auto callback = seekCallback_.release()) {
-            callback(result);
+        bool expected = true;
+        if (hasPendingSeek_.compare_exchange_strong(expected, false)) {
+            if (auto callback = seekCallback_.release()) {
+                callback(result);
+            }
         }
-        hasPendingSeek_.store(false, std::memory_order_release);
     }
     void processPossibleToDLQ(const MessageId& messageId, const ProcessDLQCallBack& cb);
 

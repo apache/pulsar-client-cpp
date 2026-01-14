@@ -1735,7 +1735,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
     }
 
     auto expected = false;
-    if (hasPendingSeek_.compare_exchange_strong(expected, true)) {
+    if (!hasPendingSeek_.compare_exchange_strong(expected, true)) {
         LOG_ERROR(getName() << " attempted to seek " << seekArg << " when there is a pending seek");
         callback(ResultNotAllowedError);
         return;

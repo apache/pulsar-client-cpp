@@ -19,13 +19,17 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <chrono>
+#include <future>
+#include <memory>
 #include <set>
 #include <stdexcept>
 #include <string>
 
 #include "HttpHelper.h"
-#include "lib/Latch.h"
+#include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
+#include "lib/MockServer.h"
 #include "tests/PulsarFriend.h"
 
 DECLARE_LOG_OBJECT()
@@ -202,19 +206,46 @@ TEST_F(ConsumerSeekTest, testNoInternalConsumer) {
     ASSERT_EQ(ResultOk, consumer.seek(MessageId::earliest()));
 }
 
+static void assertSeekWithTimeout(Consumer& consumer) {
+    using namespace std::chrono_literals;
+    auto promise = std::make_shared<std::promise<Result>>();
+    consumer.seekAsync(0L, [promise](Result result) { promise->set_value(result); });
+    auto future = promise->get_future();
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
+    ASSERT_EQ(future.get(), ResultOk);
+}
+
 // Verify the `seek` method won't be blocked forever in any order of the Subscribe response and Seek response
 TEST_F(ConsumerSeekTest, testSubscribeSeekRaces) {
     Client client(lookupUrl);
     Consumer consumer;
     ASSERT_EQ(ResultOk, client.subscribe("testSubscribeSeekRaces", "sub", consumer));
 
-    for (auto&& connection : PulsarFriend::getConnections(client)) {
-        connection->mockRequestDelay({{"SUBSCRIBE", 1000}, {"SEEK", 600}});
-    }
+    auto connection = *PulsarFriend::getConnections(client).begin();
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
 
-    Latch latch(1);
-    consumer.seekAsync(0L, [&latch](Result result) { latch.countdown(); });
-    ASSERT_TRUE(latch.wait(std::chrono::seconds(5)));
+    mockServer->setRequestDelay({{"SUBSCRIBE", 1000}, {"SEEK", 500}});
+    assertSeekWithTimeout(consumer);
+
+    mockServer->setRequestDelay({{"SUBSCRIBE", 500}, {"SEEK", 1000}});
+    assertSeekWithTimeout(consumer);
+
+    client.close();
+}
+
+TEST_F(ConsumerSeekTest, testReconnectionSlow) {
+    Client client(lookupUrl, ClientConfiguration().setInitialBackoffIntervalMs(500));
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe("testSubscribeSeekRaces", "sub", consumer));
+
+    auto connection = *PulsarFriend::getConnections(client).begin();
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+
+    // Make seek response received before `connectionOpened` is called
+    mockServer->setRequestDelay({{"SEEK", 100}});
+    assertSeekWithTimeout(consumer);
 
     client.close();
 }

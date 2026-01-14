@@ -115,6 +115,7 @@ struct ResponseData {
 
 typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;
 
+class MockServer;
 class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<ClientConnection> {
     enum State : uint8_t
     {
@@ -211,12 +212,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
                                             uint64_t requestId);
 
-    void mockRequestDelay(RequestDelayType requestDelays) {
-        if (mockingRequests_) {
-            throw new std::runtime_error("Already mocking requests");
-        }
-        mockRequestDelays_.swap(requestDelays);
-        mockingRequests_ = true;
+    void attachMockServer(const std::shared_ptr<MockServer>& mockServer) {
+        mockServer_ = mockServer;
+        // Mark that requests will first go through the mock server, if the mock server cannot process it,
+        // fall back to the normal logic
+        mockingRequests_.store(true, std::memory_order_release);
     }
 
    private:
@@ -320,6 +320,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         }
     }
 
+    void mockSendCommand(const char* requestType, uint64_t requestId, const SharedBuffer& cmd);
+
     std::atomic<State> state_{Pending};
     TimeDuration operationsTimeout_;
     AuthenticationPtr authentication_;
@@ -403,10 +405,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
 
-    // This map should only be modified before modifying `mockingRequests_` to true for thread safety, when
-    // `mockingRequests_` is false, this field will never be accessed
-    RequestDelayType mockRequestDelays_;
     std::atomic_bool mockingRequests_{false};
+    std::shared_ptr<MockServer> mockServer_;
 
     void handleConsumerStatsTimeout(const ASIO_ERROR& ec, const std::vector<uint64_t>& consumerStatsRequests);
 
@@ -422,6 +422,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     friend class PulsarFriend;
     friend class ConsumerTest;
+    friend class MockServer;
 
     void checkServerError(ServerError error, const std::string& message);
 
