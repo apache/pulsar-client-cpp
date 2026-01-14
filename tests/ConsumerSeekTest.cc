@@ -209,7 +209,12 @@ TEST_F(ConsumerSeekTest, testNoInternalConsumer) {
 static void assertSeekWithTimeout(Consumer& consumer) {
     using namespace std::chrono_literals;
     auto promise = std::make_shared<std::promise<Result>>();
-    consumer.seekAsync(0L, [promise](Result result) { promise->set_value(result); });
+    std::weak_ptr<std::promise<Result>> weakPromise = promise;
+    consumer.seekAsync(0L, [weakPromise](Result result) {
+        if (auto promise = weakPromise.lock()) {
+            promise->set_value(result);
+        }
+    });
     auto future = promise->get_future();
     ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
     ASSERT_EQ(future.get(), ResultOk);
@@ -231,13 +236,14 @@ TEST_F(ConsumerSeekTest, testSubscribeSeekRaces) {
     mockServer->setRequestDelay({{"SUBSCRIBE", 500}, {"SEEK", 1000}});
     assertSeekWithTimeout(consumer);
 
+    ASSERT_EQ(mockServer->close(), 0);
     client.close();
 }
 
 TEST_F(ConsumerSeekTest, testReconnectionSlow) {
     Client client(lookupUrl, ClientConfiguration().setInitialBackoffIntervalMs(500));
     Consumer consumer;
-    ASSERT_EQ(ResultOk, client.subscribe("testSubscribeSeekRaces", "sub", consumer));
+    ASSERT_EQ(ResultOk, client.subscribe("testReconnectionSlow", "sub", consumer));
 
     auto connection = *PulsarFriend::getConnections(client).begin();
     auto mockServer = std::make_shared<MockServer>(connection);
@@ -247,6 +253,7 @@ TEST_F(ConsumerSeekTest, testReconnectionSlow) {
     mockServer->setRequestDelay({{"SEEK", 100}});
     assertSeekWithTimeout(consumer);
 
+    ASSERT_EQ(mockServer->close(), 0);
     client.close();
 }
 

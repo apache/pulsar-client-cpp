@@ -19,6 +19,7 @@
 #pragma once
 
 #include <initializer_list>
+#include <memory>
 #include <mutex>
 #include <unordered_map>
 #include <vector>
@@ -31,7 +32,7 @@
 
 namespace pulsar {
 
-class MockServer {
+class MockServer : public std::enable_shared_from_this<MockServer> {
    public:
     using RequestDelayType = std::unordered_map<std::string, long /* delay in milliseconds */>;
 
@@ -72,18 +73,25 @@ class MockServer {
             }
             long delayMs = iter->second;
             auto timer = connection->executor_->createDeadlineTimer();
+            auto key = request + std::to_string(requestId);
+            pendingTimers_[key] = timer;
             timer->expires_from_now(std::chrono::milliseconds(delayMs));
-            timer->async_wait([connection, requestId, request, timer](const auto& ec) {
+
+            auto self = shared_from_this();
+            timer->async_wait([this, self, key, connection, requestId, timer](const auto& ec) {
+                {
+                    std::lock_guard<std::mutex> lock(mutex_);
+                    pendingTimers_.erase(key);
+                }
                 if (ec) {
-                    LOG_INFO("Timer cancelled for request " << request << " with id " << requestId);
+                    LOG_INFO("Timer cancelled for request " << key);
                     return;
                 }
                 if (connection->isClosed()) {
-                    LOG_INFO("Connection is closed, not completing request " << request << " with id "
-                                                                             << requestId);
+                    LOG_INFO("Connection is closed, not completing request " << key);
                     return;
                 }
-                LOG_INFO("Completing delayed request " << request << " with id " << requestId);
+                LOG_INFO("Completing delayed request " << key);
                 proto::CommandSuccess success;
                 success.set_request_id(requestId);
                 connection->handleSuccess(success);
@@ -94,9 +102,25 @@ class MockServer {
         }
     }
 
+    // Return the number of pending timers cancelled
+    auto close() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto result = pendingTimers_.size();
+        for (auto&& kv : pendingTimers_) {
+            try {
+                LOG_INFO("Cancelling timer for " << kv.first);
+                kv.second->cancel();
+            } catch (...) {
+                LOG_WARN("Failed to cancel timer for " << kv.first);
+            }
+        }
+        return result;
+    }
+
    private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, long> requestDelays_;
+    std::unordered_map<std::string, DeadlineTimerPtr> pendingTimers_;
     ClientConnectionWeakPtr connection_;
 
     DECLARE_LOG_OBJECT()
