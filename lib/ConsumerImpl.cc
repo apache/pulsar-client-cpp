@@ -238,7 +238,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     cnx->registerConsumer(consumerId_, get_shared_this_ptr());
     LOG_DEBUG(cnx->cnxString() << "Registered consumer " << consumerId_);
 
-    if (duringSeek()) {
+    if (hasPendingSeek_.load(std::memory_order_acquire)) {
         ackGroupingTrackerPtr_->flushAndClean();
     }
 
@@ -269,6 +269,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
             } else {
                 promise.setFailed(handleResult);
             }
+            completeSeekCallback(ResultOk);
         });
 
     return promise.getFuture();
@@ -1129,18 +1130,13 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  * `startMessageId_` is updated so that we can discard messages after delivery restarts.
  */
 void ConsumerImpl::clearReceiveQueue() {
-    if (duringSeek()) {
+    if (hasPendingSeek_.load(std::memory_order_acquire)) {
         if (hasSoughtByTimestamp()) {
             // Invalidate startMessageId_ so that isPriorBatchIndex and isPriorEntryIndex checks will be
             // skipped, and hasMessageAvailableAsync won't use startMessageId_ in compare.
             startMessageId_ = std::nullopt;
         } else {
             startMessageId_ = seekMessageId_.get();
-        }
-        SeekStatus expected = SeekStatus::COMPLETED;
-        if (seekStatus_.compare_exchange_strong(expected, SeekStatus::NOT_STARTED)) {
-            auto seekCallback = seekCallback_.release();
-            executor_->postWork([seekCallback] { seekCallback(ResultOk); });
         }
         return;
     } else if (subscriptionMode_ == Commands::SubscriptionModeDurable) {
@@ -1554,7 +1550,9 @@ void ConsumerImpl::seekAsync(const MessageId& msgId, const ResultCallback& callb
     }
 
     const auto requestId = newRequestId();
-    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId}, callback);
+    auto nonNullCallback = (callback != nullptr) ? callback : [](Result) {};
+    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId},
+                      std::move(nonNullCallback));
 }
 
 void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
@@ -1568,8 +1566,9 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback)
     }
 
     const auto requestId = newRequestId();
+    auto nonNullCallback = (callback != nullptr) ? callback : [](Result) {};
     seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), SeekArg{timestamp},
-                      callback);
+                      std::move(nonNullCallback));
 }
 
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
@@ -1727,7 +1726,7 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
 void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
-                                     const ResultCallback& callback) {
+                                     ResultCallback&& callback) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
         LOG_ERROR(getName() << " Client Connection not ready for Consumer");
@@ -1735,10 +1734,9 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
         return;
     }
 
-    auto expected = SeekStatus::NOT_STARTED;
-    if (!seekStatus_.compare_exchange_strong(expected, SeekStatus::IN_PROGRESS)) {
-        LOG_ERROR(getName() << " attempted to seek " << seekArg << " when the status is "
-                            << static_cast<int>(expected));
+    auto expected = false;
+    if (hasPendingSeek_.compare_exchange_strong(expected, true)) {
+        LOG_ERROR(getName() << " attempted to seek " << seekArg << " when there is a pending seek");
         callback(ResultNotAllowedError);
         return;
     }
@@ -1750,8 +1748,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
         seekMessageId_ = *boost::get<MessageId>(&seekArg);
         hasSoughtByTimestamp_.store(false, std::memory_order_release);
     }
-    seekStatus_ = SeekStatus::IN_PROGRESS;
-    seekCallback_ = callback;
+    seekCallback_ = std::move(callback);
     LOG_INFO(getName() << " Seeking subscription to " << seekArg);
 
     auto weakSelf = weak_from_this();
@@ -1771,20 +1768,17 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                 Lock lock(mutexForMessageId_);
                 lastDequedMessageId_ = MessageId::earliest();
                 lock.unlock();
-                if (getCnx().expired()) {
-                    // It's during reconnection, complete the seek future after connection is established
-                    seekStatus_ = SeekStatus::COMPLETED;
-                } else {
+
+                if (!getCnx().expired()) {
                     if (!hasSoughtByTimestamp()) {
                         startMessageId_ = seekMessageId_.get();
                     }
-                    seekCallback_.release()(result);
-                }
+                    completeSeekCallback(result);
+                }  // else: complete the seek future after connection is established
             } else {
                 LOG_ERROR(getName() << "Failed to seek: " << result);
                 seekMessageId_ = originalSeekMessageId;
-                seekStatus_ = SeekStatus::NOT_STARTED;
-                seekCallback_.release()(result);
+                completeSeekCallback(result);
             }
         });
 }

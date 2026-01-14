@@ -41,6 +41,12 @@ class Synchronized {
         return *this;
     }
 
+    Synchronized& operator=(T&& value) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        value_ = value;
+        return *this;
+    }
+
    private:
     T value_;
     mutable std::mutex mutex_;

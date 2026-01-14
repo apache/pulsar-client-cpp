@@ -21,6 +21,7 @@
 
 #include <pulsar/Reader.h>
 
+#include <atomic>
 #include <boost/variant.hpp>
 #include <cstdint>
 #include <functional>
@@ -76,13 +77,6 @@ enum ConsumerTopicType : uint8_t
 const static std::string SYSTEM_PROPERTY_REAL_TOPIC = "REAL_TOPIC";
 const static std::string PROPERTY_ORIGIN_MESSAGE_ID = "ORIGIN_MESSAGE_ID";
 const static std::string DLQ_GROUP_TOPIC_SUFFIX = "-DLQ";
-
-enum class SeekStatus : std::uint8_t
-{
-    NOT_STARTED,
-    IN_PROGRESS,
-    COMPLETED
-};
 
 class ConsumerImpl : public ConsumerImplBase {
    public:
@@ -230,7 +224,13 @@ class ConsumerImpl : public ConsumerImplBase {
     }
 
     void seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
-                           const ResultCallback& callback);
+                           ResultCallback&& callback);
+    void completeSeekCallback(Result result) {
+        if (auto callback = seekCallback_.release()) {
+            callback(result);
+        }
+        hasPendingSeek_.store(false, std::memory_order_release);
+    }
     void processPossibleToDLQ(const MessageId& messageId, const ProcessDLQCallBack& cb);
 
     std::mutex mutexForReceiveWithZeroQueueSize;
@@ -274,14 +274,13 @@ class ConsumerImpl : public ConsumerImplBase {
     MessageId lastDequedMessageId_{MessageId::earliest()};
     MessageId lastMessageIdInBroker_{MessageId::earliest()};
 
-    std::atomic<SeekStatus> seekStatus_{SeekStatus::NOT_STARTED};
     Synchronized<ResultCallback> seekCallback_{[](Result) {}};
     Synchronized<optional<MessageId>> startMessageId_;
+    std::atomic_bool hasPendingSeek_{false};
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
     std::atomic<bool> hasSoughtByTimestamp_{false};
 
     bool hasSoughtByTimestamp() const { return hasSoughtByTimestamp_.load(std::memory_order_acquire); }
-    bool duringSeek() const { return seekStatus_ != SeekStatus::NOT_STARTED; }
 
     class ChunkedMessageCtx {
        public:
