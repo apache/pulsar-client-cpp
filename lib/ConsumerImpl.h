@@ -223,16 +223,6 @@ class ConsumerImpl : public ConsumerImplBase {
                                        const BrokerGetLastMessageIdCallback& callback);
 
     void clearReceiveQueue();
-    friend std::ostream& operator<<(std::ostream& os, const SeekArg& seekArg) {
-        if (std::holds_alternative<SeekTimestampType>(seekArg)) {
-            os << std::get<SeekTimestampType>(seekArg);
-        } else if (std::holds_alternative<MessageId>(seekArg)) {
-            os << std::get<MessageId>(seekArg);
-        } else {
-            os << "(empty)";
-        }
-        return os;
-    }
 
     void seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
                            ResultCallback&& callback);
