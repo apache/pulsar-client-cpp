@@ -270,7 +270,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
     SeekStatus seekStatus_{SeekStatus::NOT_STARTED};
     optional<ResultCallback> seekCallback_;
-    SeekArg lastSeekArg_;
+    optional<SeekArg> lastSeekArg_;
 
     class ChunkedMessageCtx {
        public:

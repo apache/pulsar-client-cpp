@@ -1139,12 +1139,16 @@ void ConsumerImpl::clearReceiveQueue() {
     if (seekStatus_ != SeekStatus::NOT_STARTED) {
         // Flush the pending ACKs in case newly arrived messages are filtered out by the previous pending ACKs
         ackGroupingTrackerPtr_->flushAndClean();
-        if (std::holds_alternative<MessageId>(lastSeekArg_)) {
-            startMessageId_ = std::get<MessageId>(lastSeekArg_);
+        if (lastSeekArg_.has_value()) {
+            if (std::holds_alternative<MessageId>(lastSeekArg_.value())) {
+                startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
+            } else {
+                // Invalidate startMessageId_ so that `isPrior` checks will be skipped, and
+                // `hasMessageAvailableAsync` won't use `startMessageId_` in compare.
+                startMessageId_ = std::nullopt;
+            }
         } else {
-            // Invalidate startMessageId_ so that `isPrior` checks will be skipped, and
-            // `hasMessageAvailableAsync` won't use `startMessageId_` in compare.
-            startMessageId_ = std::nullopt;
+            LOG_ERROR(getName() << "SeekStatus is not NOT_STARTED but lastSeekArg_ is not set");
         }
         return;
     } else if (subscriptionMode_ == Commands::SubscriptionModeDurable) {
@@ -1597,7 +1601,7 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
             (startMessageId_.value_or(MessageId::earliest()) == MessageId::latest() ||
              // If there is a previous seek operation by timestamp, the start message id will be incorrect, so
              // we cannot compare the start position with the last position.
-             std::holds_alternative<SeekTimestampType>(lastSeekArg_));
+             (lastSeekArg_.has_value() && std::holds_alternative<SeekTimestampType>(lastSeekArg_.value())));
     }
     if (compareMarkDeletePosition) {
         auto self = get_shared_this_ptr();
@@ -1621,7 +1625,10 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
             bool lastSeekIsByTimestamp = false;
             {
                 LockGuard lock{self->mutex_};
-                lastSeekIsByTimestamp = std::holds_alternative<SeekTimestampType>(self->lastSeekArg_);
+                if (self->lastSeekArg_.has_value() &&
+                    std::holds_alternative<SeekTimestampType>(self->lastSeekArg_.value())) {
+                    lastSeekIsByTimestamp = true;
+                }
             }
             if (self->config_.isStartMessageIdInclusive() && !lastSeekIsByTimestamp) {
                 self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
@@ -1798,8 +1805,8 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                     LOG_INFO(getName() << "Seek successfully");
                     ackGroupingTrackerPtr_->flushAndClean();
                     incomingMessages_.clear();
-                    if (std::holds_alternative<MessageId>(lastSeekArg_)) {
-                        startMessageId_ = std::get<MessageId>(lastSeekArg_);
+                    if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
+                        startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
                     }
                     if (!seekCallback_.has_value()) {
                         LOG_ERROR(getName() << "Seek callback is not set");
