@@ -21,6 +21,7 @@
 #include <initializer_list>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -56,53 +57,25 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
         if (auto iter = requestDelays_.find(request); iter != requestDelays_.end()) {
             // Mock the `CLOSE_CONSUMER` command sent by broker, for simplicity, disconnect all consumers
             if (request == "SEEK") {
-                auto closeConsumerDelayMs = requestDelays_["CLOSE_CONSUMER"];
-                auto timer = connection->executor_->createDeadlineTimer();
-                pendingTimers_["CLOSE_CONSUMER" + std::to_string(requestId)] = timer;
-                timer->expires_from_now(std::chrono::milliseconds(closeConsumerDelayMs));
-                timer->async_wait([connection](const auto& ec) {
-                    if (ec) {
-                        LOG_INFO("Timer cancelled for CLOSE_CONSUMER");
-                        return;
-                    }
-                    std::vector<uint64_t> consumerIds;
-                    {
-                        std::lock_guard<std::mutex> lock{connection->mutex_};
-                        for (auto&& kv : connection->consumers_) {
-                            if (auto consumer = kv.second.lock()) {
-                                consumerIds.push_back(consumer->getConsumerId());
-                            }
-                        }
-                    }
-                    for (auto consumerId : consumerIds) {
-                        proto::CommandCloseConsumer closeConsumerCmd;
-                        closeConsumerCmd.set_consumer_id(consumerId);
-                        connection->handleCloseConsumer(closeConsumerCmd);
-                    }
-                });
+                schedule(connection, "CLOSE_CONSUMER" + std::to_string(requestId),
+                         requestDelays_["CLOSE_CONSUMER"], [connection] {
+                             std::vector<uint64_t> consumerIds;
+                             {
+                                 std::lock_guard<std::mutex> lock{connection->mutex_};
+                                 for (auto&& kv : connection->consumers_) {
+                                     if (auto consumer = kv.second.lock()) {
+                                         consumerIds.push_back(consumer->getConsumerId());
+                                     }
+                                 }
+                             }
+                             for (auto consumerId : consumerIds) {
+                                 proto::CommandCloseConsumer closeConsumerCmd;
+                                 closeConsumerCmd.set_consumer_id(consumerId);
+                                 connection->handleCloseConsumer(closeConsumerCmd);
+                             }
+                         });
             }
-            long delayMs = iter->second;
-            auto timer = connection->executor_->createDeadlineTimer();
-            auto key = request + std::to_string(requestId);
-            pendingTimers_[key] = timer;
-            timer->expires_from_now(std::chrono::milliseconds(delayMs));
-
-            LOG_INFO("Mock sending request " << key << " with delay " << delayMs << " ms");
-            auto self = shared_from_this();
-            timer->async_wait([this, self, key, connection, requestId, timer](const auto& ec) {
-                {
-                    std::lock_guard<std::mutex> lock(mutex_);
-                    pendingTimers_.erase(key);
-                }
-                if (ec) {
-                    LOG_INFO("Timer cancelled for request " << key);
-                    return;
-                }
-                if (connection->isClosed()) {
-                    LOG_INFO("Connection is closed, not completing request " << key);
-                    return;
-                }
-                LOG_INFO("Completing delayed request " << key);
+            schedule(connection, request + std::to_string(requestId), iter->second, [connection, requestId] {
                 proto::CommandSuccess success;
                 success.set_request_id(requestId);
                 connection->handleSuccess(success);
@@ -134,6 +107,31 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
     std::unordered_map<std::string, long> requestDelays_;
     std::unordered_map<std::string, DeadlineTimerPtr> pendingTimers_;
     ClientConnectionWeakPtr connection_;
+
+    void schedule(ClientConnectionPtr& connection, const std::string& key, long delayMs,
+                  std::function<void()>&& task) {
+        auto timer = connection->executor_->createDeadlineTimer();
+        pendingTimers_[key] = timer;
+        timer->expires_from_now(std::chrono::milliseconds(delayMs));
+        LOG_INFO("Mock scheduling " << key << " with delay " << delayMs << " ms");
+        auto self = shared_from_this();
+        timer->async_wait([this, self, key, connection, task{std::move(task)}](const auto& ec) {
+            {
+                std::lock_guard<std::mutex> lock(mutex_);
+                pendingTimers_.erase(key);
+            }
+            if (ec) {
+                LOG_INFO("Timer cancelled for " << key);
+                return;
+            }
+            if (connection->isClosed()) {
+                LOG_INFO("Connection is closed, not completing request " << key);
+                return;
+            }
+            LOG_INFO("Completing delayed request " << key);
+            task();
+        });
+    }
 
     DECLARE_LOG_OBJECT()
 };
