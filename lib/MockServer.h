@@ -115,6 +115,7 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
                 LOG_WARN("Failed to cancel timer for " << kv.first);
             }
         }
+        pendingTimers_.clear();
         return result;
     }
 

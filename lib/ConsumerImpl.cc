@@ -235,8 +235,6 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
         return promise.getFuture();
     }
 
-    // Register consumer so that we can handle other incomming commands (e.g. ACTIVE_CONSUMER_CHANGE) after
-    // sending the subscribe request.
     optional<MessageId> subscribeMessageId;
     {
         LockGuard lock{mutex_};
@@ -266,11 +264,11 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     cnx->sendRequestWithId(cmd, requestId, "SUBSCRIBE")
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateConsumer(cnx, result);
-            if (handleResult == ResultOk) {
-                promise.setSuccess();
-            } else {
+            if (handleResult != ResultOk) {
                 promise.setFailed(handleResult);
+                return;
             }
+            promise.setSuccess();
             // Complete the seek callback after completing `promise`, otherwise `reconnectionPending_` will
             // still be true when the seek operation is done.
             LockGuard lock{mutex_};
@@ -1821,6 +1819,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
             } else {
                 LOG_ERROR(getName() << "Failed to seek: " << result);
                 LockGuard lock{mutex_};
+                seekStatus_ = SeekStatus::NOT_STARTED;
                 lastSeekArg_ = previousLastSeekArg;
                 executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
                     callback(ResultOk);
