@@ -27,6 +27,7 @@
 #include <functional>
 #include <list>
 #include <memory>
+#include <optional>
 #include <set>
 #include <utility>
 
@@ -225,14 +226,6 @@ class ConsumerImpl : public ConsumerImplBase {
 
     void seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
                            ResultCallback&& callback);
-    void completeSeekCallback(Result result) {
-        bool expected = true;
-        if (hasPendingSeek_.compare_exchange_strong(expected, false)) {
-            if (auto callback = seekCallback_.release()) {
-                callback(result);
-            }
-        }
-    }
     void processPossibleToDLQ(const MessageId& messageId, const ProcessDLQCallBack& cb);
 
     std::mutex mutexForReceiveWithZeroQueueSize;
@@ -276,9 +269,10 @@ class ConsumerImpl : public ConsumerImplBase {
     MessageId lastDequedMessageId_{MessageId::earliest()};
     MessageId lastMessageIdInBroker_{MessageId::earliest()};
 
-    Synchronized<ResultCallback> seekCallback_{[](Result) {}};
+    // NOTE: The modification must be protected by `mutex_`
+    std::optional<ResultCallback> seekCallback_;
+
     Synchronized<optional<MessageId>> startMessageId_;
-    std::atomic_bool hasPendingSeek_{false};
     Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
     std::atomic<bool> hasSoughtByTimestamp_{false};
 

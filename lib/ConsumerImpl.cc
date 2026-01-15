@@ -23,6 +23,7 @@
 #include <pulsar/MessageIdBuilder.h>
 
 #include <algorithm>
+#include <utility>
 
 #include "AckGroupingTracker.h"
 #include "AckGroupingTrackerDisabled.h"
@@ -235,18 +236,27 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
 
     // Register consumer so that we can handle other incomming commands (e.g. ACTIVE_CONSUMER_CHANGE) after
     // sending the subscribe request.
-    cnx->registerConsumer(consumerId_, get_shared_this_ptr());
-    LOG_DEBUG(cnx->cnxString() << "Registered consumer " << consumerId_);
+    optional<MessageId> subscribeMessageId;
+    bool duringSeek = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        setCnx(cnx);
+        cnx->registerConsumer(consumerId_, get_shared_this_ptr());
+        LOG_DEBUG(cnx->cnxString() << "Registered consumer " << consumerId_);
 
-    if (hasPendingSeek_.load(std::memory_order_acquire)) {
+        {
+            std::lock_guard<std::mutex> lock(mutexForMessageId_);
+            clearReceiveQueue();
+            subscribeMessageId = (subscriptionMode_ == Commands::SubscriptionModeNonDurable)
+                                     ? startMessageId_.get()
+                                     : std::nullopt;
+        }
+
+        duringSeek = seekCallback_.has_value();
+    }
+    if (duringSeek) {
         ackGroupingTrackerPtr_->flushAndClean();
     }
-
-    Lock lockForMessageId(mutexForMessageId_);
-    clearReceiveQueue();
-    const auto subscribeMessageId =
-        (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId_.get() : std::nullopt;
-    lockForMessageId.unlock();
 
     unAckedMessageTrackerPtr_->clear();
 
@@ -269,7 +279,6 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
             } else {
                 promise.setFailed(handleResult);
             }
-            completeSeekCallback(ResultOk);
         });
 
     return promise.getFuture();
@@ -1130,7 +1139,11 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  * `startMessageId_` is updated so that we can discard messages after delivery restarts.
  */
 void ConsumerImpl::clearReceiveQueue() {
-    if (hasPendingSeek_.load(std::memory_order_acquire)) {
+    // NOTE: This method must be called with `mutex_` held for thread safety where
+    if (seekCallback_.has_value()) {
+        executor_->postWork(
+            [callback{std::exchange(seekCallback_, std::nullopt).value()}] { callback(ResultOk); });
+
         if (hasSoughtByTimestamp()) {
             // Invalidate startMessageId_ so that isPriorBatchIndex and isPriorEntryIndex checks will be
             // skipped, and hasMessageAvailableAsync won't use startMessageId_ in compare.
@@ -1733,9 +1746,16 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
         callback(ResultNotConnected);
         return;
     }
-
-    auto expected = false;
-    if (!hasPendingSeek_.compare_exchange_strong(expected, true)) {
+    bool hasPendingSeek = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (seekCallback_.has_value()) {
+            hasPendingSeek = true;
+        } else {
+            seekCallback_ = std::move(callback);
+        }
+    }
+    if (hasPendingSeek) {
         LOG_ERROR(getName() << " attempted to seek " << seekArg << " when there is a pending seek");
         callback(ResultNotAllowedError);
         return;
@@ -1748,37 +1768,46 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
         seekMessageId_ = *boost::get<MessageId>(&seekArg);
         hasSoughtByTimestamp_.store(false, std::memory_order_release);
     }
-    seekCallback_ = std::move(callback);
     LOG_INFO(getName() << " Seeking subscription to " << seekArg);
 
     auto weakSelf = weak_from_this();
 
     cnx->sendRequestWithId(seek, requestId, "SEEK")
-        .addListener([this, weakSelf, callback, originalSeekMessageId](Result result,
-                                                                       const ResponseData& responseData) {
+        .addListener([this, weakSelf, originalSeekMessageId](Result result,
+                                                             const ResponseData& responseData) {
             auto self = weakSelf.lock();
             if (!self) {
-                callback(result);
                 return;
             }
             if (result == ResultOk) {
                 LOG_INFO(getName() << "Seek successfully");
                 ackGroupingTrackerPtr_->flushAndClean();
                 incomingMessages_.clear();
-                Lock lock(mutexForMessageId_);
-                lastDequedMessageId_ = MessageId::earliest();
-                lock.unlock();
+                {
+                    std::lock_guard<std::mutex> lock(mutexForMessageId_);
+                    lastDequedMessageId_ = MessageId::earliest();
+                }
 
+                std::lock_guard<std::mutex> lock(mutex_);
                 if (!getCnx().expired()) {
                     if (!hasSoughtByTimestamp()) {
                         startMessageId_ = seekMessageId_.get();
                     }
-                    completeSeekCallback(result);
+                    if (!seekCallback_.has_value()) {
+                        LOG_ERROR(getName() << "Seek callback is not set");
+                        return;
+                    }
+                    executor_->postWork(
+                        [self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
+                            callback(ResultOk);
+                        });
                 }  // else: complete the seek future after connection is established
             } else {
                 LOG_ERROR(getName() << "Failed to seek: " << result);
                 seekMessageId_ = originalSeekMessageId;
-                completeSeekCallback(result);
+                executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
+                    callback(ResultOk);
+                });
             }
         });
 }
