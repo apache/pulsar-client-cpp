@@ -250,10 +250,11 @@ TEST_F(ConsumerSeekTest, testReconnectionSlow) {
     connection->attachMockServer(mockServer);
 
     // Make seek response received before `connectionOpened` is called
-    mockServer->setRequestDelay({{"SEEK", 100}});
+    mockServer->setRequestDelay({{"SEEK", 500}, {"CLOSE_CONSUMER", 1000}});
     assertSeekWithTimeout(consumer);
 
-    ASSERT_EQ(mockServer->close(), 0);
+    // The CLOSE_CONSUMER request is in still flight
+    ASSERT_EQ(mockServer->close(), 1);
     client.close();
 }
 

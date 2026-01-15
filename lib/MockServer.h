@@ -36,7 +36,9 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
    public:
     using RequestDelayType = std::unordered_map<std::string, long /* delay in milliseconds */>;
 
-    MockServer(const ClientConnectionPtr& connection) : connection_(connection) {}
+    MockServer(const ClientConnectionPtr& connection) : connection_(connection) {
+        requestDelays_["CLOSE_CONSUMER"] = 1;
+    }
 
     void setRequestDelay(std::initializer_list<typename RequestDelayType::value_type> delays) {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -54,7 +56,15 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
         if (auto iter = requestDelays_.find(request); iter != requestDelays_.end()) {
             // Mock the `CLOSE_CONSUMER` command sent by broker, for simplicity, disconnect all consumers
             if (request == "SEEK") {
-                connection->executor_->postWork([connection] {
+                auto closeConsumerDelayMs = requestDelays_["CLOSE_CONSUMER"];
+                auto timer = connection->executor_->createDeadlineTimer();
+                pendingTimers_["CLOSE_CONSUMER" + std::to_string(requestId)] = timer;
+                timer->expires_from_now(std::chrono::milliseconds(closeConsumerDelayMs));
+                timer->async_wait([connection](const auto& ec) {
+                    if (ec) {
+                        LOG_INFO("Timer cancelled for CLOSE_CONSUMER");
+                        return;
+                    }
                     std::vector<uint64_t> consumerIds;
                     {
                         std::lock_guard<std::mutex> lock{connection->mutex_};
