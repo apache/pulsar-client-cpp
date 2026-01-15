@@ -39,7 +39,6 @@
 #include "MapCache.h"
 #include "MessageIdImpl.h"
 #include "NegativeAcksTracker.h"
-#include "Synchronized.h"
 #include "TestUtil.h"
 #include "TimeUtils.h"
 #include "UnboundedBlockingQueue.h"
