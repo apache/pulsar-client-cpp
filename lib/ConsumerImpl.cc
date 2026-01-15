@@ -1755,6 +1755,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
         if (seekStatus_ != SeekStatus::NOT_STARTED) {
             hasPendingSeek = true;
         } else {
+            seekStatus_ = SeekStatus::IN_PROGRESS;
             if (seekCallback_.has_value()) {
                 // This should never happen
                 LOG_ERROR(getName() << "Previous seek callback is not triggered unexpectedly");
