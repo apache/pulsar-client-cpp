@@ -77,6 +77,7 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
             pendingTimers_[key] = timer;
             timer->expires_from_now(std::chrono::milliseconds(delayMs));
 
+            LOG_INFO("Mock sending request " << key << " with delay " << delayMs << " ms");
             auto self = shared_from_this();
             timer->async_wait([this, self, key, connection, requestId, timer](const auto& ec) {
                 {

@@ -22,7 +22,6 @@
 #include <pulsar/Reader.h>
 
 #include <atomic>
-#include <boost/variant.hpp>
 #include <cstdint>
 #include <functional>
 #include <list>
@@ -30,6 +29,7 @@
 #include <optional>
 #include <set>
 #include <utility>
+#include <variant>
 
 #include "BrokerConsumerStatsImpl.h"
 #include "Commands.h"
@@ -78,6 +78,13 @@ enum ConsumerTopicType : uint8_t
 const static std::string SYSTEM_PROPERTY_REAL_TOPIC = "REAL_TOPIC";
 const static std::string PROPERTY_ORIGIN_MESSAGE_ID = "ORIGIN_MESSAGE_ID";
 const static std::string DLQ_GROUP_TOPIC_SUFFIX = "-DLQ";
+
+enum class SeekStatus : std::uint8_t
+{
+    NOT_STARTED,  // there is no pending seek RPC so that it's allowed to seek
+    IN_PROGRESS,  // the seek RPC is in progress
+    COMPLETED     // the seek RPC is done but the connection is not established yet
+};
 
 class ConsumerImpl : public ConsumerImplBase {
    public:
@@ -133,7 +140,9 @@ class ConsumerImpl : public ConsumerImplBase {
     void getBrokerConsumerStatsAsync(const BrokerConsumerStatsCallback& callback) override;
     void getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& callback) override;
     void seekAsync(const MessageId& msgId, const ResultCallback& callback) override;
-    void seekAsync(uint64_t timestamp, const ResultCallback& callback) override;
+    using SeekTimestampType = uint64_t;
+    using SeekArg = std::variant<SeekTimestampType, MessageId>;
+    void seekAsync(SeekTimestampType timestamp, const ResultCallback& callback) override;
     void negativeAcknowledge(const MessageId& msgId) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedConsumer() override;
@@ -186,8 +195,10 @@ class ConsumerImpl : public ConsumerImplBase {
     void drainIncomingMessageQueue(size_t count);
     uint32_t receiveIndividualMessagesFromBatch(const ClientConnectionPtr& cnx, Message& batchedMessage,
                                                 const BitSet& ackSet, int redeliveryCount);
-    bool isPriorBatchIndex(int32_t idx);
-    bool isPriorEntryIndex(int64_t idx);
+    template <typename T>
+    bool isPrior(T index, T startIndex) const noexcept {
+        return config_.isStartMessageIdInclusive() ? (index < startIndex) : (index <= startIndex);
+    }
     void brokerConsumerStatsListener(Result, BrokerConsumerStatsImpl, const BrokerConsumerStatsCallback&);
 
     enum class DecryptionResult : uint8_t
@@ -213,13 +224,13 @@ class ConsumerImpl : public ConsumerImplBase {
                                        const BrokerGetLastMessageIdCallback& callback);
 
     void clearReceiveQueue();
-    using SeekArg = boost::variant<uint64_t, MessageId>;
     friend std::ostream& operator<<(std::ostream& os, const SeekArg& seekArg) {
-        auto ptr = boost::get<uint64_t>(&seekArg);
-        if (ptr) {
-            os << *ptr;
+        if (std::holds_alternative<SeekTimestampType>(seekArg)) {
+            os << std::get<SeekTimestampType>(seekArg);
+        } else if (std::holds_alternative<MessageId>(seekArg)) {
+            os << std::get<MessageId>(seekArg);
         } else {
-            os << *boost::get<MessageId>(&seekArg);
+            os << "(empty)";
         }
         return os;
     }
@@ -264,19 +275,13 @@ class ConsumerImpl : public ConsumerImplBase {
     std::shared_ptr<Promise<Result, Producer>> deadLetterProducer_;
     std::mutex createProducerLock_;
 
-    // Make the access to `lastDequedMessageId_` and `lastMessageIdInBroker_` thread safe
-    mutable std::mutex mutexForMessageId_;
     MessageId lastDequedMessageId_{MessageId::earliest()};
     MessageId lastMessageIdInBroker_{MessageId::earliest()};
+    optional<MessageId> startMessageId_;
 
-    // NOTE: The modification must be protected by `mutex_`
-    std::optional<ResultCallback> seekCallback_;
-
-    Synchronized<optional<MessageId>> startMessageId_;
-    Synchronized<MessageId> seekMessageId_{MessageId::earliest()};
-    std::atomic<bool> hasSoughtByTimestamp_{false};
-
-    bool hasSoughtByTimestamp() const { return hasSoughtByTimestamp_.load(std::memory_order_acquire); }
+    SeekStatus seekStatus_{SeekStatus::NOT_STARTED};
+    optional<ResultCallback> seekCallback_;
+    SeekArg lastSeekArg_;
 
     class ChunkedMessageCtx {
        public:
@@ -375,7 +380,8 @@ class ConsumerImpl : public ConsumerImplBase {
                                                const ClientConnectionPtr& cnx, MessageId& messageId);
 
     bool hasMoreMessages() const {
-        std::lock_guard<std::mutex> lock{mutexForMessageId_};
+        LockGuard lock{mutex_};
+
         if (lastMessageIdInBroker_.entryId() == -1L) {
             return false;
         }
@@ -383,7 +389,7 @@ class ConsumerImpl : public ConsumerImplBase {
         const auto inclusive = config_.isStartMessageIdInclusive();
         if (lastDequedMessageId_ == MessageId::earliest()) {
             // If startMessageId_ is none, use latest so that this method will return false
-            const auto startMessageId = startMessageId_.get().value_or(MessageId::latest());
+            const auto startMessageId = startMessageId_.value_or(MessageId::latest());
             return inclusive ? (lastMessageIdInBroker_ >= startMessageId)
                              : (lastMessageIdInBroker_ > startMessageId);
         } else {
@@ -391,10 +397,21 @@ class ConsumerImpl : public ConsumerImplBase {
         }
     }
 
+    auto getStartMessageId() const {
+        LockGuard lock{mutex_};
+        return startMessageId_;
+    }
+    auto setLastDequedMessageId(const MessageId& messageId) {
+        LockGuard lock{mutex_};
+        lastDequedMessageId_ = messageId;
+    }
+
     void doImmediateAck(const ClientConnectionPtr& cnx, const MessageId& msgId, CommandAck_AckType ackType,
                         const ResultCallback& callback);
     void doImmediateAck(const ClientConnectionPtr& cnx, const std::set<MessageId>& msgIds,
                         const ResultCallback& callback);
+
+    using LockGuard = std::lock_guard<std::mutex>;
 
     friend class PulsarFriend;
     friend class MultiTopicsConsumerImpl;

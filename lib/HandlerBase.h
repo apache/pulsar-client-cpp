@@ -143,6 +143,7 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     std::atomic<State> state_;
     Backoff backoff_;
     uint64_t epoch_;
+    std::atomic<bool> reconnectionPending_;
 
     Result convertToTimeoutIfNecessary(Result result, ptime startTimestamp) const;
 
@@ -160,7 +161,6 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
     DeadlineTimerPtr creationTimer_;
 
     mutable std::mutex connectionMutex_;
-    std::atomic<bool> reconnectionPending_;
     ClientConnectionWeakPtr connection_;
     std::string redirectedClusterURI_;
     std::atomic<long> firstRequestIdAfterConnect_{-1L};
