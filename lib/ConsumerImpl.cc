@@ -334,8 +334,8 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                 return ResultAlreadyClosed;
             }
 
+            mutexLock.unlock();
             LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
-            setCnx(cnx);
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             backoff_.reset();
