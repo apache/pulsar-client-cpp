@@ -115,6 +115,7 @@ struct ResponseData {
 
 typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;
 
+class MockServer;
 class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<ClientConnection> {
     enum State : uint8_t
     {
@@ -123,6 +124,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         Ready,
         Disconnected
     };
+    using RequestDelayType =
+        std::unordered_map<std::string /* request type */, long /* delay in milliseconds */>;
 
    public:
     typedef std::shared_ptr<ASIO::ip::tcp::socket> SocketPtr;
@@ -185,7 +188,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Send a request with a specific Id over the connection. The future will be
      * triggered when the response for this request is received
      */
-    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId);
+    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId,
+                                                   const char* requestType);
 
     const std::string& brokerAddress() const;
 
@@ -207,6 +211,13 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
                                             uint64_t requestId);
+
+    void attachMockServer(const std::shared_ptr<MockServer>& mockServer) {
+        mockServer_ = mockServer;
+        // Mark that requests will first go through the mock server, if the mock server cannot process it,
+        // fall back to the normal logic
+        mockingRequests_.store(true, std::memory_order_release);
+    }
 
    private:
     struct PendingRequestData {
@@ -264,7 +275,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleSend(const ASIO_ERROR& err, const SharedBuffer& cmd);
     void handleSendPair(const ASIO_ERROR& err);
     void sendPendingCommands();
-    void newLookup(const SharedBuffer& cmd, uint64_t requestId, const LookupDataResultPromisePtr& promise);
+    void newLookup(const SharedBuffer& cmd, uint64_t requestId, const char* requestType,
+                   const LookupDataResultPromisePtr& promise);
 
     void handleRequestTimeout(const ASIO_ERROR& ec, const PendingRequestData& pendingRequestData);
 
@@ -307,6 +319,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
             socket_->async_receive(buffers, handler);
         }
     }
+
+    void mockSendCommand(const char* requestType, uint64_t requestId, const SharedBuffer& cmd);
 
     std::atomic<State> state_{Pending};
     TimeDuration operationsTimeout_;
@@ -391,6 +405,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
 
+    std::atomic_bool mockingRequests_{false};
+    std::shared_ptr<MockServer> mockServer_;
+
     void handleConsumerStatsTimeout(const ASIO_ERROR& ec, const std::vector<uint64_t>& consumerStatsRequests);
 
     void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
@@ -405,6 +422,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     friend class PulsarFriend;
     friend class ConsumerTest;
+    friend class MockServer;
 
     void checkServerError(ServerError error, const std::string& message);
 

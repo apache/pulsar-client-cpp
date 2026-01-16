@@ -21,6 +21,7 @@
 #include <openssl/x509.h>
 #include <pulsar/MessageIdBuilder.h>
 
+#include <chrono>
 #include <fstream>
 
 #include "AsioDefines.h"
@@ -31,6 +32,7 @@
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
+#include "MockServer.h"
 #include "OpSendMsg.h"
 #include "ProducerImpl.h"
 #include "PulsarApi.pb.h"
@@ -1005,15 +1007,17 @@ Future<Result, BrokerConsumerStatsImpl> ClientConnection::newConsumerStats(uint6
 void ClientConnection::newTopicLookup(const std::string& topicName, bool authoritative,
                                       const std::string& listenerName, uint64_t requestId,
                                       const LookupDataResultPromisePtr& promise) {
-    newLookup(Commands::newLookup(topicName, authoritative, requestId, listenerName), requestId, promise);
+    newLookup(Commands::newLookup(topicName, authoritative, requestId, listenerName), requestId, "LOOKUP",
+              promise);
 }
 
 void ClientConnection::newPartitionedMetadataLookup(const std::string& topicName, uint64_t requestId,
                                                     const LookupDataResultPromisePtr& promise) {
-    newLookup(Commands::newPartitionMetadataRequest(topicName, requestId), requestId, promise);
+    newLookup(Commands::newPartitionMetadataRequest(topicName, requestId), requestId, "PARTITIONED_METADATA",
+              promise);
 }
 
-void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId,
+void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, const char* requestType,
                                  const LookupDataResultPromisePtr& promise) {
     Lock lock(mutex_);
     std::shared_ptr<LookupDataResultPtr> lookupDataResult;
@@ -1042,6 +1046,7 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId,
     pendingLookupRequests_.insert(std::make_pair(requestId, requestData));
     numOfPendingLookupRequest_++;
     lock.unlock();
+    LOG_DEBUG(cnxString_ << "Inserted lookup request " << requestType << " (req_id: " << requestId << ")");
     sendCommand(cmd);
 }
 
@@ -1158,12 +1163,15 @@ void ClientConnection::sendPendingCommands() {
     }
 }
 
-Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuffer& cmd, int requestId) {
+Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuffer& cmd, int requestId,
+                                                                 const char* requestType) {
     Lock lock(mutex_);
 
     if (isClosed()) {
         lock.unlock();
         Promise<Result, ResponseData> promise;
+        LOG_DEBUG(cnxString_ << "Fail " << requestType << "(req_id: " << requestId
+                             << ") to a closed connection");
         promise.setFailed(ResultNotConnected);
         return promise.getFuture();
     }
@@ -1182,7 +1190,17 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
     pendingRequests_.insert(std::make_pair(requestId, requestData));
     lock.unlock();
 
-    sendCommand(cmd);
+    LOG_DEBUG(cnxString_ << "Inserted request " << requestType << " (req_id: " << requestId << ")");
+    if (mockingRequests_.load(std::memory_order_acquire)) {
+        if (mockServer_ == nullptr) {
+            LOG_WARN(cnxString_ << "Mock server is unexpectedly null when processing " << requestType);
+            sendCommand(cmd);
+        } else if (!mockServer_->sendRequest(requestType, requestId)) {
+            sendCommand(cmd);
+        }
+    } else {
+        sendCommand(cmd);
+    }
     return requestData.promise.getFuture();
 }
 
@@ -1625,9 +1643,6 @@ void ClientConnection::handleConsumerStatsResponse(
 
 void ClientConnection::handleLookupTopicRespose(
     const proto::CommandLookupTopicResponse& lookupTopicResponse) {
-    LOG_DEBUG(cnxString_ << "Received lookup response from server. req_id: "
-                         << lookupTopicResponse.request_id());
-
     Lock lock(mutex_);
     auto it = pendingLookupRequests_.find(lookupTopicResponse.request_id());
     if (it != pendingLookupRequests_.end()) {
