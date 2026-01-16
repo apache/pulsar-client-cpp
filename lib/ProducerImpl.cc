@@ -160,7 +160,7 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
     // Keep a reference to ensure object is kept alive.
     auto self = shared_from_this();
     setFirstRequestIdAfterConnect(requestId);
-    cnx->sendRequestWithId(cmd, requestId)
+    cnx->sendRequestWithId(cmd, requestId, "PRODUCER")
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateProducer(cnx, result, responseData);
             if (handleResult == ResultOk) {
@@ -204,7 +204,8 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
             auto client = client_.lock();
             if (client) {
                 int requestId = client->newRequestId();
-                cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+                cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId,
+                                       "CLOSE_PRODUCER");
             }
         }
         if (!producerCreatedPromise_.isComplete()) {
@@ -266,7 +267,8 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
             auto client = client_.lock();
             if (client) {
                 int requestId = client->newRequestId();
-                cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId);
+                cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId,
+                                       "CLOSE_PRODUCER");
             }
         }
 
@@ -818,7 +820,7 @@ void ProducerImpl::closeAsync(CloseCallback originalCallback) {
 
     int requestId = client->newRequestId();
     auto self = shared_from_this();
-    cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId)
+    cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId, "CLOSE_PRODUCER")
         .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
 

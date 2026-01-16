@@ -23,6 +23,8 @@
 #include <pulsar/MessageIdBuilder.h>
 
 #include <algorithm>
+#include <utility>
+#include <variant>
 
 #include "AckGroupingTracker.h"
 #include "AckGroupingTrackerDisabled.h"
@@ -123,7 +125,7 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
       negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
       ackGroupingTrackerPtr_(newAckGroupingTracker(topic, conf, client)),
       readCompacted_(conf.isReadCompacted()),
-      startMessageId_(getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
+      startMessageId_(pulsar::getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
       expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
@@ -189,7 +191,8 @@ ConsumerImpl::~ConsumerImpl() {
         ClientConnectionPtr cnx = getCnx().lock();
         if (cnx) {
             auto requestId = newRequestId();
-            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
+            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
+                                   "CLOSE_CONSUMER");
             cnx->removeConsumer(consumerId_);
             LOG_INFO(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
         } else {
@@ -232,19 +235,18 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
         return promise.getFuture();
     }
 
-    // Register consumer so that we can handle other incomming commands (e.g. ACTIVE_CONSUMER_CHANGE) after
-    // sending the subscribe request.
-    cnx->registerConsumer(consumerId_, get_shared_this_ptr());
+    optional<MessageId> subscribeMessageId;
+    {
+        LockGuard lock{mutex_};
+        setCnx(cnx);
+        cnx->registerConsumer(consumerId_, get_shared_this_ptr());
+        LOG_DEBUG(cnx->cnxString() << "Registered consumer " << consumerId_);
 
-    if (duringSeek()) {
-        ackGroupingTrackerPtr_->flushAndClean();
+        clearReceiveQueue();
+        subscribeMessageId =
+            (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId_ : std::nullopt;
+        lastDequedMessageId_ = MessageId::earliest();
     }
-
-    Lock lockForMessageId(mutexForMessageId_);
-    clearReceiveQueue();
-    const auto subscribeMessageId =
-        (subscriptionMode_ == Commands::SubscriptionModeNonDurable) ? startMessageId_.get() : std::nullopt;
-    lockForMessageId.unlock();
 
     unAckedMessageTrackerPtr_->clear();
 
@@ -259,13 +261,22 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     // Keep a reference to ensure object is kept alive.
     auto self = get_shared_this_ptr();
     setFirstRequestIdAfterConnect(requestId);
-    cnx->sendRequestWithId(cmd, requestId)
+    cnx->sendRequestWithId(cmd, requestId, "SUBSCRIBE")
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
             Result handleResult = handleCreateConsumer(cnx, result);
-            if (handleResult == ResultOk) {
-                promise.setSuccess();
-            } else {
+            if (handleResult != ResultOk) {
                 promise.setFailed(handleResult);
+                return;
+            }
+            promise.setSuccess();
+            // Complete the seek callback after completing `promise`, otherwise `reconnectionPending_` will
+            // still be true when the seek operation is done.
+            LockGuard lock{mutex_};
+            if (seekStatus_ == SeekStatus::COMPLETED) {
+                executor_->postWork([seekCallback{std::exchange(seekCallback_, std::nullopt).value()}]() {
+                    seekCallback(ResultOk);
+                });
+                seekStatus_ = SeekStatus::NOT_STARTED;
             }
         });
 
@@ -301,7 +312,8 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                     LOG_INFO(getName() << "Closing subscribed consumer since it was already closed");
                     int requestId = client->newRequestId();
                     auto name = getName();
-                    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
+                    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
+                                           "CLOSE_CONSUMER")
                         .addListener([name](Result result, const ResponseData&) {
                             if (result == ResultOk) {
                                 LOG_INFO(name << "Closed consumer successfully after subscribe completed");
@@ -321,8 +333,8 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                 return ResultAlreadyClosed;
             }
 
+            mutexLock.unlock();
             LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
-            setCnx(cnx);
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             backoff_.reset();
@@ -354,7 +366,8 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
             // in case it was indeed created, otherwise it might prevent new subscribe operation,
             // since we are not closing the connection
             auto requestId = newRequestId();
-            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId);
+            cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
+                                   "CLOSE_CONSUMER");
         }
 
         if (consumerCreatedPromise_.isComplete()) {
@@ -408,7 +421,7 @@ void ConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
         auto requestId = newRequestId();
         SharedBuffer cmd = Commands::newUnsubscribe(consumerId_, requestId);
         auto self = get_shared_this_ptr();
-        cnx->sendRequestWithId(cmd, requestId)
+        cnx->sendRequestWithId(cmd, requestId, "UNSUBSCRIBE")
             .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
     } else {
         Result result = ResultNotConnected;
@@ -502,9 +515,10 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
 
     auto& chunkedMsgCtx = it->second;
     if (it == chunkedMessageCache_.end() || !chunkedMsgCtx.validateChunkId(chunkId)) {
-        auto startMessageId = startMessageId_.get().value_or(MessageId::earliest());
-        if (!config_.isStartMessageIdInclusive() && startMessageId.ledgerId() == messageId.ledgerId() &&
-            startMessageId.entryId() == messageId.entryId()) {
+        auto startMessageId = getStartMessageId();
+        if (!config_.isStartMessageIdInclusive() && startMessageId &&
+            startMessageId->ledgerId() == messageId.ledgerId() &&
+            startMessageId->entryId() == messageId.entryId()) {
             // When the start message id is not inclusive, the last chunk of the previous chunked message will
             // be delivered, which is expected and we only need to filter it out.
             chunkedMessageCache_.remove(uuid);
@@ -621,17 +635,14 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
             words[i] = msg.ack_set(i);
         }
         BitSet ackSet{std::move(words)};
-        Lock lock(mutex_);
         numOfMessageReceived = receiveIndividualMessagesFromBatch(cnx, m, ackSet, msg.redelivery_count());
     } else {
         // try convert key value data.
         m.impl_->convertPayloadToKeyValue(config_.getSchema());
 
-        const auto startMessageId = startMessageId_.get();
-        if (isPersistent_ && startMessageId &&
-            m.getMessageId().ledgerId() == startMessageId.value().ledgerId() &&
-            m.getMessageId().entryId() == startMessageId.value().entryId() &&
-            isPriorEntryIndex(m.getMessageId().entryId())) {
+        const auto startMessageId = getStartMessageId();
+        if (isPersistent_ && startMessageId && m.getMessageId().ledgerId() == startMessageId->ledgerId() &&
+            isPrior(m.getMessageId().entryId(), startMessageId->entryId())) {
             LOG_DEBUG(getName() << " Ignoring message from before the startMessageId: "
                                 << startMessageId.value());
             return;
@@ -753,7 +764,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
     auto batchSize = batchedMessage.impl_->metadata.num_messages_in_batch();
     LOG_DEBUG("Received Batch messages of size - " << batchSize
                                                    << " -- msgId: " << batchedMessage.getMessageId());
-    const auto startMessageId = startMessageId_.get();
+    const auto startMessageId = getStartMessageId();
 
     int skippedMessages = 0;
 
@@ -783,9 +794,9 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
 
             // If we are receiving a batch message, we need to discard messages that were prior
             // to the startMessageId
-            if (isPersistent_ && msgId.ledgerId() == startMessageId.value().ledgerId() &&
-                msgId.entryId() == startMessageId.value().entryId() &&
-                isPriorBatchIndex(msgId.batchIndex())) {
+            if (isPersistent_ && msgId.ledgerId() == startMessageId->ledgerId() &&
+                msgId.entryId() == startMessageId->entryId() &&
+                isPrior(msgId.batchIndex(), startMessageId->batchIndex())) {
                 LOG_DEBUG(getName() << "Ignoring message from before the startMessageId"
                                     << msg.getMessageId());
                 ++skippedMessages;
@@ -925,7 +936,7 @@ void ConsumerImpl::internalListener() {
     trackMessage(msg.getMessageId());
     try {
         consumerStatsBasePtr_->receivedMessage(msg, ResultOk);
-        lastDequedMessageId_ = msg.getMessageId();
+        setLastDequedMessageId(msg.getMessageId());
         Consumer consumer{get_shared_this_ptr()};
         Message interceptMsg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         messageListener_(consumer, interceptMsg);
@@ -1098,10 +1109,7 @@ Result ConsumerImpl::receiveHelper(Message& msg, int timeout) {
 }
 
 void ConsumerImpl::messageProcessed(Message& msg, bool track) {
-    Lock lock(mutexForMessageId_);
-    lastDequedMessageId_ = msg.getMessageId();
-    lock.unlock();
-
+    setLastDequedMessageId(msg.getMessageId());
     incomingMessagesSize_.fetch_sub(msg.getLength());
 
     ClientConnectionPtr currentCnx = getCnx().lock();
@@ -1123,20 +1131,22 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
  * was
  * not seen by the application
  * `startMessageId_` is updated so that we can discard messages after delivery restarts.
+ * NOTE: `mutex_` must be locked before calling this method.
  */
 void ConsumerImpl::clearReceiveQueue() {
-    if (duringSeek()) {
-        if (hasSoughtByTimestamp()) {
-            // Invalidate startMessageId_ so that isPriorBatchIndex and isPriorEntryIndex checks will be
-            // skipped, and hasMessageAvailableAsync won't use startMessageId_ in compare.
-            startMessageId_ = std::nullopt;
+    if (seekStatus_ != SeekStatus::NOT_STARTED) {
+        // Flush the pending ACKs in case newly arrived messages are filtered out by the previous pending ACKs
+        ackGroupingTrackerPtr_->flushAndClean();
+        if (lastSeekArg_.has_value()) {
+            if (std::holds_alternative<MessageId>(lastSeekArg_.value())) {
+                startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
+            } else {
+                // Invalidate startMessageId_ so that `isPrior` checks will be skipped, and
+                // `hasMessageAvailableAsync` won't use `startMessageId_` in compare.
+                startMessageId_ = std::nullopt;
+            }
         } else {
-            startMessageId_ = seekMessageId_.get();
-        }
-        SeekStatus expected = SeekStatus::COMPLETED;
-        if (seekStatus_.compare_exchange_strong(expected, SeekStatus::NOT_STARTED)) {
-            auto seekCallback = seekCallback_.release();
-            executor_->postWork([seekCallback] { seekCallback(ResultOk); });
+            LOG_ERROR(getName() << "SeekStatus is not NOT_STARTED but lastSeekArg_ is not set");
         }
         return;
     } else if (subscriptionMode_ == Commands::SubscriptionModeDurable) {
@@ -1374,7 +1384,7 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
 
     auto requestId = newRequestId();
     auto self = get_shared_this_ptr();
-    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId)
+    cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId, "CLOSE_CONSUMER")
         .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
 }
 
@@ -1550,10 +1560,12 @@ void ConsumerImpl::seekAsync(const MessageId& msgId, const ResultCallback& callb
     }
 
     const auto requestId = newRequestId();
-    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId}, callback);
+    auto nonNullCallback = (callback != nullptr) ? callback : [](Result) {};
+    seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, msgId), SeekArg{msgId},
+                      std::move(nonNullCallback));
 }
 
-void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback) {
+void ConsumerImpl::seekAsync(SeekTimestampType timestamp, const ResultCallback& callback) {
     const auto state = state_.load();
     if (state == Closed || state == Closing) {
         LOG_ERROR(getName() << "Client connection already closed.");
@@ -1564,8 +1576,9 @@ void ConsumerImpl::seekAsync(uint64_t timestamp, const ResultCallback& callback)
     }
 
     const auto requestId = newRequestId();
+    auto nonNullCallback = (callback != nullptr) ? callback : [](Result) {};
     seekAsyncInternal(requestId, Commands::newSeek(consumerId_, requestId, timestamp), SeekArg{timestamp},
-                      callback);
+                      std::move(nonNullCallback));
 }
 
 bool ConsumerImpl::isReadCompacted() { return readCompacted_; }
@@ -1577,16 +1590,16 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
     }
     bool compareMarkDeletePosition;
     {
-        std::lock_guard<std::mutex> lock{mutexForMessageId_};
+        LockGuard lock{mutex_};
         compareMarkDeletePosition =
             // there is no message received by consumer, so we cannot compare the last position with the last
             // received position
             lastDequedMessageId_ == MessageId::earliest() &&
             // If the start message id is latest, we should seek to the actual last message first.
-            (startMessageId_.get().value_or(MessageId::earliest()) == MessageId::latest() ||
+            (startMessageId_.value_or(MessageId::earliest()) == MessageId::latest() ||
              // If there is a previous seek operation by timestamp, the start message id will be incorrect, so
              // we cannot compare the start position with the last position.
-             hasSoughtByTimestamp());
+             (lastSeekArg_.has_value() && std::holds_alternative<SeekTimestampType>(lastSeekArg_.value())));
     }
     if (compareMarkDeletePosition) {
         auto self = get_shared_this_ptr();
@@ -1607,7 +1620,15 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                     callback(ResultOk, false);
                 }
             };
-            if (self->config_.isStartMessageIdInclusive() && !self->hasSoughtByTimestamp()) {
+            bool lastSeekIsByTimestamp = false;
+            {
+                LockGuard lock{self->mutex_};
+                if (self->lastSeekArg_.has_value() &&
+                    std::holds_alternative<SeekTimestampType>(self->lastSeekArg_.value())) {
+                    lastSeekIsByTimestamp = true;
+                }
+            }
+            if (self->config_.isStartMessageIdInclusive() && !lastSeekIsByTimestamp) {
                 self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
                     if (result != ResultOk) {
                         callback(result, {});
@@ -1664,9 +1685,10 @@ void ConsumerImpl::internalGetLastMessageIdAsync(const BackoffPtr& backoff, Time
                 .addListener([this, self, callback](Result result, const GetLastMessageIdResponse& response) {
                     if (result == ResultOk) {
                         LOG_DEBUG(getName() << "getLastMessageId: " << response);
-                        Lock lock(mutexForMessageId_);
-                        lastMessageIdInBroker_ = response.getLastMessageId();
-                        lock.unlock();
+                        {
+                            LockGuard lock{mutex_};
+                            lastMessageIdInBroker_ = response.getLastMessageId();
+                        }
                     } else {
                         LOG_ERROR(getName() << "Failed to getLastMessageId: " << result);
                     }
@@ -1723,76 +1745,87 @@ bool ConsumerImpl::isConnected() const { return !getCnx().expired() && state_ ==
 uint64_t ConsumerImpl::getNumberOfConnectedConsumer() { return isConnected() ? 1 : 0; }
 
 void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, const SeekArg& seekArg,
-                                     const ResultCallback& callback) {
+                                     ResultCallback&& callback) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (!cnx) {
         LOG_ERROR(getName() << " Client Connection not ready for Consumer");
         callback(ResultNotConnected);
         return;
     }
-
-    auto expected = SeekStatus::NOT_STARTED;
-    if (!seekStatus_.compare_exchange_strong(expected, SeekStatus::IN_PROGRESS)) {
-        LOG_ERROR(getName() << " attempted to seek " << seekArg << " when the status is "
-                            << static_cast<int>(expected));
+    bool hasPendingSeek = false;
+    // Save the previous last seek arg in case seek failed
+    decltype(lastSeekArg_) previousLastSeekArg;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (seekStatus_ != SeekStatus::NOT_STARTED) {
+            hasPendingSeek = true;
+        } else {
+            seekStatus_ = SeekStatus::IN_PROGRESS;
+            if (seekCallback_.has_value()) {
+                // This should never happen
+                LOG_ERROR(getName() << "Previous seek callback is not triggered unexpectedly");
+                executor_->postWork([callback{std::exchange(seekCallback_, std::nullopt).value()}] {
+                    callback(ResultTimeout);
+                });
+            }
+            seekCallback_ = std::move(callback);
+            previousLastSeekArg = lastSeekArg_;
+            lastSeekArg_ = seekArg;
+        }
+    }
+    if (hasPendingSeek) {
+        std::visit(
+            [this](auto&& arg) {
+                LOG_ERROR(getName() << "Attempted to seek " << arg << " when there is a pending seek");
+            },
+            seekArg);
         callback(ResultNotAllowedError);
         return;
     }
 
-    const auto originalSeekMessageId = seekMessageId_.get();
-    if (boost::get<uint64_t>(&seekArg)) {
-        hasSoughtByTimestamp_.store(true, std::memory_order_release);
-    } else {
-        seekMessageId_ = *boost::get<MessageId>(&seekArg);
-        hasSoughtByTimestamp_.store(false, std::memory_order_release);
-    }
-    seekStatus_ = SeekStatus::IN_PROGRESS;
-    seekCallback_ = callback;
-    LOG_INFO(getName() << " Seeking subscription to " << seekArg);
+    std::visit([this](auto&& arg) { LOG_INFO(getName() << "Seeking subscription to " << arg); }, seekArg);
 
     auto weakSelf = weak_from_this();
 
-    cnx->sendRequestWithId(seek, requestId)
-        .addListener([this, weakSelf, callback, originalSeekMessageId](Result result,
-                                                                       const ResponseData& responseData) {
+    cnx->sendRequestWithId(seek, requestId, "SEEK")
+        .addListener([this, weakSelf, previousLastSeekArg](Result result, const ResponseData& responseData) {
             auto self = weakSelf.lock();
             if (!self) {
-                callback(result);
                 return;
             }
             if (result == ResultOk) {
-                LOG_INFO(getName() << "Seek successfully");
-                ackGroupingTrackerPtr_->flushAndClean();
-                incomingMessages_.clear();
-                Lock lock(mutexForMessageId_);
-                lastDequedMessageId_ = MessageId::earliest();
-                lock.unlock();
-                if (getCnx().expired()) {
+                LockGuard lock(mutex_);
+                if (getCnx().expired() || reconnectionPending_) {
                     // It's during reconnection, complete the seek future after connection is established
                     seekStatus_ = SeekStatus::COMPLETED;
+                    LOG_INFO(getName() << "Delay the seek future until the reconnection is done");
                 } else {
-                    if (!hasSoughtByTimestamp()) {
-                        startMessageId_ = seekMessageId_.get();
+                    LOG_INFO(getName() << "Seek successfully");
+                    ackGroupingTrackerPtr_->flushAndClean();
+                    incomingMessages_.clear();
+                    if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
+                        startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
                     }
-                    seekCallback_.release()(result);
-                }
+                    if (!seekCallback_.has_value()) {
+                        LOG_ERROR(getName() << "Seek callback is not set");
+                        return;
+                    }
+                    executor_->postWork(
+                        [self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
+                            callback(ResultOk);
+                        });
+                    seekStatus_ = SeekStatus::NOT_STARTED;
+                }  // else: complete the seek future after connection is established
             } else {
                 LOG_ERROR(getName() << "Failed to seek: " << result);
-                seekMessageId_ = originalSeekMessageId;
+                LockGuard lock{mutex_};
                 seekStatus_ = SeekStatus::NOT_STARTED;
-                seekCallback_.release()(result);
+                lastSeekArg_ = previousLastSeekArg;
+                executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
+                    callback(ResultOk);
+                });
             }
         });
-}
-
-bool ConsumerImpl::isPriorBatchIndex(int32_t idx) {
-    return config_.isStartMessageIdInclusive() ? idx < startMessageId_.get().value().batchIndex()
-                                               : idx <= startMessageId_.get().value().batchIndex();
-}
-
-bool ConsumerImpl::isPriorEntryIndex(int64_t idx) {
-    return config_.isStartMessageIdInclusive() ? idx < startMessageId_.get().value().entryId()
-                                               : idx <= startMessageId_.get().value().entryId();
 }
 
 bool ConsumerImpl::hasEnoughMessagesForBatchReceive() const {
@@ -1928,7 +1961,7 @@ void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const MessageI
         auto requestId = newRequestId();
         cnx->sendRequestWithId(
                Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType, requestId),
-               requestId)
+               requestId, "ACK")
             .addListener([callback](Result result, const ResponseData&) {
                 if (callback) {
                     callback(result);
@@ -1958,7 +1991,8 @@ void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const std::set
     if (Commands::peerSupportsMultiMessageAcknowledgement(cnx->getServerProtocolVersion())) {
         if (config_.isAckReceiptEnabled()) {
             auto requestId = newRequestId();
-            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId)
+            cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId,
+                                   "ACK")
                 .addListener([callback](Result result, const ResponseData&) {
                     if (callback) {
                         callback(result);

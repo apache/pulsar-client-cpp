@@ -44,9 +44,9 @@ HandlerBase::HandlerBase(const ClientImplPtr& client, const std::string& topic, 
       state_(NotStarted),
       backoff_(backoff),
       epoch_(0),
+      reconnectionPending_(false),
       timer_(executor_->createDeadlineTimer()),
       creationTimer_(executor_->createDeadlineTimer()),
-      reconnectionPending_(false),
       redirectedClusterURI_("") {}
 
 HandlerBase::~HandlerBase() {
