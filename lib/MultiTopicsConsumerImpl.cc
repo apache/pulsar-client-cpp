@@ -867,14 +867,17 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerSt
                         std::lock_guard<std::mutex> lock{mutex_};
                         statsPtr->add(stats, index);
                     } else {
-                        failedResult->store(result, std::memory_order_release);
+                        // Store the first failed result as the final failed result
+                        auto expected = ResultOk;
+                        failedResult->compare_exchange_strong(expected, result);
                     }
                     if (--*latchPtr == 0) {
-                        if (failedResult->load(std::memory_order_acquire) == ResultOk) {
+                        if (auto firstFailedResult = failedResult->load(std::memory_order_acquire);
+                            firstFailedResult == ResultOk) {
                             callback(ResultOk, BrokerConsumerStats{statsPtr});
                         } else {
                             // Fail the whole operation if any of the consumers failed
-                            callback(result, {});
+                            callback(firstFailedResult, {});
                         }
                     }
                 });
