@@ -28,7 +28,6 @@
 #include "ConsumerImpl.h"
 #include "ConsumerInterceptors.h"
 #include "Future.h"
-#include "Latch.h"
 #include "LookupDataResult.h"
 #include "SynchronizedHashMap.h"
 #include "TestUtil.h"
@@ -100,9 +99,6 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     uint64_t getNumberOfConnectedConsumer() override;
     void hasMessageAvailableAsync(const HasMessageAvailableCallback& callback) override;
 
-    void handleGetConsumerStats(Result, const BrokerConsumerStats&, const LatchPtr&,
-                                const MultiTopicsBrokerConsumerStatsPtr&, size_t,
-                                const BrokerConsumerStatsCallback&);
     // return first topic name when all topics name valid, or return null pointer
     static std::shared_ptr<TopicName> topicNamesValid(const std::vector<std::string>& topics);
     void unsubscribeOneTopicAsync(const std::string& topic, const ResultCallback& callback);
