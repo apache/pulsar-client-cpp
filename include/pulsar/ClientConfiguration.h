@@ -260,7 +260,7 @@ class PULSAR_PUBLIC ClientConfiguration {
      * It validates the incoming x509 certificate and matches the provided hostname (CN/SAN) with the
      * expected broker's hostname. It follows the server identity hostname verification in RFC 2818.
      *
-     * The default value is false.
+     * The default value is true.
      *
      * @see [RFC 2818](https://tools.ietf.org/html/rfc2818).
      *
