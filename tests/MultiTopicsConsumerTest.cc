@@ -20,9 +20,13 @@
 #include <pulsar/Client.h>
 
 #include <chrono>
+#include <future>
+#include <thread>
 
 #include "ThreadSafeMessages.h"
 #include "lib/LogUtils.h"
+#include "lib/MockServer.h"
+#include "tests/PulsarFriend.h"
 
 static const std::string lookupUrl = "pulsar://localhost:6650";
 
@@ -140,5 +144,31 @@ TEST(MultiTopicsConsumerTest, testAcknowledgeInvalidMessageId) {
     ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledge(msgIds));
     ASSERT_EQ(ResultOperationNotSupported, consumer.acknowledgeCumulative(msgIds[1]));
 
+    client.close();
+}
+
+TEST(MultiTopicsConsumerTest, testGetConsumerStatsFail) {
+    Client client{lookupUrl};
+    std::vector<std::string> topics{"testGetConsumerStatsFail0", "testGetConsumerStatsFail1"};
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topics, "sub", consumer));
+
+    auto connection = *PulsarFriend::getConnections(client).begin();
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+
+    mockServer->setRequestDelay({{"CONSUMER_STATS", 3000}});
+    auto future = std::async(std::launch::async, [&consumer]() {
+        BrokerConsumerStats stats;
+        return consumer.getBrokerConsumerStats(stats);
+    });
+    // Trigger the `getBrokerConsumerStats` in a new thread
+    future.wait_for(std::chrono::milliseconds(100));
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    connection->handleKeepAliveTimeout();
+    ASSERT_EQ(ResultDisconnected, future.get());
+
+    mockServer->close();
     client.close();
 }
