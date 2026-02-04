@@ -850,17 +850,17 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerSt
     LatchPtr latchPtr = std::make_shared<Latch>(numberTopicPartitions_->load());
     lock.unlock();
 
-    size_t i = 0;
-    consumers_.forEachValue([this, &latchPtr, &statsPtr, &i, callback](const ConsumerImplPtr& consumer) {
-        size_t index = i++;
-        auto weakSelf = weak_from_this();
-        consumer->getBrokerConsumerStatsAsync([this, weakSelf, latchPtr, statsPtr, index, callback](
-                                                  Result result, const BrokerConsumerStats& stats) {
-            auto self = weakSelf.lock();
-            if (self) {
-                handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
-            }
-        });
+    auto indexPtr = std::make_shared<std::atomic<size_t>>(0);
+    auto weakSelf = weak_from_this();
+    consumers_.forEachValue([weakSelf, latchPtr, statsPtr, indexPtr, callback](const ConsumerImplPtr& consumer) {
+        size_t index = indexPtr->fetch_add(1);
+        consumer->getBrokerConsumerStatsAsync([weakSelf, latchPtr, statsPtr, index, callback](
+            Result result, const BrokerConsumerStats& stats) {
+                auto self = weakSelf.lock();
+                if (self) {
+                    self->handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
+                }
+            });
     });
 }
 
