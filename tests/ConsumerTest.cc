@@ -40,6 +40,7 @@
 #include "WaitUtils.h"
 #include "lib/ClientConnection.h"
 #include "lib/Future.h"
+#include "lib/Latch.h"
 #include "lib/LogUtils.h"
 #include "lib/MessageIdUtil.h"
 #include "lib/MultiTopicsConsumerImpl.h"

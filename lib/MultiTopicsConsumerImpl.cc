@@ -847,46 +847,45 @@ void MultiTopicsConsumerImpl::getBrokerConsumerStatsAsync(const BrokerConsumerSt
     Lock lock(mutex_);
     MultiTopicsBrokerConsumerStatsPtr statsPtr =
         std::make_shared<MultiTopicsBrokerConsumerStatsImpl>(numberTopicPartitions_->load());
-    LatchPtr latchPtr = std::make_shared<Latch>(numberTopicPartitions_->load());
+    auto latchPtr = std::make_shared<std::atomic_size_t>(numberTopicPartitions_->load());
     lock.unlock();
 
     size_t i = 0;
-    consumers_.forEachValue([this, &latchPtr, &statsPtr, &i, callback](const ConsumerImplPtr& consumer) {
-        size_t index = i++;
-        auto weakSelf = weak_from_this();
-        consumer->getBrokerConsumerStatsAsync([this, weakSelf, latchPtr, statsPtr, index, callback](
-                                                  Result result, const BrokerConsumerStats& stats) {
-            auto self = weakSelf.lock();
-            if (self) {
-                handleGetConsumerStats(result, stats, latchPtr, statsPtr, index, callback);
-            }
+    auto failedResult = std::make_shared<std::atomic<Result>>(ResultOk);
+    consumers_.forEachValue(
+        [this, &latchPtr, &statsPtr, &i, callback, &failedResult](const ConsumerImplPtr& consumer) {
+            size_t index = i++;
+            auto weakSelf = weak_from_this();
+            consumer->getBrokerConsumerStatsAsync(
+                [this, weakSelf, latchPtr, statsPtr, index, callback, failedResult](
+                    Result result, const BrokerConsumerStats& stats) {
+                    auto self = weakSelf.lock();
+                    if (!self) {
+                        return;
+                    }
+                    if (result == ResultOk) {
+                        std::lock_guard<std::mutex> lock{mutex_};
+                        statsPtr->add(stats, index);
+                    } else {
+                        // Store the first failed result as the final failed result
+                        auto expected = ResultOk;
+                        failedResult->compare_exchange_strong(expected, result);
+                    }
+                    if (--*latchPtr == 0) {
+                        if (auto firstFailedResult = failedResult->load(std::memory_order_acquire);
+                            firstFailedResult == ResultOk) {
+                            callback(ResultOk, BrokerConsumerStats{statsPtr});
+                        } else {
+                            // Fail the whole operation if any of the consumers failed
+                            callback(firstFailedResult, {});
+                        }
+                    }
+                });
         });
-    });
 }
 
 void MultiTopicsConsumerImpl::getLastMessageIdAsync(const BrokerGetLastMessageIdCallback& callback) {
     callback(ResultOperationNotSupported, GetLastMessageIdResponse());
-}
-
-void MultiTopicsConsumerImpl::handleGetConsumerStats(Result res,
-                                                     const BrokerConsumerStats& brokerConsumerStats,
-                                                     const LatchPtr& latchPtr,
-                                                     const MultiTopicsBrokerConsumerStatsPtr& statsPtr,
-                                                     size_t index,
-                                                     const BrokerConsumerStatsCallback& callback) {
-    Lock lock(mutex_);
-    if (res == ResultOk) {
-        latchPtr->countdown();
-        statsPtr->add(brokerConsumerStats, index);
-    } else {
-        lock.unlock();
-        callback(res, BrokerConsumerStats());
-        return;
-    }
-    if (latchPtr->getCount() == 0) {
-        lock.unlock();
-        callback(ResultOk, BrokerConsumerStats(statsPtr));
-    }
 }
 
 std::shared_ptr<TopicName> MultiTopicsConsumerImpl::topicNamesValid(const std::vector<std::string>& topics) {

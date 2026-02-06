@@ -219,6 +219,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         mockingRequests_.store(true, std::memory_order_release);
     }
 
+    void handleKeepAliveTimeout();
+
    private:
     struct PendingRequestData {
         Promise<Result, ResponseData> promise;
@@ -283,8 +285,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleLookupTimeout(const ASIO_ERROR&, const LookupRequestData&);
 
     void handleGetLastMessageIdTimeout(const ASIO_ERROR&, const LastMessageIdRequestData& data);
-
-    void handleKeepAliveTimeout();
 
     template <typename Handler>
     inline AllocHandler<Handler> customAllocReadHandler(Handler h) {

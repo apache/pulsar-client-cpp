@@ -75,11 +75,18 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
                              }
                          });
             }
-            schedule(connection, request + std::to_string(requestId), iter->second, [connection, requestId] {
-                proto::CommandSuccess success;
-                success.set_request_id(requestId);
-                connection->handleSuccess(success);
-            });
+            schedule(connection, request + std::to_string(requestId), iter->second,
+                     [connection, request, requestId] {
+                         if (request == "CONSUMER_STATS") {
+                             proto::CommandConsumerStatsResponse response;
+                             response.set_request_id(requestId);
+                             connection->handleConsumerStatsResponse(response);
+                         } else {
+                             proto::CommandSuccess success;
+                             success.set_request_id(requestId);
+                             connection->handleSuccess(success);
+                         }
+                     });
             return true;
         } else {
             return false;
