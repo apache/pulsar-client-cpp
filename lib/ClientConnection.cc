@@ -486,7 +486,7 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
             handleHandshake(ASIO_SUCCESS);
         }
     } else {
-        LOG_ERROR(cnxString_ << "Failed to establish connection: " << err.message());
+        LOG_ERROR(cnxString_ << "Failed to establish connection to " << endpoint.address().to_string() << ":" << endpoint.port() << ": " << err.message());
         if (err == ASIO::error::operation_aborted) {
             close();
         } else {
@@ -603,8 +603,17 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
         return;
     }
 
+    tcp::endpoint endpointToLog;
+    if (!results.empty()) {
+        endpointToLog = *results.begin();
+        LOG_DEBUG(cnxString_ << "Resolved " << results.size() << " endpoints");
+        for (const auto& endpoint : results) {
+            LOG_DEBUG(cnxString_ << "  " << endpoint.endpoint().address().to_string() << ":" << endpoint.endpoint().port());
+        }
+    }
+
     auto weakSelf = weak_from_this();
-    connectTimeoutTask_->setCallback([weakSelf](const PeriodicTask::ErrorCode& ec) {
+    connectTimeoutTask_->setCallback([weakSelf, endpointToLog](const PeriodicTask::ErrorCode& ec) {
         ClientConnectionPtr ptr = weakSelf.lock();
         if (!ptr) {
             // Connection was already destroyed
@@ -612,6 +621,11 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
         }
 
         if (ptr->state_ != Ready) {
+            if (endpointToLog.port() != 0) {
+                LOG_ERROR(ptr->cnxString_ << "Connection timeout to " << endpointToLog.address().to_string() << ":" << endpointToLog.port());
+            } else {
+                LOG_ERROR(ptr->cnxString_ << "Connection timeout to physical address " << ptr->physicalAddress_);
+            }
             LOG_ERROR(ptr->cnxString_ << "Connection was not established in "
                                       << ptr->connectTimeoutTask_->getPeriodMs() << " ms, close the socket");
             PeriodicTask::ErrorCode err;
@@ -1212,6 +1226,7 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
 void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec,
                                             const PendingRequestData& pendingRequestData) {
     if (!ec && !pendingRequestData.hasGotResponse->load()) {
+        LOG_WARN(cnxString_ << "Network request timeout to broker, remote: " << physicalAddress_);
         pendingRequestData.promise.setFailed(ResultTimeout);
     }
 }
@@ -1219,6 +1234,7 @@ void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec,
 void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec,
                                            const LookupRequestData& pendingRequestData) {
     if (!ec) {
+        LOG_WARN(cnxString_ << "Lookup request timeout to broker, remote: " << physicalAddress_);
         pendingRequestData.promise->setFailed(ResultTimeout);
     }
 }
@@ -1226,6 +1242,7 @@ void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec,
 void ClientConnection::handleGetLastMessageIdTimeout(const ASIO_ERROR& ec,
                                                      const ClientConnection::LastMessageIdRequestData& data) {
     if (!ec) {
+        LOG_WARN(cnxString_ << "GetLastMessageId request timeout to broker, remote: " << physicalAddress_);
         data.promise->setFailed(ResultTimeout);
     }
 }
