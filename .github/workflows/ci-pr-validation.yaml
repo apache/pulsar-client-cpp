@@ -154,8 +154,8 @@ jobs:
 
       - name: Verify custom vcpkg installation
         run: |
-          mv vcpkg /tmp/
-          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          mv vcpkg /tmp/vcpkg-custom
+          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg-custom/scripts/buildsystems/vcpkg.cmake"
 
   cpp20-build:
     name: Build with the C++20 standard
