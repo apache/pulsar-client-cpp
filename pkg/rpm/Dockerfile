@@ -38,4 +38,4 @@ RUN yum install -y cmake
 RUN dnf --enablerepo=devel install -y ninja-build
 
 # Dependencies when building OpenSSL
-RUN yum install -y perl-IPC-Cmd
+RUN yum install -y perl-IPC-Cmd kernel-headers
