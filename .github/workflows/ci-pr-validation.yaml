@@ -90,6 +90,13 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: build/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
       - name: Build the project
         run: |
           cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -116,6 +123,15 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/vcpkg_installed
+            build-boost-asio/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-
 
       - name: Build core libraries
         run: |
@@ -354,6 +370,13 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: build-osx/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-arm64-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-arm64-
 
       - name: Build libraries
         run: ./pkg/mac/build-static-library.sh
