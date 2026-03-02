@@ -2,6 +2,7 @@
   "name": "pulsar-cpp",
   "version": "4.1.0",
   "description": "Pulsar C++ SDK",
+  "builtin-baseline": "62159a45e18f3a9ac0548628dcaf74fcb60c6ff9",
   "dependencies": [
     {
       "name": "asio",
