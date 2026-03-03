@@ -68,6 +68,7 @@ jobs:
             ${{ env.VCPKG_ROOT }}/downloads
           key: ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: ${{ runner.os }}-${{ matrix.triplet }}-
+          save-always: true
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
