@@ -95,8 +95,13 @@ message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
 message("OPENSSL_LIBRARIES: " ${OPENSSL_LIBRARIES})
 
 if (LATEST_PROTOBUF)
-    # See https://github.com/apache/arrow/issues/35987
-    add_definitions(-DPROTOBUF_USE_DLLS)
+    if (NOT LINK_STATIC)
+        # Only needed when protobuf itself is a DLL; static builds must NOT define this
+        # because it marks symbols as __declspec(dllimport), causing LNK2019 when
+        # linking against a static libprotobuf.lib.
+        # See https://github.com/apache/arrow/issues/35987
+        add_definitions(-DPROTOBUF_USE_DLLS)
+    endif ()
     # Use Config mode to avoid FindProtobuf.cmake does not find the Abseil library
     find_package(Protobuf REQUIRED CONFIG)
 else ()
@@ -278,8 +283,8 @@ if (MSVC)
         wldap32.lib
         Normaliz.lib)
     if (LINK_STATIC)
-        # add external dependencies of libcurl
-        set(COMMON_LIBS ${COMMON_LIBS} ws2_32.lib crypt32.lib)
+        # add external dependencies of libcurl (iphlpapi for if_nametoindex)
+        set(COMMON_LIBS ${COMMON_LIBS} ws2_32.lib crypt32.lib iphlpapi.lib)
         # the default compile options have /MD, which cannot be used to build DLLs that link static libraries
         string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
         string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
