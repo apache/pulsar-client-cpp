@@ -868,6 +868,15 @@ void ProducerImpl::handleSendTimeout(const ASIO_ERROR& err) {
     }
 
     lock.unlock();
+    auto cnx = getCnx().lock();
+    if (cnx) {
+        LOG_WARN(getName() << "Send timeout due to queueing delay, connection: " << cnx->cnxString()
+                           << ", pending messages: " << pendingMessages.size()
+                           << ", queue size: " << pendingMessagesQueue_.size());
+    } else {
+        LOG_WARN(getName() << "Send timeout due to queueing delay, no connection, pending messages: "
+                           << pendingMessages.size() << ", queue size: " << pendingMessagesQueue_.size());
+    }
     for (const auto& op : pendingMessages) {
         op->complete(ResultTimeout, {});
     }
