@@ -60,13 +60,13 @@ void UnAckedMessageTrackerEnabled::timeoutHandlerHelper() {
     if (!headPartition.empty()) {
         auto cnx = consumerReference_.getCnx().lock();
         if (cnx) {
-            LOG_WARN(consumerReference_.getName() << " Unacked messages timeout: " << headPartition.size()
-                                                  << " messages not acked within " << timeoutMs_
-                                                  << " ms, connection: " << cnx->cnxString());
+            LOG_WARN(consumerReference_.getName()
+                     << " Unacked messages timeout: " << headPartition.size() << " messages not acked within "
+                     << timeoutMs_ << " ms, connection: " << cnx->cnxString());
         } else {
-            LOG_WARN(consumerReference_.getName() << " Unacked messages timeout: " << headPartition.size()
-                                                  << " messages not acked within " << timeoutMs_
-                                                  << " ms, no connection");
+            LOG_WARN(consumerReference_.getName()
+                     << " Unacked messages timeout: " << headPartition.size() << " messages not acked within "
+                     << timeoutMs_ << " ms, no connection");
         }
         for (auto it = headPartition.begin(); it != headPartition.end(); it++) {
             msgIdsToRedeliver.insert(*it);
