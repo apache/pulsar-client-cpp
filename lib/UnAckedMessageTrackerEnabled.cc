@@ -20,6 +20,7 @@
 
 #include <functional>
 
+#include "ClientConnection.h"
 #include "ClientImpl.h"
 #include "ConsumerImplBase.h"
 #include "ExecutorService.h"
@@ -57,9 +58,16 @@ void UnAckedMessageTrackerEnabled::timeoutHandlerHelper() {
 
     std::set<MessageId> msgIdsToRedeliver;
     if (!headPartition.empty()) {
-        LOG_INFO(consumerReference_.getName().c_str()
-                 << ": " << headPartition.size() << " Messages were not acked within "
-                 << timePartitions.size() * tickDurationInMs_ << " time");
+        auto cnx = consumerReference_.getCnx().lock();
+        if (cnx) {
+            LOG_WARN(consumerReference_.getName() << " Unacked messages timeout: " << headPartition.size()
+                                                  << " messages not acked within " << timeoutMs_
+                                                  << " ms, connection: " << cnx->cnxString());
+        } else {
+            LOG_WARN(consumerReference_.getName() << " Unacked messages timeout: " << headPartition.size()
+                                                  << " messages not acked within " << timeoutMs_
+                                                  << " ms, no connection");
+        }
         for (auto it = headPartition.begin(); it != headPartition.end(); it++) {
             msgIdsToRedeliver.insert(*it);
             messageIdPartitionMap.erase(*it);

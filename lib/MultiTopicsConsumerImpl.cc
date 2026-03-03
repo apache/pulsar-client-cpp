@@ -21,6 +21,7 @@
 #include <chrono>
 #include <stdexcept>
 
+#include "ClientConnection.h"
 #include "ClientImpl.h"
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
@@ -599,6 +600,14 @@ Result MultiTopicsConsumerImpl::receive(Message& msg, int timeout) {
     } else {
         if (state_ != Ready) {
             return ResultAlreadyClosed;
+        }
+        auto cnx = getCnx().lock();
+        if (cnx) {
+            LOG_WARN(getName() << " Receive timeout after " << timeout << " ms, connection: " << cnx->cnxString()
+                              << ", queue size: " << incomingMessages_.size());
+        } else {
+            LOG_WARN(getName() << " Receive timeout after " << timeout << " ms, no connection, queue size: "
+                              << incomingMessages_.size());
         }
         return ResultTimeout;
     }
