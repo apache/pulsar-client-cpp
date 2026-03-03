@@ -242,12 +242,25 @@ jobs:
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        shell: pwsh
         run: |
           cd ${{ github.workspace }}
-          mkdir build -force
-          git clone https://github.com/Microsoft/vcpkg.git
-          cd vcpkg
-          .\bootstrap-vcpkg.bat
+          mkdir build -Force
+          # If vcpkg.exe already exists, skip bootstrapping to save time and avoid
+          # modifying the checked-out vcpkg directory.
+          if (Test-Path "${{ github.workspace }}\\vcpkg\\vcpkg.exe") {
+            Write-Host "vcpkg.exe present — skipping bootstrap"
+          } else {
+            if (Test-Path vcpkg) {
+              # If vcpkg was checked out as a submodule it may be shallow; fetch full history
+              git -C vcpkg fetch --unshallow || true
+            } else {
+              git clone https://github.com/Microsoft/vcpkg.git
+            }
+            Push-Location vcpkg
+            .\bootstrap-vcpkg.bat
+            Pop-Location
+          }
 
       - name: remove system vcpkg(windows)
         if: runner.os == 'Windows'
