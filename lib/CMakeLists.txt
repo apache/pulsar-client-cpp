@@ -164,6 +164,12 @@ if (LINK_STATIC AND BUILD_STATIC_LIB)
                     list(APPEND _vcpkg_static_libs "${_rlib}")
                 endif ()
             endforeach ()
+            # Also merge Windows system DLL import libs so pulsarWithDeps.lib is fully
+            # self-contained. lib.exe carries the import records into the archive; the
+            # final linker then resolves DLL deps without the user listing them.
+            # lib.exe finds these by name via the LIB env var set up by MSBuild/MSVC.
+            list(APPEND _vcpkg_static_libs
+                ws2_32.lib crypt32.lib wldap32.lib Normaliz.lib iphlpapi.lib)
             set_property(TARGET pulsarStaticWithDeps PROPERTY STATIC_LIBRARY_OPTIONS ${_vcpkg_static_libs})
         else ()
             # Non-vcpkg MSVC static build: resolve COMMON_LIBS entries for lib.exe.
