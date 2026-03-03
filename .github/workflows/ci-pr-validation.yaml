@@ -58,7 +58,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Restore vcpkg and its artifacts.
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: vcpkg-cache
         with:
           path: |
@@ -68,8 +68,8 @@ jobs:
             !${{ env.VCPKG_ROOT }}/buildtrees
             !${{ env.VCPKG_ROOT }}/packages
             !${{ env.VCPKG_ROOT }}/downloads
-          key: |
-            ${{ runner.os }}-${{ matrix.triplet}}-${{ hashFiles( 'vcpkg.json' ) }}
+          key: ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: ${{ runner.os }}-${{ matrix.triplet }}-
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
