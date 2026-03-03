@@ -222,8 +222,9 @@ jobs:
             arch: '-A Win32'
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Restore vcpkg and its artifacts.
         uses: actions/cache@v4
@@ -232,10 +233,11 @@ jobs:
         with:
           path: |
             ${{ github.workspace }}/vcpkg_installed
-            ${{ env.VCPKG_ROOT }}/installed
             ${{ env.VCPKG_ROOT }}/downloads
-          key: ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles('vcpkg.json') }}
-          restore-keys: ${{ runner.os }}-${{ matrix.triplet }}-
+            ${{ env.VCPKG_ROOT }}/vcpkg.exe
+          key: ${{ runner.os }}-${{ matrix.triplet }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.triplet }}-vcpkg-
           save-always: true
 
       - name: Get vcpkg(windows)
