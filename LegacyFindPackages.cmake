@@ -51,6 +51,10 @@ if (APPLE AND NOT LINK_STATIC)
     # The latest Protobuf dependency on macOS requires the C++17 support and
     # it could only be found by the CONFIG mode
     set(LATEST_PROTOBUF TRUE)
+elseif (MSVC AND VCPKG_TRIPLET)
+    # protobuf >= 6.x on Windows with vcpkg requires CONFIG mode to resolve
+    # the protobuf::libprotobuf CMake target and its abseil dependencies
+    set(LATEST_PROTOBUF TRUE)
 else ()
     set(LATEST_PROTOBUF FALSE)
 endif ()
@@ -127,8 +131,10 @@ if (LINK_STATIC AND NOT VCPKG_TRIPLET)
         add_definitions(-DCURL_STATICLIB)
     endif()
 elseif (LINK_STATIC AND VCPKG_TRIPLET)
-    find_package(Protobuf REQUIRED)
-    message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    if (NOT LATEST_PROTOBUF)
+        find_package(Protobuf REQUIRED)
+        message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    endif ()
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(ZLIB_LIBRARIES NAMES zlibd)
     else ()
@@ -278,6 +284,23 @@ if (MSVC)
         message(STATUS "CMAKE_CXX_FLAGS_DEBUG: " ${CMAKE_CXX_FLAGS_DEBUG})
         message(STATUS "CMAKE_CXX_FLAGS_RELEASE: " ${CMAKE_CXX_FLAGS_RELEASE})
         message(STATUS "CMAKE_CXX_FLAGS_RELWITHDEBINFO: " ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    endif ()
+    if (VCPKG_TRIPLET)
+        # protobuf >= 6.x requires abseil; link it explicitly since MSVC static
+        # linking does not resolve transitive dependencies automatically
+        find_package(absl CONFIG REQUIRED)
+        set(COMMON_LIBS ${COMMON_LIBS}
+            absl::base
+            absl::log
+            absl::log_internal_message
+            absl::log_internal_check_op
+            absl::status
+            absl::statusor
+            absl::strings
+            absl::str_format
+            absl::time
+            absl::synchronization
+            absl::cord)
     endif ()
 else()
     set(COMMON_LIBS ${COMMON_LIBS} m)
