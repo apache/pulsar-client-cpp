@@ -23,13 +23,21 @@ if (VCPKG_TRIPLET)
     set(CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
     message(STATUS "Use CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
     set(PROTOC_PATH "${CMAKE_PREFIX_PATH}/tools/protobuf/protoc")
-    if (MSVC AND VCPKG_TRIPLET MATCHES ".*-static")
-        # vcpkg installs host executables (protoc, etc.) in the non-static triplet's
-        # tools directory. Derive it by stripping "-static" from the triplet name.
-        string(REPLACE "-static" "" VCPKG_HOST_TRIPLET "${VCPKG_TRIPLET}")
-        set(PROTOC_PATH "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_HOST_TRIPLET}/tools/protobuf/protoc")
+    if (MSVC)
+        # vcpkg host tools (protoc, etc.) are always built for the host machine
+        # architecture (x64 on GitHub Actions), regardless of the target triplet.
+        # Use find_program to locate protoc.exe across known host tool paths.
+        find_program(PROTOC_PATH NAMES protoc.exe
+            PATHS
+                "${PROJECT_SOURCE_DIR}/vcpkg_installed/x64-windows/tools/protobuf"
+                "${PROJECT_SOURCE_DIR}/vcpkg_installed/arm64-windows/tools/protobuf"
+                "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}/tools/protobuf"
+            NO_DEFAULT_PATH)
+        if (NOT PROTOC_PATH)
+            set(PROTOC_PATH "${CMAKE_PREFIX_PATH}/tools/protobuf/protoc.exe")
+        endif ()
         # Set the cache variable so protobuf's CMake module compatibility shim finds it
-        set(Protobuf_PROTOC_EXECUTABLE "${PROTOC_PATH}.exe" CACHE FILEPATH "protoc executable" FORCE)
+        set(Protobuf_PROTOC_EXECUTABLE "${PROTOC_PATH}" CACHE FILEPATH "protoc executable" FORCE)
     endif ()
     message(STATUS "Use protoc: ${PROTOC_PATH}")
     set(VCPKG_ROOT "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
