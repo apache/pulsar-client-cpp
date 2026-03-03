@@ -622,7 +622,8 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
     }
 
     auto weakSelf = weak_from_this();
-    connectTimeoutTask_->setCallback([weakSelf, results = tcp::resolver::results_type(results)](const PeriodicTask::ErrorCode& ec) {
+    connectTimeoutTask_->setCallback([weakSelf, results = tcp::resolver::results_type(results)](
+                                         const PeriodicTask::ErrorCode& ec) {
         ClientConnectionPtr ptr = weakSelf.lock();
         if (!ptr) {
             LOG_DEBUG("Connect timeout callback skipped: connection was already destroyed");

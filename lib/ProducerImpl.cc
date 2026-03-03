@@ -874,8 +874,8 @@ void ProducerImpl::handleSendTimeout(const ASIO_ERROR& err) {
                            << ", pending messages: " << pendingMessages.size()
                            << ", queue size: " << pendingMessagesQueue_.size());
     } else {
-        LOG_WARN(getName() << "Send timeout due to queueing delay, no connection, pending messages: " << pendingMessages.size()
-                           << ", queue size: " << pendingMessagesQueue_.size());
+        LOG_WARN(getName() << "Send timeout due to queueing delay, no connection, pending messages: "
+                           << pendingMessages.size() << ", queue size: " << pendingMessagesQueue_.size());
     }
     for (const auto& op : pendingMessages) {
         op->complete(ResultTimeout, {});
