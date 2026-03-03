@@ -56,6 +56,16 @@ using namespace ASIO::ip;
 
 namespace pulsar {
 
+namespace {
+static std::ostream& operator<<(std::ostream& os, const tcp::resolver::results_type& results) {
+    for (const auto& entry : results) {
+        const auto& ep = entry.endpoint();
+        os << ep.address().to_string() << ":" << ep.port() << " ";
+    }
+    return os;
+}
+}  // anonymous namespace
+
 using proto::BaseCommand;
 
 static const uint32_t DefaultBufferSize = 64 * 1024;
@@ -486,7 +496,7 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
             handleHandshake(ASIO_SUCCESS);
         }
     } else {
-        LOG_ERROR(cnxString_ << "Failed to establish connection to " << endpoint.address().to_string() << ":" << endpoint.port() << ": " << err.message());
+        LOG_ERROR(cnxString_ << "Failed to establish connection to " << endpoint << ": " << err.message());
         if (err == ASIO::error::operation_aborted) {
             close();
         } else {
@@ -603,30 +613,24 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
         return;
     }
 
-    tcp::endpoint endpointToLog;
     if (!results.empty()) {
-        endpointToLog = *results.begin();
         LOG_DEBUG(cnxString_ << "Resolved " << results.size() << " endpoints");
-        for (const auto& endpoint : results) {
-            LOG_DEBUG(cnxString_ << "  " << endpoint.endpoint().address().to_string() << ":" << endpoint.endpoint().port());
+        for (const auto& entry : results) {
+            const auto& ep = entry.endpoint();
+            LOG_DEBUG(cnxString_ << "  " << ep.address().to_string() << ":" << ep.port());
         }
     }
 
     auto weakSelf = weak_from_this();
-    connectTimeoutTask_->setCallback([weakSelf, endpointToLog](const PeriodicTask::ErrorCode& ec) {
+    connectTimeoutTask_->setCallback([weakSelf, results = tcp::resolver::results_type(results)](const PeriodicTask::ErrorCode& ec) {
         ClientConnectionPtr ptr = weakSelf.lock();
         if (!ptr) {
-            // Connection was already destroyed
+            LOG_DEBUG("Connect timeout callback skipped: connection was already destroyed");
             return;
         }
 
         if (ptr->state_ != Ready) {
-            if (endpointToLog.port() != 0) {
-                LOG_ERROR(ptr->cnxString_ << "Connection timeout to " << endpointToLog.address().to_string() << ":" << endpointToLog.port());
-            } else {
-                LOG_ERROR(ptr->cnxString_ << "Connection timeout to physical address " << ptr->physicalAddress_);
-            }
-            LOG_ERROR(ptr->cnxString_ << "Connection was not established in "
+            LOG_ERROR(ptr->cnxString_ << "Connection to " << results << " was not established in "
                                       << ptr->connectTimeoutTask_->getPeriodMs() << " ms, close the socket");
             PeriodicTask::ErrorCode err;
             ptr->socket_->close(err);
