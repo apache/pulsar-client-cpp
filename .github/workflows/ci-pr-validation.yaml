@@ -60,14 +60,12 @@ jobs:
       - name: Restore vcpkg and its artifacts.
         uses: actions/cache@v4
         id: vcpkg-cache
+        continue-on-error: true
         with:
           path: |
-            ${{ env.VCPKG_ROOT }}
-            vcpkg_installed
-            !${{ env.VCPKG_ROOT }}/.git
-            !${{ env.VCPKG_ROOT }}/buildtrees
-            !${{ env.VCPKG_ROOT }}/packages
-            !${{ env.VCPKG_ROOT }}/downloads
+            ${{ github.workspace }}/vcpkg_installed
+            ${{ env.VCPKG_ROOT }}/installed
+            ${{ env.VCPKG_ROOT }}/downloads
           key: ${{ runner.os }}-${{ matrix.triplet }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: ${{ runner.os }}-${{ matrix.triplet }}-
 
