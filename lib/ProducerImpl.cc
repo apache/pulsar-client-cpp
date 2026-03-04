@@ -937,7 +937,8 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
     const uint64_t expectedLastSequenceId = expectedFirstSequenceId + op.messagesCount - 1;
     // Broker may ack with either the first or the last sequence id of the batch.
     if (sequenceId > expectedLastSequenceId) {
-        LOG_WARN(getName() << "Got ack for msg " << sequenceId << " expecting last: " << expectedLastSequenceId
+        LOG_WARN(getName() << "Got ack for msg " << sequenceId
+                           << " expecting last: " << expectedLastSequenceId
                            << " queue size=" << pendingMessagesQueue_.size() << " producer: " << producerId_);
         return false;
     }
