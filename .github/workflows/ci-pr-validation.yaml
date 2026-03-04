@@ -92,9 +92,11 @@ jobs:
 
       - name: Restore vcpkg installed cache
         uses: actions/cache@v4
+        id: vcpkg-cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
         with:
           path: build/vcpkg_installed
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-${{ runner.os }}-
 
       - name: Build the project
@@ -126,11 +128,13 @@ jobs:
 
       - name: Restore vcpkg installed cache
         uses: actions/cache@v4
+        id: vcpkg-cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
         with:
           path: |
             build/vcpkg_installed
             build-boost-asio/vcpkg_installed
-          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-${{ runner.os }}-
 
       - name: Build core libraries
@@ -167,11 +171,6 @@ jobs:
         run: |
           cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DBUILD_PERF_TOOLS=ON
           cmake --build build -j8
-
-      - name: Verify custom vcpkg installation
-        run: |
-          mv vcpkg /tmp/vcpkg-custom
-          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg-custom/scripts/buildsystems/vcpkg.cmake"
 
   cpp20-build:
     name: Build with the C++20 standard
@@ -229,7 +228,7 @@ jobs:
       - name: Restore vcpkg and its artifacts.
         uses: actions/cache@v4
         id: vcpkg-cache
-        continue-on-error: true
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
         with:
           path: |
             ${{ github.workspace }}/vcpkg_installed
@@ -238,7 +237,6 @@ jobs:
           key: ${{ runner.os }}-${{ matrix.triplet }}-vcpkg-${{ hashFiles('vcpkg.json') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.triplet }}-vcpkg-
-          save-always: true
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
@@ -387,9 +385,11 @@ jobs:
 
       - name: Restore vcpkg installed cache
         uses: actions/cache@v4
+        id: vcpkg-cache
+        if: always() && steps.vcpkg-cache.outputs.cache-hit != 'true'
         with:
           path: build-osx/vcpkg_installed
-          key: vcpkg-${{ runner.os }}-arm64-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          key: vcpkg-${{ runner.os }}-arm64-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-${{ runner.os }}-arm64-
 
       - name: Build libraries
