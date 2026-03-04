@@ -41,6 +41,7 @@ else ()
     set(PULSAR_SOURCES ${PULSAR_SOURCES} ${PROTO_SOURCES})
     ADD_CUSTOM_COMMAND(
              OUTPUT ${PROTO_SOURCES}
+             COMMAND ${CMAKE_COMMAND} -E echo "Generating PulsarApi.pb.cc/h with: ${PROTOC_PATH} -I ../proto ../proto/PulsarApi.proto --cpp_out=${LIB_AUTOGEN_DIR}"
              COMMAND ${PROTOC_PATH} -I ../proto ../proto/PulsarApi.proto --cpp_out=${LIB_AUTOGEN_DIR}
              DEPENDS
              ../proto/PulsarApi.proto
