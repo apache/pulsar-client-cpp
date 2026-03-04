@@ -170,7 +170,7 @@ TEST(TlsNegotiationTest, testTls13) {
 
     Client client(serviceUrl, config);
 
-    client.createProducerAsync("topic", [](Result, Producer) {});
+    client.createProducerAsync("topic", [](auto, const auto&) {});
 
     ASSERT_TRUE(handshakeFuture.get());
 
