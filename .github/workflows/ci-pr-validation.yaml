@@ -90,6 +90,13 @@ jobs:
           fetch-depth: 0
           submodules: recursive
 
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: build/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-
+
       - name: Build the project
         run: |
           cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
@@ -116,6 +123,15 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/vcpkg_installed
+            build-boost-asio/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-
 
       - name: Build core libraries
         run: |
@@ -154,8 +170,8 @@ jobs:
 
       - name: Verify custom vcpkg installation
         run: |
-          mv vcpkg /tmp/
-          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg/scripts/buildsystems/vcpkg.cmake"
+          mv vcpkg /tmp/vcpkg-custom
+          cmake -B build-2 -DINTEGRATE_VCPKG=ON -DCMAKE_TOOLCHAIN_FILE="/tmp/vcpkg-custom/scripts/buildsystems/vcpkg.cmake"
 
   cpp20-build:
     name: Build with the C++20 standard
@@ -206,31 +222,45 @@ jobs:
             arch: '-A Win32'
 
     steps:
-      - name: checkout
-        uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
 
       - name: Restore vcpkg and its artifacts.
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         id: vcpkg-cache
+        continue-on-error: true
         with:
           path: |
-            ${{ env.VCPKG_ROOT }}
-            vcpkg_installed
-            !${{ env.VCPKG_ROOT }}/.git
-            !${{ env.VCPKG_ROOT }}/buildtrees
-            !${{ env.VCPKG_ROOT }}/packages
-            !${{ env.VCPKG_ROOT }}/downloads
-          key: |
-            ${{ runner.os }}-${{ matrix.triplet}}-${{ hashFiles( 'vcpkg.json' ) }}
+            ${{ github.workspace }}/vcpkg_installed
+            ${{ env.VCPKG_ROOT }}/downloads
+            ${{ env.VCPKG_ROOT }}/vcpkg.exe
+          key: ${{ runner.os }}-${{ matrix.triplet }}-vcpkg-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.triplet }}-vcpkg-
+          save-always: true
 
       - name: Get vcpkg(windows)
         if: ${{ runner.os == 'Windows' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        shell: pwsh
         run: |
           cd ${{ github.workspace }}
-          mkdir build -force
-          git clone https://github.com/Microsoft/vcpkg.git
-          cd vcpkg
-          .\bootstrap-vcpkg.bat
+          mkdir build -Force
+          # If vcpkg.exe already exists, skip bootstrapping to save time and avoid
+          # modifying the checked-out vcpkg directory.
+          if (Test-Path "${{ github.workspace }}\\vcpkg\\vcpkg.exe") {
+            Write-Host "vcpkg.exe present — skipping bootstrap"
+          } else {
+            if (Test-Path vcpkg) {
+              # If vcpkg was checked out as a submodule it may be shallow; fetch full history
+              git -C vcpkg fetch --unshallow || true
+            } else {
+              git clone https://github.com/Microsoft/vcpkg.git
+            }
+            Push-Location vcpkg
+            .\bootstrap-vcpkg.bat
+            Pop-Location
+          }
 
       - name: remove system vcpkg(windows)
         if: runner.os == 'Windows'
@@ -354,6 +384,13 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Restore vcpkg installed cache
+        uses: actions/cache@v4
+        with:
+          path: build-osx/vcpkg_installed
+          key: vcpkg-${{ runner.os }}-arm64-${{ hashFiles('vcpkg.json', 'CMakeLists.txt', 'vcpkg-triplets/**') }}
+          restore-keys: vcpkg-${{ runner.os }}-arm64-
 
       - name: Build libraries
         run: ./pkg/mac/build-static-library.sh

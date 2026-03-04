@@ -45,6 +45,7 @@ for ITEM in $ITEMS; do
     cd ..
 done
 
+rm -f $MERGED_LIBRARY
 ar -qc $MERGED_LIBRARY $LIBS
 
 

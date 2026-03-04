@@ -27,12 +27,19 @@ if [[ $# -lt 1 ]]; then
 fi
 
 CMAKE_BUILD_DIRECTORY=$1
+
+# libprotoc.a is the protobuf compiler (protoc) tool library, not the runtime.
+# It pulls in google::protobuf::compiler::java::* and absl debugging/VDSO symbols
+# that are not needed by client code and cannot be satisfied without additional deps.
+# libprotobuf-lite.a is a subset of libprotobuf.a and causes duplicate symbols.
+EXCLUDE_PATTERN="libprotoc.a\|libprotobuf-lite.a"
+
 if [[ $VCPKG_TRIPLET ]]; then
     ./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
         $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
-        $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed/$VCPKG_TRIPLET" -name "*.a" | grep -v debug)
+        $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed/$VCPKG_TRIPLET" -name "*.a" | grep -v '/debug/' | grep -v "$EXCLUDE_PATTERN")
 else
     ./merge_archives.sh $CMAKE_BUILD_DIRECTORY/libpulsarwithdeps.a \
         $CMAKE_BUILD_DIRECTORY/lib/libpulsar.a \
-        $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed" -name "*.a" | grep -v debug)
+        $(find "$CMAKE_BUILD_DIRECTORY/vcpkg_installed" -name "*.a" | grep -v '/debug/' | grep -v "$EXCLUDE_PATTERN")
 fi

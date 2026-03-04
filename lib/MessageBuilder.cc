@@ -149,11 +149,11 @@ MessageBuilder& MessageBuilder::setReplicationClusters(const std::vector<std::st
 
 MessageBuilder& MessageBuilder::disableReplication(bool flag) {
     checkMetadata();
-    google::protobuf::RepeatedPtrField<std::string> r;
+    google::protobuf::RepeatedPtrField<std::string>* replicateTo = impl_->metadata.mutable_replicate_to();
+    replicateTo->Clear();
     if (flag) {
-        r.AddAllocated(new std::string("__local__"));
+        replicateTo->Add("__local__");
     }
-    r.Swap(impl_->metadata.mutable_replicate_to());
     return *this;
 }
 

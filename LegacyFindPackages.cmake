@@ -23,6 +23,22 @@ if (VCPKG_TRIPLET)
     set(CMAKE_PREFIX_PATH "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
     message(STATUS "Use CMAKE_PREFIX_PATH: ${CMAKE_PREFIX_PATH}")
     set(PROTOC_PATH "${CMAKE_PREFIX_PATH}/tools/protobuf/protoc")
+    if (MSVC)
+        # vcpkg host tools (protoc, etc.) are always built for the host machine
+        # architecture (x64 on GitHub Actions), regardless of the target triplet.
+        # Use find_program to locate protoc.exe across known host tool paths.
+        find_program(PROTOC_PATH NAMES protoc.exe
+            PATHS
+                "${PROJECT_SOURCE_DIR}/vcpkg_installed/x64-windows/tools/protobuf"
+                "${PROJECT_SOURCE_DIR}/vcpkg_installed/arm64-windows/tools/protobuf"
+                "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}/tools/protobuf"
+            NO_DEFAULT_PATH)
+        if (NOT PROTOC_PATH)
+            set(PROTOC_PATH "${CMAKE_PREFIX_PATH}/tools/protobuf/protoc.exe")
+        endif ()
+        # Set the cache variable so protobuf's CMake module compatibility shim finds it
+        set(Protobuf_PROTOC_EXECUTABLE "${PROTOC_PATH}" CACHE FILEPATH "protoc executable" FORCE)
+    endif ()
     message(STATUS "Use protoc: ${PROTOC_PATH}")
     set(VCPKG_ROOT "${PROJECT_SOURCE_DIR}/vcpkg_installed/${VCPKG_TRIPLET}")
     set(VCPKG_DEBUG_ROOT "${VCPKG_ROOT}/debug")
@@ -50,6 +66,10 @@ set(Boost_NO_BOOST_CMAKE ON)
 if (APPLE AND NOT LINK_STATIC)
     # The latest Protobuf dependency on macOS requires the C++17 support and
     # it could only be found by the CONFIG mode
+    set(LATEST_PROTOBUF TRUE)
+elseif (MSVC AND VCPKG_TRIPLET)
+    # protobuf >= 6.x on Windows with vcpkg requires CONFIG mode to resolve
+    # the protobuf::libprotobuf CMake target and its abseil dependencies
     set(LATEST_PROTOBUF TRUE)
 else ()
     set(LATEST_PROTOBUF FALSE)
@@ -83,8 +103,13 @@ message("OPENSSL_INCLUDE_DIR: " ${OPENSSL_INCLUDE_DIR})
 message("OPENSSL_LIBRARIES: " ${OPENSSL_LIBRARIES})
 
 if (LATEST_PROTOBUF)
-    # See https://github.com/apache/arrow/issues/35987
-    add_definitions(-DPROTOBUF_USE_DLLS)
+    if (NOT LINK_STATIC)
+        # Only needed when protobuf itself is a DLL; static builds must NOT define this
+        # because it marks symbols as __declspec(dllimport), causing LNK2019 when
+        # linking against a static libprotobuf.lib.
+        # See https://github.com/apache/arrow/issues/35987
+        add_definitions(-DPROTOBUF_USE_DLLS)
+    endif ()
     # Use Config mode to avoid FindProtobuf.cmake does not find the Abseil library
     find_package(Protobuf REQUIRED CONFIG)
 else ()
@@ -127,8 +152,10 @@ if (LINK_STATIC AND NOT VCPKG_TRIPLET)
         add_definitions(-DCURL_STATICLIB)
     endif()
 elseif (LINK_STATIC AND VCPKG_TRIPLET)
-    find_package(Protobuf REQUIRED)
-    message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    if (NOT LATEST_PROTOBUF)
+        find_package(Protobuf REQUIRED)
+        message(STATUS "Found protobuf static library: " ${Protobuf_LIBRARIES})
+    endif ()
     if (MSVC AND (${CMAKE_BUILD_TYPE} STREQUAL Debug))
         find_library(ZLIB_LIBRARIES NAMES zlibd)
     else ()
@@ -264,8 +291,8 @@ if (MSVC)
         wldap32.lib
         Normaliz.lib)
     if (LINK_STATIC)
-        # add external dependencies of libcurl
-        set(COMMON_LIBS ${COMMON_LIBS} ws2_32.lib crypt32.lib)
+        # add external dependencies of libcurl (iphlpapi for if_nametoindex)
+        set(COMMON_LIBS ${COMMON_LIBS} ws2_32.lib crypt32.lib iphlpapi.lib)
         # the default compile options have /MD, which cannot be used to build DLLs that link static libraries
         string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_DEBUG ${CMAKE_CXX_FLAGS_DEBUG})
         string(REGEX REPLACE "/MD" "/MT" CMAKE_CXX_FLAGS_RELEASE ${CMAKE_CXX_FLAGS_RELEASE})
@@ -278,6 +305,23 @@ if (MSVC)
         message(STATUS "CMAKE_CXX_FLAGS_DEBUG: " ${CMAKE_CXX_FLAGS_DEBUG})
         message(STATUS "CMAKE_CXX_FLAGS_RELEASE: " ${CMAKE_CXX_FLAGS_RELEASE})
         message(STATUS "CMAKE_CXX_FLAGS_RELWITHDEBINFO: " ${CMAKE_CXX_FLAGS_RELWITHDEBINFO})
+    endif ()
+    if (VCPKG_TRIPLET)
+        # protobuf >= 6.x requires abseil; link it explicitly since MSVC static
+        # linking does not resolve transitive dependencies automatically
+        find_package(absl CONFIG REQUIRED)
+        set(COMMON_LIBS ${COMMON_LIBS}
+            absl::base
+            absl::log
+            absl::log_internal_message
+            absl::log_internal_check_op
+            absl::status
+            absl::statusor
+            absl::strings
+            absl::str_format
+            absl::time
+            absl::synchronization
+            absl::cord)
     endif ()
 else()
     set(COMMON_LIBS ${COMMON_LIBS} m)

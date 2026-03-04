@@ -34,22 +34,6 @@ else
     exit 1
 fi
 
-# Apply the patch to support building libcurl with IPv6 disabled
-COMMIT_ID=$(grep "builtin-baseline" vcpkg.json | sed 's/"//g' | sed 's/,//' | awk '{print $2}')
-cd vcpkg
-git reset --hard $COMMIT_ID
-git apply ../pkg/mac/vcpkg-curl-patch.diff
-git add ports/curl
-git commit -m "Disable IPv6 for macOS in curl"
-./bootstrap-vcpkg.sh
-./vcpkg x-add-version --all
-git add versions/
-git commit -m "Update version"
-COMMIT_ID=$(git log --pretty=oneline | head -n 1 | awk '{print $1}')
-cd ..
-sed -i.bak "s/.*builtin-baseline.*/  \"builtin-baseline\": \"$COMMIT_ID\",/" vcpkg.json
-sed -i.bak "s/\"version>=\": \"8\.13\.0#1\"/\"version>=\": \"8.13.0#2\"/" vcpkg.json
-
 INSTALL_DIR=$PWD/pkg/mac/.install
 set -x
 cmake -B build-osx \
@@ -72,5 +56,6 @@ cp ./build-osx/libpulsarwithdeps.a $INSTALL_DIR/lib/
 # Test the libraries
 clang++ win-examples/example.cc -o dynamic.out -std=c++17 -arch $ARCH -I $INSTALL_DIR/include -L $INSTALL_DIR/lib -Wl,-rpath $INSTALL_DIR/lib -lpulsar
 ./dynamic.out
-clang++ win-examples/example.cc -o static.out -std=c++17 -arch $ARCH -I $INSTALL_DIR/include $INSTALL_DIR/lib/libpulsarwithdeps.a
+clang++ win-examples/example.cc -o static.out -std=c++17 -arch $ARCH -I $INSTALL_DIR/include $INSTALL_DIR/lib/libpulsarwithdeps.a \
+    -framework CoreFoundation -framework SystemConfiguration
 ./static.out

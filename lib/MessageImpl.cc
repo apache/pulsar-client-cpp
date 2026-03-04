@@ -61,11 +61,11 @@ void MessageImpl::setReplicationClusters(const std::vector<std::string>& cluster
 }
 
 void MessageImpl::disableReplication(bool flag) {
-    google::protobuf::RepeatedPtrField<std::string> r;
+    google::protobuf::RepeatedPtrField<std::string>* replicateTo = metadata.mutable_replicate_to();
+    replicateTo->Clear();
     if (flag) {
-        r.AddAllocated(new std::string("__local__"));
+        replicateTo->Add("__local__");
     }
-    r.Swap(metadata.mutable_replicate_to());
 }
 
 void MessageImpl::setProperty(const std::string& name, const std::string& value) {

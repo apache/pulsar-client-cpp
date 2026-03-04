@@ -127,6 +127,7 @@ if (INTEGRATE_VCPKG)
     find_package(ZLIB REQUIRED)
     find_package(OpenSSL REQUIRED)
     find_package(protobuf CONFIG REQUIRED)
+    find_package(absl CONFIG REQUIRED)
     find_package(zstd CONFIG REQUIRED)
     find_package(Snappy CONFIG REQUIRED)
     set(COMMON_LIBS CURL::libcurl
@@ -134,6 +135,17 @@ if (INTEGRATE_VCPKG)
         OpenSSL::SSL
         OpenSSL::Crypto
         protobuf::libprotobuf
+        absl::base
+        absl::log
+        absl::log_internal_message
+        absl::log_internal_check_op
+        absl::status
+        absl::statusor
+        absl::strings
+        absl::str_format
+        absl::time
+        absl::synchronization
+        absl::cord
         $<IF:$<TARGET_EXISTS:zstd::libzstd_shared>,zstd::libzstd_shared,zstd::libzstd_static>
         Snappy::snappy
         )

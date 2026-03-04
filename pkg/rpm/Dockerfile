@@ -38,4 +38,5 @@ RUN yum install -y cmake
 RUN dnf --enablerepo=devel install -y ninja-build
 
 # Dependencies when building OpenSSL
-RUN yum install -y perl-IPC-Cmd
+# OpenSSL 3.6.1 requires the Time::Piece Perl module (packaged separately on EL8)
+RUN yum install -y perl-IPC-Cmd perl-Time-Piece

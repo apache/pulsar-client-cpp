@@ -21,15 +21,10 @@
 #include <assert.h>
 #include <curl/curl.h>
 
+#include <mutex>
 #include <string>
 
 namespace pulsar {
-
-struct CurlInitializer {
-    CurlInitializer() { curl_global_init(CURL_GLOBAL_ALL); }
-    ~CurlInitializer() { curl_global_cleanup(); }
-};
-static CurlInitializer curlInitializer;
 
 class CurlWrapper {
    public:
@@ -47,6 +42,8 @@ class CurlWrapper {
 
     // It must be called before calling other methods
     bool init() {
+        static std::once_flag initFlag;
+        std::call_once(initFlag, [] { curl_global_init(CURL_GLOBAL_ALL); });
         handle_ = curl_easy_init();
         return handle_ != nullptr;
     }
