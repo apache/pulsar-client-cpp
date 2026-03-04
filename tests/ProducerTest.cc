@@ -441,6 +441,44 @@ TEST_P(ProducerTest, testFlushNoBatch) {
     client.close();
 }
 
+// Verifies that getLastSequenceId() is correct after sendAsync + flush when batching is enabled.
+// Previously the batch used the last message's sequence_id, causing lastSequenceIdPublished_ to be
+// doubled (e.g. 3 messages yielded 4 instead of 2). The batch must use the first message's
+// sequence_id so that lastSequenceIdPublished_ = sequenceId + messagesCount - 1 is correct.
+TEST(ProducerTest, testGetLastSequenceIdAfterBatchFlush) {
+    Client client(serviceUrl);
+
+    const std::string topicName =
+        "persistent://public/default/testGetLastSequenceIdAfterBatchFlush-" + std::to_string(time(nullptr));
+
+    ProducerConfiguration producerConfiguration;
+    producerConfiguration.setBatchingEnabled(true);
+    producerConfiguration.setBatchingMaxMessages(10);
+    producerConfiguration.setBatchingMaxPublishDelayMs(60000);
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producerConfiguration, producer));
+
+    // Send 3 messages in a batch, then flush. Sequence ids are [0, 1, 2], so getLastSequenceId() must be 2.
+    for (int i = 0; i < 3; i++) {
+        Message msg = MessageBuilder().setContent("content").build();
+        producer.sendAsync(msg, nullptr);
+    }
+    ASSERT_EQ(ResultOk, producer.flush());
+    ASSERT_EQ(producer.getLastSequenceId(), 2) << "After 3 messages, last sequence id should be 2";
+
+    // Send 2 more (total 5), flush. Sequence ids for these are [3, 4], so getLastSequenceId() must be 4.
+    for (int i = 0; i < 2; i++) {
+        Message msg = MessageBuilder().setContent("content").build();
+        producer.sendAsync(msg, nullptr);
+    }
+    ASSERT_EQ(ResultOk, producer.flush());
+    ASSERT_EQ(producer.getLastSequenceId(), 4) << "After 5 messages total, last sequence id should be 4";
+
+    producer.close();
+    client.close();
+}
+
 TEST_P(ProducerTest, testFlushBatch) {
     Client client(serviceUrl);
 

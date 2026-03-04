@@ -933,19 +933,23 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
         return false;
     }
 
-    uint64_t expectedSequenceId = op.sendArgs->sequenceId;
-    if (sequenceId > expectedSequenceId) {
-        LOG_WARN(getName() << "Got ack for msg " << sequenceId                        //
-                           << " expecting: " << expectedSequenceId << " queue size="  //
-                           << pendingMessagesQueue_.size() << " producer: " << producerId_);
+    const uint64_t expectedFirstSequenceId = op.sendArgs->sequenceId;
+    const uint64_t expectedLastSequenceId = expectedFirstSequenceId + op.messagesCount - 1;
+    // Broker may ack with either the first or the last sequence id of the batch.
+    if (sequenceId > expectedLastSequenceId) {
+        LOG_WARN(getName() << "Got ack for msg " << sequenceId << " expecting last: " << expectedLastSequenceId
+                           << " queue size=" << pendingMessagesQueue_.size() << " producer: " << producerId_);
         return false;
-    } else if (sequenceId < expectedSequenceId) {
+    }
+    if (sequenceId < expectedFirstSequenceId) {
         // Ignoring the ack since it's referring to a message that has already timed out.
-        LOG_DEBUG(getName() << "Got ack for timed out msg " << sequenceId  //
-                            << " -- MessageId - " << messageId << " last-seq: " << expectedSequenceId
-                            << " producer: " << producerId_);
+        LOG_DEBUG(getName() << "Got ack for timed out msg " << sequenceId << " -- MessageId - " << messageId
+                            << " first-seq: " << expectedFirstSequenceId << " producer: " << producerId_);
         return true;
     }
+    // sequenceId is in [expectedFirstSequenceId, expectedLastSequenceId]; accept as matching this op.
+    const bool brokerSentFirst = (sequenceId == expectedFirstSequenceId);
+    lastSequenceIdPublished_ = brokerSentFirst ? expectedLastSequenceId : sequenceId;
 
     // Message was persisted correctly
     LOG_DEBUG(getName() << "Received ack for msg " << sequenceId);
@@ -960,7 +964,6 @@ bool ProducerImpl::ackReceived(uint64_t sequenceId, MessageId& rawMessageId) {
     }
 
     releaseSemaphoreForSendOp(op);
-    lastSequenceIdPublished_ = sequenceId + op.messagesCount - 1;
 
     std::unique_ptr<OpSendMsg> opSendMsg{pendingMessagesQueue_.front().release()};
     pendingMessagesQueue_.pop_front();
