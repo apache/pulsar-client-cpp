@@ -114,7 +114,8 @@ TEST_P(ReaderTest, testAsyncRead) {
         ASSERT_EQ(ResultOk, producer.send(msg));
     }
 
-    // readNextAsync callbacks may complete in any order (e.g. with partitioned topic); collect all 10 then verify set
+    // readNextAsync callbacks may complete in any order (e.g. with partitioned topic); collect all 10 then
+    // verify set
     std::string received[10];
     std::atomic<int> receivedCount{0};
     for (int i = 0; i < 10; i++) {
@@ -125,7 +126,8 @@ TEST_P(ReaderTest, testAsyncRead) {
         });
     }
 
-    waitUntil(std::chrono::seconds(5), [&]() { return receivedCount.load() == 10; }, 1000);
+    waitUntil(
+        std::chrono::seconds(5), [&]() { return receivedCount.load() == 10; }, 1000);
     ASSERT_EQ(10, receivedCount.load()) << "Expected 10 messages";
 
     std::set<std::string> receivedSet(received, received + 10);
