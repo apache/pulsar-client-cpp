@@ -41,7 +41,7 @@ DECLARE_LOG_OBJECT()
 using namespace pulsar;
 
 static std::string serviceUrl = "pulsar://localhost:6650";
-static const std::string adminUrl = "http://localhost:8090/";
+static const std::string adminUrl = "http://localhost:8080/";
 
 class ReaderTest : public ::testing::TestWithParam<bool> {
    public:
