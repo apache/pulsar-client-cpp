@@ -70,6 +70,16 @@ int ClientConfiguration::getOperationTimeoutSeconds() const {
     return std::chrono::duration_cast<std::chrono::seconds>(impl_->operationTimeout).count();
 }
 
+ClientConfiguration& ClientConfiguration::setOperationTimeoutMs(int timeoutMs) {
+    impl_->operationTimeout = std::chrono::milliseconds(timeoutMs);
+    return *this;
+}
+
+int ClientConfiguration::getOperationTimeoutMs() const {
+    return static_cast<int>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(impl_->operationTimeout).count());
+}
+
 ClientConfiguration& ClientConfiguration::setIOThreads(int threads) {
     impl_->ioThreads = threads;
     return *this;

@@ -93,6 +93,19 @@ class PULSAR_PUBLIC ClientConfiguration {
     int getOperationTimeoutSeconds() const;
 
     /**
+     * Set timeout on client operations (subscribe, create producer, close, unsubscribe) in milliseconds.
+     * Overrides the value set by setOperationTimeoutSeconds if called after it.
+     *
+     * @param timeoutMs the timeout in milliseconds after which the operation will be considered as failed
+     */
+    ClientConfiguration& setOperationTimeoutMs(int timeoutMs);
+
+    /**
+     * @return the client operations timeout in milliseconds
+     */
+    int getOperationTimeoutMs() const;
+
+    /**
      * Set the number of IO threads to be used by the Pulsar client. Default is 1
      * thread.
      *
