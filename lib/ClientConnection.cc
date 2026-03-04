@@ -597,7 +597,7 @@ void ClientConnection::tcpConnectAsync() {
 
     auto weakSelf = weak_from_this();
     resolver_->async_resolve(service_url.host(), std::to_string(service_url.port()),
-                             [weakSelf](const ASIO_ERROR& err, tcp::resolver::results_type results) {
+                             [weakSelf](auto err, const auto& results) {
                                  auto self = weakSelf.lock();
                                  if (self) {
                                      self->handleResolve(err, results);
