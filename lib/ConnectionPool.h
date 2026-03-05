@@ -51,6 +51,12 @@ class PULSAR_PUBLIC ConnectionPool {
      */
     bool close();
 
+    /**
+     * Close all existing connections and update the authentication and configuration.
+     * Unlike close(), the pool remains open for new connections.
+     */
+    void resetConnections(const AuthenticationPtr& authentication, const ClientConfiguration& conf);
+
     void remove(const std::string& logicalAddress, const std::string& physicalAddress, size_t keySuffix,
                 ClientConnection* value);
 

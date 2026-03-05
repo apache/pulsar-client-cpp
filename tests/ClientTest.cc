@@ -506,3 +506,50 @@ TEST(ClientTest, testNoRetry) {
         ASSERT_TRUE(result.timeMs < 1000) << "consumer: " << result.timeMs << " ms";
     }
 }
+
+TEST(ClientTest, testUpdateConnectionInfo) {
+    const std::string cluster1Url = "pulsar://localhost:6650";
+    const std::string cluster2Url = "pulsar://localhost:6652";
+    const std::string topic1 = "testUpdateConnectionInfo-cluster1-" + std::to_string(time(nullptr));
+    const std::string topic2 = "testUpdateConnectionInfo-cluster2-" + std::to_string(time(nullptr));
+
+    Client client(cluster1Url);
+
+    // Produce and consume on cluster 1
+    Producer producer1;
+    ASSERT_EQ(ResultOk, client.createProducer(topic1, producer1));
+    MessageId msgId;
+    ASSERT_EQ(ResultOk, producer1.send(MessageBuilder().setContent("msg-on-cluster1").build(), msgId));
+    producer1.close();
+
+    // Verify there are connections in the pool
+    auto connections = PulsarFriend::getConnections(client);
+    ASSERT_FALSE(connections.empty());
+
+    // Switch to cluster 2
+    client.updateConnectionInfo(cluster2Url, std::nullopt, std::nullopt);
+
+    // Previous connections should have been closed
+    for (const auto &cnx : connections) {
+        ASSERT_TRUE(cnx->isClosed());
+    }
+
+    // Produce and consume on cluster 2 using the same client
+    Producer producer2;
+    ASSERT_EQ(ResultOk, client.createProducer(topic2, producer2));
+    ASSERT_EQ(ResultOk, producer2.send(MessageBuilder().setContent("msg-on-cluster2").build(), msgId));
+
+    Consumer consumer2;
+    ASSERT_EQ(ResultOk, client.subscribe(topic2, "sub", consumer2));
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer2.receive(msg, 5000));
+    ASSERT_EQ("msg-on-cluster2", msg.getDataAsString());
+
+    // Verify connection pool now has connections to cluster 2
+    auto newConnections = PulsarFriend::getConnections(client);
+    ASSERT_FALSE(newConnections.empty());
+
+    consumer2.close();
+    producer2.close();
+    client.close();
+}

@@ -144,11 +144,11 @@ ExecutorServiceProviderPtr ClientImpl::getPartitionListenerExecutorProvider() {
 }
 
 LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) {
+    Lock lock(mutex_);
     if (redirectedClusterURI.empty()) {
         return lookupServicePtr_;
     }
 
-    Lock lock(mutex_);
     auto it = redirectedClusterLookupServicePtrs_.find(redirectedClusterURI);
     if (it == redirectedClusterLookupServicePtrs_.end()) {
         auto lookup = createLookup(redirectedClusterURI);
@@ -180,7 +180,8 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
 
     if (autoDownloadSchema) {
         auto self = shared_from_this();
-        lookupServicePtr_->getSchema(topicName).addListener(
+        auto lookup = getLookup();
+        lookup->getSchema(topicName).addListener(
             [self, topicName, callback](Result res, const SchemaInfo& topicSchema) {
                 if (res != ResultOk) {
                     callback(res, Producer());
@@ -188,12 +189,12 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
                 }
                 ProducerConfiguration conf;
                 conf.setSchema(topicSchema);
-                self->lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+                self->getLookup()->getPartitionMetadataAsync(topicName).addListener(
                     std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
                               std::placeholders::_2, topicName, conf, callback));
             });
     } else {
-        lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+        getLookup()->getPartitionMetadataAsync(topicName).addListener(
             std::bind(&ClientImpl::handleCreateProducer, shared_from_this(), std::placeholders::_1,
                       std::placeholders::_2, topicName, conf, callback));
     }
@@ -266,7 +267,7 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
     }
 
     MessageId msgId(startMessageId);
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+    getLookup()->getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleReaderMetadataLookup, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, msgId, conf, callback));
 }
@@ -379,7 +380,8 @@ void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const 
             return;
     }
 
-    lookupServicePtr_->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
+    getLookup()
+        ->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
         .addListener(std::bind(&ClientImpl::createPatternMultiTopicsConsumer, shared_from_this(),
                                std::placeholders::_1, std::placeholders::_2, regexPattern, mode,
                                subscriptionName, conf, callback));
@@ -403,7 +405,7 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
 
         consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(shared_from_this(), regexPattern, mode,
                                                                     *matchTopics, subscriptionName, conf,
-                                                                    lookupServicePtr_, interceptors);
+                                                                    getLookup(), interceptors);
 
         consumer->getConsumerCreatedFuture().addListener(
             std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
@@ -450,7 +452,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
     auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
 
     ConsumerImplBasePtr consumer = std::make_shared<MultiTopicsConsumerImpl>(
-        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, lookupServicePtr_, interceptors);
+        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, getLookup(), interceptors);
 
     consumer->getConsumerCreatedFuture().addListener(std::bind(&ClientImpl::handleConsumerCreated,
                                                                shared_from_this(), std::placeholders::_1,
@@ -480,7 +482,7 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
         }
     }
 
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+    getLookup()->getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleSubscribe, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, subscriptionName, conf, callback));
 }
@@ -505,7 +507,7 @@ void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& parti
                 }
                 consumer = std::make_shared<MultiTopicsConsumerImpl>(
                     shared_from_this(), topicName, partitionMetadata->getPartitions(), subscriptionName, conf,
-                    lookupServicePtr_, interceptors);
+                    getLookup(), interceptors);
             } else {
                 auto consumerImpl = std::make_shared<ConsumerImpl>(shared_from_this(), topicName->toString(),
                                                                    subscriptionName, conf,
@@ -658,7 +660,7 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetP
             return;
         }
     }
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+    getLookup()->getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleGetPartitions, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, callback));
 }
@@ -674,7 +676,7 @@ void ClientImpl::closeAsync(const CloseCallback& callback) {
     state_ = Closing;
 
     memoryLimitController_.close();
-    lookupServicePtr_->close();
+    getLookup()->close();
     for (const auto& it : redirectedClusterLookupServicePtrs_) {
         it.second->close();
     }
@@ -776,7 +778,7 @@ void ClientImpl::shutdown() {
                                    << " consumers have been shutdown.");
     }
 
-    lookupServicePtr_->close();
+    getLookup()->close();
     if (!pool_.close()) {
         // pool_ has already been closed. It means shutdown() has been called before.
         return;
@@ -857,9 +859,39 @@ std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfigurati
 void ClientImpl::updateConnectionInfo(const std::string& serviceUrl,
                                       const std::optional<const AuthenticationPtr>& authentication,
                                       const std::optional<std::string>& tlsTrustCertsFilePath) {
-    // TODO:
-    //   1. Reset the `lookupServicePtr_` with the new serviceUrl and auth parameters, and close the old one.
-    //   2. Close all connections in `pool_`
+    LookupServicePtr oldLookupServicePtr;
+    std::unordered_map<std::string, LookupServicePtr> oldRedirectedLookupServicePtrs;
+
+    {
+        Lock lock(mutex_);
+        if (state_ != Open) {
+            LOG_ERROR("Client is not open, cannot update connection info");
+            return;
+        }
+
+        if (authentication.has_value()) {
+            clientConfiguration_.setAuth(*authentication);
+        }
+        if (tlsTrustCertsFilePath.has_value()) {
+            clientConfiguration_.setTlsTrustCertsFilePath(*tlsTrustCertsFilePath);
+        }
+        clientConfiguration_.setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)));
+
+        oldLookupServicePtr = std::move(lookupServicePtr_);
+        oldRedirectedLookupServicePtrs = std::move(redirectedClusterLookupServicePtrs_);
+
+        lookupServicePtr_ = createLookup(serviceUrl);
+        redirectedClusterLookupServicePtrs_.clear();
+    }
+
+    if (oldLookupServicePtr) {
+        oldLookupServicePtr->close();
+    }
+    for (const auto& it : oldRedirectedLookupServicePtrs) {
+        it.second->close();
+    }
+
+    pool_.resetConnections(clientConfiguration_.getAuthPtr(), clientConfiguration_);
 }
 
 } /* namespace pulsar */
