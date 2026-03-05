@@ -902,7 +902,9 @@ uint64_t Commands::serializeSingleMessagesToBatchPayload(SharedBuffer& batchPayl
         batchPayload.write(payload.data(), payload.readableBytes());
     }
 
-    return messages.back().impl_->metadata.sequence_id();
+    // Use the first message's sequence_id so that ackReceived can compute
+    // lastSequenceIdPublished_ = sequenceId + messagesCount - 1 correctly.
+    return messages.front().impl_->metadata.sequence_id();
 }
 
 Message Commands::deSerializeSingleMessageInBatch(Message& batchedMessage, int32_t batchIndex,
