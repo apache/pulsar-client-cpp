@@ -38,9 +38,30 @@ class PULSAR_PUBLIC AutoClusterFailover final {
     struct Config {
         ServiceInfo primary;
         std::vector<ServiceInfo> secondary;
-        std::chrono::milliseconds checkInterval{30000};  // 30 seconds
+        std::chrono::milliseconds checkInterval{30000};    // 30 seconds
+        std::chrono::milliseconds failoverDelay{30000};    // 30 seconds
+        std::chrono::milliseconds switchBackDelay{60000};  // 60 seconds
     };
 
+    /**
+     * Builder helps create an AutoClusterFailover configuration.
+     *
+     * Example:
+     *   ServiceInfo primary{...};
+     *   std::vector<ServiceInfo> secondaries{...};
+     *   AutoClusterFailover provider = AutoClusterFailover::Builder(primary, secondaries)
+     *       .withCheckInterval(std::chrono::seconds(30))
+     *       .withFailoverDelay(std::chrono::seconds(30))
+     *       .withSwitchBackDelay(std::chrono::seconds(60))
+     *       .build();
+     *
+     * Notes:
+     * - primary: the preferred cluster to use when available.
+     * - secondary: ordered list of fallback clusters.
+     * - checkInterval: frequency of health probes.
+     * - failoverDelay: how long the current cluster must be unreachable before switching.
+     * - switchBackDelay: how long the primary must remain healthy before switching back.
+     */
     class Builder {
        public:
         Builder(ServiceInfo primary, std::vector<ServiceInfo> secondary) {
@@ -48,8 +69,21 @@ class PULSAR_PUBLIC AutoClusterFailover final {
             config_.secondary = std::move(secondary);
         }
 
+        // Set how frequently probes run against the active cluster(s).
         Builder& withCheckInterval(std::chrono::milliseconds interval) {
             config_.checkInterval = interval;
+            return *this;
+        }
+
+        // Set how long the current cluster must be unreachable before attempting failover.
+        Builder& withFailoverDelay(std::chrono::milliseconds delay) {
+            config_.failoverDelay = delay;
+            return *this;
+        }
+
+        // Set how long the primary must remain healthy before switching back from a secondary.
+        Builder& withSwitchBackDelay(std::chrono::milliseconds delay) {
+            config_.switchBackDelay = delay;
             return *this;
         }
 
