@@ -24,6 +24,7 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <shared_mutex>
 
 #include "ConnectionPool.h"
 #include "Future.h"
@@ -140,7 +141,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     uint64_t getLookupCount() { return lookupCount_; }
 
     void updateServiceInfo(const ServiceInfo& serviceInfo);
-    ServiceInfo getServiceInfo();
+    ServiceInfo getServiceInfo() const;
 
     static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
 
@@ -191,7 +192,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
         Closed
     };
 
-    std::mutex mutex_;
+    mutable std::shared_mutex mutex_;
 
     State state_;
     ClientConfiguration clientConfiguration_;

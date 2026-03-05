@@ -436,7 +436,7 @@ class PULSAR_PUBLIC Client {
      *
      * @return the current service information
      */
-    ServiceInfo getServiceInfo();
+    ServiceInfo getServiceInfo() const;
 
    private:
     Client(const std::shared_ptr<ClientImpl>&);

@@ -200,6 +200,6 @@ void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
 
 void Client::updateServiceInfo(const ServiceInfo& serviceInfo) { impl_->updateServiceInfo(serviceInfo); }
 
-ServiceInfo Client::getServiceInfo() { return impl_->getServiceInfo(); }
+ServiceInfo Client::getServiceInfo() const { return impl_->getServiceInfo(); }
 
 }  // namespace pulsar

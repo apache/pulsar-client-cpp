@@ -509,7 +509,7 @@ TEST(ClientTest, testNoRetry) {
     }
 }
 
-TEST(ClientTest, testUpdateConnectionInfo) {
+TEST(ClientTest, testUpdateServiceInfo) {
     extern std::string getToken();  // from AuthToken.cc
 
     // Access "private/auth" namespace in cluster 1
