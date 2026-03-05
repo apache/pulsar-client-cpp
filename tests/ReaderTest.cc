@@ -22,6 +22,7 @@
 #include <time.h>
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <future>
 #include <set>
@@ -863,7 +864,13 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
     }
 
     ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
-    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    // After seek-to-end the broker may close the consumer and trigger reconnect; allow a short
+    // delay for hasMessageAvailable to become false (avoids flakiness when reconnect completes).
+    for (int i = 0; i < 50; i++) {
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+        if (!hasMessageAvailable) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     ASSERT_FALSE(hasMessageAvailable);
 
     producer.send(MessageBuilder().setContent("msg-2").build());
@@ -876,7 +883,11 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
 
     // Test the 2nd seek
     ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
-    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    for (int i = 0; i < 50; i++) {
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+        if (!hasMessageAvailable) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
     ASSERT_FALSE(hasMessageAvailable);
 }
 
