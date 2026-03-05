@@ -53,13 +53,13 @@ ClientConfiguration& ClientConfiguration::setConnectionsPerBroker(int connection
 int ClientConfiguration::getConnectionsPerBroker() const { return impl_->connectionsPerBroker; }
 
 ClientConfiguration& ClientConfiguration::setAuth(const AuthenticationPtr& authentication) {
-    impl_->authenticationPtr = authentication;
+    impl_->setAuthentication(authentication);
     return *this;
 }
 
-Authentication& ClientConfiguration::getAuth() const { return *impl_->authenticationPtr; }
+Authentication& ClientConfiguration::getAuth() const { return *impl_->getAuthentication(); }
 
-const AuthenticationPtr& ClientConfiguration::getAuthPtr() const { return impl_->authenticationPtr; }
+const AuthenticationPtr& ClientConfiguration::getAuthPtr() const { return impl_->getAuthentication(); }
 
 ClientConfiguration& ClientConfiguration::setOperationTimeoutSeconds(int timeout) {
     impl_->operationTimeout = std::chrono::seconds(timeout);
@@ -95,11 +95,11 @@ ClientConfiguration& ClientConfiguration::setMessageListenerThreads(int threads)
 int ClientConfiguration::getMessageListenerThreads() const { return impl_->messageListenerThreads; }
 
 ClientConfiguration& ClientConfiguration::setUseTls(bool useTls) {
-    impl_->useTls = useTls;
+    impl_->setUseTls(useTls);
     return *this;
 }
 
-bool ClientConfiguration::isUseTls() const { return impl_->useTls; }
+bool ClientConfiguration::isUseTls() const { return impl_->isUseTls(); }
 
 ClientConfiguration& ClientConfiguration::setValidateHostName(bool validateHostName) {
     impl_->validateHostName = validateHostName;
@@ -127,12 +127,12 @@ const std::string& ClientConfiguration::getTlsCertificateFilePath() const {
 }
 
 ClientConfiguration& ClientConfiguration::setTlsTrustCertsFilePath(const std::string& filePath) {
-    impl_->tlsTrustCertsFilePath = filePath;
+    impl_->setTlsTrustCertsFilePath(filePath);
     return *this;
 }
 
 const std::string& ClientConfiguration::getTlsTrustCertsFilePath() const {
-    return impl_->tlsTrustCertsFilePath;
+    return impl_->getTlsTrustCertsFilePath();
 }
 
 ClientConfiguration& ClientConfiguration::setTlsAllowInsecureConnection(bool allowInsecure) {

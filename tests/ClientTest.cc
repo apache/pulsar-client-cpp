@@ -510,7 +510,7 @@ TEST(ClientTest, testNoRetry) {
 }
 
 TEST(ClientTest, testUpdateServiceInfo) {
-    extern std::string getToken();  // from AuthToken.cc
+    extern std::string getToken();  // from tests/AuthToken.cc
 
     // Access "private/auth" namespace in cluster 1
     ServiceInfo info1{"pulsar://localhost:6650", AuthToken::createWithToken(getToken()), std::nullopt};

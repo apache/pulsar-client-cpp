@@ -874,27 +874,17 @@ std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfigurati
 }
 
 void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
-    std::unique_lock lock(mutex_);
+    std::unique_lock lock{mutex_};
     if (state_ != Open) {
-        LOG_ERROR("Client is not open, cannot update connection info");
+        LOG_ERROR("Client is not open, cannot update service info");
         return;
     }
 
-    if (serviceInfo.authentication.has_value() && *serviceInfo.authentication) {
-        clientConfiguration_.setAuth(*serviceInfo.authentication);
-    } else {
-        clientConfiguration_.setAuth(AuthFactory::Disabled());
-    }
-    if (serviceInfo.tlsTrustCertsFilePath.has_value()) {
-        clientConfiguration_.setTlsTrustCertsFilePath(*serviceInfo.tlsTrustCertsFilePath);
-    } else {
-        clientConfiguration_.setTlsTrustCertsFilePath("");
-    }
-    clientConfiguration_.setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceInfo.serviceUrl)));
     serviceInfo_ = {serviceInfo.serviceUrl, toOptionalAuthentication(clientConfiguration_.getAuthPtr()),
                     clientConfiguration_.getTlsTrustCertsFilePath().empty()
                         ? std::nullopt
                         : std::make_optional(clientConfiguration_.getTlsTrustCertsFilePath())};
+    clientConfiguration_.impl_->updateServiceInfo(serviceInfo_);
 
     pool_.resetForClusterSwitching(clientConfiguration_.getAuthPtr(), clientConfiguration_);
 
@@ -904,6 +894,10 @@ void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
     }
     redirectedClusterLookupServicePtrs_.clear();
     lookupServicePtr_ = createLookup(serviceInfo.serviceUrl);
+
+    // TODO: changes on the following two fields are not tested
+    useProxy_ = false;
+    lookupCount_ = 0;
 }
 
 ServiceInfo ClientImpl::getServiceInfo() const {

@@ -1141,6 +1141,9 @@ void ConsumerImpl::onClusterSwitching() {
         incomingMessages_.clear();
         startMessageId_ = startMessageIdFromConfig_;
         lastDequedMessageId_ = MessageId::earliest();
+        lastMessageIdInBroker_ = MessageId::earliest();
+        seekStatus_ = SeekStatus::NOT_STARTED;
+        lastSeekArg_.reset();
     }
     ackGroupingTrackerPtr_->flushAndClean();
 }
