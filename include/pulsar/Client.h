@@ -29,6 +29,7 @@
 #include <pulsar/Reader.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/TableView.h>
 #include <pulsar/defines.h>
 
@@ -42,12 +43,6 @@ typedef std::function<void(Result, Reader)> ReaderCallback;
 typedef std::function<void(Result, TableView)> TableViewCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
-
-struct PULSAR_PUBLIC ServiceInfo {
-    std::string serviceUrl;
-    std::optional<AuthenticationPtr> authentication;
-    std::optional<std::string> tlsTrustCertsFilePath;
-};
 
 class ClientImpl;
 class PulsarFriend;
@@ -443,6 +438,7 @@ class PULSAR_PUBLIC Client {
 
     friend class PulsarFriend;
     friend class PulsarWrapper;
+    friend class AutoClusterFailover;
     std::shared_ptr<ClientImpl> impl_;
 };
 }  // namespace pulsar

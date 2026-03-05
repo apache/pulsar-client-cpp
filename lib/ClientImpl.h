@@ -236,6 +236,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     LookupServiceFactory lookupServiceFactory_;
 
     friend class Client;
+    friend class AutoClusterFailoverImpl;
 };
 } /* namespace pulsar */
 
