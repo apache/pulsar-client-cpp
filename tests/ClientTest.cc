@@ -515,10 +515,9 @@ TEST(ClientTest, testUpdateConnectionInfo) {
     // Access "private/auth" namespace in cluster 1
     ServiceInfo info1{"pulsar://localhost:6650", AuthToken::createWithToken(getToken()), std::nullopt};
     // Access "private/auth" namespace in cluster 2
-    ServiceInfo info2{
-        "pulsar+ssl://localhost:6653",
-        AuthTls::create(TEST_CONF_DIR "/client-cert.pem", TEST_CONF_DIR "/client-key.pem"),
-        TEST_CONF_DIR "/hn-verification/cacert.pem"};
+    ServiceInfo info2{"pulsar+ssl://localhost:6653",
+                      AuthTls::create(TEST_CONF_DIR "/client-cert.pem", TEST_CONF_DIR "/client-key.pem"),
+                      TEST_CONF_DIR "/hn-verification/cacert.pem"};
     // Access "public/default" namespace in cluster 1, which doesn't require authentication
     ServiceInfo info3{"pulsar://localhost:6650", std::nullopt, std::nullopt};
 
@@ -567,10 +566,9 @@ TEST(ClientTest, testUpdateConnectionInfo) {
     verify(client1, topicRequiredAuth, "msg-0");
     client1.close();
 
-    Client client2{info2.serviceUrl,
-                   ClientConfiguration()
-                       .setAuth(*info2.authentication)
-                       .setTlsTrustCertsFilePath(*info2.tlsTrustCertsFilePath)};
+    Client client2{info2.serviceUrl, ClientConfiguration()
+                                         .setAuth(*info2.authentication)
+                                         .setTlsTrustCertsFilePath(*info2.tlsTrustCertsFilePath)};
     verify(client2, topicRequiredAuth, "msg-1");
     client2.close();
 
