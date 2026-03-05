@@ -34,8 +34,10 @@ SCRIPT=$(which run-clang-tidy)
 set +e
 nproc
 if [[ $? == 0 ]]; then
-    python3 $SCRIPT -p build -j$(nproc) $(cat files.txt)
+    NUM_THREADS=$(nproc)
 else
-    python3 $SCRIPT -p build -j8 $(cat files.txt)
+    NUM_THREADS=8
 fi
+set -e
+python3 $SCRIPT -p build -j$NUM_THREADS $(cat files.txt)
 rm -f files.txt

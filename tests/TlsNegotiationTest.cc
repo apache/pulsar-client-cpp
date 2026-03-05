@@ -135,7 +135,7 @@ TEST(TlsNegotiationTest, testTls12) {
     // It will fail to create producer because mock server doesn't speak Pulsar,
     // but we only care about the handshake.
     Producer producer;
-    client.createProducerAsync("topic", [](Result, Producer) {});
+    client.createProducerAsync("topic", [](auto, const auto&) {});
 
     // Wait for handshake
     ASSERT_TRUE(handshakeFuture.get());
@@ -170,7 +170,7 @@ TEST(TlsNegotiationTest, testTls13) {
 
     Client client(serviceUrl, config);
 
-    client.createProducerAsync("topic", [](Result, Producer) {});
+    client.createProducerAsync("topic", [](auto, const auto&) {});
 
     ASSERT_TRUE(handshakeFuture.get());
 
