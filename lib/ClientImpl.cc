@@ -880,7 +880,7 @@ std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfigurati
     return clientConfiguration.impl_->operationTimeout;
 }
 
-void ClientImpl::updateServiceInfo(const ServiceInfo& serviceInfo) {
+void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
     std::unique_lock lock(mutex_);
     if (state_ != Open) {
         LOG_ERROR("Client is not open, cannot update connection info");

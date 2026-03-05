@@ -429,7 +429,7 @@ class PULSAR_PUBLIC Client {
      *
      * @param serviceInfo the service URL, authentication and TLS trust certs file path to use
      */
-    void updateServiceInfo(const ServiceInfo& serviceInfo);
+    void updateServiceInfo(ServiceInfo serviceInfo);
 
     /**
      * Get the current service information of the client.

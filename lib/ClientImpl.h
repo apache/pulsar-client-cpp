@@ -140,7 +140,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
     uint64_t getLookupCount() { return lookupCount_; }
 
-    void updateServiceInfo(const ServiceInfo& serviceInfo);
+    void updateServiceInfo(ServiceInfo&& serviceInfo);
     ServiceInfo getServiceInfo() const;
 
     static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);

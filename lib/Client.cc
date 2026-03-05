@@ -198,7 +198,7 @@ void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
         .addListener(std::move(callback));
 }
 
-void Client::updateServiceInfo(const ServiceInfo& serviceInfo) { impl_->updateServiceInfo(serviceInfo); }
+void Client::updateServiceInfo(ServiceInfo serviceInfo) { impl_->updateServiceInfo(std::move(serviceInfo)); }
 
 ServiceInfo Client::getServiceInfo() const { return impl_->getServiceInfo(); }
 
