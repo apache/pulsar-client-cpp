@@ -23,6 +23,7 @@
 #include <pulsar/ServiceInfo.h>
 
 #include <chrono>
+#include <mutex>
 #include <shared_mutex>
 
 #include "ServiceNameResolver.h"
