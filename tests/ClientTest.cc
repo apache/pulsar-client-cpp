@@ -513,17 +513,16 @@ TEST(ClientTest, testUpdateConnectionInfo) {
     extern std::string getToken();  // from AuthToken.cc
 
     // Access "private/auth" namespace in cluster 1
-    auto info1 =
-        std::make_tuple("pulsar://localhost:6650", AuthToken::createWithToken(getToken()), std::nullopt);
+    ServiceInfo info1{"pulsar://localhost:6650", AuthToken::createWithToken(getToken()), std::nullopt};
     // Access "private/auth" namespace in cluster 2
-    auto info2 =
-        std::make_tuple("pulsar+ssl://localhost:6653",
-                        AuthTls::create(TEST_CONF_DIR "/client-cert.pem", TEST_CONF_DIR "/client-key.pem"),
-                        TEST_CONF_DIR "/hn-verification/cacert.pem");
+    ServiceInfo info2{
+        "pulsar+ssl://localhost:6653",
+        AuthTls::create(TEST_CONF_DIR "/client-cert.pem", TEST_CONF_DIR "/client-key.pem"),
+        TEST_CONF_DIR "/hn-verification/cacert.pem"};
     // Access "public/default" namespace in cluster 1, which doesn't require authentication
-    auto info3 = std::make_tuple("pulsar://localhost:6650", std::nullopt, std::nullopt);
+    ServiceInfo info3{"pulsar://localhost:6650", std::nullopt, std::nullopt};
 
-    Client client{std::get<0>(info1), ClientConfiguration().setAuth(std::get<1>(info1))};
+    Client client{info1.serviceUrl, ClientConfiguration().setAuth(*info1.authentication)};
     const auto topicRequiredAuth = "private/auth/testUpdateConnectionInfo-" + std::to_string(time(nullptr));
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicRequiredAuth, producer));
@@ -532,8 +531,11 @@ TEST(ClientTest, testUpdateConnectionInfo) {
 
     // Switch to cluster 2 (started by ./build-support/start-mim-test-service-inside-container.sh)
     ASSERT_FALSE(PulsarFriend::getConnections(client).empty());
-    client.updateConnectionInfo(std::get<0>(info2), std::get<1>(info2), std::get<2>(info2));
+    client.updateServiceInfo(info2);
     ASSERT_TRUE(PulsarFriend::getConnections(client).empty());
+    ASSERT_EQ(info2.serviceUrl, client.getServiceInfo().serviceUrl);
+    ASSERT_EQ(info2.authentication, client.getServiceInfo().authentication);
+    ASSERT_EQ(info2.tlsTrustCertsFilePath, client.getServiceInfo().tlsTrustCertsFilePath);
 
     // Now the same will access the same topic in cluster 2
     ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-1").build(), msgId));
@@ -541,7 +543,10 @@ TEST(ClientTest, testUpdateConnectionInfo) {
 
     // Switch back to cluster 1 without any authentication, the previous authentication info configured for
     // cluster 2 will be cleared.
-    client.updateConnectionInfo(std::get<0>(info3), std::get<1>(info3), std::get<2>(info3));
+    client.updateServiceInfo(info3);
+    ASSERT_EQ(info3.serviceUrl, client.getServiceInfo().serviceUrl);
+    ASSERT_EQ(info3.authentication, client.getServiceInfo().authentication);
+    ASSERT_EQ(info3.tlsTrustCertsFilePath, client.getServiceInfo().tlsTrustCertsFilePath);
 
     const auto topicNoAuth = "testUpdateConnectionInfo-" + std::to_string(time(nullptr));
     ASSERT_EQ(ResultOk, client.createProducer(topicNoAuth, producer));
@@ -558,17 +563,18 @@ TEST(ClientTest, testUpdateConnectionInfo) {
         ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
         ASSERT_EQ(value, msg.getDataAsString());
     };
-    Client client1{std::get<0>(info1), ClientConfiguration().setAuth(std::get<1>(info1))};
+    Client client1{info1.serviceUrl, ClientConfiguration().setAuth(*info1.authentication)};
     verify(client1, topicRequiredAuth, "msg-0");
     client1.close();
 
-    Client client2{
-        std::get<0>(info2),
-        ClientConfiguration().setAuth(std::get<1>(info2)).setTlsTrustCertsFilePath(std::get<2>(info2))};
+    Client client2{info2.serviceUrl,
+                   ClientConfiguration()
+                       .setAuth(*info2.authentication)
+                       .setTlsTrustCertsFilePath(*info2.tlsTrustCertsFilePath)};
     verify(client2, topicRequiredAuth, "msg-1");
     client2.close();
 
-    Client client3{std::get<0>(info3)};
+    Client client3{info3.serviceUrl};
     verify(client3, topicNoAuth, "msg-2");
     client3.close();
 }

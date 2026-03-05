@@ -78,6 +78,15 @@ typedef std::unique_lock<std::mutex> Lock;
 
 typedef std::vector<std::string> StringList;
 
+namespace {
+std::optional<AuthenticationPtr> toOptionalAuthentication(const AuthenticationPtr& authentication) {
+    if (!authentication || authentication->getAuthMethodName() == "none") {
+        return std::nullopt;
+    }
+    return authentication;
+}
+}  // namespace
+
 static LookupServicePtr defaultLookupServiceFactory(const std::string& serviceUrl,
                                                     const ClientConfiguration& clientConfiguration,
                                                     ConnectionPool& pool, const AuthenticationPtr& auth) {
@@ -101,6 +110,10 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       state_(Open),
       clientConfiguration_(ClientConfiguration(clientConfiguration)
                                .setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)))),
+      serviceInfo_{serviceUrl, toOptionalAuthentication(clientConfiguration.getAuthPtr()),
+                   clientConfiguration.getTlsTrustCertsFilePath().empty()
+                       ? std::nullopt
+                       : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())},
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
@@ -856,9 +869,7 @@ std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfigurati
     return clientConfiguration.impl_->operationTimeout;
 }
 
-void ClientImpl::updateConnectionInfo(const std::string& serviceUrl,
-                                      const std::optional<const AuthenticationPtr>& authentication,
-                                      const std::optional<std::string>& tlsTrustCertsFilePath) {
+void ClientImpl::updateServiceInfo(const ServiceInfo& serviceInfo) {
     LookupServicePtr oldLookupServicePtr;
     std::unordered_map<std::string, LookupServicePtr> oldRedirectedLookupServicePtrs;
 
@@ -869,22 +880,26 @@ void ClientImpl::updateConnectionInfo(const std::string& serviceUrl,
             return;
         }
 
-        if (authentication.has_value()) {
-            clientConfiguration_.setAuth(*authentication);
+        if (serviceInfo.authentication.has_value() && *serviceInfo.authentication) {
+            clientConfiguration_.setAuth(*serviceInfo.authentication);
         } else {
             clientConfiguration_.setAuth(AuthFactory::Disabled());
         }
-        if (tlsTrustCertsFilePath.has_value()) {
-            clientConfiguration_.setTlsTrustCertsFilePath(*tlsTrustCertsFilePath);
+        if (serviceInfo.tlsTrustCertsFilePath.has_value()) {
+            clientConfiguration_.setTlsTrustCertsFilePath(*serviceInfo.tlsTrustCertsFilePath);
         } else {
             clientConfiguration_.setTlsTrustCertsFilePath("");
         }
-        clientConfiguration_.setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)));
+        clientConfiguration_.setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceInfo.serviceUrl)));
+        serviceInfo_ = {serviceInfo.serviceUrl, toOptionalAuthentication(clientConfiguration_.getAuthPtr()),
+                        clientConfiguration_.getTlsTrustCertsFilePath().empty()
+                            ? std::nullopt
+                            : std::make_optional(clientConfiguration_.getTlsTrustCertsFilePath())};
 
         oldLookupServicePtr = std::move(lookupServicePtr_);
         oldRedirectedLookupServicePtrs = std::move(redirectedClusterLookupServicePtrs_);
 
-        lookupServicePtr_ = createLookup(serviceUrl);
+        lookupServicePtr_ = createLookup(serviceInfo.serviceUrl);
         redirectedClusterLookupServicePtrs_.clear();
     }
 
@@ -896,6 +911,11 @@ void ClientImpl::updateConnectionInfo(const std::string& serviceUrl,
     }
 
     pool_.resetConnections(clientConfiguration_.getAuthPtr(), clientConfiguration_);
+}
+
+ServiceInfo ClientImpl::getServiceInfo() {
+    Lock lock(mutex_);
+    return serviceInfo_;
 }
 
 } /* namespace pulsar */

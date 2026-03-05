@@ -43,6 +43,12 @@ typedef std::function<void(Result, TableView)> TableViewCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
 
+struct PULSAR_PUBLIC ServiceInfo {
+    std::string serviceUrl;
+    std::optional<AuthenticationPtr> authentication;
+    std::optional<std::string> tlsTrustCertsFilePath;
+};
+
 class ClientImpl;
 class PulsarFriend;
 class PulsarWrapper;
@@ -416,18 +422,21 @@ class PULSAR_PUBLIC Client {
                             std::function<void(Result, const SchemaInfo&)> callback);
 
     /**
-     * Update the connection information of the client, including service URL, authentication and TLS trust
-     * certs file path.
-     * This method is used to switch the connection to a different Pulsar cluster. All connections will be
-     * closed and the internal connection info will be updated.
+     * Update the service information of the client.
      *
-     * @param serviceUrl the Pulsar endpoint to use (eg: pulsar://localhost:6650)
-     * @param authentication the authentication information to use for connecting to the Pulsar cluster
-     * @param tlsTrustCertsFilePath the TLS trust certs file path to use for connecting to the Pulsar cluster
+     * This method is used to switch the connection to a different Pulsar cluster. All connections will be
+     * closed and the internal service info will be updated.
+     *
+     * @param serviceInfo the service URL, authentication and TLS trust certs file path to use
      */
-    void updateConnectionInfo(const std::string& serviceUrl,
-                              const std::optional<const AuthenticationPtr>& authentication,
-                              const std::optional<std::string>& tlsTrustCertsFilePath);
+    void updateServiceInfo(const ServiceInfo& serviceInfo);
+
+    /**
+     * Get the current service information of the client.
+     *
+     * @return the current service information
+     */
+    ServiceInfo getServiceInfo();
 
    private:
     Client(const std::shared_ptr<ClientImpl>&);

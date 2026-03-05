@@ -139,9 +139,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
     uint64_t getLookupCount() { return lookupCount_; }
 
-    void updateConnectionInfo(const std::string& serviceUrl,
-                              const std::optional<const AuthenticationPtr>& authentication,
-                              const std::optional<std::string>& tlsTrustCertsFilePath);
+    void updateServiceInfo(const ServiceInfo& serviceInfo);
+    ServiceInfo getServiceInfo();
 
     static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
 
@@ -196,6 +195,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     State state_;
     ClientConfiguration clientConfiguration_;
+    ServiceInfo serviceInfo_;
     MemoryLimitController memoryLimitController_;
 
     ExecutorServiceProviderPtr ioExecutorProvider_;
