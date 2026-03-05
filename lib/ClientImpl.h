@@ -139,6 +139,10 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
     uint64_t getLookupCount() { return lookupCount_; }
 
+    void updateConnectionInfo(const std::string& serviceUrl,
+                              const std::optional<const AuthenticationPtr>& authentication,
+                              const std::optional<std::string>& tlsTrustCertsFilePath);
+
     static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
 
     friend class PulsarFriend;

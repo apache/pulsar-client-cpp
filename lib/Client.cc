@@ -197,4 +197,11 @@ void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
         ->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
         .addListener(std::move(callback));
 }
+
+void Client::updateConnectionInfo(const std::string& serviceUrl,
+                                  const std::optional<const AuthenticationPtr>& authentication,
+                                  const std::optional<std::string>& tlsTrustCertsFilePath) {
+    impl_->updateConnectionInfo(serviceUrl, authentication, tlsTrustCertsFilePath);
+}
+
 }  // namespace pulsar

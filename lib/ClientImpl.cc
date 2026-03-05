@@ -854,4 +854,12 @@ std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfigurati
     return clientConfiguration.impl_->operationTimeout;
 }
 
+void ClientImpl::updateConnectionInfo(const std::string& serviceUrl,
+                                      const std::optional<const AuthenticationPtr>& authentication,
+                                      const std::optional<std::string>& tlsTrustCertsFilePath) {
+    // TODO:
+    //   1. Reset the `lookupServicePtr_` with the new serviceUrl and auth parameters, and close the old one.
+    //   2. Close all connections in `pool_`
+}
+
 } /* namespace pulsar */

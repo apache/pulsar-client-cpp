@@ -32,6 +32,7 @@
 #include <pulsar/TableView.h>
 #include <pulsar/defines.h>
 
+#include <optional>
 #include <string>
 
 namespace pulsar {
@@ -413,6 +414,20 @@ class PULSAR_PUBLIC Client {
      */
     void getSchemaInfoAsync(const std::string& topic, int64_t version,
                             std::function<void(Result, const SchemaInfo&)> callback);
+
+    /**
+     * Update the connection information of the client, including service URL, authentication and TLS trust
+     * certs file path.
+     * This method is used to switch the connection to a different Pulsar cluster. All connections will be
+     * closed and the internal connection info will be updated.
+     *
+     * @param serviceUrl the Pulsar endpoint to use (eg: pulsar://localhost:6650)
+     * @param authentication the authentication information to use for connecting to the Pulsar cluster
+     * @param tlsTrustCertsFilePath the TLS trust certs file path to use for connecting to the Pulsar cluster
+     */
+    void updateConnectionInfo(const std::string& serviceUrl,
+                              const std::optional<const AuthenticationPtr>& authentication,
+                              const std::optional<std::string>& tlsTrustCertsFilePath);
 
    private:
     Client(const std::shared_ptr<ClientImpl>&);
