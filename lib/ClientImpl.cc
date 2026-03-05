@@ -831,15 +831,9 @@ void ClientImpl::shutdown() {
     lookupCount_ = 0;
 }
 
-uint64_t ClientImpl::newProducerId() {
-    std::shared_lock lock(mutex_);
-    return producerIdGenerator_++;
-}
+uint64_t ClientImpl::newProducerId() { return producerIdGenerator_++; }
 
-uint64_t ClientImpl::newConsumerId() {
-    std::shared_lock lock(mutex_);
-    return consumerIdGenerator_++;
-}
+uint64_t ClientImpl::newConsumerId() { return consumerIdGenerator_++; }
 
 uint64_t ClientImpl::newRequestId() { return (*requestIdGenerator_)++; }
 

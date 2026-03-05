@@ -207,8 +207,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     std::unordered_map<std::string, LookupServicePtr> redirectedClusterLookupServicePtrs_;
     ConnectionPool pool_;
 
-    uint64_t producerIdGenerator_;
-    uint64_t consumerIdGenerator_;
+    std::atomic_uint64_t producerIdGenerator_;
+    std::atomic_uint64_t consumerIdGenerator_;
     std::shared_ptr<std::atomic<uint64_t>> requestIdGenerator_{std::make_shared<std::atomic<uint64_t>>(0)};
 
     SynchronizedHashMap<ProducerImplBase*, ProducerImplBaseWeakPtr> producers_;
