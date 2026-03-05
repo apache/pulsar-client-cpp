@@ -896,7 +896,7 @@ void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
                         ? std::nullopt
                         : std::make_optional(clientConfiguration_.getTlsTrustCertsFilePath())};
 
-    pool_.resetConnections(clientConfiguration_.getAuthPtr(), clientConfiguration_);
+    pool_.resetForClusterSwitching(clientConfiguration_.getAuthPtr(), clientConfiguration_);
 
     lookupServicePtr_->close();
     for (auto&& it : redirectedClusterLookupServicePtrs_) {

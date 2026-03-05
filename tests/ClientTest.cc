@@ -522,11 +522,26 @@ TEST(ClientTest, testUpdateServiceInfo) {
     ServiceInfo info3{"pulsar://localhost:6650", std::nullopt, std::nullopt};
 
     Client client{info1.serviceUrl, ClientConfiguration().setAuth(*info1.authentication)};
+
     const auto topicRequiredAuth = "private/auth/testUpdateConnectionInfo-" + std::to_string(time(nullptr));
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicRequiredAuth, producer));
-    MessageId msgId;
-    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-0").build(), msgId));
+
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicRequiredAuth, MessageId::earliest(), {}, reader));
+
+    auto sendAndReceive = [&](const std::string &value) {
+        MessageId msgId;
+        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(value).build(), msgId));
+        LOG_INFO("Sent " << value << " to " << msgId);
+
+        Message msg;
+        ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
+        LOG_INFO("Read " << msg.getDataAsString() << " from " << msgId);
+        ASSERT_EQ(value, msg.getDataAsString());
+    };
+
+    sendAndReceive("msg-0");
 
     // Switch to cluster 2 (started by ./build-support/start-mim-test-service-inside-container.sh)
     ASSERT_FALSE(PulsarFriend::getConnections(client).empty());
@@ -537,8 +552,7 @@ TEST(ClientTest, testUpdateServiceInfo) {
     ASSERT_EQ(info2.tlsTrustCertsFilePath, client.getServiceInfo().tlsTrustCertsFilePath);
 
     // Now the same will access the same topic in cluster 2
-    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-1").build(), msgId));
-    ASSERT_EQ(ResultOk, producer.close());
+    sendAndReceive("msg-1");
 
     // Switch back to cluster 1 without any authentication, the previous authentication info configured for
     // cluster 2 will be cleared.
@@ -548,8 +562,9 @@ TEST(ClientTest, testUpdateServiceInfo) {
     ASSERT_EQ(info3.tlsTrustCertsFilePath, client.getServiceInfo().tlsTrustCertsFilePath);
 
     const auto topicNoAuth = "testUpdateConnectionInfo-" + std::to_string(time(nullptr));
+    producer.close();
     ASSERT_EQ(ResultOk, client.createProducer(topicNoAuth, producer));
-    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-2").build(), msgId));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-2").build()));
 
     client.close();
 

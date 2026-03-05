@@ -1292,7 +1292,7 @@ void ClientConnection::handleConsumerStatsTimeout(const ASIO_ERROR& ec,
     startConsumerStatsTimer(consumerStatsRequests);
 }
 
-void ClientConnection::close(Result result, bool detach) {
+void ClientConnection::close(Result result, bool detach, bool switchCluster) {
     Lock lock(mutex_);
     if (isClosed()) {
         return;
@@ -1368,6 +1368,9 @@ void ClientConnection::close(Result result, bool detach) {
     for (ConsumersMap::iterator it = consumers.begin(); it != consumers.end(); ++it) {
         auto consumer = it->second.lock();
         if (consumer) {
+            if (switchCluster) {
+                consumer->onClusterSwitching();
+            }
             consumer->handleDisconnection(result, self);
         }
     }

@@ -67,8 +67,8 @@ bool ConnectionPool::close() {
     return true;
 }
 
-void ConnectionPool::resetConnections(const AuthenticationPtr& authentication,
-                                      const ClientConfiguration& conf) {
+void ConnectionPool::resetForClusterSwitching(const AuthenticationPtr& authentication,
+                                              const ClientConfiguration& conf) {
     std::unique_lock<std::recursive_mutex> lock(mutex_);
     authentication_ = authentication;
     clientConfiguration_ = conf;
@@ -76,7 +76,7 @@ void ConnectionPool::resetConnections(const AuthenticationPtr& authentication,
     for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
         auto& cnx = cnxIt->second;
         if (cnx) {
-            cnx->close(ResultDisconnected, false);
+            cnx->close(ResultDisconnected, false, true);
         }
     }
     pool_.clear();
