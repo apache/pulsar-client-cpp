@@ -134,10 +134,11 @@ TEST_F(KeyBasedBatchingTest, testSequenceId) {
     sendAsync("B", "3");
     sendAsync("C", "4");
     sendAsync("A", "5");
-    // sequence id: B < C < A, so there are 3 batches in order as following:
+    // Batches are sent in ascending order of the first message's sequence id (BatchMessageKeyBasedContainer
+    // sorts by sendArgs->sequenceId). Send order gives A=0, B=1, C=2 for first per key, so batches: A, B, C.
+    //   A: 0, 5
     //   B: 1, 3
     //   C: 2, 4
-    //   A: 0, 5
     latch.wait();
 
     std::vector<std::string> receivedKeys;
@@ -149,8 +150,8 @@ TEST_F(KeyBasedBatchingTest, testSequenceId) {
         receivedValues.emplace_back(msg.getDataAsString());
     }
 
-    decltype(receivedKeys) expectedKeys{"B", "B", "C", "C", "A", "A"};
-    decltype(receivedValues) expectedValues{"1", "3", "2", "4", "0", "5"};
+    decltype(receivedKeys) expectedKeys{"A", "A", "B", "B", "C", "C"};
+    decltype(receivedValues) expectedValues{"0", "5", "1", "3", "2", "4"};
     EXPECT_EQ(receivedKeys, expectedKeys);
     EXPECT_EQ(receivedValues, expectedValues);
 }
