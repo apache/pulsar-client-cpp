@@ -17,13 +17,16 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
+#include <pulsar/InitialPosition.h>
 #include <pulsar/Version.h>
 
 #include <algorithm>
 #include <chrono>
 #include <future>
-#include <sstream>
+#include <optional>
+#include <tuple>
 
 #include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
@@ -32,7 +35,6 @@
 #include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
 #include "lib/checksum/ChecksumProvider.h"
-#include "lib/stats/ProducerStatsImpl.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -508,48 +510,65 @@ TEST(ClientTest, testNoRetry) {
 }
 
 TEST(ClientTest, testUpdateConnectionInfo) {
-    const std::string cluster1Url = "pulsar://localhost:6650";
-    const std::string cluster2Url = "pulsar://localhost:6652";
-    const std::string topic1 = "testUpdateConnectionInfo-cluster1-" + std::to_string(time(nullptr));
-    const std::string topic2 = "testUpdateConnectionInfo-cluster2-" + std::to_string(time(nullptr));
+    extern std::string getToken();  // from AuthToken.cc
 
-    Client client(cluster1Url);
+    // Access "private/auth" namespace in cluster 1
+    auto info1 =
+        std::make_tuple("pulsar://localhost:6650", AuthToken::createWithToken(getToken()), std::nullopt);
+    // Access "private/auth" namespace in cluster 2
+    auto info2 =
+        std::make_tuple("pulsar+ssl://localhost:6653",
+                        AuthTls::create(TEST_CONF_DIR "/client-cert.pem", TEST_CONF_DIR "/client-key.pem"),
+                        TEST_CONF_DIR "/hn-verification/cacert.pem");
+    // Access "public/default" namespace in cluster 1, which doesn't require authentication
+    auto info3 = std::make_tuple("pulsar://localhost:6650", std::nullopt, std::nullopt);
 
-    // Produce and consume on cluster 1
-    Producer producer1;
-    ASSERT_EQ(ResultOk, client.createProducer(topic1, producer1));
+    Client client{std::get<0>(info1), ClientConfiguration().setAuth(std::get<1>(info1))};
+    const auto topicRequiredAuth = "private/auth/testUpdateConnectionInfo-" + std::to_string(time(nullptr));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicRequiredAuth, producer));
     MessageId msgId;
-    ASSERT_EQ(ResultOk, producer1.send(MessageBuilder().setContent("msg-on-cluster1").build(), msgId));
-    producer1.close();
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-0").build(), msgId));
 
-    // Verify there are connections in the pool
-    auto connections = PulsarFriend::getConnections(client);
-    ASSERT_FALSE(connections.empty());
+    // Switch to cluster 2 (started by ./build-support/start-mim-test-service-inside-container.sh)
+    ASSERT_FALSE(PulsarFriend::getConnections(client).empty());
+    client.updateConnectionInfo(std::get<0>(info2), std::get<1>(info2), std::get<2>(info2));
+    ASSERT_TRUE(PulsarFriend::getConnections(client).empty());
 
-    // Switch to cluster 2
-    client.updateConnectionInfo(cluster2Url, std::nullopt, std::nullopt);
+    // Now the same will access the same topic in cluster 2
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-1").build(), msgId));
+    ASSERT_EQ(ResultOk, producer.close());
 
-    // Previous connections should have been closed
-    for (const auto &cnx : connections) {
-        ASSERT_TRUE(cnx->isClosed());
-    }
+    // Switch back to cluster 1 without any authentication, the previous authentication info configured for
+    // cluster 2 will be cleared.
+    client.updateConnectionInfo(std::get<0>(info3), std::get<1>(info3), std::get<2>(info3));
 
-    // Produce and consume on cluster 2 using the same client
-    Producer producer2;
-    ASSERT_EQ(ResultOk, client.createProducer(topic2, producer2));
-    ASSERT_EQ(ResultOk, producer2.send(MessageBuilder().setContent("msg-on-cluster2").build(), msgId));
+    const auto topicNoAuth = "testUpdateConnectionInfo-" + std::to_string(time(nullptr));
+    ASSERT_EQ(ResultOk, client.createProducer(topicNoAuth, producer));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg-2").build(), msgId));
 
-    Consumer consumer2;
-    ASSERT_EQ(ResultOk, client.subscribe(topic2, "sub", consumer2));
-    Message msg;
-    ASSERT_EQ(ResultOk, consumer2.receive(msg, 5000));
-    ASSERT_EQ("msg-on-cluster2", msg.getDataAsString());
-
-    // Verify connection pool now has connections to cluster 2
-    auto newConnections = PulsarFriend::getConnections(client);
-    ASSERT_FALSE(newConnections.empty());
-
-    consumer2.close();
-    producer2.close();
     client.close();
+
+    // Verify messages sent to cluster 1 and cluster 2 can be consumed successfully with correct
+    // authentication info.
+    auto verify = [](Client &client, const std::string &topic, const std::string &value) {
+        Reader reader;
+        ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
+        Message msg;
+        ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
+        ASSERT_EQ(value, msg.getDataAsString());
+    };
+    Client client1{std::get<0>(info1), ClientConfiguration().setAuth(std::get<1>(info1))};
+    verify(client1, topicRequiredAuth, "msg-0");
+    client1.close();
+
+    Client client2{
+        std::get<0>(info2),
+        ClientConfiguration().setAuth(std::get<1>(info2)).setTlsTrustCertsFilePath(std::get<2>(info2))};
+    verify(client2, topicRequiredAuth, "msg-1");
+    client2.close();
+
+    Client client3{std::get<0>(info3)};
+    verify(client3, topicNoAuth, "msg-2");
+    client3.close();
 }

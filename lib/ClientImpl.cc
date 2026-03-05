@@ -871,9 +871,13 @@ void ClientImpl::updateConnectionInfo(const std::string& serviceUrl,
 
         if (authentication.has_value()) {
             clientConfiguration_.setAuth(*authentication);
+        } else {
+            clientConfiguration_.setAuth(AuthFactory::Disabled());
         }
         if (tlsTrustCertsFilePath.has_value()) {
             clientConfiguration_.setTlsTrustCertsFilePath(*tlsTrustCertsFilePath);
+        } else {
+            clientConfiguration_.setTlsTrustCertsFilePath("");
         }
         clientConfiguration_.setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)));
 
