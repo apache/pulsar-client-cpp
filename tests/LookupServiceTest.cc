@@ -259,7 +259,7 @@ TEST_P(LookupServiceTest, basicGetNamespaceTopics) {
     ASSERT_EQ(ResultOk, result);
 
     // 2. verify getTopicsOfNamespace by regex mode.
-    auto lookupServicePtr = PulsarFriend::getClientImplPtr(client_)->getLookup();
+    auto lookupServicePtr = PulsarFriend::getClientImplPtr(client_);
     auto verifyGetTopics = [&](CommandGetTopicsOfNamespace_Mode mode,
                                const std::set<std::string>& expectedTopics) {
         Future<Result, NamespaceTopicsPtr> getTopicsFuture =
@@ -292,11 +292,8 @@ TEST_P(LookupServiceTest, testGetSchema) {
     Producer producer;
     ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConfiguration, producer));
 
-    auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
-    auto lookup = clientImplPtr->getLookup();
-
     SchemaInfo schemaInfo;
-    auto future = lookup->getSchema(TopicName::get(topic));
+    auto future = PulsarFriend::getClientImplPtr(client_)->getSchema(TopicName::get(topic));
     ASSERT_EQ(ResultOk, future.get(schemaInfo));
     ASSERT_EQ(jsonSchema, schemaInfo.getSchema());
     ASSERT_EQ(SchemaType::JSON, schemaInfo.getSchemaType());
@@ -310,11 +307,8 @@ TEST_P(LookupServiceTest, testGetSchemaNotFound) {
     Producer producer;
     ASSERT_EQ(ResultOk, client_.createProducer(topic, producer));
 
-    auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
-    auto lookup = clientImplPtr->getLookup();
-
     SchemaInfo schemaInfo;
-    auto future = lookup->getSchema(TopicName::get(topic));
+    auto future = PulsarFriend::getClientImplPtr(client_)->getSchema(TopicName::get(topic));
     ASSERT_EQ(ResultTopicNotFound, future.get(schemaInfo));
 }
 
@@ -335,11 +329,8 @@ TEST_P(LookupServiceTest, testGetKeyValueSchema) {
     Producer producer;
     ASSERT_EQ(ResultOk, client_.createProducer(topic, producerConfiguration, producer));
 
-    auto clientImplPtr = PulsarFriend::getClientImplPtr(client_);
-    auto lookup = clientImplPtr->getLookup();
-
     SchemaInfo schemaInfo;
-    auto future = lookup->getSchema(TopicName::get(topic));
+    auto future = PulsarFriend::getClientImplPtr(client_)->getSchema(TopicName::get(topic));
     ASSERT_EQ(ResultOk, future.get(schemaInfo));
     ASSERT_EQ(keyValueSchema.getSchema(), schemaInfo.getSchema());
     ASSERT_EQ(SchemaType::KEY_VALUE, schemaInfo.getSchemaType());

@@ -200,8 +200,7 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
 
     if (autoDownloadSchema) {
         auto self = shared_from_this();
-        auto lookup = getLookup();
-        lookup->getSchema(topicName).addListener(
+        getSchema(topicName).addListener(
             [self, topicName, callback](Result res, const SchemaInfo& topicSchema) {
                 if (res != ResultOk) {
                     callback(res, Producer());
@@ -209,12 +208,12 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
                 }
                 ProducerConfiguration conf;
                 conf.setSchema(topicSchema);
-                self->getLookup()->getPartitionMetadataAsync(topicName).addListener(
+                self->getPartitionMetadataAsync(topicName).addListener(
                     std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
                               std::placeholders::_2, topicName, conf, callback));
             });
     } else {
-        getLookup()->getPartitionMetadataAsync(topicName).addListener(
+        getPartitionMetadataAsync(topicName).addListener(
             std::bind(&ClientImpl::handleCreateProducer, shared_from_this(), std::placeholders::_1,
                       std::placeholders::_2, topicName, conf, callback));
     }
@@ -287,7 +286,7 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
     }
 
     MessageId msgId(startMessageId);
-    getLookup()->getPartitionMetadataAsync(topicName).addListener(
+    getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleReaderMetadataLookup, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, msgId, conf, callback));
 }
@@ -400,8 +399,7 @@ void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const 
             return;
     }
 
-    getLookup()
-        ->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
+    getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
         .addListener(std::bind(&ClientImpl::createPatternMultiTopicsConsumer, shared_from_this(),
                                std::placeholders::_1, std::placeholders::_2, regexPattern, mode,
                                subscriptionName, conf, callback));
@@ -423,9 +421,8 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
 
         auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
 
-        consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(shared_from_this(), regexPattern, mode,
-                                                                    *matchTopics, subscriptionName, conf,
-                                                                    getLookup(), interceptors);
+        consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(
+            shared_from_this(), regexPattern, mode, *matchTopics, subscriptionName, conf, interceptors);
 
         consumer->getConsumerCreatedFuture().addListener(
             std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
@@ -472,7 +469,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
     auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
 
     ConsumerImplBasePtr consumer = std::make_shared<MultiTopicsConsumerImpl>(
-        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, getLookup(), interceptors);
+        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, interceptors);
 
     consumer->getConsumerCreatedFuture().addListener(std::bind(&ClientImpl::handleConsumerCreated,
                                                                shared_from_this(), std::placeholders::_1,
@@ -502,7 +499,7 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
         }
     }
 
-    getLookup()->getPartitionMetadataAsync(topicName).addListener(
+    getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleSubscribe, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, subscriptionName, conf, callback));
 }
@@ -525,9 +522,9 @@ void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& parti
                     callback(ResultInvalidConfiguration, Consumer());
                     return;
                 }
-                consumer = std::make_shared<MultiTopicsConsumerImpl>(
-                    shared_from_this(), topicName, partitionMetadata->getPartitions(), subscriptionName, conf,
-                    getLookup(), interceptors);
+                consumer = std::make_shared<MultiTopicsConsumerImpl>(shared_from_this(), topicName,
+                                                                     partitionMetadata->getPartitions(),
+                                                                     subscriptionName, conf, interceptors);
             } else {
                 auto consumerImpl = std::make_shared<ConsumerImpl>(shared_from_this(), topicName->toString(),
                                                                    subscriptionName, conf,
@@ -680,9 +677,9 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetP
             return;
         }
     }
-    getLookup()->getPartitionMetadataAsync(topicName).addListener(
-        std::bind(&ClientImpl::handleGetPartitions, shared_from_this(), std::placeholders::_1,
-                  std::placeholders::_2, topicName, callback));
+    getPartitionMetadataAsync(topicName).addListener(std::bind(&ClientImpl::handleGetPartitions,
+                                                               shared_from_this(), std::placeholders::_1,
+                                                               std::placeholders::_2, topicName, callback));
 }
 
 void ClientImpl::closeAsync(const CloseCallback& callback) {
@@ -802,7 +799,9 @@ void ClientImpl::shutdown() {
                                    << " consumers have been shutdown.");
     }
 
-    getLookup()->close();
+    std::shared_lock lock(mutex_);
+    lookupServicePtr_->close();
+    lock.unlock();
     if (!pool_.close()) {
         // pool_ has already been closed. It means shutdown() has been called before.
         return;

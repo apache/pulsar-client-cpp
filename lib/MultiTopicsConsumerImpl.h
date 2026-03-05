@@ -46,23 +46,19 @@ class MultiTopicsBrokerConsumerStatsImpl;
 using MultiTopicsBrokerConsumerStatsPtr = std::shared_ptr<MultiTopicsBrokerConsumerStatsImpl>;
 class UnAckedMessageTrackerInterface;
 using UnAckedMessageTrackerPtr = std::shared_ptr<UnAckedMessageTrackerInterface>;
-class LookupService;
-using LookupServicePtr = std::shared_ptr<LookupService>;
 
 class MultiTopicsConsumerImpl;
 class MultiTopicsConsumerImpl : public ConsumerImplBase {
    public:
     MultiTopicsConsumerImpl(const ClientImplPtr& client, const TopicNamePtr& topicName, int numPartitions,
                             const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                            const LookupServicePtr& lookupServicePtr,
                             const ConsumerInterceptorsPtr& interceptors,
                             Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                             const optional<MessageId>& startMessageId = optional<MessageId>{});
 
     MultiTopicsConsumerImpl(const ClientImplPtr& client, const std::vector<std::string>& topics,
                             const std::string& subscriptionName, const TopicNamePtr& topicName,
-                            const ConsumerConfiguration& conf, const LookupServicePtr& lookupServicePtr_,
-                            const ConsumerInterceptorsPtr& interceptors,
+                            const ConsumerConfiguration& conf, const ConsumerInterceptorsPtr& interceptors,
                             Commands::SubscriptionMode = Commands::SubscriptionModeDurable,
                             const optional<MessageId>& startMessageId = optional<MessageId>{});
 
@@ -119,7 +115,6 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     MessageListener messageListener_;
     DeadlineTimerPtr partitionsUpdateTimer_;
     TimeDuration partitionsUpdateInterval_;
-    LookupServicePtr lookupServicePtr_;
     std::shared_ptr<std::atomic<int>> numberTopicPartitions_;
     std::atomic<Result> failedResult{ResultOk};
     Promise<Result, ConsumerImplBaseWeakPtr> multiTopicsConsumerCreatedPromise_;
