@@ -19,6 +19,7 @@
 #include "ClientImpl.h"
 
 #include <pulsar/ClientConfiguration.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/Version.h>
 
 #include <algorithm>
@@ -79,11 +80,16 @@ std::string generateRandomName() {
 typedef std::vector<std::string> StringList;
 
 namespace {
-std::optional<AuthenticationPtr> toOptionalAuthentication(const AuthenticationPtr& authentication) {
+AuthenticationPtr toAuthentication(const AuthenticationPtr& authentication) {
     if (!authentication || authentication->getAuthMethodName() == "none") {
-        return std::nullopt;
+        return AuthFactory::Disabled();
     }
     return authentication;
+}
+
+ServiceInfo normalizeServiceInfo(ServiceInfo serviceInfo) {
+    serviceInfo.authentication = toAuthentication(serviceInfo.authentication);
+    return serviceInfo;
 }
 }  // namespace
 
@@ -110,17 +116,18 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       state_(Open),
       clientConfiguration_(ClientConfiguration(clientConfiguration)
                                .setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)))),
-      serviceInfo_{serviceUrl, toOptionalAuthentication(clientConfiguration.getAuthPtr()),
-                   clientConfiguration.getTlsTrustCertsFilePath().empty()
-                       ? std::nullopt
-                       : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())},
+      serviceInfo_(normalizeServiceInfo(
+          ServiceInfo{serviceUrl, clientConfiguration.getAuthPtr(),
+                      clientConfiguration.getTlsTrustCertsFilePath().empty()
+                          ? std::nullopt
+                          : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())})),
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
           std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getMessageListenerThreads())),
       partitionListenerExecutorProvider_(
           std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getMessageListenerThreads())),
-      pool_(clientConfiguration_, ioExecutorProvider_, clientConfiguration_.getAuthPtr(),
+      pool_(serviceInfo_, clientConfiguration_, ioExecutorProvider_,
             ClientImpl::getClientVersion(clientConfiguration)),
       producerIdGenerator_(0),
       consumerIdGenerator_(0),
@@ -880,29 +887,20 @@ void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
         return;
     }
 
-    serviceInfo_ = {serviceInfo.serviceUrl, toOptionalAuthentication(clientConfiguration_.getAuthPtr()),
-                    clientConfiguration_.getTlsTrustCertsFilePath().empty()
-                        ? std::nullopt
-                        : std::make_optional(clientConfiguration_.getTlsTrustCertsFilePath())};
-    clientConfiguration_.impl_->updateServiceInfo(serviceInfo_);
-
-    pool_.resetForClusterSwitching(clientConfiguration_.getAuthPtr(), clientConfiguration_);
-
+    serviceInfo = normalizeServiceInfo(std::move(serviceInfo));
+    serviceInfo_.store(std::make_shared<const ServiceInfo>(serviceInfo));
+    pool_.closeAllConnectionsForNewCluster();
     lookupServicePtr_->close();
+    lookupServicePtr_ = createLookup(serviceInfo.serviceUrl);
+
     for (auto&& it : redirectedClusterLookupServicePtrs_) {
         it.second->close();
     }
     redirectedClusterLookupServicePtrs_.clear();
-    lookupServicePtr_ = createLookup(serviceInfo.serviceUrl);
-
-    // TODO: changes on the following two fields are not tested
     useProxy_ = false;
     lookupCount_ = 0;
 }
 
-ServiceInfo ClientImpl::getServiceInfo() const {
-    std::shared_lock lock(mutex_);
-    return serviceInfo_;
-}
+ServiceInfo ClientImpl::getServiceInfo() const { return *(serviceInfo_.load()); }
 
 } /* namespace pulsar */

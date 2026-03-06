@@ -33,6 +33,8 @@
 #include "MemoryLimitController.h"
 #include "ProtoApiEnums.h"
 #include "SynchronizedHashMap.h"
+#include "lib/AtomicSharedPtr.h"
+#include "pulsar/ServiceInfo.h"
 
 namespace pulsar {
 
@@ -212,7 +214,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     State state_;
     ClientConfiguration clientConfiguration_;
-    ServiceInfo serviceInfo_;
+    AtomicSharedPtr<ServiceInfo> serviceInfo_;
     MemoryLimitController memoryLimitController_;
 
     ExecutorServiceProviderPtr ioExecutorProvider_;

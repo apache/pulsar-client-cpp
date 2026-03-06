@@ -42,8 +42,8 @@ struct ClientConfigurationImpl {
    public:
     void updateServiceInfo(const ServiceInfo& serviceInfo) {
         std::unique_lock lock(mutex);
-        if (serviceInfo.authentication.has_value() && *serviceInfo.authentication) {
-            authenticationPtr = *serviceInfo.authentication;
+        if (serviceInfo.authentication && serviceInfo.authentication->getAuthMethodName() != "none") {
+            authenticationPtr = serviceInfo.authentication;
         } else {
             authenticationPtr = AuthFactory::Disabled();
         }

@@ -19,7 +19,9 @@
 #include "ClientConnection.h"
 
 #include <openssl/x509.h>
+#include <pulsar/Authentication.h>
 #include <pulsar/MessageIdBuilder.h>
+#include <pulsar/ServiceInfo.h>
 
 #include <chrono>
 #include <fstream>
@@ -37,6 +39,8 @@
 #include "ProducerImpl.h"
 #include "PulsarApi.pb.h"
 #include "ResultUtils.h"
+#include "ServiceNameResolver.h"
+#include "ServiceURI.h"
 #include "Url.h"
 #include "auth/AuthOauth2.h"
 #include "auth/InitialAuthData.h"
@@ -178,13 +182,14 @@ static bool file_exists(const std::string& path) {
 
 std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessageSize};
 
+// NOTE: we should get the connection info from `serviceInfo` rather than `clientConfiguration` because it can
+// be modified dynamically.
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                                   const ExecutorServicePtr& executor,
+                                   ServiceInfo serviceInfo, const ExecutorServicePtr& executor,
                                    const ClientConfiguration& clientConfiguration,
-                                   const AuthenticationPtr& authentication, const std::string& clientVersion,
-                                   ConnectionPool& pool, size_t poolIndex)
+                                   const std::string& clientVersion, ConnectionPool& pool, size_t poolIndex)
     : operationsTimeout_(ClientImpl::getOperationTimeout(clientConfiguration)),
-      authentication_(authentication),
+      authentication_(serviceInfo.authentication ? serviceInfo.authentication : AuthFactory::Disabled()),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
       executor_(executor),
       resolver_(executor_->createTcpResolver()),
@@ -204,21 +209,15 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       pool_(pool),
       poolIndex_(poolIndex) {
     LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
-    if (!authentication_) {
-        LOG_ERROR("Invalid authentication plugin");
-        throw ResultAuthenticationError;
-        return;
-    }
 
-    auto oauth2Auth = std::dynamic_pointer_cast<AuthOauth2>(authentication_);
-    if (oauth2Auth) {
+    if (auto oauth2Auth = std::dynamic_pointer_cast<AuthOauth2>(authentication_)) {
         // Configure the TLS trust certs file for Oauth2
         auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
             std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
         oauth2Auth->getAuthData(authData);
     }
 
-    if (clientConfiguration.isUseTls()) {
+    if (ServiceNameResolver::useTls(ServiceURI{serviceInfo.serviceUrl})) {
         ASIO::ssl::context ctx(ASIO::ssl::context::sslv23_client);
         ctx.set_options(ASIO::ssl::context::default_workarounds | ASIO::ssl::context::no_sslv2 |
                         ASIO::ssl::context::no_sslv3 | ASIO::ssl::context::no_tlsv1 |
@@ -239,8 +238,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         } else {
             ctx.set_verify_mode(ASIO::ssl::context::verify_peer);
 
-            const auto& trustCertFilePath = clientConfiguration.getTlsTrustCertsFilePath();
-            if (!trustCertFilePath.empty()) {
+            if (serviceInfo.tlsTrustCertsFilePath) {
+                const auto& trustCertFilePath = *serviceInfo.tlsTrustCertsFilePath;
                 if (file_exists(trustCertFilePath)) {
                     ctx.load_verify_file(trustCertFilePath);
                 } else {

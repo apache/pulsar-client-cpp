@@ -76,6 +76,7 @@ class PULSAR_PUBLIC ClientConfiguration {
 
     /**
      * @return the authentication data
+     * @deprecated the actual authentication data is now stored in `ServiceInfo`
      */
     Authentication& getAuth() const;
 
@@ -213,6 +214,7 @@ class PULSAR_PUBLIC ClientConfiguration {
 
     /**
      * @return whether the TLS encryption is used on the connections
+     * @deprecated the TLS usage is now determined by the scheme of the `ServiceInfo::serviceUrl`
      */
     bool isUseTls() const;
 
@@ -249,6 +251,7 @@ class PULSAR_PUBLIC ClientConfiguration {
 
     /**
      * @return the path to the trusted TLS certificate file
+     * @deprecated the trusted TLS certificate file path is now stored in `ServiceInfo`
      */
     const std::string& getTlsTrustCertsFilePath() const;
 

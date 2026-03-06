@@ -16,21 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef PULSAR_SERVICE_INFO_H_
-#define PULSAR_SERVICE_INFO_H_
+#pragma once
 
-#include <pulsar/Authentication.h>
-
-#include <optional>
-#include <string>
-
+#include <memory>
 namespace pulsar {
 
-struct PULSAR_PUBLIC ServiceInfo {
-    std::string serviceUrl;
-    AuthenticationPtr authentication;
-    std::optional<std::string> tlsTrustCertsFilePath;
+// C++17 does not have std::atomic<std::shared_ptr<T>>, so we have to manually implement it.
+template <typename T>
+class AtomicSharedPtr {
+   public:
+    using Pointer = std::shared_ptr<const T>;
+
+    explicit AtomicSharedPtr(T&& value) : ptr_(std::make_shared<const T>(std::move(value))) {}
+
+    auto load() const { return std::atomic_load(&ptr_); }
+
+    void store(Pointer&& newPtr) { std::atomic_store(&ptr_, std::move(newPtr)); }
+
+   private:
+    std::shared_ptr<const T> ptr_;
 };
 
 }  // namespace pulsar
-#endif

@@ -511,6 +511,9 @@ TEST(ClientTest, testNoRetry) {
 
 TEST(ClientTest, testUpdateServiceInfo) {
     extern std::string getToken();  // from tests/AuthToken.cc
+    auto authMethodName = [](const AuthenticationPtr &auth) {
+        return auth ? auth->getAuthMethodName() : std::string("none");
+    };
 
     // Access "private/auth" namespace in cluster 1
     ServiceInfo info1{"pulsar://localhost:6650", AuthToken::createWithToken(getToken()), std::nullopt};
@@ -519,9 +522,9 @@ TEST(ClientTest, testUpdateServiceInfo) {
                       AuthTls::create(TEST_CONF_DIR "/client-cert.pem", TEST_CONF_DIR "/client-key.pem"),
                       TEST_CONF_DIR "/hn-verification/cacert.pem"};
     // Access "public/default" namespace in cluster 1, which doesn't require authentication
-    ServiceInfo info3{"pulsar://localhost:6650", std::nullopt, std::nullopt};
+    ServiceInfo info3{"pulsar://localhost:6650", AuthFactory::Disabled(), std::nullopt};
 
-    Client client{info1.serviceUrl, ClientConfiguration().setAuth(*info1.authentication)};
+    Client client{info1.serviceUrl, ClientConfiguration().setAuth(info1.authentication)};
 
     const auto topicRequiredAuth = "private/auth/testUpdateConnectionInfo-" + std::to_string(time(nullptr));
     Producer producer;
@@ -548,7 +551,7 @@ TEST(ClientTest, testUpdateServiceInfo) {
     client.updateServiceInfo(info2);
     ASSERT_TRUE(PulsarFriend::getConnections(client).empty());
     ASSERT_EQ(info2.serviceUrl, client.getServiceInfo().serviceUrl);
-    ASSERT_EQ(info2.authentication, client.getServiceInfo().authentication);
+    ASSERT_EQ(authMethodName(info2.authentication), authMethodName(client.getServiceInfo().authentication));
     ASSERT_EQ(info2.tlsTrustCertsFilePath, client.getServiceInfo().tlsTrustCertsFilePath);
 
     // Now the same will access the same topic in cluster 2
@@ -558,7 +561,7 @@ TEST(ClientTest, testUpdateServiceInfo) {
     // cluster 2 will be cleared.
     client.updateServiceInfo(info3);
     ASSERT_EQ(info3.serviceUrl, client.getServiceInfo().serviceUrl);
-    ASSERT_EQ(info3.authentication, client.getServiceInfo().authentication);
+    ASSERT_EQ(authMethodName(info3.authentication), authMethodName(client.getServiceInfo().authentication));
     ASSERT_EQ(info3.tlsTrustCertsFilePath, client.getServiceInfo().tlsTrustCertsFilePath);
 
     const auto topicNoAuth = "testUpdateConnectionInfo-" + std::to_string(time(nullptr));
@@ -577,12 +580,12 @@ TEST(ClientTest, testUpdateServiceInfo) {
         ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
         ASSERT_EQ(value, msg.getDataAsString());
     };
-    Client client1{info1.serviceUrl, ClientConfiguration().setAuth(*info1.authentication)};
+    Client client1{info1.serviceUrl, ClientConfiguration().setAuth(info1.authentication)};
     verify(client1, topicRequiredAuth, "msg-0");
     client1.close();
 
     Client client2{info2.serviceUrl, ClientConfiguration()
-                                         .setAuth(*info2.authentication)
+                                         .setAuth(info2.authentication)
                                          .setTlsTrustCertsFilePath(*info2.tlsTrustCertsFilePath)};
     verify(client2, topicRequiredAuth, "msg-1");
     client2.close();

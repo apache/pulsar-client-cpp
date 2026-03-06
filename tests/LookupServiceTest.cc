@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/Authentication.h>
 #include <pulsar/Client.h>
+#include <pulsar/ServiceInfo.h>
 
 #include <algorithm>
 #include <boost/exception/all.hpp>
@@ -30,6 +31,7 @@
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
 #include "PulsarWrapper.h"
+#include "lib/AtomicSharedPtr.h"
 #include "lib/BinaryProtoLookupService.h"
 #include "lib/ClientConnection.h"
 #include "lib/ConnectionPool.h"
@@ -79,11 +81,11 @@ using namespace pulsar;
 
 TEST(LookupServiceTest, basicLookup) {
     ExecutorServiceProviderPtr service = std::make_shared<ExecutorServiceProvider>(1);
-    AuthenticationPtr authData = AuthFactory::Disabled();
     std::string url = "pulsar://localhost:6650";
     ClientConfiguration conf;
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    ConnectionPool pool_(conf, ioExecutorProvider_, authData, "");
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{url, AuthFactory::Disabled(), std::nullopt});
+    ConnectionPool pool_(serviceInfo, conf, ioExecutorProvider_, "");
     BinaryProtoLookupService lookupService(url, pool_, conf);
 
     TopicNamePtr topicName = TopicName::get("topic");
@@ -146,7 +148,9 @@ static void testMultiAddresses(LookupService& lookupService) {
 }
 
 TEST(LookupServiceTest, testMultiAddresses) {
-    ConnectionPool pool({}, std::make_shared<ExecutorServiceProvider>(1), AuthFactory::Disabled(), "");
+    AtomicSharedPtr<ServiceInfo> serviceInfo(
+        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    ConnectionPool pool(serviceInfo, {}, std::make_shared<ExecutorServiceProvider>(1), "");
     ClientConfiguration conf;
     BinaryProtoLookupService binaryLookupService("pulsar://localhost,localhost:9999", pool, conf);
     testMultiAddresses(binaryLookupService);
@@ -158,7 +162,9 @@ TEST(LookupServiceTest, testMultiAddresses) {
 }
 TEST(LookupServiceTest, testRetry) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), "");
+    AtomicSharedPtr<ServiceInfo> serviceInfo(
+        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    ConnectionPool pool(serviceInfo, {}, executorProvider, "");
     ClientConfiguration conf;
 
     auto lookupService = RetryableLookupService::create(
@@ -192,7 +198,9 @@ TEST(LookupServiceTest, testRetry) {
 
 TEST(LookupServiceTest, testTimeout) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), "");
+    AtomicSharedPtr<ServiceInfo> serviceInfo(
+        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    ConnectionPool pool(serviceInfo, {}, executorProvider, "");
     ClientConfiguration conf;
 
     constexpr int timeoutInSeconds = 2;
@@ -467,11 +475,12 @@ class BinaryProtoLookupServiceRedirectTestHelper : public BinaryProtoLookupServi
 
 TEST(LookupServiceTest, testRedirectionLimit) {
     const auto redirect_limit = 5;
-    AuthenticationPtr authData = AuthFactory::Disabled();
     ClientConfiguration conf;
     conf.setMaxLookupRedirects(redirect_limit);
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    ConnectionPool pool_(conf, ioExecutorProvider_, authData, "");
+    AtomicSharedPtr<ServiceInfo> serviceInfo(
+        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    ConnectionPool pool_(serviceInfo, conf, ioExecutorProvider_, "");
     string url = "pulsar://localhost:6650";
     BinaryProtoLookupServiceRedirectTestHelper lookupService(url, pool_, conf);
 
@@ -536,7 +545,9 @@ TEST(LookupServiceTest, testAfterClientShutdown) {
 
 TEST(LookupServiceTest, testRetryAfterDestroyed) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    ConnectionPool pool({}, executorProvider, AuthFactory::Disabled(), "");
+    AtomicSharedPtr<ServiceInfo> serviceInfo(
+        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    ConnectionPool pool(serviceInfo, {}, executorProvider, "");
 
     auto internalLookupService =
         std::make_shared<MockLookupService>("pulsar://localhost:6650", pool, ClientConfiguration{});
