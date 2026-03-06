@@ -810,9 +810,9 @@ void ClientImpl::shutdown() {
     }
     LOG_DEBUG("ConnectionPool is closed");
 
-    // 500ms as the timeout is long enough because ExecutorService::close calls io_service::stop()
-    // internally and waits until io_service::run() in another thread returns, which should be as soon as
-    // possible after stop() is called.
+    // 500ms as the timeout is long enough because ExecutorService::close calls io_service::stop() internally
+    // and waits until io_service::run() in another thread returns, which should be as soon as possible after
+    // stop() is called.
     TimeoutProcessor<std::chrono::milliseconds> timeoutProcessor{500};
 
     timeoutProcessor.tik();
