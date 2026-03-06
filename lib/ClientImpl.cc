@@ -34,6 +34,7 @@
 #include "Commands.h"
 #include "ConsumerImpl.h"
 #include "ConsumerInterceptors.h"
+#include "DefaultServiceUrlProvider.h"
 #include "ExecutorService.h"
 #include "HTTPLookupService.h"
 #include "LogUtils.h"
@@ -96,10 +97,20 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
 
 ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
                        LookupServiceFactory&& lookupServiceFactory)
-    : mutex_(),
+    : ClientImpl(std::make_unique<DefaultServiceUrlProvider>(std::cref(serviceUrl),
+                                                             std::cref(*clientConfiguration.impl_)),
+                 clientConfiguration, std::move(lookupServiceFactory)) {}
+
+ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
+                       const ClientConfiguration& clientConfiguration)
+    : ClientImpl(std::move(serviceInfoProvider), clientConfiguration, &defaultLookupServiceFactory) {}
+
+ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
+                       const ClientConfiguration& clientConfiguration,
+                       LookupServiceFactory&& lookupServiceFactory)
+    : serviceInfoProvider_(std::move(serviceInfoProvider)),
       state_(Open),
       clientConfiguration_(clientConfiguration),
-      serviceInfo_(clientConfiguration.impl_->toServiceInfo(serviceUrl)),
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
@@ -118,10 +129,14 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
     if (loggerFactory) {
         LogUtils::setLoggerFactory(std::move(loggerFactory));
     }
-    lookupServicePtr_ = createLookup(*serviceInfo_.load());
 }
 
 ClientImpl::~ClientImpl() { shutdown(); }
+
+void ClientImpl::initialize(Client& client) {
+    serviceInfoProvider_->initialize(
+        client, [this](ServiceInfo serviceInfo) { updateServiceInfo(std::move(serviceInfo)); });
+}
 
 LookupServicePtr ClientImpl::createLookup(ServiceInfo serviceInfo) {
     auto lookupServicePtr = RetryableLookupService::create(
@@ -669,6 +684,7 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetP
 }
 
 void ClientImpl::closeAsync(const CloseCallback& callback) {
+    serviceInfoProvider_.reset();
     std::unique_lock lock(mutex_);
     if (state_ != Open) {
         lock.unlock();
@@ -745,8 +761,8 @@ void ClientImpl::handleClose(Result result, const SharedInt& numberOfOpenHandler
         }
 
         LOG_DEBUG("Shutting down producers and consumers for client");
-        // handleClose() is called in ExecutorService's event loop, while shutdown() tried to wait the event
-        // loop exits. So here we use another thread to call shutdown().
+        // handleClose() is called in ExecutorService's event loop, while shutdown() tried to wait the
+        // event loop exits. So here we use another thread to call shutdown().
         auto self = shared_from_this();
         std::thread shutdownTask{[this, self, callback] {
             shutdown();
@@ -794,9 +810,9 @@ void ClientImpl::shutdown() {
     }
     LOG_DEBUG("ConnectionPool is closed");
 
-    // 500ms as the timeout is long enough because ExecutorService::close calls io_service::stop() internally
-    // and waits until io_service::run() in another thread returns, which should be as soon as possible after
-    // stop() is called.
+    // 500ms as the timeout is long enough because ExecutorService::close calls io_service::stop()
+    // internally and waits until io_service::run() in another thread returns, which should be as soon as
+    // possible after stop() is called.
     TimeoutProcessor<std::chrono::milliseconds> timeoutProcessor{500};
 
     timeoutProcessor.tik();
@@ -868,7 +884,9 @@ void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
 
     serviceInfo_.store(std::make_shared<const ServiceInfo>(serviceInfo));
     pool_.closeAllConnectionsForNewCluster();
-    lookupServicePtr_->close();
+    if (lookupServicePtr_) {
+        lookupServicePtr_->close();
+    }
     lookupServicePtr_ = createLookup(serviceInfo);
 
     for (auto&& it : redirectedClusterLookupServicePtrs_) {

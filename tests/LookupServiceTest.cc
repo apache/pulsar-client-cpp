@@ -84,7 +84,8 @@ TEST(LookupServiceTest, basicLookup) {
     std::string url = "pulsar://localhost:6650";
     ClientConfiguration conf;
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{url});
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(url));
     ConnectionPool pool_(serviceInfo, conf, ioExecutorProvider_, "");
     BinaryProtoLookupService lookupService(url, pool_, conf);
 
@@ -148,7 +149,8 @@ static void testMultiAddresses(LookupService& lookupService) {
 }
 
 TEST(LookupServiceTest, testMultiAddresses) {
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(binaryLookupUrl));
     ConnectionPool pool(serviceInfo, {}, std::make_shared<ExecutorServiceProvider>(1), "");
     ClientConfiguration conf;
     BinaryProtoLookupService binaryLookupService(ServiceInfo{"pulsar://localhost,localhost:9999"}, pool,
@@ -162,7 +164,8 @@ TEST(LookupServiceTest, testMultiAddresses) {
 }
 TEST(LookupServiceTest, testRetry) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(binaryLookupUrl));
     ConnectionPool pool(serviceInfo, {}, executorProvider, "");
     ClientConfiguration conf;
 
@@ -198,7 +201,8 @@ TEST(LookupServiceTest, testRetry) {
 
 TEST(LookupServiceTest, testTimeout) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(binaryLookupUrl));
     ConnectionPool pool(serviceInfo, {}, executorProvider, "");
     ClientConfiguration conf;
 
@@ -479,7 +483,8 @@ TEST(LookupServiceTest, testRedirectionLimit) {
     ClientConfiguration conf;
     conf.setMaxLookupRedirects(redirect_limit);
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(binaryLookupUrl));
     ConnectionPool pool_(serviceInfo, conf, ioExecutorProvider_, "");
     const ServiceInfo lookupServiceInfo{"pulsar://localhost:6650"};
     BinaryProtoLookupServiceRedirectTestHelper lookupService(lookupServiceInfo, pool_, conf);
@@ -544,7 +549,8 @@ TEST(LookupServiceTest, testAfterClientShutdown) {
 
 TEST(LookupServiceTest, testRetryAfterDestroyed) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(binaryLookupUrl));
     ConnectionPool pool(serviceInfo, {}, executorProvider, "");
 
     auto internalLookupService = std::make_shared<MockLookupService>(ServiceInfo{"pulsar://localhost:6650"},

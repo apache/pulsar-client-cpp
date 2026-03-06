@@ -21,12 +21,15 @@
 
 #include <pulsar/Client.h>
 #include <pulsar/ServiceInfo.h>
+#include <pulsar/ServiceInfoProvider.h>
 
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <mutex>
 #include <shared_mutex>
 
+#include "AtomicSharedPtr.h"
 #include "ConnectionPool.h"
 #include "Future.h"
 #include "LookupDataResult.h"
@@ -34,7 +37,6 @@
 #include "MemoryLimitController.h"
 #include "ProtoApiEnums.h"
 #include "SynchronizedHashMap.h"
-#include "lib/AtomicSharedPtr.h"
 
 namespace pulsar {
 
@@ -73,12 +75,17 @@ std::string generateRandomName();
 
 class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
    public:
+    ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
+               const ClientConfiguration& clientConfiguration);
+    ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
+               const ClientConfiguration& clientConfiguration, LookupServiceFactory&& lookupServiceFactory);
     ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
 
     // only for tests
     ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
                LookupServiceFactory&& lookupServiceFactory);
 
+    void initialize(Client& client);
     virtual ~ClientImpl();
 
     /**
@@ -219,6 +226,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
         Closed
     };
 
+    std::unique_ptr<ServiceInfoProvider> serviceInfoProvider_;
     mutable std::shared_mutex mutex_;
 
     State state_;

@@ -18,21 +18,25 @@
  */
 #pragma once
 
-#include <memory>
+#include <pulsar/ServiceInfoProvider.h>
+
+#include <string>
+
+#include "ClientConfigurationImpl.h"
+
 namespace pulsar {
 
-// C++17 does not have std::atomic<std::shared_ptr<T>>, so we have to manually implement it.
-template <typename T>
-class AtomicSharedPtr {
+class DefaultServiceUrlProvider : public ServiceInfoProvider {
    public:
-    using Pointer = std::shared_ptr<const T>;
+    DefaultServiceUrlProvider(const std::string& serviceUrl, const ClientConfigurationImpl& config)
+        : serviceInfo_(config.toServiceInfo(serviceUrl)) {}
 
-    auto load() const { return std::atomic_load(&ptr_); }
-
-    void store(Pointer&& newPtr) { std::atomic_store(&ptr_, std::move(newPtr)); }
+    void initialize(Client& client, std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
+        onServiceInfoUpdate(serviceInfo_);
+    }
 
    private:
-    std::shared_ptr<const T> ptr_;
+    ServiceInfo serviceInfo_;
 };
 
 }  // namespace pulsar

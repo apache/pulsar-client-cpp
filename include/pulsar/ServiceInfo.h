@@ -26,6 +26,10 @@
 
 namespace pulsar {
 
+/**
+ * ServiceInfo encapsulates the information of a Pulsar service, which is used by the client to connect to the
+ * service. It includes the service URL, authentication information, and TLS configuration.
+ */
 class PULSAR_PUBLIC ServiceInfo final {
    public:
     ServiceInfo(std::string serviceUrl, AuthenticationPtr authentication = AuthFactory::Disabled(),

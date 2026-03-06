@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <pulsar/Client.h>
+#include <pulsar/ServiceInfoProvider.h>
 
 #include <iostream>
 #include <memory>
@@ -35,11 +36,19 @@ namespace pulsar {
 
 Client::Client(const std::shared_ptr<ClientImpl>& impl) : impl_(impl) {}
 
-Client::Client(const std::string& serviceUrl)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, ClientConfiguration())) {}
+Client::Client(const std::string& serviceUrl) : Client(serviceUrl, ClientConfiguration()) {}
 
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {}
+    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {
+    impl_->initialize(*this);
+}
+
+Client Client::create(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
+                      const ClientConfiguration& clientConfiguration) {
+    Client client(std::make_shared<ClientImpl>(std::move(serviceInfoProvider), clientConfiguration));
+    client.impl_->initialize(client);
+    return client;
+}
 
 Result Client::createProducer(const std::string& topic, Producer& producer) {
     return createProducer(topic, ProducerConfiguration(), producer);
@@ -196,8 +205,6 @@ void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
     impl_->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
         .addListener(std::move(callback));
 }
-
-void Client::updateServiceInfo(ServiceInfo serviceInfo) { impl_->updateServiceInfo(std::move(serviceInfo)); }
 
 ServiceInfo Client::getServiceInfo() const { return impl_->getServiceInfo(); }
 
