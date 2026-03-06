@@ -84,7 +84,7 @@ TEST(LookupServiceTest, basicLookup) {
     std::string url = "pulsar://localhost:6650";
     ClientConfiguration conf;
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{url, AuthFactory::Disabled(), std::nullopt});
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{url});
     ConnectionPool pool_(serviceInfo, conf, ioExecutorProvider_, "");
     BinaryProtoLookupService lookupService(url, pool_, conf);
 
@@ -148,28 +148,28 @@ static void testMultiAddresses(LookupService& lookupService) {
 }
 
 TEST(LookupServiceTest, testMultiAddresses) {
-    AtomicSharedPtr<ServiceInfo> serviceInfo(
-        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
     ConnectionPool pool(serviceInfo, {}, std::make_shared<ExecutorServiceProvider>(1), "");
     ClientConfiguration conf;
-    BinaryProtoLookupService binaryLookupService("pulsar://localhost,localhost:9999", pool, conf);
+    BinaryProtoLookupService binaryLookupService(ServiceInfo{"pulsar://localhost,localhost:9999"}, pool,
+                                                 conf);
     testMultiAddresses(binaryLookupService);
 
     // HTTPLookupService calls shared_from_this() internally, we must create a shared pointer to test
     auto httpLookupServicePtr = std::make_shared<HTTPLookupService>(
-        "http://localhost,localhost:9999", ClientConfiguration{}, AuthFactory::Disabled());
+        ServiceInfo{"http://localhost,localhost:9999"}, ClientConfiguration{});
     testMultiAddresses(*httpLookupServicePtr);
 }
 TEST(LookupServiceTest, testRetry) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    AtomicSharedPtr<ServiceInfo> serviceInfo(
-        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
     ConnectionPool pool(serviceInfo, {}, executorProvider, "");
     ClientConfiguration conf;
 
-    auto lookupService = RetryableLookupService::create(
-        std::make_shared<BinaryProtoLookupService>("pulsar://localhost:9999,localhost", pool, conf),
-        std::chrono::seconds(30), executorProvider);
+    auto lookupService =
+        RetryableLookupService::create(std::make_shared<BinaryProtoLookupService>(
+                                           ServiceInfo{"pulsar://localhost:9999,localhost"}, pool, conf),
+                                       std::chrono::seconds(30), executorProvider);
     ServiceNameResolver& serviceNameResolver = lookupService->getServiceNameResolver();
 
     PulsarFriend::setServiceUrlIndex(serviceNameResolver, 0);
@@ -198,15 +198,16 @@ TEST(LookupServiceTest, testRetry) {
 
 TEST(LookupServiceTest, testTimeout) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    AtomicSharedPtr<ServiceInfo> serviceInfo(
-        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
     ConnectionPool pool(serviceInfo, {}, executorProvider, "");
     ClientConfiguration conf;
 
     constexpr int timeoutInSeconds = 2;
     auto lookupService = RetryableLookupService::create(
-        std::make_shared<BinaryProtoLookupService>("pulsar://localhost:9990,localhost:9902,localhost:9904",
-                                                   pool, conf),
+        std::make_shared<BinaryProtoLookupService>(
+            ServiceInfo{"pulsar://localhost:9990,localhost:9902,localhost:9904", AuthFactory::Disabled(),
+                        std::nullopt},
+            pool, conf),
         std::chrono::seconds(timeoutInSeconds), executorProvider);
     auto topicNamePtr = TopicName::get("lookup-service-test-retry");
 
@@ -463,9 +464,9 @@ INSTANTIATE_TEST_SUITE_P(Pulsar, LookupServiceTest, ::testing::Values(binaryLook
 
 class BinaryProtoLookupServiceRedirectTestHelper : public BinaryProtoLookupService {
    public:
-    BinaryProtoLookupServiceRedirectTestHelper(const std::string& serviceUrl, ConnectionPool& pool,
+    BinaryProtoLookupServiceRedirectTestHelper(const ServiceInfo& serviceInfo, ConnectionPool& pool,
                                                const ClientConfiguration& clientConfiguration)
-        : BinaryProtoLookupService(serviceUrl, pool, clientConfiguration) {}
+        : BinaryProtoLookupService(serviceInfo, pool, clientConfiguration) {}
 
     LookupResultFuture findBroker(const std::string& address, bool authoritative, const std::string& topic,
                                   size_t redirectCount) {
@@ -478,11 +479,10 @@ TEST(LookupServiceTest, testRedirectionLimit) {
     ClientConfiguration conf;
     conf.setMaxLookupRedirects(redirect_limit);
     ExecutorServiceProviderPtr ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(1));
-    AtomicSharedPtr<ServiceInfo> serviceInfo(
-        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
     ConnectionPool pool_(serviceInfo, conf, ioExecutorProvider_, "");
-    string url = "pulsar://localhost:6650";
-    BinaryProtoLookupServiceRedirectTestHelper lookupService(url, pool_, conf);
+    const ServiceInfo lookupServiceInfo{"pulsar://localhost:6650"};
+    BinaryProtoLookupServiceRedirectTestHelper lookupService(lookupServiceInfo, pool_, conf);
 
     const auto topicNamePtr = TopicName::get("topic");
     for (auto idx = 0; idx < redirect_limit + 5; ++idx) {
@@ -493,8 +493,8 @@ TEST(LookupServiceTest, testRedirectionLimit) {
 
         if (idx <= redirect_limit) {
             ASSERT_EQ(ResultOk, result);
-            ASSERT_EQ(url, lookupResult.logicalAddress);
-            ASSERT_EQ(url, lookupResult.physicalAddress);
+            ASSERT_EQ(lookupServiceInfo.serviceUrl(), lookupResult.logicalAddress);
+            ASSERT_EQ(lookupServiceInfo.serviceUrl(), lookupResult.physicalAddress);
         } else {
             ASSERT_EQ(ResultTooManyLookupRequestException, result);
         }
@@ -522,12 +522,11 @@ class MockLookupService : public BinaryProtoLookupService {
 };
 
 TEST(LookupServiceTest, testAfterClientShutdown) {
-    auto client = std::make_shared<ClientImpl>("pulsar://localhost:6650", ClientConfiguration{},
-                                               [](const std::string& serviceUrl, const ClientConfiguration&,
-                                                  ConnectionPool& pool, const AuthenticationPtr&) {
-                                                   return std::make_shared<MockLookupService>(
-                                                       serviceUrl, pool, ClientConfiguration{});
-                                               });
+    auto client = std::make_shared<ClientImpl>(
+        "pulsar://localhost:6650", ClientConfiguration{},
+        [](const ServiceInfo& serviceInfo, const ClientConfiguration&, ConnectionPool& pool) {
+            return std::make_shared<MockLookupService>(serviceInfo, pool, ClientConfiguration{});
+        });
     std::promise<Result> promise;
     client->subscribeAsync("lookup-service-test-after-client-shutdown", "sub", ConsumerConfiguration{},
                            [&promise](Result result, const Consumer&) { promise.set_value(result); });
@@ -545,12 +544,11 @@ TEST(LookupServiceTest, testAfterClientShutdown) {
 
 TEST(LookupServiceTest, testRetryAfterDestroyed) {
     auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
-    AtomicSharedPtr<ServiceInfo> serviceInfo(
-        ServiceInfo{binaryLookupUrl, AuthFactory::Disabled(), std::nullopt});
+    AtomicSharedPtr<ServiceInfo> serviceInfo(ServiceInfo{binaryLookupUrl});
     ConnectionPool pool(serviceInfo, {}, executorProvider, "");
 
-    auto internalLookupService =
-        std::make_shared<MockLookupService>("pulsar://localhost:6650", pool, ClientConfiguration{});
+    auto internalLookupService = std::make_shared<MockLookupService>(ServiceInfo{"pulsar://localhost:6650"},
+                                                                     pool, ClientConfiguration{});
     auto lookupService =
         RetryableLookupService::create(internalLookupService, std::chrono::seconds(30), executorProvider);
 

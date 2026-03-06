@@ -29,9 +29,7 @@ ServiceInfo::ServiceInfo(std::string serviceUrl, AuthenticationPtr authenticatio
                          std::optional<std::string> tlsTrustCertsFilePath)
     : serviceUrl_(std::move(serviceUrl)),
       useTls_(ServiceNameResolver::useTls(ServiceURI(serviceUrl_))),
-      authentication_(authentication && authentication->getAuthMethodName() != "none"
-                          ? std::move(authentication)
-                          : AuthFactory::Disabled()),
+      authentication_(std::move(authentication)),
       tlsTrustCertsFilePath_(std::move(tlsTrustCertsFilePath)) {}
 
 }  // namespace pulsar

@@ -20,6 +20,7 @@
 #define LIB_CLIENTIMPL_H_
 
 #include <pulsar/Client.h>
+#include <pulsar/ServiceInfo.h>
 
 #include <atomic>
 #include <cstdint>
@@ -34,7 +35,6 @@
 #include "ProtoApiEnums.h"
 #include "SynchronizedHashMap.h"
 #include "lib/AtomicSharedPtr.h"
-#include "pulsar/ServiceInfo.h"
 
 namespace pulsar {
 
@@ -56,8 +56,8 @@ typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
 class ClientConnection;
 using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 
-using LookupServiceFactory = std::function<LookupServicePtr(const std::string&, const ClientConfiguration&,
-                                                            ConnectionPool& pool, const AuthenticationPtr&)>;
+using LookupServiceFactory = std::function<LookupServicePtr(
+    ServiceInfo&& serviceInfo, const ClientConfiguration&, ConnectionPool& pool)>;
 
 class ProducerImplBase;
 using ProducerImplBaseWeakPtr = std::weak_ptr<ProducerImplBase>;
@@ -198,7 +198,16 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     const std::string& getPhysicalAddress(const std::string& redirectedClusterURI,
                                           const std::string& logicalAddress);
 
-    LookupServicePtr createLookup(const std::string& serviceUrl);
+    // This overload is only used for blue-green migration, where only the service URL is modified, the other
+    // paramters remain the same
+    LookupServicePtr createRedirectedLookup(const std::string& redirectedUrl) {
+        auto serviceInfo = serviceInfo_.load();
+        return createLookup(
+            ServiceInfo{redirectedUrl, serviceInfo->authentication(), serviceInfo->tlsTrustCertsFilePath()});
+    }
+
+    LookupServicePtr createLookup(ServiceInfo serviceInfo);
+
     LookupServicePtr getLookup(const std::string& redirectedClusterURI);
 
     static std::string getClientVersion(const ClientConfiguration& clientConfiguration);

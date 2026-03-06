@@ -19,7 +19,6 @@
 #include "ClientImpl.h"
 
 #include <pulsar/ClientConfiguration.h>
-#include <pulsar/ServiceInfo.h>
 #include <pulsar/Version.h>
 
 #include <algorithm>
@@ -79,16 +78,15 @@ std::string generateRandomName() {
 
 typedef std::vector<std::string> StringList;
 
-static LookupServicePtr defaultLookupServiceFactory(const std::string& serviceUrl,
+static LookupServicePtr defaultLookupServiceFactory(const ServiceInfo& serviceInfo,
                                                     const ClientConfiguration& clientConfiguration,
-                                                    ConnectionPool& pool, const AuthenticationPtr& auth) {
-    if (ServiceNameResolver::useHttp(ServiceURI(serviceUrl))) {
+                                                    ConnectionPool& pool) {
+    if (ServiceNameResolver::useHttp(ServiceURI(serviceInfo.serviceUrl()))) {
         LOG_DEBUG("Using HTTP Lookup");
-        return std::make_shared<HTTPLookupService>(serviceUrl, std::cref(clientConfiguration),
-                                                   std::cref(auth));
+        return std::make_shared<HTTPLookupService>(std::cref(serviceInfo), std::cref(clientConfiguration));
     } else {
         LOG_DEBUG("Using Binary Lookup");
-        return std::make_shared<BinaryProtoLookupService>(serviceUrl, std::ref(pool),
+        return std::make_shared<BinaryProtoLookupService>(std::cref(serviceInfo), std::ref(pool),
                                                           std::cref(clientConfiguration));
     }
 }
@@ -124,15 +122,14 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
     if (loggerFactory) {
         LogUtils::setLoggerFactory(std::move(loggerFactory));
     }
-    lookupServicePtr_ = createLookup(serviceUrl);
+    lookupServicePtr_ = createLookup(*serviceInfo_.load());
 }
 
 ClientImpl::~ClientImpl() { shutdown(); }
 
-LookupServicePtr ClientImpl::createLookup(const std::string& serviceUrl) {
-    const auto serviceInfo = serviceInfo_.load();
+LookupServicePtr ClientImpl::createLookup(ServiceInfo serviceInfo) {
     auto lookupServicePtr = RetryableLookupService::create(
-        lookupServiceFactory_(serviceUrl, clientConfiguration_, pool_, serviceInfo->authentication()),
+        lookupServiceFactory_(std::move(serviceInfo), clientConfiguration_, pool_),
         clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
     return lookupServicePtr;
 }
@@ -167,7 +164,7 @@ LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) 
         it != redirectedClusterLookupServicePtrs_.end()) {
         return it->second;
     }
-    auto lookup = createLookup(redirectedClusterURI);
+    auto lookup = createRedirectedLookup(redirectedClusterURI);
     redirectedClusterLookupServicePtrs_.emplace(redirectedClusterURI, lookup);
     return lookup;
 }
@@ -876,7 +873,7 @@ void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
     serviceInfo_.store(std::make_shared<const ServiceInfo>(serviceInfo));
     pool_.closeAllConnectionsForNewCluster();
     lookupServicePtr_->close();
-    lookupServicePtr_ = createLookup(serviceInfo.serviceUrl());
+    lookupServicePtr_ = createLookup(serviceInfo);
 
     for (auto&& it : redirectedClusterLookupServicePtrs_) {
         it.second->close();

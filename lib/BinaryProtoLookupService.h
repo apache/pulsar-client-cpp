@@ -22,6 +22,7 @@
 #include <pulsar/Authentication.h>
 #include <pulsar/ClientConfiguration.h>
 #include <pulsar/Schema.h>
+#include <pulsar/ServiceInfo.h>
 
 #include <mutex>
 
@@ -38,9 +39,9 @@ using GetSchemaPromisePtr = std::shared_ptr<Promise<Result, SchemaInfo>>;
 
 class PULSAR_PUBLIC BinaryProtoLookupService : public LookupService {
    public:
-    BinaryProtoLookupService(const std::string& serviceUrl, ConnectionPool& pool,
+    BinaryProtoLookupService(const ServiceInfo& serviceInfo, ConnectionPool& pool,
                              const ClientConfiguration& clientConfiguration)
-        : serviceNameResolver_(serviceUrl),
+        : serviceNameResolver_(serviceInfo.serviceUrl()),
           cnxPool_(pool),
           listenerName_(clientConfiguration.getListenerName()),
           maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()) {}

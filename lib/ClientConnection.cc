@@ -209,6 +209,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       pool_(pool),
       poolIndex_(poolIndex) {
     LOG_INFO(cnxString_ << "Create ClientConnection, timeout=" << clientConfiguration.getConnectionTimeout());
+    if (!authentication_) {
+        LOG_ERROR("Invalid authentication plugin");
+        throw ResultAuthenticationError;
+        return;
+    }
 
     if (auto oauth2Auth = std::dynamic_pointer_cast<AuthOauth2>(authentication_)) {
         // Configure the TLS trust certs file for Oauth2
