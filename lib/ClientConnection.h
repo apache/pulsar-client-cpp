@@ -157,10 +157,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      *
      * @param result all pending futures will complete with this result
      * @param detach remove it from the pool if it's true
+     * @param switchCluster whether the close is triggered by cluster switching
      *
      * `detach` should only be false when the connection pool is closed.
      */
-    void close(Result result = ResultConnectError, bool detach = true);
+    void close(Result result = ResultConnectError, bool detach = true, bool switchCluster = false);
 
     bool isClosed() const;
 

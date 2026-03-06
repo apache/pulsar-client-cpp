@@ -24,10 +24,12 @@
 #include <atomic>
 #include <cstdint>
 #include <memory>
+#include <shared_mutex>
 
 #include "ConnectionPool.h"
 #include "Future.h"
 #include "LookupDataResult.h"
+#include "LookupService.h"
 #include "MemoryLimitController.h"
 #include "ProtoApiEnums.h"
 #include "SynchronizedHashMap.h"
@@ -52,8 +54,6 @@ typedef std::weak_ptr<ConsumerImplBase> ConsumerImplBaseWeakPtr;
 class ClientConnection;
 using ClientConnectionPtr = std::shared_ptr<ClientConnection>;
 
-class LookupService;
-using LookupServicePtr = std::shared_ptr<LookupService>;
 using LookupServiceFactory = std::function<LookupServicePtr(const std::string&, const ClientConfiguration&,
                                                             ConnectionPool& pool, const AuthenticationPtr&)>;
 
@@ -128,7 +128,6 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ExecutorServiceProviderPtr getIOExecutorProvider();
     ExecutorServiceProviderPtr getListenerExecutorProvider();
     ExecutorServiceProviderPtr getPartitionListenerExecutorProvider();
-    LookupServicePtr getLookup(const std::string& redirectedClusterURI = "");
 
     void cleanupProducer(ProducerImplBase* address) { producers_.remove(address); }
 
@@ -138,6 +137,26 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     ConnectionPool& getConnectionPool() noexcept { return pool_; }
     uint64_t getLookupCount() { return lookupCount_; }
+
+    void updateServiceInfo(ServiceInfo&& serviceInfo);
+    ServiceInfo getServiceInfo() const;
+
+    // Since the underlying `lookupServicePtr_` can be modified by `updateServiceInfo`, we should not expose
+    // it to other classes, otherwise the update might not be visible.
+    auto getPartitionMetadataAsync(const TopicNamePtr& topicName) {
+        std::shared_lock lock(mutex_);
+        return lookupServicePtr_->getPartitionMetadataAsync(topicName);
+    }
+
+    auto getTopicsOfNamespaceAsync(const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) {
+        std::shared_lock lock(mutex_);
+        return lookupServicePtr_->getTopicsOfNamespaceAsync(nsName, mode);
+    }
+
+    auto getSchema(const TopicNamePtr& topicName, const std::string& version = "") {
+        std::shared_lock lock(mutex_);
+        return lookupServicePtr_->getSchema(topicName, version);
+    }
 
     static std::chrono::nanoseconds getOperationTimeout(const ClientConfiguration& clientConfiguration);
 
@@ -178,6 +197,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                           const std::string& logicalAddress);
 
     LookupServicePtr createLookup(const std::string& serviceUrl);
+    LookupServicePtr getLookup(const std::string& redirectedClusterURI);
 
     static std::string getClientVersion(const ClientConfiguration& clientConfiguration);
 
@@ -188,10 +208,11 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
         Closed
     };
 
-    std::mutex mutex_;
+    mutable std::shared_mutex mutex_;
 
     State state_;
     ClientConfiguration clientConfiguration_;
+    ServiceInfo serviceInfo_;
     MemoryLimitController memoryLimitController_;
 
     ExecutorServiceProviderPtr ioExecutorProvider_;
@@ -202,8 +223,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     std::unordered_map<std::string, LookupServicePtr> redirectedClusterLookupServicePtrs_;
     ConnectionPool pool_;
 
-    uint64_t producerIdGenerator_;
-    uint64_t consumerIdGenerator_;
+    std::atomic_uint64_t producerIdGenerator_;
+    std::atomic_uint64_t consumerIdGenerator_;
     std::shared_ptr<std::atomic<uint64_t>> requestIdGenerator_{std::make_shared<std::atomic<uint64_t>>(0)};
 
     SynchronizedHashMap<ProducerImplBase*, ProducerImplBaseWeakPtr> producers_;
@@ -215,6 +236,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     LookupServiceFactory lookupServiceFactory_;
 
     friend class Client;
+    friend class AutoClusterFailoverImpl;
 };
 } /* namespace pulsar */
 

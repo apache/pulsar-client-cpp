@@ -24,7 +24,9 @@
 #include <algorithm>
 #include <chrono>
 #include <iterator>
+#include <mutex>
 #include <random>
+#include <shared_mutex>
 #include <sstream>
 
 #include "BinaryProtoLookupService.h"
@@ -74,9 +76,16 @@ std::string generateRandomName() {
     return randomName;
 }
 
-typedef std::unique_lock<std::mutex> Lock;
-
 typedef std::vector<std::string> StringList;
+
+namespace {
+std::optional<AuthenticationPtr> toOptionalAuthentication(const AuthenticationPtr& authentication) {
+    if (!authentication || authentication->getAuthMethodName() == "none") {
+        return std::nullopt;
+    }
+    return authentication;
+}
+}  // namespace
 
 static LookupServicePtr defaultLookupServiceFactory(const std::string& serviceUrl,
                                                     const ClientConfiguration& clientConfiguration,
@@ -101,6 +110,10 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       state_(Open),
       clientConfiguration_(ClientConfiguration(clientConfiguration)
                                .setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)))),
+      serviceInfo_{serviceUrl, toOptionalAuthentication(clientConfiguration.getAuthPtr()),
+                   clientConfiguration.getTlsTrustCertsFilePath().empty()
+                       ? std::nullopt
+                       : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())},
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
@@ -144,19 +157,26 @@ ExecutorServiceProviderPtr ClientImpl::getPartitionListenerExecutorProvider() {
 }
 
 LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) {
+    std::shared_lock readLock(mutex_);
     if (redirectedClusterURI.empty()) {
         return lookupServicePtr_;
     }
 
-    Lock lock(mutex_);
-    auto it = redirectedClusterLookupServicePtrs_.find(redirectedClusterURI);
-    if (it == redirectedClusterLookupServicePtrs_.end()) {
-        auto lookup = createLookup(redirectedClusterURI);
-        redirectedClusterLookupServicePtrs_.emplace(redirectedClusterURI, lookup);
-        return lookup;
+    if (auto it = redirectedClusterLookupServicePtrs_.find(redirectedClusterURI);
+        it != redirectedClusterLookupServicePtrs_.end()) {
+        return it->second;
     }
+    readLock.unlock();
 
-    return it->second;
+    std::unique_lock writeLock(mutex_);
+    // Double check in case another thread acquires the lock and inserts a pair first
+    if (auto it = redirectedClusterLookupServicePtrs_.find(redirectedClusterURI);
+        it != redirectedClusterLookupServicePtrs_.end()) {
+        return it->second;
+    }
+    auto lookup = createLookup(redirectedClusterURI);
+    redirectedClusterLookupServicePtrs_.emplace(redirectedClusterURI, lookup);
+    return lookup;
 }
 
 void ClientImpl::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
@@ -166,7 +186,7 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
     }
     TopicNamePtr topicName;
     {
-        Lock lock(mutex_);
+        std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
             callback(ResultAlreadyClosed, Producer());
@@ -180,7 +200,7 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
 
     if (autoDownloadSchema) {
         auto self = shared_from_this();
-        lookupServicePtr_->getSchema(topicName).addListener(
+        getSchema(topicName).addListener(
             [self, topicName, callback](Result res, const SchemaInfo& topicSchema) {
                 if (res != ResultOk) {
                     callback(res, Producer());
@@ -188,12 +208,12 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
                 }
                 ProducerConfiguration conf;
                 conf.setSchema(topicSchema);
-                self->lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+                self->getPartitionMetadataAsync(topicName).addListener(
                     std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
                               std::placeholders::_2, topicName, conf, callback));
             });
     } else {
-        lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+        getPartitionMetadataAsync(topicName).addListener(
             std::bind(&ClientImpl::handleCreateProducer, shared_from_this(), std::placeholders::_1,
                       std::placeholders::_2, topicName, conf, callback));
     }
@@ -253,7 +273,7 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
                                    const ReaderConfiguration& conf, const ReaderCallback& callback) {
     TopicNamePtr topicName;
     {
-        Lock lock(mutex_);
+        std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
             callback(ResultAlreadyClosed, Reader());
@@ -266,7 +286,7 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
     }
 
     MessageId msgId(startMessageId);
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+    getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleReaderMetadataLookup, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, msgId, conf, callback));
 }
@@ -275,7 +295,7 @@ void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewC
                                       const TableViewCallback& callback) {
     TopicNamePtr topicName;
     {
-        Lock lock(mutex_);
+        std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
             callback(ResultAlreadyClosed, TableView());
@@ -341,7 +361,7 @@ void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const 
                                          const SubscribeCallback& callback) {
     TopicNamePtr topicNamePtr = TopicName::get(regexPattern);
 
-    Lock lock(mutex_);
+    std::shared_lock lock(mutex_);
     if (state_ != Open) {
         lock.unlock();
         callback(ResultAlreadyClosed, Consumer());
@@ -379,7 +399,7 @@ void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const 
             return;
     }
 
-    lookupServicePtr_->getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
+    getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
         .addListener(std::bind(&ClientImpl::createPatternMultiTopicsConsumer, shared_from_this(),
                                std::placeholders::_1, std::placeholders::_2, regexPattern, mode,
                                subscriptionName, conf, callback));
@@ -401,9 +421,8 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
 
         auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
 
-        consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(shared_from_this(), regexPattern, mode,
-                                                                    *matchTopics, subscriptionName, conf,
-                                                                    lookupServicePtr_, interceptors);
+        consumer = std::make_shared<PatternMultiTopicsConsumerImpl>(
+            shared_from_this(), regexPattern, mode, *matchTopics, subscriptionName, conf, interceptors);
 
         consumer->getConsumerCreatedFuture().addListener(
             std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
@@ -426,7 +445,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
     auto it = std::unique(topics.begin(), topics.end());
     auto newSize = std::distance(topics.begin(), it);
     topics.resize(newSize);
-    Lock lock(mutex_);
+    std::shared_lock lock(mutex_);
     if (state_ != Open) {
         lock.unlock();
         callback(ResultAlreadyClosed, Consumer());
@@ -450,7 +469,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
     auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
 
     ConsumerImplBasePtr consumer = std::make_shared<MultiTopicsConsumerImpl>(
-        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, lookupServicePtr_, interceptors);
+        shared_from_this(), topics, subscriptionName, topicNamePtr, conf, interceptors);
 
     consumer->getConsumerCreatedFuture().addListener(std::bind(&ClientImpl::handleConsumerCreated,
                                                                shared_from_this(), std::placeholders::_1,
@@ -462,7 +481,7 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
                                 const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     TopicNamePtr topicName;
     {
-        Lock lock(mutex_);
+        std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
             callback(ResultAlreadyClosed, Consumer());
@@ -480,7 +499,7 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
         }
     }
 
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+    getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleSubscribe, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, subscriptionName, conf, callback));
 }
@@ -503,9 +522,9 @@ void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& parti
                     callback(ResultInvalidConfiguration, Consumer());
                     return;
                 }
-                consumer = std::make_shared<MultiTopicsConsumerImpl>(
-                    shared_from_this(), topicName, partitionMetadata->getPartitions(), subscriptionName, conf,
-                    lookupServicePtr_, interceptors);
+                consumer = std::make_shared<MultiTopicsConsumerImpl>(shared_from_this(), topicName,
+                                                                     partitionMetadata->getPartitions(),
+                                                                     subscriptionName, conf, interceptors);
             } else {
                 auto consumerImpl = std::make_shared<ConsumerImpl>(shared_from_this(), topicName->toString(),
                                                                    subscriptionName, conf,
@@ -647,7 +666,7 @@ void ClientImpl::handleGetPartitions(Result result, const LookupDataResultPtr& p
 void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetPartitionsCallback& callback) {
     TopicNamePtr topicName;
     {
-        Lock lock(mutex_);
+        std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
             callback(ResultAlreadyClosed, StringList());
@@ -658,13 +677,15 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetP
             return;
         }
     }
-    lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
-        std::bind(&ClientImpl::handleGetPartitions, shared_from_this(), std::placeholders::_1,
-                  std::placeholders::_2, topicName, callback));
+    getPartitionMetadataAsync(topicName).addListener(std::bind(&ClientImpl::handleGetPartitions,
+                                                               shared_from_this(), std::placeholders::_1,
+                                                               std::placeholders::_2, topicName, callback));
 }
 
 void ClientImpl::closeAsync(const CloseCallback& callback) {
+    std::unique_lock lock(mutex_);
     if (state_ != Open) {
+        lock.unlock();
         if (callback) {
             callback(ResultAlreadyClosed);
         }
@@ -678,6 +699,8 @@ void ClientImpl::closeAsync(const CloseCallback& callback) {
     for (const auto& it : redirectedClusterLookupServicePtrs_) {
         it.second->close();
     }
+    redirectedClusterLookupServicePtrs_.clear();
+    lock.unlock();
 
     auto producers = producers_.move();
     auto consumers = consumers_.move();
@@ -726,7 +749,7 @@ void ClientImpl::handleClose(Result result, const SharedInt& numberOfOpenHandler
         --(*numberOfOpenHandlers);
     }
     if (*numberOfOpenHandlers == 0) {
-        Lock lock(mutex_);
+        std::unique_lock lock(mutex_);
         if (state_ == Closed) {
             LOG_DEBUG("Client is already shutting down, possible race condition in handleClose");
             return;
@@ -776,7 +799,9 @@ void ClientImpl::shutdown() {
                                    << " consumers have been shutdown.");
     }
 
+    std::shared_lock lock(mutex_);
     lookupServicePtr_->close();
+    lock.unlock();
     if (!pool_.close()) {
         // pool_ has already been closed. It means shutdown() has been called before.
         return;
@@ -805,15 +830,9 @@ void ClientImpl::shutdown() {
     lookupCount_ = 0;
 }
 
-uint64_t ClientImpl::newProducerId() {
-    Lock lock(mutex_);
-    return producerIdGenerator_++;
-}
+uint64_t ClientImpl::newProducerId() { return producerIdGenerator_++; }
 
-uint64_t ClientImpl::newConsumerId() {
-    Lock lock(mutex_);
-    return consumerIdGenerator_++;
-}
+uint64_t ClientImpl::newConsumerId() { return consumerIdGenerator_++; }
 
 uint64_t ClientImpl::newRequestId() { return (*requestIdGenerator_)++; }
 
@@ -852,6 +871,44 @@ std::string ClientImpl::getClientVersion(const ClientConfiguration& clientConfig
 
 std::chrono::nanoseconds ClientImpl::getOperationTimeout(const ClientConfiguration& clientConfiguration) {
     return clientConfiguration.impl_->operationTimeout;
+}
+
+void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
+    std::unique_lock lock(mutex_);
+    if (state_ != Open) {
+        LOG_ERROR("Client is not open, cannot update connection info");
+        return;
+    }
+
+    if (serviceInfo.authentication.has_value() && *serviceInfo.authentication) {
+        clientConfiguration_.setAuth(*serviceInfo.authentication);
+    } else {
+        clientConfiguration_.setAuth(AuthFactory::Disabled());
+    }
+    if (serviceInfo.tlsTrustCertsFilePath.has_value()) {
+        clientConfiguration_.setTlsTrustCertsFilePath(*serviceInfo.tlsTrustCertsFilePath);
+    } else {
+        clientConfiguration_.setTlsTrustCertsFilePath("");
+    }
+    clientConfiguration_.setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceInfo.serviceUrl)));
+    serviceInfo_ = {serviceInfo.serviceUrl, toOptionalAuthentication(clientConfiguration_.getAuthPtr()),
+                    clientConfiguration_.getTlsTrustCertsFilePath().empty()
+                        ? std::nullopt
+                        : std::make_optional(clientConfiguration_.getTlsTrustCertsFilePath())};
+
+    pool_.resetForClusterSwitching(clientConfiguration_.getAuthPtr(), clientConfiguration_);
+
+    lookupServicePtr_->close();
+    for (auto&& it : redirectedClusterLookupServicePtrs_) {
+        it.second->close();
+    }
+    redirectedClusterLookupServicePtrs_.clear();
+    lookupServicePtr_ = createLookup(serviceInfo.serviceUrl);
+}
+
+ServiceInfo ClientImpl::getServiceInfo() const {
+    std::shared_lock lock(mutex_);
+    return serviceInfo_;
 }
 
 } /* namespace pulsar */

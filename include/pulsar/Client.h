@@ -29,9 +29,11 @@
 #include <pulsar/Reader.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/TableView.h>
 #include <pulsar/defines.h>
 
+#include <optional>
 #include <string>
 
 namespace pulsar {
@@ -414,11 +416,29 @@ class PULSAR_PUBLIC Client {
     void getSchemaInfoAsync(const std::string& topic, int64_t version,
                             std::function<void(Result, const SchemaInfo&)> callback);
 
+    /**
+     * Update the service information of the client.
+     *
+     * This method is used to switch the connection to a different Pulsar cluster. All connections will be
+     * closed and the internal service info will be updated.
+     *
+     * @param serviceInfo the service URL, authentication and TLS trust certs file path to use
+     */
+    void updateServiceInfo(ServiceInfo serviceInfo);
+
+    /**
+     * Get the current service information of the client.
+     *
+     * @return the current service information
+     */
+    ServiceInfo getServiceInfo() const;
+
    private:
     Client(const std::shared_ptr<ClientImpl>&);
 
     friend class PulsarFriend;
     friend class PulsarWrapper;
+    friend class AutoClusterFailover;
     std::shared_ptr<ClientImpl> impl_;
 };
 }  // namespace pulsar

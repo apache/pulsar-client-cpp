@@ -44,20 +44,19 @@ using std::chrono::seconds;
 MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(const ClientImplPtr& client, const TopicNamePtr& topicName,
                                                  int numPartitions, const std::string& subscriptionName,
                                                  const ConsumerConfiguration& conf,
-                                                 const LookupServicePtr& lookupServicePtr,
                                                  const ConsumerInterceptorsPtr& interceptors,
                                                  Commands::SubscriptionMode subscriptionMode,
                                                  const optional<MessageId>& startMessageId)
     : MultiTopicsConsumerImpl(client, {topicName->toString()}, subscriptionName, topicName, conf,
-                              lookupServicePtr, interceptors, subscriptionMode, startMessageId) {
+                              interceptors, subscriptionMode, startMessageId) {
     topicsPartitions_[topicName->toString()] = numPartitions;
 }
 
 MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(
     const ClientImplPtr& client, const std::vector<std::string>& topics, const std::string& subscriptionName,
     const TopicNamePtr& topicName, const ConsumerConfiguration& conf,
-    const LookupServicePtr& lookupServicePtr, const ConsumerInterceptorsPtr& interceptors,
-    Commands::SubscriptionMode subscriptionMode, const optional<MessageId>& startMessageId)
+    const ConsumerInterceptorsPtr& interceptors, Commands::SubscriptionMode subscriptionMode,
+    const optional<MessageId>& startMessageId)
     : ConsumerImplBase(client, topicName ? topicName->toString() : "EmptyTopics",
                        Backoff(milliseconds(100), seconds(60), milliseconds(0)), conf,
                        client->getListenerExecutorProvider()->get()),
@@ -66,7 +65,6 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(
       conf_(conf),
       incomingMessages_(conf.getReceiverQueueSize()),
       messageListener_(conf.getMessageListener()),
-      lookupServicePtr_(lookupServicePtr),
       numberTopicPartitions_(std::make_shared<std::atomic<int>>(0)),
       topics_(topics),
       subscriptionMode_(subscriptionMode),
@@ -93,7 +91,6 @@ MultiTopicsConsumerImpl::MultiTopicsConsumerImpl(
     if (partitionsUpdateInterval > 0) {
         partitionsUpdateTimer_ = listenerExecutor_->createDeadlineTimer();
         partitionsUpdateInterval_ = seconds(partitionsUpdateInterval);
-        lookupServicePtr_ = client->getLookup();
     }
 
     state_ = Pending;
@@ -185,7 +182,12 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
     auto entry = topicsPartitions_.find(topic);
     if (entry == topicsPartitions_.end()) {
         lock.unlock();
-        lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+        auto client = client_.lock();
+        if (!client) {
+            topicPromise->setFailed(ResultAlreadyClosed);
+            return topicPromise->getFuture();
+        }
+        client->getPartitionMetadataAsync(topicName).addListener(
             [this, topicName, topicPromise](Result result, const LookupDataResultPtr& lookupDataResult) {
                 if (result != ResultOk) {
                     LOG_ERROR("Error Checking/Getting Partition Metadata while MultiTopics Subscribing- "
@@ -1003,7 +1005,11 @@ void MultiTopicsConsumerImpl::topicPartitionUpdate() {
         auto topicName = TopicName::get(item.first);
         auto currentNumPartitions = item.second;
         auto weakSelf = weak_from_this();
-        lookupServicePtr_->getPartitionMetadataAsync(topicName).addListener(
+        auto client = client_.lock();
+        if (!client) {
+            return;
+        }
+        client->getPartitionMetadataAsync(topicName).addListener(
             [this, weakSelf, topicName, currentNumPartitions](Result result,
                                                               const LookupDataResultPtr& lookupDataResult) {
                 auto self = weakSelf.lock();

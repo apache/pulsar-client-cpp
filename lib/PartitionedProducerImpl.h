@@ -38,8 +38,6 @@ using ClientImplPtr = std::shared_ptr<ClientImpl>;
 using ClientImplWeakPtr = std::weak_ptr<ClientImpl>;
 class ExecutorService;
 using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
-class LookupService;
-using LookupServicePtr = std::shared_ptr<LookupService>;
 class ProducerImpl;
 using ProducerImplPtr = std::shared_ptr<ProducerImpl>;
 class TopicName;
@@ -133,7 +131,6 @@ class PartitionedProducerImpl : public ProducerImplBase,
     ExecutorServicePtr listenerExecutor_;
     DeadlineTimerPtr partitionsUpdateTimer_;
     TimeDuration partitionsUpdateInterval_;
-    LookupServicePtr lookupServicePtr_;
 
     ProducerInterceptorsPtr interceptors_;
 

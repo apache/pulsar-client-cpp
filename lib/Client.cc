@@ -193,8 +193,12 @@ uint64_t Client::getNumberOfConsumers() { return impl_->getNumberOfConsumers(); 
 
 void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
                                 std::function<void(Result, const SchemaInfo&)> callback) {
-    impl_->getLookup()
-        ->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
+    impl_->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
         .addListener(std::move(callback));
 }
+
+void Client::updateServiceInfo(ServiceInfo serviceInfo) { impl_->updateServiceInfo(std::move(serviceInfo)); }
+
+ServiceInfo Client::getServiceInfo() const { return impl_->getServiceInfo(); }
+
 }  // namespace pulsar

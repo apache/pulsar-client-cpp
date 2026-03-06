@@ -67,6 +67,21 @@ bool ConnectionPool::close() {
     return true;
 }
 
+void ConnectionPool::resetForClusterSwitching(const AuthenticationPtr& authentication,
+                                              const ClientConfiguration& conf) {
+    std::unique_lock<std::recursive_mutex> lock(mutex_);
+    authentication_ = authentication;
+    clientConfiguration_ = conf;
+
+    for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
+        auto& cnx = cnxIt->second;
+        if (cnx) {
+            cnx->close(ResultDisconnected, false, true);
+        }
+    }
+    pool_.clear();
+}
+
 static const std::string getKey(const std::string& logicalAddress, const std::string& physicalAddress,
                                 size_t keySuffix) {
     std::stringstream ss;
