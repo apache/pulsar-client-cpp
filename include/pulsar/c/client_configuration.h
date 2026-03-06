@@ -147,15 +147,8 @@ PULSAR_PUBLIC void pulsar_client_configuration_set_logger(pulsar_client_configur
 PULSAR_PUBLIC void pulsar_client_configuration_set_logger_t(pulsar_client_configuration_t *conf,
                                                             pulsar_logger_t logger);
 
-PULSAR_PUBLIC void pulsar_client_configuration_set_use_tls(pulsar_client_configuration_t *conf, int useTls);
-
-PULSAR_PUBLIC int pulsar_client_configuration_is_use_tls(pulsar_client_configuration_t *conf);
-
 PULSAR_PUBLIC void pulsar_client_configuration_set_tls_trust_certs_file_path(
     pulsar_client_configuration_t *conf, const char *tlsTrustCertsFilePath);
-
-PULSAR_PUBLIC const char *pulsar_client_configuration_get_tls_trust_certs_file_path(
-    pulsar_client_configuration_t *conf);
 
 PULSAR_PUBLIC void pulsar_client_configuration_set_tls_allow_insecure_connection(
     pulsar_client_configuration_t *conf, int allowInsecure);

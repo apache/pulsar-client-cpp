@@ -98,12 +98,8 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
                        LookupServiceFactory&& lookupServiceFactory)
     : mutex_(),
       state_(Open),
-      clientConfiguration_(ClientConfiguration(clientConfiguration)
-                               .setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)))),
-      serviceInfo_(ServiceInfo{serviceUrl, clientConfiguration.getAuthPtr(),
-                               clientConfiguration.getTlsTrustCertsFilePath().empty()
-                                   ? std::nullopt
-                                   : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())}),
+      clientConfiguration_(clientConfiguration),
+      serviceInfo_(clientConfiguration.impl_->toServiceInfo(serviceUrl)),
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(

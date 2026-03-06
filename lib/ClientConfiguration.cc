@@ -57,8 +57,6 @@ ClientConfiguration& ClientConfiguration::setAuth(const AuthenticationPtr& authe
     return *this;
 }
 
-Authentication& ClientConfiguration::getAuth() const { return *impl_->authenticationPtr; }
-
 const AuthenticationPtr& ClientConfiguration::getAuthPtr() const { return impl_->authenticationPtr; }
 
 ClientConfiguration& ClientConfiguration::setOperationTimeoutSeconds(int timeout) {
@@ -94,13 +92,6 @@ ClientConfiguration& ClientConfiguration::setMessageListenerThreads(int threads)
 
 int ClientConfiguration::getMessageListenerThreads() const { return impl_->messageListenerThreads; }
 
-ClientConfiguration& ClientConfiguration::setUseTls(bool useTls) {
-    impl_->useTls = useTls;
-    return *this;
-}
-
-bool ClientConfiguration::isUseTls() const { return impl_->useTls; }
-
 ClientConfiguration& ClientConfiguration::setValidateHostName(bool validateHostName) {
     impl_->validateHostName = validateHostName;
     return *this;
@@ -129,10 +120,6 @@ const std::string& ClientConfiguration::getTlsCertificateFilePath() const {
 ClientConfiguration& ClientConfiguration::setTlsTrustCertsFilePath(const std::string& filePath) {
     impl_->tlsTrustCertsFilePath = filePath;
     return *this;
-}
-
-const std::string& ClientConfiguration::getTlsTrustCertsFilePath() const {
-    return impl_->tlsTrustCertsFilePath;
 }
 
 ClientConfiguration& ClientConfiguration::setTlsAllowInsecureConnection(bool allowInsecure) {

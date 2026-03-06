@@ -70,15 +70,11 @@ class PULSAR_PUBLIC ClientConfiguration {
     /**
      * Set the authentication method to be used with the broker
      *
+     * You can get the configured authentication data in `ServiceInfo` returned by `Client::getServiceInfo`.
+     *
      * @param authentication the authentication data to use
      */
     ClientConfiguration& setAuth(const AuthenticationPtr& authentication);
-
-    /**
-     * @return the authentication data
-     * @deprecated the actual authentication data is now stored in `ServiceInfo`
-     */
-    Authentication& getAuth() const;
 
     /**
      * Set timeout on client operations (subscribe, create producer, close, unsubscribe)
@@ -204,21 +200,6 @@ class PULSAR_PUBLIC ClientConfiguration {
     ClientConfiguration& setLogger(LoggerFactory* loggerFactory);
 
     /**
-     * Configure whether to use the TLS encryption on the connections.
-     *
-     * The default value is false.
-     *
-     * @param useTls
-     */
-    ClientConfiguration& setUseTls(bool useTls);
-
-    /**
-     * @return whether the TLS encryption is used on the connections
-     * @deprecated the TLS usage is now determined by the scheme of the `ServiceInfo::serviceUrl`
-     */
-    bool isUseTls() const;
-
-    /**
      * Set the path to the TLS private key file.
      *
      * @param tlsPrivateKeyFilePath
@@ -245,15 +226,12 @@ class PULSAR_PUBLIC ClientConfiguration {
     /**
      * Set the path to the trusted TLS certificate file.
      *
+     * You can get the configured trusted TLS certificate file path in `ServiceInfo` returned by
+     * `Client::getServiceInfo`.
+     *
      * @param tlsTrustCertsFilePath
      */
     ClientConfiguration& setTlsTrustCertsFilePath(const std::string& tlsTrustCertsFilePath);
-
-    /**
-     * @return the path to the trusted TLS certificate file
-     * @deprecated the trusted TLS certificate file path is now stored in `ServiceInfo`
-     */
-    const std::string& getTlsTrustCertsFilePath() const;
 
     /**
      * Configure whether the Pulsar client accepts untrusted TLS certificates from brokers.

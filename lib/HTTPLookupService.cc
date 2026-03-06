@@ -57,7 +57,7 @@ HTTPLookupService::HTTPLookupService(const ServiceInfo &serviceInfo,
       tlsPrivateFilePath_(clientConfiguration.getTlsPrivateKeyFilePath()),
       tlsCertificateFilePath_(clientConfiguration.getTlsCertificateFilePath()),
       tlsTrustCertsFilePath_(serviceInfo.tlsTrustCertsFilePath().value_or("")),
-      isUseTls_(clientConfiguration.isUseTls()),
+      isUseTls_(serviceInfo.useTls()),
       tlsAllowInsecure_(clientConfiguration.isTlsAllowInsecureConnection()),
       tlsValidateHostname_(clientConfiguration.isValidateHostName()) {}
 
