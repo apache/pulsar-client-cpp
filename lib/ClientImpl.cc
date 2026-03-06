@@ -79,20 +79,6 @@ std::string generateRandomName() {
 
 typedef std::vector<std::string> StringList;
 
-namespace {
-AuthenticationPtr toAuthentication(const AuthenticationPtr& authentication) {
-    if (!authentication || authentication->getAuthMethodName() == "none") {
-        return AuthFactory::Disabled();
-    }
-    return authentication;
-}
-
-ServiceInfo normalizeServiceInfo(ServiceInfo serviceInfo) {
-    serviceInfo.authentication = toAuthentication(serviceInfo.authentication);
-    return serviceInfo;
-}
-}  // namespace
-
 static LookupServicePtr defaultLookupServiceFactory(const std::string& serviceUrl,
                                                     const ClientConfiguration& clientConfiguration,
                                                     ConnectionPool& pool, const AuthenticationPtr& auth) {
@@ -116,11 +102,10 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
       state_(Open),
       clientConfiguration_(ClientConfiguration(clientConfiguration)
                                .setUseTls(ServiceNameResolver::useTls(ServiceURI(serviceUrl)))),
-      serviceInfo_(normalizeServiceInfo(
-          ServiceInfo{serviceUrl, clientConfiguration.getAuthPtr(),
-                      clientConfiguration.getTlsTrustCertsFilePath().empty()
-                          ? std::nullopt
-                          : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())})),
+      serviceInfo_(ServiceInfo{serviceUrl, clientConfiguration.getAuthPtr(),
+                               clientConfiguration.getTlsTrustCertsFilePath().empty()
+                                   ? std::nullopt
+                                   : std::make_optional(clientConfiguration.getTlsTrustCertsFilePath())}),
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
@@ -145,8 +130,9 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
 ClientImpl::~ClientImpl() { shutdown(); }
 
 LookupServicePtr ClientImpl::createLookup(const std::string& serviceUrl) {
+    const auto serviceInfo = serviceInfo_.load();
     auto lookupServicePtr = RetryableLookupService::create(
-        lookupServiceFactory_(serviceUrl, clientConfiguration_, pool_, clientConfiguration_.getAuthPtr()),
+        lookupServiceFactory_(serviceUrl, clientConfiguration_, pool_, serviceInfo->authentication()),
         clientConfiguration_.impl_->operationTimeout, ioExecutorProvider_);
     return lookupServicePtr;
 }
@@ -887,11 +873,10 @@ void ClientImpl::updateServiceInfo(ServiceInfo&& serviceInfo) {
         return;
     }
 
-    serviceInfo = normalizeServiceInfo(std::move(serviceInfo));
     serviceInfo_.store(std::make_shared<const ServiceInfo>(serviceInfo));
     pool_.closeAllConnectionsForNewCluster();
     lookupServicePtr_->close();
-    lookupServicePtr_ = createLookup(serviceInfo.serviceUrl);
+    lookupServicePtr_ = createLookup(serviceInfo.serviceUrl());
 
     for (auto&& it : redirectedClusterLookupServicePtrs_) {
         it.second->close();

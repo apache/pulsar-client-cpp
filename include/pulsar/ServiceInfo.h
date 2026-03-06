@@ -26,10 +26,27 @@
 
 namespace pulsar {
 
-struct PULSAR_PUBLIC ServiceInfo {
-    std::string serviceUrl;
-    AuthenticationPtr authentication;
-    std::optional<std::string> tlsTrustCertsFilePath;
+class PULSAR_PUBLIC ServiceInfo final {
+   public:
+    ServiceInfo(std::string serviceUrl, AuthenticationPtr authentication = AuthFactory::Disabled(),
+                std::optional<std::string> tlsTrustCertsFilePath = std::nullopt);
+
+    auto& serviceUrl() const noexcept { return serviceUrl_; }
+    auto useTls() const noexcept { return useTls_; }
+    auto& authentication() const noexcept { return authentication_; }
+    auto& tlsTrustCertsFilePath() const noexcept { return tlsTrustCertsFilePath_; }
+
+    bool operator==(const ServiceInfo& other) const noexcept {
+        return serviceUrl_ == other.serviceUrl_ && useTls_ == other.useTls_ &&
+               authentication_ == other.authentication_ &&
+               tlsTrustCertsFilePath_ == other.tlsTrustCertsFilePath_;
+    }
+
+   private:
+    std::string serviceUrl_;
+    bool useTls_;
+    AuthenticationPtr authentication_;
+    std::optional<std::string> tlsTrustCertsFilePath_;
 };
 
 }  // namespace pulsar

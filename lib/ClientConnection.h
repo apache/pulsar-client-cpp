@@ -20,13 +20,12 @@
 #define _PULSAR_CLIENT_CONNECTION_HEADER_
 
 #include <pulsar/ClientConfiguration.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/defines.h>
 
 #include <any>
 #include <atomic>
 #include <cstdint>
-
-#include "pulsar/ServiceInfo.h"
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
 #include <asio/io_context.hpp>

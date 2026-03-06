@@ -189,7 +189,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                                    const ClientConfiguration& clientConfiguration,
                                    const std::string& clientVersion, ConnectionPool& pool, size_t poolIndex)
     : operationsTimeout_(ClientImpl::getOperationTimeout(clientConfiguration)),
-      authentication_(serviceInfo.authentication ? serviceInfo.authentication : AuthFactory::Disabled()),
+      authentication_(serviceInfo.authentication()),
       serverProtocolVersion_(proto::ProtocolVersion_MIN),
       executor_(executor),
       resolver_(executor_->createTcpResolver()),
@@ -213,11 +213,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
     if (auto oauth2Auth = std::dynamic_pointer_cast<AuthOauth2>(authentication_)) {
         // Configure the TLS trust certs file for Oauth2
         auto authData = std::dynamic_pointer_cast<AuthenticationDataProvider>(
-            std::make_shared<InitialAuthData>(clientConfiguration.getTlsTrustCertsFilePath()));
+            std::make_shared<InitialAuthData>(serviceInfo.tlsTrustCertsFilePath().value_or("")));
         oauth2Auth->getAuthData(authData);
     }
 
-    if (ServiceNameResolver::useTls(ServiceURI{serviceInfo.serviceUrl})) {
+    if (serviceInfo.useTls()) {
         ASIO::ssl::context ctx(ASIO::ssl::context::sslv23_client);
         ctx.set_options(ASIO::ssl::context::default_workarounds | ASIO::ssl::context::no_sslv2 |
                         ASIO::ssl::context::no_sslv3 | ASIO::ssl::context::no_tlsv1 |
@@ -238,8 +238,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
         } else {
             ctx.set_verify_mode(ASIO::ssl::context::verify_peer);
 
-            if (serviceInfo.tlsTrustCertsFilePath) {
-                const auto& trustCertFilePath = *serviceInfo.tlsTrustCertsFilePath;
+            if (serviceInfo.tlsTrustCertsFilePath()) {
+                const auto& trustCertFilePath = *serviceInfo.tlsTrustCertsFilePath();
                 if (file_exists(trustCertFilePath)) {
                     ctx.load_verify_file(trustCertFilePath);
                 } else {
