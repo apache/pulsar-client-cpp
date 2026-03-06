@@ -20,71 +20,13 @@
 #define LIB_CLIENTCONFIGURATIONIMPL_H_
 
 #include <pulsar/ClientConfiguration.h>
-#include <pulsar/ServiceInfo.h>
 
 #include <chrono>
-#include <mutex>
-#include <shared_mutex>
-
-#include "ServiceNameResolver.h"
-#include "ServiceURI.h"
 
 namespace pulsar {
 
-// Use struct rather than class here just for ABI compatibility
 struct ClientConfigurationImpl {
-   private:
-    mutable std::shared_mutex mutex;
     AuthenticationPtr authenticationPtr{AuthFactory::Disabled()};
-    std::string tlsTrustCertsFilePath;
-    bool useTls{false};
-
-   public:
-    void updateServiceInfo(const ServiceInfo& serviceInfo) {
-        std::unique_lock lock(mutex);
-        if (serviceInfo.authentication && serviceInfo.authentication->getAuthMethodName() != "none") {
-            authenticationPtr = serviceInfo.authentication;
-        } else {
-            authenticationPtr = AuthFactory::Disabled();
-        }
-        if (serviceInfo.tlsTrustCertsFilePath.has_value()) {
-            tlsTrustCertsFilePath = *serviceInfo.tlsTrustCertsFilePath;
-        } else {
-            tlsTrustCertsFilePath = "";
-        }
-        useTls = ServiceNameResolver::useTls(ServiceURI(serviceInfo.serviceUrl));
-    }
-
-    auto& getAuthentication() const {
-        std::shared_lock lock(mutex);
-        return authenticationPtr;
-    }
-
-    auto setAuthentication(const AuthenticationPtr& authentication) {
-        std::unique_lock lock(mutex);
-        authenticationPtr = authentication;
-    }
-
-    auto& getTlsTrustCertsFilePath() const {
-        std::shared_lock lock(mutex);
-        return tlsTrustCertsFilePath;
-    }
-
-    auto setTlsTrustCertsFilePath(const std::string& path) {
-        std::unique_lock lock(mutex);
-        tlsTrustCertsFilePath = path;
-    }
-
-    auto isUseTls() const {
-        std::shared_lock lock(mutex);
-        return useTls;
-    }
-
-    auto setUseTls(bool useTls_) {
-        std::unique_lock lock(mutex);
-        useTls = useTls_;
-    }
-
     uint64_t memoryLimit{0ull};
     int ioThreads{1};
     int connectionsPerBroker{1};
@@ -94,8 +36,10 @@ struct ClientConfigurationImpl {
     int maxLookupRedirects{20};
     int initialBackoffIntervalMs{100};
     int maxBackoffIntervalMs{60000};
+    bool useTls{false};
     std::string tlsPrivateKeyFilePath;
     std::string tlsCertificateFilePath;
+    std::string tlsTrustCertsFilePath;
     bool tlsAllowInsecureConnection{false};
     unsigned int statsIntervalInSeconds{600};  // 10 minutes
     std::unique_ptr<LoggerFactory> loggerFactory;
