@@ -23,7 +23,6 @@
 #include "ClientImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
-#include "LookupService.h"
 #include "ProducerImpl.h"
 #include "RoundRobinMessageRouter.h"
 #include "SinglePartitionMessageRouter.h"
@@ -59,7 +58,6 @@ PartitionedProducerImpl::PartitionedProducerImpl(const ClientImplPtr& client, co
         listenerExecutor_ = client->getListenerExecutorProvider()->get();
         partitionsUpdateTimer_ = listenerExecutor_->createDeadlineTimer();
         partitionsUpdateInterval_ = std::chrono::seconds(partitionsUpdateInterval);
-        lookupServicePtr_ = client->getLookup();
     }
 }
 
@@ -433,7 +431,11 @@ void PartitionedProducerImpl::runPartitionUpdateTask() {
 void PartitionedProducerImpl::getPartitionMetadata() {
     using namespace std::placeholders;
     auto weakSelf = weak_from_this();
-    lookupServicePtr_->getPartitionMetadataAsync(topicName_)
+    auto client = client_.lock();
+    if (!client) {
+        return;
+    }
+    client->getPartitionMetadataAsync(topicName_)
         .addListener([weakSelf](Result result, const LookupDataResultPtr& lookupDataResult) {
             auto self = weakSelf.lock();
             if (self) {

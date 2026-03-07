@@ -29,9 +29,12 @@
 #include <pulsar/Reader.h>
 #include <pulsar/Result.h>
 #include <pulsar/Schema.h>
+#include <pulsar/ServiceInfo.h>
+#include <pulsar/ServiceInfoProvider.h>
 #include <pulsar/TableView.h>
 #include <pulsar/defines.h>
 
+#include <memory>
 #include <string>
 
 namespace pulsar {
@@ -67,6 +70,19 @@ class PULSAR_PUBLIC Client {
      * @throw std::invalid_argument if `serviceUrl` is invalid
      */
     Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration);
+
+    /**
+     * Create a Pulsar client object using the specified ServiceInfoProvider.
+     *
+     * The ServiceInfoProvider is responsible for providing the service information (such as service URL)
+     * dynamically. For example, if it detects a primary Pulsar service is down, it can switch to a secondary
+     * service and update the client with the new service information.
+     *
+     * When `close` is called, the client will call `ServiceInfoProvider::close` to guarantee the lifetime of
+     * the provider is properly managed.
+     */
+    static Client create(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
+                         const ClientConfiguration& clientConfiguration);
 
     /**
      * Create a producer with default configuration
@@ -413,6 +429,13 @@ class PULSAR_PUBLIC Client {
      */
     void getSchemaInfoAsync(const std::string& topic, int64_t version,
                             std::function<void(Result, const SchemaInfo&)> callback);
+
+    /**
+     * Get the current service information of the client.
+     *
+     * @return the current service information
+     */
+    ServiceInfo getServiceInfo() const;
 
    private:
     Client(const std::shared_ptr<ClientImpl>&);

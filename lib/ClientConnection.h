@@ -20,6 +20,7 @@
 #define _PULSAR_CLIENT_CONNECTION_HEADER_
 
 #include <pulsar/ClientConfiguration.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/defines.h>
 
 #include <any>
@@ -141,8 +142,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      *
      */
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                     const ExecutorServicePtr& executor, const ClientConfiguration& clientConfiguration,
-                     const AuthenticationPtr& authentication, const std::string& clientVersion,
+                     const ServiceInfo& serviceInfo, const ExecutorServicePtr& executor,
+                     const ClientConfiguration& clientConfiguration, const std::string& clientVersion,
                      ConnectionPool& pool, size_t poolIndex);
     ~ClientConnection();
 
@@ -157,10 +158,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      *
      * @param result all pending futures will complete with this result
      * @param detach remove it from the pool if it's true
+     * @param switchCluster whether the close is triggered by cluster switching
      *
      * `detach` should only be false when the connection pool is closed.
      */
-    void close(Result result = ResultConnectError, bool detach = true);
+    void close(Result result = ResultConnectError, bool detach = true, bool switchCluster = false);
 
     bool isClosed() const;
 

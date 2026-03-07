@@ -155,7 +155,6 @@ void handleSubscribe(Result result, Consumer consumer, Latch latch) {
 void startPerfConsumer(const Arguments& args) {
     ClientConfiguration conf;
 
-    conf.setUseTls(args.isUseTls);
     conf.setTlsAllowInsecureConnection(args.isTlsAllowInsecureConnection);
     if (!args.tlsTrustCertsFilePath.empty()) {
         std::string tlsTrustCertsFilePath(args.tlsTrustCertsFilePath);

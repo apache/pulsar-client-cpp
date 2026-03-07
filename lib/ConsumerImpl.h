@@ -162,6 +162,8 @@ class ConsumerImpl : public ConsumerImplBase {
     void doImmediateAck(const MessageId& msgId, const ResultCallback& callback, CommandAck_AckType ackType);
     void doImmediateAck(const std::set<MessageId>& msgIds, const ResultCallback& callback);
 
+    void onClusterSwitching();
+
    protected:
     // overrided methods from HandlerBase
     Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override;
@@ -266,6 +268,11 @@ class ConsumerImpl : public ConsumerImplBase {
 
     MessageId lastDequedMessageId_{MessageId::earliest()};
     MessageId lastMessageIdInBroker_{MessageId::earliest()};
+
+    // When the consumer switches to a new cluster, we should reset `startMessageId_` to the original value,
+    // otherwise, the message id of the old cluster might be passed in the Subscribe request on the new
+    // cluster.
+    const optional<MessageId> startMessageIdFromConfig_;
     optional<MessageId> startMessageId_;
 
     SeekStatus seekStatus_{SeekStatus::NOT_STARTED};

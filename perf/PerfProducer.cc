@@ -366,7 +366,6 @@ int main(int argc, char** argv) {
     pulsar::ClientConfiguration conf;
     conf.setConnectionsPerBroker(args.connectionsPerBroker);
     conf.setMemoryLimit(args.memoryLimitMb * 1024 * 1024);
-    conf.setUseTls(args.isUseTls);
     conf.setTlsAllowInsecureConnection(args.isTlsAllowInsecureConnection);
     if (!args.tlsTrustCertsFilePath.empty()) {
         std::string tlsTrustCertsFilePath(args.tlsTrustCertsFilePath);

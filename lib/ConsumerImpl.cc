@@ -125,7 +125,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
       negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
       ackGroupingTrackerPtr_(newAckGroupingTracker(topic, conf, client)),
       readCompacted_(conf.isReadCompacted()),
-      startMessageId_(pulsar::getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
+      startMessageIdFromConfig_(pulsar::getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
+      startMessageId_(startMessageIdFromConfig_),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
       expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
@@ -273,6 +274,12 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
             // still be true when the seek operation is done.
             LockGuard lock{mutex_};
             if (seekStatus_ == SeekStatus::COMPLETED) {
+                ackGroupingTrackerPtr_->flushAndClean();
+                incomingMessages_.clear();
+                chunkedMessageCache_.clear();
+                if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
+                    startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
+                }
                 executor_->postWork([seekCallback{std::exchange(seekCallback_, std::nullopt).value()}]() {
                     seekCallback(ResultOk);
                 });
@@ -1134,6 +1141,20 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
     }
 }
 
+void ConsumerImpl::onClusterSwitching() {
+    {
+        LockGuard lock{mutex_};
+        incomingMessages_.clear();
+        chunkedMessageCache_.clear();
+        startMessageId_ = startMessageIdFromConfig_;
+        lastDequedMessageId_ = MessageId::earliest();
+        lastMessageIdInBroker_ = MessageId::earliest();
+        seekStatus_ = SeekStatus::NOT_STARTED;
+        lastSeekArg_.reset();
+    }
+    ackGroupingTrackerPtr_->flushAndClean();
+}
+
 /**
  * Clear the internal receiver queue and returns the message id of what was the 1st message in the queue that
  * was
@@ -1403,6 +1424,7 @@ void ConsumerImpl::shutdown() { internalShutdown(); }
 void ConsumerImpl::internalShutdown() {
     ackGroupingTrackerPtr_->close();
     incomingMessages_.clear();
+    chunkedMessageCache_.clear();
     possibleSendToDeadLetterTopicMessages_.clear();
     resetCnx();
     interceptors_->close();
@@ -1811,6 +1833,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                     LOG_INFO(getName() << "Seek successfully");
                     ackGroupingTrackerPtr_->flushAndClean();
                     incomingMessages_.clear();
+                    chunkedMessageCache_.clear();
                     if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
                         startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
                     }

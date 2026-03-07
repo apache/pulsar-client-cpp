@@ -47,18 +47,17 @@ const static std::string ADMIN_PATH_V2 = "/admin/v2/";
 const static std::string PARTITION_METHOD_NAME = "partitions";
 const static int NUMBER_OF_LOOKUP_THREADS = 1;
 
-HTTPLookupService::HTTPLookupService(const std::string &serviceUrl,
-                                     const ClientConfiguration &clientConfiguration,
-                                     const AuthenticationPtr &authData)
+HTTPLookupService::HTTPLookupService(const ServiceInfo &serviceInfo,
+                                     const ClientConfiguration &clientConfiguration)
     : executorProvider_(std::make_shared<ExecutorServiceProvider>(NUMBER_OF_LOOKUP_THREADS)),
-      serviceNameResolver_(serviceUrl),
-      authenticationPtr_(authData),
+      serviceNameResolver_(serviceInfo.serviceUrl()),
+      authenticationPtr_(serviceInfo.authentication()),
       lookupTimeoutInSeconds_(clientConfiguration.getOperationTimeoutSeconds()),
       maxLookupRedirects_(clientConfiguration.getMaxLookupRedirects()),
       tlsPrivateFilePath_(clientConfiguration.getTlsPrivateKeyFilePath()),
       tlsCertificateFilePath_(clientConfiguration.getTlsCertificateFilePath()),
-      tlsTrustCertsFilePath_(clientConfiguration.getTlsTrustCertsFilePath()),
-      isUseTls_(clientConfiguration.isUseTls()),
+      tlsTrustCertsFilePath_(serviceInfo.tlsTrustCertsFilePath().value_or("")),
+      isUseTls_(serviceInfo.useTls()),
       tlsAllowInsecure_(clientConfiguration.isTlsAllowInsecureConnection()),
       tlsValidateHostname_(clientConfiguration.isValidateHostName()) {}
 
