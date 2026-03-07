@@ -40,13 +40,13 @@ Client::Client(const std::string& serviceUrl) : Client(serviceUrl, ClientConfigu
 
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
     : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {
-    impl_->initialize(*this);
+    impl_->initialize();
 }
 
 Client Client::create(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
                       const ClientConfiguration& clientConfiguration) {
     Client client(std::make_shared<ClientImpl>(std::move(serviceInfoProvider), clientConfiguration));
-    client.impl_->initialize(client);
+    client.impl_->initialize();
     return client;
 }
 

@@ -133,9 +133,9 @@ ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
 
 ClientImpl::~ClientImpl() { shutdown(); }
 
-void ClientImpl::initialize(Client& client) {
+void ClientImpl::initialize() {
     serviceInfoProvider_->initialize(
-        client, [this](ServiceInfo serviceInfo) { updateServiceInfo(std::move(serviceInfo)); });
+        [this](ServiceInfo serviceInfo) { updateServiceInfo(std::move(serviceInfo)); });
 }
 
 LookupServicePtr ClientImpl::createLookup(ServiceInfo serviceInfo) {

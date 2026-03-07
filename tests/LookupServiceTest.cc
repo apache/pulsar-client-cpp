@@ -31,6 +31,7 @@
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
 #include "PulsarWrapper.h"
+#include "WaitUtils.h"
 #include "lib/AtomicSharedPtr.h"
 #include "lib/BinaryProtoLookupService.h"
 #include "lib/ClientConnection.h"
@@ -275,14 +276,17 @@ TEST_P(LookupServiceTest, basicGetNamespaceTopics) {
     auto lookupServicePtr = PulsarFriend::getClientImplPtr(client_);
     auto verifyGetTopics = [&](CommandGetTopicsOfNamespace_Mode mode,
                                const std::set<std::string>& expectedTopics) {
-        Future<Result, NamespaceTopicsPtr> getTopicsFuture =
-            lookupServicePtr->getTopicsOfNamespaceAsync(nsName, mode);
-        NamespaceTopicsPtr topicsData;
-        result = getTopicsFuture.get(topicsData);
-        ASSERT_EQ(ResultOk, result);
-        ASSERT_TRUE(topicsData != NULL);
-        std::set<std::string> actualTopics(topicsData->begin(), topicsData->end());
-        ASSERT_EQ(expectedTopics, actualTopics);
+        ASSERT_TRUE(waitUntil(std::chrono::seconds(3), [&] {
+            Future<Result, NamespaceTopicsPtr> getTopicsFuture =
+                lookupServicePtr->getTopicsOfNamespaceAsync(nsName, mode);
+            NamespaceTopicsPtr topicsData;
+            result = getTopicsFuture.get(topicsData);
+            if (result != ResultOk || !topicsData) {
+                return false;
+            }
+            std::set<std::string> actualTopics(topicsData->begin(), topicsData->end());
+            return expectedTopics == actualTopics;
+        }));
     };
     verifyGetTopics(CommandGetTopicsOfNamespace_Mode_PERSISTENT, {topicName1, topicName2});
     verifyGetTopics(CommandGetTopicsOfNamespace_Mode_NON_PERSISTENT, {topicName3});

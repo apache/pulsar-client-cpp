@@ -31,7 +31,7 @@ class DefaultServiceUrlProvider : public ServiceInfoProvider {
     DefaultServiceUrlProvider(const std::string& serviceUrl, const ClientConfigurationImpl& config)
         : serviceInfo_(config.toServiceInfo(serviceUrl)) {}
 
-    void initialize(Client& client, std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
+    void initialize(std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
         onServiceInfoUpdate(serviceInfo_);
     }
 

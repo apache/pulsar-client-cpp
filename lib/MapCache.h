@@ -98,6 +98,11 @@ class MapCache {
         }
     }
 
+    void clear() {
+        map_.clear();
+        keys_.clear();
+    }
+
     // Following methods are only used for tests
     std::vector<Key> getKeys() const {
         std::vector<Key> keys;

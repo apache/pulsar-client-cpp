@@ -274,6 +274,12 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
             // still be true when the seek operation is done.
             LockGuard lock{mutex_};
             if (seekStatus_ == SeekStatus::COMPLETED) {
+                ackGroupingTrackerPtr_->flushAndClean();
+                incomingMessages_.clear();
+                chunkedMessageCache_.clear();
+                if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
+                    startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
+                }
                 executor_->postWork([seekCallback{std::exchange(seekCallback_, std::nullopt).value()}]() {
                     seekCallback(ResultOk);
                 });
@@ -1139,6 +1145,7 @@ void ConsumerImpl::onClusterSwitching() {
     {
         LockGuard lock{mutex_};
         incomingMessages_.clear();
+        chunkedMessageCache_.clear();
         startMessageId_ = startMessageIdFromConfig_;
         lastDequedMessageId_ = MessageId::earliest();
         lastMessageIdInBroker_ = MessageId::earliest();
@@ -1417,6 +1424,7 @@ void ConsumerImpl::shutdown() { internalShutdown(); }
 void ConsumerImpl::internalShutdown() {
     ackGroupingTrackerPtr_->close();
     incomingMessages_.clear();
+    chunkedMessageCache_.clear();
     possibleSendToDeadLetterTopicMessages_.clear();
     resetCnx();
     interceptors_->close();
@@ -1825,6 +1833,7 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                     LOG_INFO(getName() << "Seek successfully");
                     ackGroupingTrackerPtr_->flushAndClean();
                     incomingMessages_.clear();
+                    chunkedMessageCache_.clear();
                     if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
                         startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
                     }

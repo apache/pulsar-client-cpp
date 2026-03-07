@@ -85,7 +85,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
                LookupServiceFactory&& lookupServiceFactory);
 
-    void initialize(Client& client);
+    void initialize();
     virtual ~ClientImpl();
 
     /**

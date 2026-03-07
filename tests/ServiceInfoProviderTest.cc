@@ -74,7 +74,7 @@ class TestServiceInfoProvider : public ServiceInfoProvider {
    public:
     TestServiceInfoProvider(ServiceInfoQueue &queue) : queue_(queue) {}
 
-    void initialize(Client &, std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
+    void initialize(std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
         onServiceInfoUpdate(queue_.pop());
         thread_ = std::thread([this, onServiceInfoUpdate] {
             try {
