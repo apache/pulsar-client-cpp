@@ -142,7 +142,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      *
      */
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                     ServiceInfo serviceInfo, const ExecutorServicePtr& executor,
+                     const ServiceInfo& serviceInfo, const ExecutorServicePtr& executor,
                      const ClientConfiguration& clientConfiguration, const std::string& clientVersion,
                      ConnectionPool& pool, size_t poolIndex);
     ~ClientConnection();

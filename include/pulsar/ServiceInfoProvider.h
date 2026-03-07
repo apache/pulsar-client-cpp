@@ -25,8 +25,6 @@
 
 namespace pulsar {
 
-class Client;
-
 class PULSAR_PUBLIC ServiceInfoProvider {
    public:
     /**
@@ -38,13 +36,12 @@ class PULSAR_PUBLIC ServiceInfoProvider {
     /**
      * Initialize the ServiceInfoProvider.
      *
-     * @param client the reference to the client, which could be used by the provider to do some necessary
      * @param onServiceInfoUpdate the callback to update `client` with the new `ServiceInfo`
      *
      * Note: the implementation is responsible to invoke `onServiceInfoUpdate` at least once to provide the
      * initial `ServiceInfo` for the client.
      */
-    virtual void initialize(Client& client, std::function<void(ServiceInfo)> onServiceInfoUpdate) = 0;
+    virtual void initialize(std::function<void(ServiceInfo)> onServiceInfoUpdate) = 0;
 };
 
 };  // namespace pulsar

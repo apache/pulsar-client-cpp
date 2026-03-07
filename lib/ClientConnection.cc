@@ -185,7 +185,7 @@ std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessa
 // NOTE: we should get the connection info from `serviceInfo` rather than `clientConfiguration` because it can
 // be modified dynamically.
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                                   ServiceInfo serviceInfo, const ExecutorServicePtr& executor,
+                                   const ServiceInfo& serviceInfo, const ExecutorServicePtr& executor,
                                    const ClientConfiguration& clientConfiguration,
                                    const std::string& clientVersion, ConnectionPool& pool, size_t poolIndex)
     : operationsTimeout_(ClientImpl::getOperationTimeout(clientConfiguration)),
