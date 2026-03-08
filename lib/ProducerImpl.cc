@@ -118,7 +118,12 @@ ProducerImpl::~ProducerImpl() {
     internalShutdown();
     printStats();
     if (state_ == Ready || state_ == Pending) {
-        LOG_WARN(producerStr_ << "Destroyed producer which was not properly closed");
+        auto client = client_.lock();
+        if (client) {
+            LOG_WARN(producerStr_ << "Destroyed producer which was not properly closed");
+        } else {
+            LOG_DEBUG(producerStr_ << "Destroyed producer which was not properly closed (client already destroyed)");
+        }
     }
 }
 
@@ -753,10 +758,10 @@ void ProducerImpl::sendMessage(std::unique_ptr<OpSendMsg> opSendMsg) {
 
 void ProducerImpl::printStats() {
     if (batchMessageContainer_) {
-        LOG_INFO("Producer - " << producerStr_ << ", [batchMessageContainer = " << *batchMessageContainer_
+        LOG_DEBUG("Producer - " << producerStr_ << ", [batchMessageContainer = " << *batchMessageContainer_
                                << "]");
     } else {
-        LOG_INFO("Producer - " << producerStr_ << ", [batching  = off]");
+        LOG_DEBUG("Producer - " << producerStr_ << ", [batching  = off]");
     }
 }
 
