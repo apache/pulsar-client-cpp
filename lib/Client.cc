@@ -34,20 +34,16 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
-Client::Client(const std::shared_ptr<ClientImpl>& impl) : impl_(impl) {}
+Client::Client(const std::shared_ptr<ClientImpl>& impl) : impl_(impl) { impl_->initialize(); }
 
 Client::Client(const std::string& serviceUrl) : Client(serviceUrl, ClientConfiguration()) {}
 
 Client::Client(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration)
-    : impl_(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {
-    impl_->initialize();
-}
+    : Client(std::make_shared<ClientImpl>(serviceUrl, clientConfiguration)) {}
 
 Client Client::create(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
                       const ClientConfiguration& clientConfiguration) {
-    Client client(std::make_shared<ClientImpl>(std::move(serviceInfoProvider), clientConfiguration));
-    client.impl_->initialize();
-    return client;
+    return Client(std::make_shared<ClientImpl>(std::move(serviceInfoProvider), clientConfiguration));
 }
 
 Result Client::createProducer(const std::string& topic, Producer& producer) {
