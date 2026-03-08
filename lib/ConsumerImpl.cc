@@ -190,7 +190,8 @@ ConsumerImpl::~ConsumerImpl() {
         if (client) {
             LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
         } else {
-            LOG_DEBUG(consumerStr_ << "Destroyed consumer which was not properly closed (client already destroyed)");
+            LOG_DEBUG(consumerStr_
+                      << "Destroyed consumer which was not properly closed (client already destroyed)");
         }
 
         ClientConnectionPtr cnx = getCnx().lock();
