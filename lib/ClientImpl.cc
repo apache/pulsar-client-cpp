@@ -111,6 +111,7 @@ ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
     : serviceInfoProvider_(std::move(serviceInfoProvider)),
       state_(Open),
       clientConfiguration_(clientConfiguration),
+      serviceInfo_(serviceInfoProvider_->initialServiceInfo()),
       memoryLimitController_(clientConfiguration.getMemoryLimit()),
       ioExecutorProvider_(std::make_shared<ExecutorServiceProvider>(clientConfiguration_.getIOThreads())),
       listenerExecutorProvider_(
@@ -130,7 +131,6 @@ ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
         LogUtils::setLoggerFactory(std::move(loggerFactory));
     }
 
-    serviceInfo_.store(std::make_shared<const ServiceInfo>(serviceInfoProvider_->getServiceInfo()));
     lookupServicePtr_ = createLookup(*serviceInfo_.load());
 }
 
@@ -768,8 +768,8 @@ void ClientImpl::handleClose(Result result, const SharedInt& numberOfOpenHandler
         }
 
         LOG_DEBUG("Shutting down producers and consumers for client");
-        // handleClose() is called in ExecutorService's event loop, while shutdown() tried to wait the
-        // event loop exits. So here we use another thread to call shutdown().
+        // handleClose() is called in ExecutorService's event loop, while shutdown() tried to wait the event
+        // loop exits. So here we use another thread to call shutdown().
         auto self = shared_from_this();
         std::thread shutdownTask{[this, self, callback] {
             shutdown();

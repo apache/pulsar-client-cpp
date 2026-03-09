@@ -27,6 +27,9 @@ class AtomicSharedPtr {
    public:
     using Pointer = std::shared_ptr<const T>;
 
+    AtomicSharedPtr() = default;
+    explicit AtomicSharedPtr(T value) : ptr_(std::make_shared<const T>(std::move(value))) {}
+
     auto load() const { return std::atomic_load(&ptr_); }
 
     void store(Pointer&& newPtr) { std::atomic_store(&ptr_, std::move(newPtr)); }

@@ -19,9 +19,8 @@
 #ifndef PULSAR_SERVICE_INFO_PROVIDER_H_
 #define PULSAR_SERVICE_INFO_PROVIDER_H_
 
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/ServiceInfo.h>
-
-#include <functional>
 
 namespace pulsar {
 
@@ -34,11 +33,12 @@ class PULSAR_PUBLIC ServiceInfoProvider {
     virtual ~ServiceInfoProvider() = default;
 
     /**
-     * Get the current `ServiceInfo` connection for the client.
-     * This method is called **only once** internally when the `Client` is being initialized, and the client
-     * will use the returned `ServiceInfo` to establish the initial connection to the Pulsar cluster.
+     * Get the initial `ServiceInfo` connection for the client.
+     * This method is called **only once** internally in `Client::create()` to get the initial `ServiceInfo`
+     * for the client to connect to the Pulsar service. Since it's only called once, it's legal to return a
+     * moved `ServiceInfo` object to avoid unnecessary copying.
      */
-    virtual ServiceInfo getServiceInfo() const = 0;
+    virtual ServiceInfo initialServiceInfo() = 0;
 
     /**
      * Initialize the ServiceInfoProvider.

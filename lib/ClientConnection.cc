@@ -182,8 +182,6 @@ static bool file_exists(const std::string& path) {
 
 std::atomic<int32_t> ClientConnection::maxMessageSize_{Commands::DefaultMaxMessageSize};
 
-// NOTE: we should get the connection info from `serviceInfo` rather than `clientConfiguration` because it can
-// be modified dynamically.
 ClientConnection::ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
                                    const ServiceInfo& serviceInfo, const ExecutorServicePtr& executor,
                                    const ClientConfiguration& clientConfiguration,

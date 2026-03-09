@@ -20,11 +20,9 @@
 #include <pulsar/Client.h>
 
 #include <atomic>
-#include <condition_variable>
 #include <memory>
 #include <mutex>
-#include <queue>
-#include <stdexcept>
+#include <optional>
 #include <thread>
 
 #include "PulsarFriend.h"
@@ -36,70 +34,62 @@ DECLARE_LOG_OBJECT()
 using namespace pulsar;
 using namespace std::chrono_literals;
 
-class ServiceInfoQueue {
+class ServiceInfoHolder {
    public:
-    void push(ServiceInfo info) {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            queue_.push(std::move(info));
+    ServiceInfoHolder(ServiceInfo info) : serviceInfo_(std::move(info)) {}
+
+    std::optional<ServiceInfo> getUpdatedValue() {
+        std::lock_guard lock(mutex_);
+        if (!owned_) {
+            return std::nullopt;
         }
-        cond_.notify_all();
+        owned_ = false;
+        return std::move(serviceInfo_);
     }
 
-    ServiceInfo pop() {
-        std::unique_lock<std::mutex> lock(mutex_);
-        cond_.wait(lock, [this] { return !queue_.empty() || !running_; });
-        if (queue_.empty()) {
-            throw std::runtime_error("Queue is closed");
-        }
-
-        ServiceInfo info = std::move(queue_.front());
-        queue_.pop();
-        return info;
-    }
-
-    void close() {
-        running_ = false;
-        cond_.notify_all();
+    void updateValue(ServiceInfo info) {
+        std::lock_guard lock(mutex_);
+        serviceInfo_ = std::move(info);
+        owned_ = true;
     }
 
    private:
+    ServiceInfo serviceInfo_;
+    bool owned_{true};
+
     mutable std::mutex mutex_;
-    mutable std::condition_variable cond_;
-    std::queue<ServiceInfo> queue_;
-    std::atomic_bool running_{true};
 };
 
 class TestServiceInfoProvider : public ServiceInfoProvider {
    public:
-    TestServiceInfoProvider(ServiceInfoQueue &queue) : queue_(queue) {}
+    TestServiceInfoProvider(ServiceInfoHolder &serviceInfo) : serviceInfo_(serviceInfo) {}
 
-    ServiceInfo getServiceInfo() const override { return queue_.pop(); }
+    ServiceInfo initialServiceInfo() override { return serviceInfo_.getUpdatedValue().value(); }
 
     void initialize(std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
-        onServiceInfoUpdate(queue_.pop());
         thread_ = std::thread([this, onServiceInfoUpdate] {
-            try {
-                while (true) {
-                    ServiceInfo info = queue_.pop();
-                    onServiceInfoUpdate(std::move(info));
+            while (running_) {
+                auto updatedValue = serviceInfo_.getUpdatedValue();
+                if (updatedValue) {
+                    onServiceInfoUpdate(std::move(*updatedValue));
                 }
-            } catch (const std::runtime_error &) {
+                // Use a tight wait loop for tests
+                std::this_thread::sleep_for(10ms);
             }
         });
     }
 
     ~TestServiceInfoProvider() override {
-        queue_.close();
+        running_ = false;
         if (thread_.joinable()) {
             thread_.join();
         }
     }
 
    private:
-    ServiceInfoQueue &queue_;
-
     std::thread thread_;
+    ServiceInfoHolder &serviceInfo_;
+    std::atomic_bool running_{true};
     mutable std::mutex mutex_;
 };
 
@@ -114,10 +104,8 @@ TEST(ServiceInfoProviderTest, testSwitchCluster) {
     // Access "public/default" namespace in cluster 1, which doesn't require authentication
     ServiceInfo info3{"pulsar://localhost:6650"};
 
-    ServiceInfoQueue queue;
-    queue.push(info1);
-
-    auto client = Client::create(std::make_unique<TestServiceInfoProvider>(queue), {});
+    ServiceInfoHolder serviceInfo{info1};
+    auto client = Client::create(std::make_unique<TestServiceInfoProvider>(serviceInfo), {});
 
     const auto topicRequiredAuth = "private/auth/testUpdateConnectionInfo-" + std::to_string(time(nullptr));
     Producer producer;
@@ -141,7 +129,7 @@ TEST(ServiceInfoProviderTest, testSwitchCluster) {
 
     // Switch to cluster 2 (started by ./build-support/start-mim-test-service-inside-container.sh)
     ASSERT_FALSE(PulsarFriend::getConnections(client).empty());
-    queue.push(info2);
+    serviceInfo.updateValue(info2);
     ASSERT_TRUE(waitUntil(1s, [&] {
         return PulsarFriend::getConnections(client).empty() && client.getServiceInfo() == info2;
     }));
@@ -152,7 +140,7 @@ TEST(ServiceInfoProviderTest, testSwitchCluster) {
     // Switch back to cluster 1 without any authentication, the previous authentication info configured for
     // cluster 2 will be cleared.
     ASSERT_FALSE(PulsarFriend::getConnections(client).empty());
-    queue.push(info3);
+    serviceInfo.updateValue(info3);
     ASSERT_TRUE(waitUntil(1s, [&] {
         return PulsarFriend::getConnections(client).empty() && client.getServiceInfo() == info3;
     }));
