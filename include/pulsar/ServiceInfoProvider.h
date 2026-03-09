@@ -34,6 +34,13 @@ class PULSAR_PUBLIC ServiceInfoProvider {
     virtual ~ServiceInfoProvider() = default;
 
     /**
+     * Get the current `ServiceInfo` connection for the client.
+     * This method is called **only once** internally when the `Client` is being initialized, and the client
+     * will use the returned `ServiceInfo` to establish the initial connection to the Pulsar cluster.
+     */
+    virtual ServiceInfo getServiceInfo() const = 0;
+
+    /**
      * Initialize the ServiceInfoProvider.
      *
      * @param onServiceInfoUpdate the callback to update `client` with the new `ServiceInfo`

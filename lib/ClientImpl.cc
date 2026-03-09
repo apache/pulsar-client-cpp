@@ -129,13 +129,20 @@ ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
     if (loggerFactory) {
         LogUtils::setLoggerFactory(std::move(loggerFactory));
     }
+
+    serviceInfo_.store(std::make_shared<const ServiceInfo>(serviceInfoProvider_->getServiceInfo()));
+    lookupServicePtr_ = createLookup(*serviceInfo_.load());
 }
 
 ClientImpl::~ClientImpl() { shutdown(); }
 
 void ClientImpl::initialize() {
-    serviceInfoProvider_->initialize(
-        [this](ServiceInfo serviceInfo) { updateServiceInfo(std::move(serviceInfo)); });
+    auto weakSelf = weak_from_this();
+    serviceInfoProvider_->initialize([weakSelf](ServiceInfo serviceInfo) {
+        if (auto self = weakSelf.lock()) {
+            self->updateServiceInfo(std::move(serviceInfo));
+        }
+    });
 }
 
 LookupServicePtr ClientImpl::createLookup(ServiceInfo serviceInfo) {

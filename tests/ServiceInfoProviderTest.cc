@@ -74,6 +74,8 @@ class TestServiceInfoProvider : public ServiceInfoProvider {
    public:
     TestServiceInfoProvider(ServiceInfoQueue &queue) : queue_(queue) {}
 
+    ServiceInfo getServiceInfo() const override { return queue_.pop(); }
+
     void initialize(std::function<void(ServiceInfo)> onServiceInfoUpdate) override {
         onServiceInfoUpdate(queue_.pop());
         thread_ = std::thread([this, onServiceInfoUpdate] {
@@ -99,7 +101,6 @@ class TestServiceInfoProvider : public ServiceInfoProvider {
 
     std::thread thread_;
     mutable std::mutex mutex_;
-    std::queue<ServiceInfo> newServiceInfo_;
 };
 
 TEST(ServiceInfoProviderTest, testSwitchCluster) {
