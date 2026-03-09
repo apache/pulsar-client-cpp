@@ -527,24 +527,24 @@ class MockLookupService : public BinaryProtoLookupService {
 };
 
 TEST(LookupServiceTest, testAfterClientShutdown) {
-    auto client = PulsarFriend::newClientFromImpl(std::make_shared<ClientImpl>(
+    auto client = std::make_shared<ClientImpl>(
         "pulsar://localhost:6650", ClientConfiguration{},
         [](const ServiceInfo& serviceInfo, const ClientConfiguration&, ConnectionPool& pool) {
             return std::make_shared<MockLookupService>(serviceInfo, pool, ClientConfiguration{});
-        }));
+        });
 
     std::promise<Result> promise;
-    client.subscribeAsync("lookup-service-test-after-client-shutdown", "sub", ConsumerConfiguration{},
-                          [&promise](Result result, const Consumer&) { promise.set_value(result); });
+    client->subscribeAsync("lookup-service-test-after-client-shutdown", "sub", ConsumerConfiguration{},
+                           [&promise](Result result, const Consumer&) { promise.set_value(result); });
     // When shutdown is called, there is a pending lookup request due to the 1st lookup is failed in
     // MockLookupService. Verify shutdown will cancel it and return ResultDisconnected.
-    client.shutdown();
+    client->shutdown();
     EXPECT_EQ(ResultDisconnected, promise.get_future().get());
 
     // A new subscribeAsync call will fail immediately in the current thread
     Result result = ResultOk;
-    client.subscribeAsync("lookup-service-test-retry-after-destroyed", "sub", ConsumerConfiguration{},
-                          [&result](Result innerResult, const Consumer&) { result = innerResult; });
+    client->subscribeAsync("lookup-service-test-retry-after-destroyed", "sub", ConsumerConfiguration{},
+                           [&result](Result innerResult, const Consumer&) { result = innerResult; });
     EXPECT_EQ(ResultAlreadyClosed, result);
 }
 
