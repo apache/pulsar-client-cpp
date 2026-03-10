@@ -196,13 +196,6 @@ ConsumerImpl::~ConsumerImpl() {
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
                                    "CLOSE_CONSUMER");
             cnx->removeConsumer(consumerId_);
-            if (client) {
-                LOG_DEBUG(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
-            }
-        } else {
-            if (client) {
-                LOG_WARN(consumerStr_ << "Client is destroyed and cannot send the CloseConsumer command");
-            }
         }
     }
     internalShutdown();
