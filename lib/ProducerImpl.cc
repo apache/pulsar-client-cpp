@@ -114,16 +114,12 @@ ProducerImpl::ProducerImpl(const ClientImplPtr& client, const TopicName& topicNa
 }
 
 ProducerImpl::~ProducerImpl() {
-    LOG_DEBUG(producerStr_ << "~ProducerImpl");
+    auto client = client_.lock();
     internalShutdown();
-    printStats();
-    if (state_ == Ready || state_ == Pending) {
-        auto client = client_.lock();
-        if (client) {
+    if (client) {
+        printStats();
+        if (state_ == Ready || state_ == Pending) {
             LOG_WARN(producerStr_ << "Destroyed producer which was not properly closed");
-        } else {
-            LOG_DEBUG(producerStr_
-                      << "Destroyed producer which was not properly closed (client already destroyed)");
         }
     }
 }
