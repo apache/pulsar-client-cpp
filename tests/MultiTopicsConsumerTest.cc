@@ -166,7 +166,7 @@ TEST(MultiTopicsConsumerTest, testGetConsumerStatsFail) {
     future.wait_for(std::chrono::milliseconds(100));
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-    connection->handleKeepAliveTimeout();
+    connection->handleKeepAliveTimeout(ASIO_SUCCESS);
     ASSERT_EQ(ResultDisconnected, future.get());
 
     mockServer->close();

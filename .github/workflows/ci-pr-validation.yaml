@@ -260,6 +260,15 @@ jobs:
             Pop-Location
           }
 
+      - name: Ensure vcpkg has full history(windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $isShallow = (git -C "${{ env.VCPKG_ROOT }}" rev-parse --is-shallow-repository).Trim()
+          if ($isShallow -eq "true") {
+            git -C "${{ env.VCPKG_ROOT }}" fetch --unshallow
+          }
+
       - name: remove system vcpkg(windows)
         if: runner.os == 'Windows'
         run: rm -rf "$VCPKG_INSTALLATION_ROOT"

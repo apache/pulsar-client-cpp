@@ -413,7 +413,7 @@ TEST(ClientTest, testConnectionClose) {
             LOG_INFO("Connection refcnt: " << cnx.use_count() << " before close");
             auto executor = PulsarFriend::getExecutor(*cnx);
             // Simulate the close() happens in the event loop
-            executor->postWork([cnx, &client, numConnections] {
+            executor->dispatch([cnx, &client, numConnections] {
                 cnx->close();
                 ASSERT_EQ(PulsarFriend::getConnections(client).size(), numConnections - 1);
                 LOG_INFO("Connection refcnt: " << cnx.use_count() << " after close");
