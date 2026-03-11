@@ -22,13 +22,17 @@
 
 #include <algorithm>
 #include <chrono>
+#include <condition_variable>
 #include <future>
+#include <mutex>
 #include <sstream>
+#include <thread>
 
 #include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
+#include "lib/AsioDefines.h"
 #include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
 #include "lib/checksum/ChecksumProvider.h"
@@ -41,6 +45,81 @@ using testing::AtLeast;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
 static std::string adminUrl = "http://localhost:8080/";
+
+namespace {
+
+class SilentTcpServer {
+   public:
+    SilentTcpServer()
+        : acceptor_(ioContext_, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), 0)),
+          acceptedFuture_(acceptedPromise_.get_future()) {}
+
+    ~SilentTcpServer() { stop(); }
+
+    int getPort() const { return acceptor_.local_endpoint().port(); }
+
+    void start() {
+        serverThread_ = std::thread([this] {
+            socket_.reset(new ASIO::ip::tcp::socket(ioContext_));
+
+            ASIO_ERROR acceptError;
+            acceptor_.accept(*socket_, acceptError);
+            acceptedPromise_.set_value(acceptError);
+
+            std::unique_lock<std::mutex> lock(mutex_);
+            cond_.wait(lock, [this] { return stopped_; });
+            lock.unlock();
+
+            if (socket_) {
+                ASIO_ERROR closeError;
+                socket_->close(closeError);
+            }
+
+            ASIO_ERROR closeError;
+            acceptor_.close(closeError);
+        });
+    }
+
+    bool waitUntilAccepted(std::chrono::milliseconds timeout) const {
+        return acceptedFuture_.wait_for(timeout) == std::future_status::ready;
+    }
+
+    ASIO_ERROR acceptedError() const { return acceptedFuture_.get(); }
+
+    void stop() {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (stopped_) {
+                return;
+            }
+            stopped_ = true;
+        }
+
+        ASIO_ERROR closeError;
+        acceptor_.close(closeError);
+        if (socket_) {
+            socket_->close(closeError);
+        }
+
+        cond_.notify_all();
+        if (serverThread_.joinable()) {
+            serverThread_.join();
+        }
+    }
+
+   private:
+    ASIO::io_context ioContext_;
+    ASIO::ip::tcp::acceptor acceptor_;
+    std::shared_ptr<ASIO::ip::tcp::socket> socket_;
+    std::promise<ASIO_ERROR> acceptedPromise_;
+    std::shared_future<ASIO_ERROR> acceptedFuture_;
+    std::mutex mutex_;
+    std::condition_variable cond_;
+    bool stopped_{false};
+    std::thread serverThread_;
+};
+
+}  // namespace
 
 TEST(ClientTest, testChecksumComputation) {
     std::string data = "test";
@@ -135,6 +214,32 @@ TEST(ClientTest, testConnectTimeout) {
 
     ASSERT_EQ(futureDefault.wait_for(std::chrono::milliseconds(10)), std::future_status::ready);
     ASSERT_EQ(futureDefault.get(), ResultDisconnected);
+}
+
+TEST(ClientTest, testConnectTimeoutAfterTcpConnected) {
+    std::unique_ptr<SilentTcpServer> server;
+    try {
+        server.reset(new SilentTcpServer);
+    } catch (const ASIO_SYSTEM_ERROR &e) {
+        GTEST_SKIP() << "Cannot bind local test server in this environment: " << e.what();
+    }
+    server->start();
+
+    const std::string serviceUrl = "pulsar://127.0.0.1:" + std::to_string(server->getPort());
+    Client client(serviceUrl, ClientConfiguration().setConnectionTimeout(200));
+
+    std::promise<Result> promise;
+    auto future = promise.get_future();
+    client.createProducerAsync("test-connect-timeout-after-tcp-connected",
+                               [&promise](Result result, const Producer &) { promise.set_value(result); });
+
+    ASSERT_TRUE(server->waitUntilAccepted(std::chrono::seconds(1)));
+    ASSERT_FALSE(server->acceptedError());
+    ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    ASSERT_EQ(future.get(), ResultConnectError);
+
+    client.close();
+    server->stop();
 }
 
 TEST(ClientTest, testGetNumberOfReferences) {

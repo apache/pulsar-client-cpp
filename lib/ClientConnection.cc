@@ -317,6 +317,10 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         LOG_INFO(cnxString() << "Connection already closed");
         return;
     }
+    if (connectTimeoutTask_) {
+        connectTimeoutTask_->stop();
+        connectTimeoutTask_.reset();  // clear the callback once the Pulsar handshake is fully complete
+    }
     state_ = Ready;
     serverProtocolVersion_ = cmdConnected.protocol_version();
 
@@ -426,7 +430,6 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
             LOG_INFO(cnxString() << "Connection already closed");
             return;
         }
-        connectTimeoutTask_->stop();
         state_ = TcpConnected;
         lock.unlock();
 
@@ -1322,7 +1325,8 @@ const std::future<void>& ClientConnection::close(Result result) {
             LOG_WARN(cnxString() << "Failed to close socket: " << err.message());
         }
         if (tlsSocket_) {
-            tlsSocket_->async_shutdown([promise](const auto&) { promise->set_value(); });
+            auto tlsSocket = tlsSocket_;
+            tlsSocket->async_shutdown([promise, self, tlsSocket](const auto&) { promise->set_value(); });
         } else {
             promise->set_value();
         }
