@@ -193,8 +193,8 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       physicalAddress_(physicalAddress),
       cnxStringPtr_(std::make_shared<std::string>("[<none> -> " + physicalAddress + "] ")),
       incomingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
-      connectTimeoutTask_(
-          std::make_shared<PeriodicTask>(*executor_, clientConfiguration.getConnectionTimeout())),
+      connectTimeout_(std::chrono::milliseconds(clientConfiguration.getConnectionTimeout())),
+      connectTimer_(executor_->createDeadlineTimer()),
       outgoingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
       keepAliveIntervalInSeconds_(clientConfiguration.getKeepAliveIntervalInSeconds()),
       consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
@@ -317,10 +317,7 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         LOG_INFO(cnxString() << "Connection already closed");
         return;
     }
-    if (connectTimeoutTask_) {
-        connectTimeoutTask_->stop();
-        connectTimeoutTask_.reset();  // clear the callback once the Pulsar handshake is fully complete
-    }
+    cancelTimer(*connectTimer_);
     state_ = Ready;
     serverProtocolVersion_ = cmdConnected.protocol_version();
 
@@ -426,7 +423,7 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
         }
 
         Lock lock(mutex_);
-        if (isClosed() || !connectTimeoutTask_) {
+        if (isClosed()) {
             LOG_INFO(cnxString() << "Connection already closed");
             return;
         }
@@ -486,11 +483,10 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
         LOG_ERROR(cnxString() << "Failed to establish connection to " << endpoint << ": " << err.message());
         {
             std::lock_guard lock{mutex_};
-            if (isClosed() || !connectTimeoutTask_) {
+            if (isClosed()) {
                 return;
             }
-            connectTimeoutTask_->stop();
-            connectTimeoutTask_.reset();  // clear the callback, which holds a `shared_from_this()`
+            cancelTimer(*connectTimer_);
         }
         if (err == ASIO::error::operation_aborted) {
             close();
@@ -611,28 +607,25 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
         }
     }
 
-    // Acquire the lock to prevent the race:
-    // 1. thread 1: isClosed() returns false
-    // 2. thread 2: call `connectTimeoutTask_->stop()` and `connectTimeoutTask_.reset()` in `close()`
-    // 3. thread 1: call `connectTimeoutTask_->setCallback()` and `connectTimeoutTask_->start()`
-    // Then the self captured in the callback of `connectTimeoutTask_` would be kept alive unexpectedly and
-    // cannot be cancelled until the executor is destroyed.
     std::lock_guard lock{mutex_};
-    if (isClosed() || !connectTimeoutTask_) {
+    if (isClosed()) {
         return;
     }
-    connectTimeoutTask_->setCallback(
-        [this, self{shared_from_this()},
-         results = tcp::resolver::results_type(results)](const PeriodicTask::ErrorCode& ec) {
-            if (state_ != Ready) {
-                LOG_ERROR(cnxString() << "Connection to " << results << " was not established in "
-                                      << connectTimeoutTask_->getPeriodMs() << " ms");
-                close();
-            } else {
-                connectTimeoutTask_->stop();
-            }
-        });
-    connectTimeoutTask_->start();
+
+    connectTimer_->expires_after(connectTimeout_);
+    connectTimer_->async_wait([this, results, self{shared_from_this()}](const auto& err) {
+        if (err) {
+            return;
+        }
+        Lock lock{mutex_};
+        if (!isClosed() && state_ != Ready) {
+            LOG_ERROR(cnxString() << "Connection to " << results << " was not established in "
+                                  << connectTimeout_.count() << " ms");
+            lock.unlock();
+            close();
+        }  // else: the connection is closed or already established
+    });
+
     ASIO::async_connect(
         *socket_, results,
         [this, self{shared_from_this()}](const ASIO_ERROR& err, const tcp::endpoint& endpoint) {
@@ -1296,11 +1289,7 @@ const std::future<void>& ClientConnection::close(Result result) {
         consumerStatsRequestTimer_.reset();
     }
 
-    if (connectTimeoutTask_) {
-        connectTimeoutTask_->stop();
-        connectTimeoutTask_.reset();  // clear the callback, which holds a `shared_from_this()`
-    }
-
+    cancelTimer(*connectTimer_);
     lock.unlock();
     int refCount = weak_from_this().use_count();
     if (!isResultRetryable(result)) {

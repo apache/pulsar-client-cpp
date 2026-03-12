@@ -43,8 +43,10 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "AsioTimer.h"
@@ -228,7 +230,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
         void fail(Result result) {
             cancelTimer(*timer);
-            ;
             promise.setFailed(result);
         }
     };
@@ -239,7 +240,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
         void fail(Result result) {
             cancelTimer(*timer);
-            ;
             promise->setFailed(result);
         }
     };
@@ -250,7 +250,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
         void fail(Result result) {
             cancelTimer(*timer);
-            ;
             promise->setFailed(result);
         }
     };
@@ -326,7 +325,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         if (tlsSocket_) {
             ASIO::async_write(*tlsSocket_, buffers, std::forward<WriteHandler>(handler));
         } else {
-            ASIO::async_write(*socket_, buffers, handler);
+            ASIO::async_write(*socket_, buffers, std::forward<WriteHandler>(handler));
         }
     }
 
@@ -381,7 +380,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     SharedBuffer incomingBuffer_;
 
     Promise<Result, ClientConnectionWeakPtr> connectPromise_;
-    std::shared_ptr<PeriodicTask> connectTimeoutTask_;
+    const std::chrono::milliseconds connectTimeout_;
+    const DeadlineTimerPtr connectTimer_;
 
     typedef std::map<long, PendingRequestData> PendingRequestsMap;
     PendingRequestsMap pendingRequests_;

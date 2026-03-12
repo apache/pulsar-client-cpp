@@ -414,14 +414,19 @@ TEST(ClientTest, testMultiBrokerUrl) {
 TEST(ClientTest, testCloseClient) {
     const std::string topic = "client-test-close-client-" + std::to_string(time(nullptr));
 
+    using namespace std::chrono;
     for (int i = 0; i < 1000; ++i) {
         Client client(lookupUrl);
         client.createProducerAsync(topic, [](Result result, Producer producer) { producer.close(); });
         // simulate different time interval before close
-        auto t0 = std::chrono::steady_clock::now();
-        while ((std::chrono::steady_clock::now() - t0) < std::chrono::microseconds(i)) {
+        auto t0 = steady_clock::now();
+        while ((steady_clock::now() - t0) < microseconds(i)) {
         }
-        client.close();
+
+        auto t1 = std::chrono::steady_clock::now();
+        ASSERT_EQ(ResultOk, client.close());
+        auto closeTimeMs = duration_cast<milliseconds>(steady_clock::now() - t1).count();
+        ASSERT_TRUE(closeTimeMs < 1000) << "close time: " << closeTimeMs << " ms";
     }
 }
 
