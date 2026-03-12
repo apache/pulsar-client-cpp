@@ -26,6 +26,8 @@
 #include <any>
 #include <atomic>
 #include <cstdint>
+#include <future>
+#include <optional>
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
 #include <asio/io_context.hpp>
@@ -42,8 +44,10 @@
 #include <deque>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "AsioTimer.h"
@@ -157,14 +161,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Close the connection.
      *
      * @param result all pending futures will complete with this result
-     * @param detach remove it from the pool if it's true. When false, the connection remains
-     *        associated with the pool but is logically closed; this is currently used when the
-     *        pool itself is being closed or when switching clusters.
      * @param switchCluster whether the close is triggered by cluster switching
-     *
-     * `detach` should only be false when the connection pool is closed.
      */
-    void close(Result result = ResultConnectError, bool detach = true, bool switchCluster = false);
+    const std::future<void>& close(Result result = ResultConnectError, bool switchCluster = false);
 
     bool isClosed() const;
 
@@ -197,7 +196,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     const std::string& brokerAddress() const;
 
-    const std::string& cnxString() const;
+    auto cnxString() const { return *std::atomic_load(&cnxStringPtr_); }
 
     int getServerProtocolVersion() const;
 
@@ -223,28 +222,48 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
         mockingRequests_.store(true, std::memory_order_release);
     }
 
-    void handleKeepAliveTimeout();
+    void handleKeepAliveTimeout(const ASIO_ERROR& ec);
 
    private:
     struct PendingRequestData {
         Promise<Result, ResponseData> promise;
         DeadlineTimerPtr timer;
         std::shared_ptr<std::atomic_bool> hasGotResponse{std::make_shared<std::atomic_bool>(false)};
+
+        void fail(Result result) {
+            cancelTimer(*timer);
+            promise.setFailed(result);
+        }
     };
 
     struct LookupRequestData {
         LookupDataResultPromisePtr promise;
         DeadlineTimerPtr timer;
+
+        void fail(Result result) {
+            cancelTimer(*timer);
+            promise->setFailed(result);
+        }
     };
 
     struct LastMessageIdRequestData {
         GetLastMessageIdResponsePromisePtr promise;
         DeadlineTimerPtr timer;
+
+        void fail(Result result) {
+            cancelTimer(*timer);
+            promise->setFailed(result);
+        }
     };
 
     struct GetSchemaRequest {
         Promise<Result, SchemaInfo> promise;
         DeadlineTimerPtr timer;
+
+        void fail(Result result) {
+            cancelTimer(*timer);
+            promise.setFailed(result);
+        }
     };
 
     /*
@@ -301,26 +320,26 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     }
 
     template <typename ConstBufferSequence, typename WriteHandler>
-    inline void asyncWrite(const ConstBufferSequence& buffers, WriteHandler handler) {
+    inline void asyncWrite(const ConstBufferSequence& buffers, WriteHandler&& handler) {
         if (isClosed()) {
             return;
         }
         if (tlsSocket_) {
-            ASIO::async_write(*tlsSocket_, buffers, ASIO::bind_executor(strand_, handler));
+            ASIO::async_write(*tlsSocket_, buffers, std::forward<WriteHandler>(handler));
         } else {
-            ASIO::async_write(*socket_, buffers, handler);
+            ASIO::async_write(*socket_, buffers, std::forward<WriteHandler>(handler));
         }
     }
 
     template <typename MutableBufferSequence, typename ReadHandler>
-    inline void asyncReceive(const MutableBufferSequence& buffers, ReadHandler handler) {
+    inline void asyncReceive(const MutableBufferSequence& buffers, ReadHandler&& handler) {
         if (isClosed()) {
             return;
         }
         if (tlsSocket_) {
-            tlsSocket_->async_read_some(buffers, ASIO::bind_executor(strand_, handler));
+            tlsSocket_->async_read_some(buffers, std::forward<ReadHandler>(handler));
         } else {
-            socket_->async_receive(buffers, handler);
+            socket_->async_receive(buffers, std::forward<ReadHandler>(handler));
         }
     }
 
@@ -341,7 +360,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     SocketPtr socket_;
     TlsSocketPtr tlsSocket_;
-    ASIO::strand<ASIO::io_context::executor_type> strand_;
 
     const std::string logicalAddress_;
     /*
@@ -354,7 +372,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     ClientConfiguration::ProxyProtocol proxyProtocol_;
 
     // Represent both endpoint of the tcp connection. eg: [client:1234 -> server:6650]
-    std::string cnxString_;
+    std::shared_ptr<std::string> cnxStringPtr_;
 
     /*
      *  indicates if async connection establishment failed
@@ -364,7 +382,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     SharedBuffer incomingBuffer_;
 
     Promise<Result, ClientConnectionWeakPtr> connectPromise_;
-    std::shared_ptr<PeriodicTask> connectTimeoutTask_;
+    const std::chrono::milliseconds connectTimeout_;
+    const DeadlineTimerPtr connectTimer_;
 
     typedef std::map<long, PendingRequestData> PendingRequestsMap;
     PendingRequestsMap pendingRequests_;
@@ -423,6 +442,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     const std::string clientVersion_;
     ConnectionPool& pool_;
     const size_t poolIndex_;
+    std::optional<std::future<void>> closeFuture_;
 
     friend class PulsarFriend;
     friend class ConsumerTest;

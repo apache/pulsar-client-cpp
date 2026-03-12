@@ -162,6 +162,11 @@ class PulsarFriend {
         return consumers;
     }
 
+    static size_t getPendingConsumerStatsRequests(const ClientConnection& cnx) {
+        std::lock_guard<std::mutex> lock(cnx.mutex_);
+        return cnx.pendingConsumerStatsMap_.size();
+    }
+
     static void setNegativeAckEnabled(Consumer consumer, bool enabled) {
         consumer.impl_->setNegativeAcknowledgeEnabledForTesting(enabled);
     }

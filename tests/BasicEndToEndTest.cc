@@ -3189,7 +3189,17 @@ static void expectTimeoutOnRecv(Consumer &consumer) {
     ASSERT_EQ(ResultTimeout, res);
 }
 
-void testNegativeAcks(const std::string &topic, bool batchingEnabled) {
+static std::vector<std::string> expectedNegativeAckMessages(size_t numMessages) {
+    std::vector<std::string> expected;
+    expected.reserve(numMessages);
+    for (size_t i = 0; i < numMessages; i++) {
+        expected.emplace_back("test-" + std::to_string(i));
+    }
+    return expected;
+}
+
+void testNegativeAcks(const std::string &topic, bool batchingEnabled, bool expectOrdered = true) {
+    constexpr size_t numMessages = 10;
     Client client(lookupUrl);
     Consumer consumer;
     ConsumerConfiguration conf;
@@ -3203,21 +3213,31 @@ void testNegativeAcks(const std::string &topic, bool batchingEnabled) {
     result = client.createProducer(topic, producerConf, producer);
     ASSERT_EQ(ResultOk, result);
 
-    for (int i = 0; i < 10; i++) {
+    for (size_t i = 0; i < numMessages; i++) {
         Message msg = MessageBuilder().setContent("test-" + std::to_string(i)).build();
         producer.sendAsync(msg, nullptr);
     }
 
     producer.flush();
 
+    std::vector<std::string> receivedMessages;
+    receivedMessages.reserve(numMessages);
     std::vector<MessageId> toNeg;
-    for (int i = 0; i < 10; i++) {
+    for (size_t i = 0; i < numMessages; i++) {
         Message msg;
         consumer.receive(msg);
 
         LOG_INFO("Received message " << msg.getDataAsString());
-        ASSERT_EQ(msg.getDataAsString(), "test-" + std::to_string(i));
+        if (expectOrdered) {
+            ASSERT_EQ(msg.getDataAsString(), "test-" + std::to_string(i));
+        }
+        receivedMessages.emplace_back(msg.getDataAsString());
         toNeg.push_back(msg.getMessageId());
+    }
+    if (!expectOrdered) {
+        auto expectedMessages = expectedNegativeAckMessages(numMessages);
+        std::sort(receivedMessages.begin(), receivedMessages.end());
+        ASSERT_EQ(expectedMessages, receivedMessages);
     }
     // No more messages expected
     expectTimeoutOnRecv(consumer);
@@ -3229,14 +3249,24 @@ void testNegativeAcks(const std::string &topic, bool batchingEnabled) {
     }
     PulsarFriend::setNegativeAckEnabled(consumer, true);
 
-    for (int i = 0; i < 10; i++) {
+    std::vector<std::string> redeliveredMessages;
+    redeliveredMessages.reserve(numMessages);
+    for (size_t i = 0; i < numMessages; i++) {
         Message msg;
         consumer.receive(msg);
         LOG_INFO("-- Redelivery -- Received message " << msg.getDataAsString());
 
-        ASSERT_EQ(msg.getDataAsString(), "test-" + std::to_string(i));
+        if (expectOrdered) {
+            ASSERT_EQ(msg.getDataAsString(), "test-" + std::to_string(i));
+        }
+        redeliveredMessages.emplace_back(msg.getDataAsString());
 
         consumer.acknowledge(msg);
+    }
+    if (!expectOrdered) {
+        auto expectedMessages = expectedNegativeAckMessages(numMessages);
+        std::sort(redeliveredMessages.begin(), redeliveredMessages.end());
+        ASSERT_EQ(expectedMessages, redeliveredMessages);
     }
 
     // No more messages expected
@@ -3263,7 +3293,7 @@ TEST(BasicEndToEndTest, testNegativeAcksWithPartitions) {
     LOG_INFO("res = " << res);
     ASSERT_FALSE(res != 204 && res != 409);
 
-    testNegativeAcks(topicName, true);
+    testNegativeAcks(topicName, true, false);
 }
 
 void testNegativeAckPrecisionBitCnt(const std::string &topic, int precisionBitCnt) {

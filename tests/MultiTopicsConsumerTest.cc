@@ -162,11 +162,12 @@ TEST(MultiTopicsConsumerTest, testGetConsumerStatsFail) {
         BrokerConsumerStats stats;
         return consumer.getBrokerConsumerStats(stats);
     });
-    // Trigger the `getBrokerConsumerStats` in a new thread
-    future.wait_for(std::chrono::milliseconds(100));
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    const auto expectedRequests = topics.size();
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(1), [connection, expectedRequests] {
+        return PulsarFriend::getPendingConsumerStatsRequests(*connection) == expectedRequests;
+    }));
 
-    connection->handleKeepAliveTimeout();
+    connection->close(ResultDisconnected);
     ASSERT_EQ(ResultDisconnected, future.get());
 
     mockServer->close();

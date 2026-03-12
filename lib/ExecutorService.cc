@@ -125,8 +125,6 @@ void ExecutorService::close(long timeoutMs) {
     }
 }
 
-void ExecutorService::postWork(std::function<void(void)> task) { ASIO::post(io_context_, std::move(task)); }
-
 /////////////////////
 
 ExecutorServiceProvider::ExecutorServiceProvider(int nthreads)
