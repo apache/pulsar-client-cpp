@@ -21,12 +21,12 @@
 #include <pulsar/Version.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
-#include <condition_variable>
 #include <future>
-#include <mutex>
 #include <sstream>
 #include <thread>
+#include <utility>
 
 #include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
@@ -52,31 +52,21 @@ class SilentTcpServer {
    public:
     SilentTcpServer()
         : acceptor_(ioContext_, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), 0)),
-          acceptedFuture_(acceptedPromise_.get_future()) {}
+          acceptedFuture_(acceptedPromise_.get_future()),
+          port_(acceptor_.local_endpoint().port()),
+          workGuard_(ASIO::make_work_guard(ioContext_)) {}
 
     ~SilentTcpServer() { stop(); }
 
-    int getPort() const { return acceptor_.local_endpoint().port(); }
+    int getPort() const noexcept { return port_; }
 
     void start() {
         serverThread_ = std::thread([this] {
             socket_.reset(new ASIO::ip::tcp::socket(ioContext_));
+            acceptor_.async_accept(
+                *socket_, [this](const ASIO_ERROR &acceptError) { acceptedPromise_.set_value(acceptError); });
 
-            ASIO_ERROR acceptError;
-            acceptor_.accept(*socket_, acceptError);
-            acceptedPromise_.set_value(acceptError);
-
-            std::unique_lock<std::mutex> lock(mutex_);
-            cond_.wait(lock, [this] { return stopped_; });
-            lock.unlock();
-
-            if (socket_) {
-                ASIO_ERROR closeError;
-                socket_->close(closeError);
-            }
-
-            ASIO_ERROR closeError;
-            acceptor_.close(closeError);
+            ioContext_.run();
         });
     }
 
@@ -84,38 +74,37 @@ class SilentTcpServer {
         return acceptedFuture_.wait_for(timeout) == std::future_status::ready;
     }
 
-    ASIO_ERROR acceptedError() const { return acceptedFuture_.get(); }
+    auto acceptedError() const { return acceptedFuture_.get(); }
 
     void stop() {
-        {
-            std::lock_guard<std::mutex> lock(mutex_);
-            if (stopped_) {
-                return;
+        bool expected = false;
+        if (!stopped_.compare_exchange_strong(expected, true) || !serverThread_.joinable()) {
+            return;
+        }
+        ASIO::post(ioContext_, [this] {
+            ASIO_ERROR closeError;
+            if (socket_ && socket_->is_open()) {
+                socket_->close(closeError);
             }
-            stopped_ = true;
-        }
-
-        ASIO_ERROR closeError;
-        acceptor_.close(closeError);
-        if (socket_) {
-            socket_->close(closeError);
-        }
-
-        cond_.notify_all();
-        if (serverThread_.joinable()) {
-            serverThread_.join();
-        }
+            if (acceptor_.is_open()) {
+                acceptor_.close(closeError);
+            }
+            workGuard_.reset();
+        });
+        serverThread_.join();
     }
 
    private:
+    using WorkGuard = decltype(ASIO::make_work_guard(std::declval<ASIO::io_context &>()));
+
     ASIO::io_context ioContext_;
     ASIO::ip::tcp::acceptor acceptor_;
-    std::shared_ptr<ASIO::ip::tcp::socket> socket_;
+    std::unique_ptr<ASIO::ip::tcp::socket> socket_;
     std::promise<ASIO_ERROR> acceptedPromise_;
     std::shared_future<ASIO_ERROR> acceptedFuture_;
-    std::mutex mutex_;
-    std::condition_variable cond_;
-    bool stopped_{false};
+    const int port_;
+    WorkGuard workGuard_;
+    std::atomic_bool stopped_{false};
     std::thread serverThread_;
 };
 
