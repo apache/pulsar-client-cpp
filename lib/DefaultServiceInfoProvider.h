@@ -26,9 +26,9 @@
 
 namespace pulsar {
 
-class DefaultServiceUrlProvider : public ServiceInfoProvider {
+class DefaultServiceInfoProvider : public ServiceInfoProvider {
    public:
-    DefaultServiceUrlProvider(const std::string& serviceUrl, const ClientConfigurationImpl& config)
+    DefaultServiceInfoProvider(const std::string& serviceUrl, const ClientConfigurationImpl& config)
         : serviceInfo_(config.toServiceInfo(serviceUrl)) {}
 
     ServiceInfo initialServiceInfo() override { return std::move(serviceInfo_); }

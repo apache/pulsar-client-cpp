@@ -157,7 +157,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Close the connection.
      *
      * @param result all pending futures will complete with this result
-     * @param detach remove it from the pool if it's true
+     * @param detach remove it from the pool if it's true. When false, the connection remains
+     *        associated with the pool but is logically closed; this is currently used when the
+     *        pool itself is being closed or when switching clusters.
      * @param switchCluster whether the close is triggered by cluster switching
      *
      * `detach` should only be false when the connection pool is closed.

@@ -78,8 +78,9 @@ class PULSAR_PUBLIC Client {
      * dynamically. For example, if it detects a primary Pulsar service is down, it can switch to a secondary
      * service and update the client with the new service information.
      *
-     * When `close` is called, the client will call `ServiceInfoProvider::close` to guarantee the lifetime of
-     * the provider is properly managed.
+     * The Client instance takes ownership of the given ServiceInfoProvider. The provider will be destroyed
+     * as part of the client's shutdown lifecycle, for example when `Client::close()` or
+     * `Client::closeAsync()` is called, ensuring that its lifetime is properly managed.
      */
     static Client create(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,
                          const ClientConfiguration& clientConfiguration);

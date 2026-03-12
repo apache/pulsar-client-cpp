@@ -206,7 +206,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                           const std::string& logicalAddress);
 
     // This overload is only used for blue-green migration, where only the service URL is modified, the other
-    // paramters remain the same
+    // parameters remain the same
     LookupServicePtr createRedirectedLookup(const std::string& redirectedUrl) {
         auto serviceInfo = serviceInfo_.load();
         return createLookup(

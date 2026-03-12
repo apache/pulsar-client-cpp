@@ -34,7 +34,7 @@
 #include "Commands.h"
 #include "ConsumerImpl.h"
 #include "ConsumerInterceptors.h"
-#include "DefaultServiceUrlProvider.h"
+#include "DefaultServiceInfoProvider.h"
 #include "ExecutorService.h"
 #include "HTTPLookupService.h"
 #include "LogUtils.h"
@@ -97,8 +97,8 @@ ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration&
 
 ClientImpl::ClientImpl(const std::string& serviceUrl, const ClientConfiguration& clientConfiguration,
                        LookupServiceFactory&& lookupServiceFactory)
-    : ClientImpl(std::make_unique<DefaultServiceUrlProvider>(std::cref(serviceUrl),
-                                                             std::cref(*clientConfiguration.impl_)),
+    : ClientImpl(std::make_unique<DefaultServiceInfoProvider>(std::cref(serviceUrl),
+                                                              std::cref(*clientConfiguration.impl_)),
                  clientConfiguration, std::move(lookupServiceFactory)) {}
 
 ClientImpl::ClientImpl(std::unique_ptr<ServiceInfoProvider> serviceInfoProvider,

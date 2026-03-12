@@ -94,7 +94,7 @@ class TestServiceInfoProvider : public ServiceInfoProvider {
 };
 
 TEST(ServiceInfoProviderTest, testSwitchCluster) {
-    extern std::string getToken();  // from tests/AuthToken.cc
+    extern std::string getToken();  // from tests/AuthTokenTest.cc
     // Access "private/auth" namespace in cluster 1
     ServiceInfo info1{"pulsar://localhost:6650", AuthToken::createWithToken(getToken())};
     // Access "private/auth" namespace in cluster 2

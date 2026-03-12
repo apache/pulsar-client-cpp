@@ -19,8 +19,9 @@
 #ifndef PULSAR_SERVICE_INFO_PROVIDER_H_
 #define PULSAR_SERVICE_INFO_PROVIDER_H_
 
-#include <pulsar/ClientConfiguration.h>
 #include <pulsar/ServiceInfo.h>
+
+#include <functional>
 
 namespace pulsar {
 
@@ -35,18 +36,23 @@ class PULSAR_PUBLIC ServiceInfoProvider {
     /**
      * Get the initial `ServiceInfo` connection for the client.
      * This method is called **only once** internally in `Client::create()` to get the initial `ServiceInfo`
-     * for the client to connect to the Pulsar service. Since it's only called once, it's legal to return a
-     * moved `ServiceInfo` object to avoid unnecessary copying.
+     * for the client to connect to the Pulsar service, typically before {@link initialize} is invoked.
+     * Since it's only called once, it's legal to return a moved `ServiceInfo` object to avoid unnecessary
+     * copying.
      */
     virtual ServiceInfo initialServiceInfo() = 0;
 
     /**
      * Initialize the ServiceInfoProvider.
      *
-     * @param onServiceInfoUpdate the callback to update `client` with the new `ServiceInfo`
+     * After the client has obtained the initial `ServiceInfo` via {@link initialServiceInfo}, this method is
+     * called to allow the provider to start any background work (for example, service discovery or watching
+     * configuration changes) and to report subsequent updates to the service information.
      *
-     * Note: the implementation is responsible to invoke `onServiceInfoUpdate` at least once to provide the
-     * initial `ServiceInfo` for the client.
+     * @param onServiceInfoUpdate the callback to deliver updated `ServiceInfo` values to the client after
+     *                            the initial connection has been established
+     *
+     * Implementations may choose not to invoke `onServiceInfoUpdate` if the `ServiceInfo` never changes.
      */
     virtual void initialize(std::function<void(ServiceInfo)> onServiceInfoUpdate) = 0;
 };
