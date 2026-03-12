@@ -21,14 +21,18 @@
 #include <pulsar/Version.h>
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <future>
 #include <sstream>
+#include <thread>
+#include <utility>
 
 #include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
+#include "lib/AsioDefines.h"
 #include "lib/ClientConnection.h"
 #include "lib/LogUtils.h"
 #include "lib/checksum/ChecksumProvider.h"
@@ -41,6 +45,70 @@ using testing::AtLeast;
 
 static std::string lookupUrl = "pulsar://localhost:6650";
 static std::string adminUrl = "http://localhost:8080/";
+
+namespace {
+
+class SilentTcpServer {
+   public:
+    SilentTcpServer()
+        : acceptor_(ioContext_, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), 0)),
+          acceptedFuture_(acceptedPromise_.get_future()),
+          port_(acceptor_.local_endpoint().port()),
+          workGuard_(ASIO::make_work_guard(ioContext_)) {}
+
+    ~SilentTcpServer() { stop(); }
+
+    int getPort() const noexcept { return port_; }
+
+    void start() {
+        serverThread_ = std::thread([this] {
+            socket_.reset(new ASIO::ip::tcp::socket(ioContext_));
+            acceptor_.async_accept(
+                *socket_, [this](const ASIO_ERROR &acceptError) { acceptedPromise_.set_value(acceptError); });
+
+            ioContext_.run();
+        });
+    }
+
+    bool waitUntilAccepted(std::chrono::milliseconds timeout) const {
+        return acceptedFuture_.wait_for(timeout) == std::future_status::ready;
+    }
+
+    auto acceptedError() const { return acceptedFuture_.get(); }
+
+    void stop() {
+        bool expected = false;
+        if (!stopped_.compare_exchange_strong(expected, true) || !serverThread_.joinable()) {
+            return;
+        }
+        ASIO::post(ioContext_, [this] {
+            ASIO_ERROR closeError;
+            if (socket_ && socket_->is_open()) {
+                socket_->close(closeError);
+            }
+            if (acceptor_.is_open()) {
+                acceptor_.close(closeError);
+            }
+            workGuard_.reset();
+        });
+        serverThread_.join();
+    }
+
+   private:
+    using WorkGuard = decltype(ASIO::make_work_guard(std::declval<ASIO::io_context &>()));
+
+    ASIO::io_context ioContext_;
+    ASIO::ip::tcp::acceptor acceptor_;
+    std::unique_ptr<ASIO::ip::tcp::socket> socket_;
+    std::promise<ASIO_ERROR> acceptedPromise_;
+    std::shared_future<ASIO_ERROR> acceptedFuture_;
+    const int port_;
+    WorkGuard workGuard_;
+    std::atomic_bool stopped_{false};
+    std::thread serverThread_;
+};
+
+}  // namespace
 
 TEST(ClientTest, testChecksumComputation) {
     std::string data = "test";
@@ -135,6 +203,32 @@ TEST(ClientTest, testConnectTimeout) {
 
     ASSERT_EQ(futureDefault.wait_for(std::chrono::milliseconds(10)), std::future_status::ready);
     ASSERT_EQ(futureDefault.get(), ResultDisconnected);
+}
+
+TEST(ClientTest, testConnectTimeoutAfterTcpConnected) {
+    std::unique_ptr<SilentTcpServer> server;
+    try {
+        server.reset(new SilentTcpServer);
+    } catch (const ASIO_SYSTEM_ERROR &e) {
+        GTEST_SKIP() << "Cannot bind local test server in this environment: " << e.what();
+    }
+    server->start();
+
+    const std::string serviceUrl = "pulsar://127.0.0.1:" + std::to_string(server->getPort());
+    Client client(serviceUrl, ClientConfiguration().setConnectionTimeout(200));
+
+    std::promise<Result> promise;
+    auto future = promise.get_future();
+    client.createProducerAsync("test-connect-timeout-after-tcp-connected",
+                               [&promise](Result result, const Producer &) { promise.set_value(result); });
+
+    ASSERT_TRUE(server->waitUntilAccepted(std::chrono::seconds(1)));
+    ASSERT_FALSE(server->acceptedError());
+    ASSERT_EQ(future.wait_for(std::chrono::seconds(2)), std::future_status::ready);
+    ASSERT_EQ(future.get(), ResultConnectError);
+
+    client.close();
+    server->stop();
 }
 
 TEST(ClientTest, testGetNumberOfReferences) {
@@ -309,14 +403,19 @@ TEST(ClientTest, testMultiBrokerUrl) {
 TEST(ClientTest, testCloseClient) {
     const std::string topic = "client-test-close-client-" + std::to_string(time(nullptr));
 
+    using namespace std::chrono;
     for (int i = 0; i < 1000; ++i) {
         Client client(lookupUrl);
         client.createProducerAsync(topic, [](Result result, Producer producer) { producer.close(); });
         // simulate different time interval before close
-        auto t0 = std::chrono::steady_clock::now();
-        while ((std::chrono::steady_clock::now() - t0) < std::chrono::microseconds(i)) {
+        auto t0 = steady_clock::now();
+        while ((steady_clock::now() - t0) < microseconds(i)) {
         }
-        client.close();
+
+        auto t1 = std::chrono::steady_clock::now();
+        ASSERT_EQ(ResultOk, client.close());
+        auto closeTimeMs = duration_cast<milliseconds>(steady_clock::now() - t1).count();
+        ASSERT_TRUE(closeTimeMs < 1000) << "close time: " << closeTimeMs << " ms";
     }
 }
 
@@ -413,7 +512,7 @@ TEST(ClientTest, testConnectionClose) {
             LOG_INFO("Connection refcnt: " << cnx.use_count() << " before close");
             auto executor = PulsarFriend::getExecutor(*cnx);
             // Simulate the close() happens in the event loop
-            executor->postWork([cnx, &client, numConnections] {
+            executor->dispatch([cnx, &client, numConnections] {
                 cnx->close();
                 ASSERT_EQ(PulsarFriend::getConnections(client).size(), numConnections - 1);
                 LOG_INFO("Connection refcnt: " << cnx.use_count() << " after close");

@@ -23,12 +23,16 @@
 
 #include <atomic>
 #ifdef USE_ASIO
+#include <asio/dispatch.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ip/tcp.hpp>
+#include <asio/post.hpp>
 #include <asio/ssl.hpp>
 #else
+#include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
+#include <boost/asio/post.hpp>
 #include <boost/asio/ssl.hpp>
 #endif
 #include <chrono>
@@ -37,6 +41,7 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <utility>
 
 #include "AsioTimer.h"
 
@@ -62,7 +67,19 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
     TcpResolverPtr createTcpResolver();
     // throws std::runtime_error if failed
     DeadlineTimerPtr createDeadlineTimer();
-    void postWork(std::function<void(void)> task);
+
+    // Execute the task in the event loop thread asynchronously, i.e. the task will be put in the event loop
+    // queue and executed later.
+    template <typename T>
+    void postWork(T &&task) {
+        ASIO::post(io_context_, std::forward<T>(task));
+    }
+
+    // Different from `postWork`, if it's already in the event loop, execute the task immediately
+    template <typename T>
+    void dispatch(T &&task) {
+        ASIO::dispatch(io_context_, std::forward<T>(task));
+    }
 
     // See TimeoutProcessor for the semantics of the parameter.
     void close(long timeoutMs = 3000);

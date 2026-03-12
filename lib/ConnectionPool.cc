@@ -54,16 +54,43 @@ bool ConnectionPool::close() {
         return false;
     }
 
+    std::vector<ClientConnectionPtr> connectionsToClose;
+    // ClientConnection::close() will remove the connection from the pool, which is not allowed when iterating
+    // over a map, so we store the connections to close in a vector first and don't iterate the pool when
+    // closing the connections.
     std::unique_lock<std::recursive_mutex> lock(mutex_);
-
-    for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
-        auto& cnx = cnxIt->second;
-        if (cnx) {
-            // The 2nd argument is false because removing a value during the iteration will cause segfault
-            cnx->close(ResultDisconnected, false);
-        }
+    connectionsToClose.reserve(pool_.size());
+    for (auto&& kv : pool_) {
+        connectionsToClose.emplace_back(kv.second);
     }
     pool_.clear();
+    lock.unlock();
+
+    for (auto&& cnx : connectionsToClose) {
+        if (cnx) {
+            // Close with a fatal error to not let client retry
+            auto& future = cnx->close(ResultAlreadyClosed);
+            using namespace std::chrono_literals;
+            if (auto status = future.wait_for(5s); status != std::future_status::ready) {
+                LOG_WARN("Connection close timed out for " << cnx.get()->cnxString());
+            }
+            if (cnx.use_count() > 1) {
+                // There are some asynchronous operations that hold the reference on the connection, we should
+                // wait until them to finish. Otherwise, `io_context::stop()` will be called in
+                // `ClientImpl::shutdown()` when closing the `ExecutorServiceProvider`. Then
+                // `io_context::run()` will return and the `io_context` object will be destroyed. In this
+                // case, if there is any pending handler, it will crash.
+                for (int i = 0; i < 500 && cnx.use_count() > 1; i++) {
+                    std::this_thread::sleep_for(10ms);
+                }
+                if (cnx.use_count() > 1) {
+                    LOG_WARN("Connection still has " << (cnx.use_count() - 1)
+                                                     << " references after waiting for 5 seconds for "
+                                                     << cnx.get()->cnxString());
+                }
+            }
+        }
+    }
     return true;
 }
 

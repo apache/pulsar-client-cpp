@@ -53,7 +53,7 @@ class PeriodicTask : public std::enable_shared_from_this<PeriodicTask> {
 
     void stop() noexcept;
 
-    void setCallback(CallbackType callback) noexcept { callback_ = callback; }
+    void setCallback(CallbackType&& callback) noexcept { callback_ = std::move(callback); }
 
     State getState() const noexcept { return state_; }
     int getPeriodMs() const noexcept { return periodMs_; }
