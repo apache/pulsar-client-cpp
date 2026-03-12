@@ -110,6 +110,13 @@ class PULSAR_PUBLIC ConnectionPool {
     std::uniform_int_distribution<> randomDistribution_;
     std::mt19937 randomEngine_;
 
+    auto releaseConnections() {
+        decltype(pool_) pool;
+        std::lock_guard lock{mutex_};
+        pool.swap(pool_);
+        return pool;
+    }
+
     friend class PulsarFriend;
 };
 }  // namespace pulsar

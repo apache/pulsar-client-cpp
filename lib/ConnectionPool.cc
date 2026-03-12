@@ -55,19 +55,8 @@ bool ConnectionPool::close() {
         return false;
     }
 
-    std::vector<ClientConnectionPtr> connectionsToClose;
-    // ClientConnection::close() will remove the connection from the pool, which is not allowed when iterating
-    // over a map, so we store the connections to close in a vector first and don't iterate the pool when
-    // closing the connections.
-    std::unique_lock<std::recursive_mutex> lock(mutex_);
-    connectionsToClose.reserve(pool_.size());
-    for (auto&& kv : pool_) {
-        connectionsToClose.emplace_back(kv.second);
-    }
-    pool_.clear();
-    lock.unlock();
-
-    for (auto&& cnx : connectionsToClose) {
+    for (auto&& kv : releaseConnections()) {
+        auto& cnx = kv.second;
         if (cnx) {
             // Close with a fatal error to not let client retry
             auto& future = cnx->close(ResultAlreadyClosed);
@@ -96,14 +85,9 @@ bool ConnectionPool::close() {
 }
 
 void ConnectionPool::closeAllConnectionsForNewCluster() {
-    std::unique_lock<std::recursive_mutex> lock(mutex_);
-    for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
-        auto& cnx = cnxIt->second;
-        if (cnx) {
-            cnx->close(ResultDisconnected, true);
-        }
+    for (auto&& kv : releaseConnections()) {
+        kv.second->close(ResultDisconnected, true);
     }
-    pool_.clear();
 }
 
 static const std::string getKey(const std::string& logicalAddress, const std::string& physicalAddress,
