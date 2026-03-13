@@ -1145,6 +1145,7 @@ void ConsumerImpl::onClusterSwitching() {
         seekStatus_ = SeekStatus::NOT_STARTED;
         lastSeekArg_.reset();
     }
+    setRedirectedClusterURI("");
     ackGroupingTrackerPtr_->flushAndClean();
 }
 
