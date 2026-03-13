@@ -19,6 +19,8 @@
 #ifndef PULSAR_CPP_HTTPLOOKUPSERVICE_H
 #define PULSAR_CPP_HTTPLOOKUPSERVICE_H
 
+#include <pulsar/ServiceInfo.h>
+
 #include <cstdint>
 
 #include "ClientImpl.h"
@@ -67,7 +69,7 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
     Result sendHTTPRequest(const std::string& completeUrl, std::string& responseData, long& responseCode);
 
    public:
-    HTTPLookupService(const std::string&, const ClientConfiguration&, const AuthenticationPtr&);
+    HTTPLookupService(const ServiceInfo& serviceInfo, const ClientConfiguration& config);
 
     LookupResultFuture getBroker(const TopicName& topicName) override;
 

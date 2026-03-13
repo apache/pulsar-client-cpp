@@ -20,6 +20,7 @@
 #define _PULSAR_CLIENT_CONNECTION_HEADER_
 
 #include <pulsar/ClientConfiguration.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/defines.h>
 
 #include <any>
@@ -145,8 +146,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      *
      */
     ClientConnection(const std::string& logicalAddress, const std::string& physicalAddress,
-                     const ExecutorServicePtr& executor, const ClientConfiguration& clientConfiguration,
-                     const AuthenticationPtr& authentication, const std::string& clientVersion,
+                     const ServiceInfo& serviceInfo, const ExecutorServicePtr& executor,
+                     const ClientConfiguration& clientConfiguration, const std::string& clientVersion,
                      ConnectionPool& pool, size_t poolIndex);
     ~ClientConnection();
 
@@ -160,8 +161,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Close the connection.
      *
      * @param result all pending futures will complete with this result
+     * @param switchCluster whether the close is triggered by cluster switching
      */
-    const std::future<void>& close(Result result = ResultConnectError);
+    const std::future<void>& close(Result result = ResultConnectError, bool switchCluster = false);
 
     bool isClosed() const;
 

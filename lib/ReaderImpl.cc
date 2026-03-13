@@ -90,7 +90,6 @@ void ReaderImpl::start(const MessageId& startMessageId,
     if (partitions_ > 0) {
         auto consumerImpl = std::make_shared<MultiTopicsConsumerImpl>(
             client_.lock(), TopicName::get(topic_), partitions_, subscription, consumerConf,
-            client_.lock()->getLookup(),
             std::make_shared<ConsumerInterceptors>(std::vector<ConsumerInterceptorPtr>()),
             Commands::SubscriptionModeNonDurable, startMessageId);
         consumer_ = consumerImpl;

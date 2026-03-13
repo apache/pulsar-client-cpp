@@ -38,12 +38,13 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
-ConnectionPool::ConnectionPool(const ClientConfiguration& conf,
+ConnectionPool::ConnectionPool(const AtomicSharedPtr<ServiceInfo>& serviceInfo,
+                               const ClientConfiguration& conf,
                                const ExecutorServiceProviderPtr& executorProvider,
-                               const AuthenticationPtr& authentication, const std::string& clientVersion)
-    : clientConfiguration_(conf),
+                               const std::string& clientVersion)
+    : serviceInfo_(serviceInfo),
+      clientConfiguration_(conf),
       executorProvider_(executorProvider),
-      authentication_(authentication),
       clientVersion_(clientVersion),
       randomDistribution_(0, conf.getConnectionsPerBroker() - 1),
       randomEngine_(std::chrono::high_resolution_clock::now().time_since_epoch().count()) {}
@@ -54,19 +55,8 @@ bool ConnectionPool::close() {
         return false;
     }
 
-    std::vector<ClientConnectionPtr> connectionsToClose;
-    // ClientConnection::close() will remove the connection from the pool, which is not allowed when iterating
-    // over a map, so we store the connections to close in a vector first and don't iterate the pool when
-    // closing the connections.
-    std::unique_lock<std::recursive_mutex> lock(mutex_);
-    connectionsToClose.reserve(pool_.size());
-    for (auto&& kv : pool_) {
-        connectionsToClose.emplace_back(kv.second);
-    }
-    pool_.clear();
-    lock.unlock();
-
-    for (auto&& cnx : connectionsToClose) {
+    for (auto&& kv : releaseConnections()) {
+        auto& cnx = kv.second;
         if (cnx) {
             // Close with a fatal error to not let client retry
             auto& future = cnx->close(ResultAlreadyClosed);
@@ -92,6 +82,12 @@ bool ConnectionPool::close() {
         }
     }
     return true;
+}
+
+void ConnectionPool::closeAllConnectionsForNewCluster() {
+    for (auto&& kv : releaseConnections()) {
+        kv.second->close(ResultDisconnected, true);
+    }
 }
 
 static const std::string getKey(const std::string& logicalAddress, const std::string& physicalAddress,
@@ -134,9 +130,9 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const
     // No valid or pending connection found in the pool, creating a new one
     ClientConnectionPtr cnx;
     try {
-        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(keySuffix),
-                                       clientConfiguration_, authentication_, clientVersion_, *this,
-                                       keySuffix));
+        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, *serviceInfo_.load(),
+                                       executorProvider_->get(keySuffix), clientConfiguration_,
+                                       clientVersion_, *this, keySuffix));
     } catch (Result result) {
         Promise<Result, ClientConnectionWeakPtr> promise;
         promise.setFailed(result);

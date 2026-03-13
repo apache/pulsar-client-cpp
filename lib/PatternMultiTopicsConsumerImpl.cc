@@ -21,7 +21,6 @@
 #include "ClientImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
-#include "LookupService.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -32,10 +31,8 @@ using std::chrono::seconds;
 PatternMultiTopicsConsumerImpl::PatternMultiTopicsConsumerImpl(
     const ClientImplPtr& client, const std::string& pattern, CommandGetTopicsOfNamespace_Mode getTopicsMode,
     const std::vector<std::string>& topics, const std::string& subscriptionName,
-    const ConsumerConfiguration& conf, const LookupServicePtr& lookupServicePtr_,
-    const ConsumerInterceptorsPtr& interceptors)
-    : MultiTopicsConsumerImpl(client, topics, subscriptionName, TopicName::get(pattern), conf,
-                              lookupServicePtr_, interceptors),
+    const ConsumerConfiguration& conf, const ConsumerInterceptorsPtr& interceptors)
+    : MultiTopicsConsumerImpl(client, topics, subscriptionName, TopicName::get(pattern), conf, interceptors),
       patternString_(pattern),
       pattern_(PULSAR_REGEX_NAMESPACE::regex(TopicName::removeDomain(pattern))),
       getTopicsMode_(getTopicsMode),
@@ -84,7 +81,11 @@ void PatternMultiTopicsConsumerImpl::autoDiscoveryTimerTask(const ASIO_ERROR& er
     // already get namespace from pattern.
     assert(namespaceName_);
 
-    lookupServicePtr_->getTopicsOfNamespaceAsync(namespaceName_, getTopicsMode_)
+    auto client = client_.lock();
+    if (!client) {
+        return;
+    }
+    client->getTopicsOfNamespaceAsync(namespaceName_, getTopicsMode_)
         .addListener(std::bind(&PatternMultiTopicsConsumerImpl::timerGetTopicsOfNamespace, this,
                                std::placeholders::_1, std::placeholders::_2));
 }

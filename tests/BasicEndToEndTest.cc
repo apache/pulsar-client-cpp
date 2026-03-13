@@ -700,7 +700,8 @@ TEST(BasicEndToEndTest, testConfigurationFile) {
 
     ClientConfiguration config2 = config1;
     AuthenticationDataPtr authData;
-    ASSERT_EQ(ResultOk, config1.getAuth().getAuthData(authData));
+    Client client(lookupUrl, config1);
+    ASSERT_EQ(ResultOk, client.getServiceInfo().authentication()->getAuthData(authData));
     ASSERT_EQ(100, config2.getOperationTimeoutSeconds());
     ASSERT_EQ(10, config2.getIOThreads());
     ASSERT_EQ(1, config2.getMessageListenerThreads());

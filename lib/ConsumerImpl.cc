@@ -125,7 +125,8 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
       negativeAcksTracker_(std::make_shared<NegativeAcksTracker>(client, *this, conf)),
       ackGroupingTrackerPtr_(newAckGroupingTracker(topic, conf, client)),
       readCompacted_(conf.isReadCompacted()),
-      startMessageId_(pulsar::getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
+      startMessageIdFromConfig_(pulsar::getStartMessageId(startMessageId, conf.isStartMessageIdInclusive())),
+      startMessageId_(startMessageIdFromConfig_),
       maxPendingChunkedMessage_(conf.getMaxPendingChunkedMessage()),
       autoAckOldestChunkedMessageOnQueueFull_(conf.isAutoAckOldestChunkedMessageOnQueueFull()),
       expireTimeOfIncompleteChunkedMessageMs_(conf.getExpireTimeOfIncompleteChunkedMessageMs()),
@@ -1132,6 +1133,20 @@ void ConsumerImpl::messageProcessed(Message& msg, bool track) {
     if (track) {
         trackMessage(msg.getMessageId());
     }
+}
+
+void ConsumerImpl::onClusterSwitching() {
+    {
+        LockGuard lock{mutex_};
+        incomingMessages_.clear();
+        startMessageId_ = startMessageIdFromConfig_;
+        lastDequedMessageId_ = MessageId::earliest();
+        lastMessageIdInBroker_ = MessageId::earliest();
+        seekStatus_ = SeekStatus::NOT_STARTED;
+        lastSeekArg_.reset();
+    }
+    setRedirectedClusterURI("");
+    ackGroupingTrackerPtr_->flushAndClean();
 }
 
 /**
