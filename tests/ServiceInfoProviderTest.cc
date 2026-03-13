@@ -227,7 +227,7 @@ TEST(AutoClusterFailoverTest, testFailoverToFirstAvailableSecondaryAfterDelay) {
 
         ASSERT_EQ(provider.initialServiceInfo().serviceUrl(), primaryUrl);
 
-        provider.initialize([&observer](const ServiceInfo& serviceInfo) { observer.onUpdate(serviceInfo); });
+        provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
 
         ASSERT_TRUE(waitUntil(1s, [&observer] { return observer.size() >= 1; }));
         ASSERT_EQ(observer.last(), primaryUrl);
@@ -262,7 +262,7 @@ TEST(AutoClusterFailoverTest, testSwitchBackToPrimaryAfterRecoveryDelay) {
                 .withSwitchBackDelay(120ms)
                 .build();
 
-        provider.initialize([&observer](const ServiceInfo& serviceInfo) { observer.onUpdate(serviceInfo); });
+        provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
 
         ASSERT_TRUE(waitUntil(2s, [&observer, &secondaryUrl] { return observer.last() == secondaryUrl; }));
 
