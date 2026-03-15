@@ -755,7 +755,7 @@ void ProducerImpl::sendMessage(std::unique_ptr<OpSendMsg> opSendMsg) {
 void ProducerImpl::printStats() {
     if (batchMessageContainer_) {
         LOG_INFO("Producer - " << producerStr_ << ", [batchMessageContainer = " << *batchMessageContainer_
-                                << "]");
+                               << "]");
     } else {
         LOG_INFO("Producer - " << producerStr_ << ", [batching  = off]");
     }
