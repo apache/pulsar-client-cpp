@@ -42,7 +42,7 @@ static const std::string serviceUrlHttp = "http://localhost:8080";
 
 static const std::string tokenPath = TOKEN_PATH;
 
-static std::string getToken() {
+std::string getToken() {
     std::ifstream file(tokenPath);
     std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
     return str;

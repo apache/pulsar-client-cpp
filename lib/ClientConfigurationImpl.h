@@ -20,8 +20,10 @@
 #define LIB_CLIENTCONFIGURATIONIMPL_H_
 
 #include <pulsar/ClientConfiguration.h>
+#include <pulsar/ServiceInfo.h>
 
 #include <chrono>
+#include <optional>
 
 namespace pulsar {
 
@@ -53,6 +55,11 @@ struct ClientConfigurationImpl {
     ClientConfiguration::ProxyProtocol proxyProtocol;
 
     std::unique_ptr<LoggerFactory> takeLogger() { return std::move(loggerFactory); }
+
+    ServiceInfo toServiceInfo(const std::string& serviceUrl) const {
+        return {serviceUrl, authenticationPtr,
+                tlsTrustCertsFilePath.empty() ? std::nullopt : std::make_optional(tlsTrustCertsFilePath)};
+    }
 };
 }  // namespace pulsar
 

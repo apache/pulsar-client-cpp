@@ -47,7 +47,6 @@ typedef std::shared_ptr<pulsar::RateLimiter> RateLimiterPtr;
 struct Arguments {
     std::string authParams;
     std::string authPlugin;
-    bool isUseTls;
     bool isTlsAllowInsecureConnection;
     std::string tlsTrustCertsFilePath;
     std::string topic;
@@ -223,9 +222,6 @@ int main(int argc, char** argv) {
         ("auth-plugin,a", po::value<std::string>(&args.authPlugin)->default_value(""),
          "Authentication plugin class library path")  //
 
-        ("use-tls,b", po::value<bool>(&args.isUseTls)->default_value(false),
-         "Whether tls connection is used")  //
-
         ("allow-insecure,d", po::value<bool>(&args.isTlsAllowInsecureConnection)->default_value(true),
          "Whether insecure tls connection is allowed")  //
 
@@ -366,7 +362,6 @@ int main(int argc, char** argv) {
     pulsar::ClientConfiguration conf;
     conf.setConnectionsPerBroker(args.connectionsPerBroker);
     conf.setMemoryLimit(args.memoryLimitMb * 1024 * 1024);
-    conf.setUseTls(args.isUseTls);
     conf.setTlsAllowInsecureConnection(args.isTlsAllowInsecureConnection);
     if (!args.tlsTrustCertsFilePath.empty()) {
         std::string tlsTrustCertsFilePath(args.tlsTrustCertsFilePath);

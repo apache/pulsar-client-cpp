@@ -115,14 +115,6 @@ void pulsar_client_configuration_set_logger_t(pulsar_client_configuration_t *con
     conf->conf.setLogger(new PulsarCLoggerFactory(logger));
 }
 
-void pulsar_client_configuration_set_use_tls(pulsar_client_configuration_t *conf, int useTls) {
-    conf->conf.setUseTls(useTls);
-}
-
-int pulsar_client_configuration_is_use_tls(pulsar_client_configuration_t *conf) {
-    return conf->conf.isUseTls();
-}
-
 void pulsar_client_configuration_set_validate_hostname(pulsar_client_configuration_t *conf,
                                                        int validateHostName) {
     conf->conf.setValidateHostName(validateHostName);
@@ -153,10 +145,6 @@ const char *pulsar_client_configuration_get_tls_certificate_file_path(pulsar_cli
 void pulsar_client_configuration_set_tls_trust_certs_file_path(pulsar_client_configuration_t *conf,
                                                                const char *tlsTrustCertsFilePath) {
     conf->conf.setTlsTrustCertsFilePath(tlsTrustCertsFilePath);
-}
-
-const char *pulsar_client_configuration_get_tls_trust_certs_file_path(pulsar_client_configuration_t *conf) {
-    return conf->conf.getTlsTrustCertsFilePath().c_str();
 }
 
 void pulsar_client_configuration_set_tls_allow_insecure_connection(pulsar_client_configuration_t *conf,

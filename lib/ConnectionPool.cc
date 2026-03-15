@@ -38,12 +38,13 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
-ConnectionPool::ConnectionPool(const ClientConfiguration& conf,
+ConnectionPool::ConnectionPool(const AtomicSharedPtr<ServiceInfo>& serviceInfo,
+                               const ClientConfiguration& conf,
                                const ExecutorServiceProviderPtr& executorProvider,
-                               const AuthenticationPtr& authentication, const std::string& clientVersion)
-    : clientConfiguration_(conf),
+                               const std::string& clientVersion)
+    : serviceInfo_(serviceInfo),
+      clientConfiguration_(conf),
       executorProvider_(executorProvider),
-      authentication_(authentication),
       clientVersion_(clientVersion),
       randomDistribution_(0, conf.getConnectionsPerBroker() - 1),
       randomEngine_(std::chrono::high_resolution_clock::now().time_since_epoch().count()) {}
@@ -54,17 +55,39 @@ bool ConnectionPool::close() {
         return false;
     }
 
-    std::unique_lock<std::recursive_mutex> lock(mutex_);
-
-    for (auto cnxIt = pool_.begin(); cnxIt != pool_.end(); cnxIt++) {
-        auto& cnx = cnxIt->second;
+    for (auto&& kv : releaseConnections()) {
+        auto& cnx = kv.second;
         if (cnx) {
-            // The 2nd argument is false because removing a value during the iteration will cause segfault
-            cnx->close(ResultDisconnected, false);
+            // Close with a fatal error to not let client retry
+            auto& future = cnx->close(ResultAlreadyClosed);
+            using namespace std::chrono_literals;
+            if (auto status = future.wait_for(5s); status != std::future_status::ready) {
+                LOG_WARN("Connection close timed out for " << cnx.get()->cnxString());
+            }
+            if (cnx.use_count() > 1) {
+                // There are some asynchronous operations that hold the reference on the connection, we should
+                // wait until them to finish. Otherwise, `io_context::stop()` will be called in
+                // `ClientImpl::shutdown()` when closing the `ExecutorServiceProvider`. Then
+                // `io_context::run()` will return and the `io_context` object will be destroyed. In this
+                // case, if there is any pending handler, it will crash.
+                for (int i = 0; i < 500 && cnx.use_count() > 1; i++) {
+                    std::this_thread::sleep_for(10ms);
+                }
+                if (cnx.use_count() > 1) {
+                    LOG_WARN("Connection still has " << (cnx.use_count() - 1)
+                                                     << " references after waiting for 5 seconds for "
+                                                     << cnx.get()->cnxString());
+                }
+            }
         }
     }
-    pool_.clear();
     return true;
+}
+
+void ConnectionPool::closeAllConnectionsForNewCluster() {
+    for (auto&& kv : releaseConnections()) {
+        kv.second->close(ResultDisconnected, true);
+    }
 }
 
 static const std::string getKey(const std::string& logicalAddress, const std::string& physicalAddress,
@@ -107,9 +130,9 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const
     // No valid or pending connection found in the pool, creating a new one
     ClientConnectionPtr cnx;
     try {
-        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, executorProvider_->get(keySuffix),
-                                       clientConfiguration_, authentication_, clientVersion_, *this,
-                                       keySuffix));
+        cnx.reset(new ClientConnection(logicalAddress, physicalAddress, *serviceInfo_.load(),
+                                       executorProvider_->get(keySuffix), clientConfiguration_,
+                                       clientVersion_, *this, keySuffix));
     } catch (Result result) {
         Promise<Result, ClientConnectionWeakPtr> promise;
         promise.setFailed(result);

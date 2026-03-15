@@ -52,7 +52,6 @@ class PatternMultiTopicsConsumerImpl : public MultiTopicsConsumerImpl {
                                    CommandGetTopicsOfNamespace_Mode getTopicsMode,
                                    const std::vector<std::string>& topics,
                                    const std::string& subscriptionName, const ConsumerConfiguration& conf,
-                                   const LookupServicePtr& lookupServicePtr_,
                                    const ConsumerInterceptorsPtr& interceptors);
     ~PatternMultiTopicsConsumerImpl() override;
 
