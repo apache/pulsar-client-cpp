@@ -22,6 +22,7 @@
 #include <pulsar/ServiceInfoProvider.h>
 
 #include <chrono>
+#include <cstdint>
 
 namespace pulsar {
 
@@ -33,9 +34,9 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
     struct Config {
         const ServiceInfo primary;
         const std::vector<ServiceInfo> secondary;
-        std::chrono::milliseconds checkInterval{30000};    // 30 seconds
-        std::chrono::milliseconds failoverDelay{30000};    // 30 seconds
-        std::chrono::milliseconds switchBackDelay{60000};  // 60 seconds
+        std::chrono::milliseconds checkInterval{30000};  // 30 seconds
+        uint32_t failoverThreshold{1};
+        uint32_t switchBackThreshold{1};
 
         Config(ServiceInfo primary, std::vector<ServiceInfo> secondary)
             : primary(std::move(primary)), secondary(std::move(secondary)) {}
@@ -49,16 +50,18 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
      *   std::vector<ServiceInfo> secondaries{...};
      *   AutoClusterFailover provider = AutoClusterFailover::Builder(primary, secondaries)
      *       .withCheckInterval(std::chrono::seconds(30))
-     *       .withFailoverDelay(std::chrono::seconds(30))
-     *       .withSwitchBackDelay(std::chrono::seconds(60))
+     *       .withFailoverThreshold(3)
+     *       .withSwitchBackThreshold(3)
      *       .build();
      *
      * Notes:
      * - primary: the preferred cluster to use when available.
      * - secondary: ordered list of fallback clusters.
      * - checkInterval: frequency of health probes.
-     * - failoverDelay: how long the current cluster must be unreachable before switching.
-     * - switchBackDelay: how long the primary must remain healthy before switching back.
+     * - failoverThreshold: the number of consecutive failed probes required before switching away from
+     *   the current cluster.
+     * - switchBackThreshold: the number of consecutive successful probes to the primary required before
+     *   switching back from a secondary.
      */
     class Builder {
        public:
@@ -71,15 +74,15 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
             return *this;
         }
 
-        // Set how long the current cluster must be unreachable before attempting failover.
-        Builder& withFailoverDelay(std::chrono::milliseconds delay) {
-            config_.failoverDelay = delay;
+        // Set the number of consecutive failed probes required before attempting failover.
+        Builder& withFailoverThreshold(uint32_t threshold) {
+            config_.failoverThreshold = threshold;
             return *this;
         }
 
-        // Set how long the primary must remain healthy before switching back from a secondary.
-        Builder& withSwitchBackDelay(std::chrono::milliseconds delay) {
-            config_.switchBackDelay = delay;
+        // Set the number of consecutive successful primary probes required before switching back.
+        Builder& withSwitchBackThreshold(uint32_t threshold) {
+            config_.switchBackThreshold = threshold;
             return *this;
         }
 

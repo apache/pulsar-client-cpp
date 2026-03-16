@@ -221,8 +221,8 @@ TEST(AutoClusterFailoverTest, testFailoverToFirstAvailableSecondaryAfterDelay) {
             AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(skippedSecondaryUrl),
                                                                    ServiceInfo(availableSecondaryUrl)})
                 .withCheckInterval(20ms)
-                .withFailoverDelay(120ms)
-                .withSwitchBackDelay(120ms)
+                .withFailoverThreshold(6)
+                .withSwitchBackThreshold(6)
                 .build();
 
         ASSERT_EQ(provider.initialServiceInfo().serviceUrl(), primaryUrl);
@@ -258,8 +258,8 @@ TEST(AutoClusterFailoverTest, testSwitchBackToPrimaryAfterRecoveryDelay) {
         AutoClusterFailover provider =
             AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(secondaryUrl)})
                 .withCheckInterval(20ms)
-                .withFailoverDelay(80ms)
-                .withSwitchBackDelay(120ms)
+                .withFailoverThreshold(4)
+                .withSwitchBackThreshold(6)
                 .build();
 
         provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });

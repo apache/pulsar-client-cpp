@@ -123,8 +123,8 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
     AutoClusterFailover::Config config_;
     const ServiceInfo* currentServiceInfo_;
-    std::optional<std::chrono::steady_clock::time_point> failedSince_;
-    std::optional<std::chrono::steady_clock::time_point> recoveredSince_;
+    uint32_t consecutiveFailureCount_{0};
+    uint32_t consecutivePrimaryRecoveryCount_{0};
 
     std::thread thread_;
     std::future<void> future_;
@@ -222,15 +222,16 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
         auto hostUrl = (*hosts)[index];
         auto weakSelf = weak_from_this();
-        probeHostAsync(hostUrl, [weakSelf, hosts, index, callback = std::move(callback)](bool available) mutable {
-            if (available) {
-                callback(true);
-                return;
-            }
-            if (auto self = weakSelf.lock()) {
-                self->probeHostsAsync(hosts, index + 1, std::move(callback));
-            }
-        });
+        probeHostAsync(hostUrl,
+                       [weakSelf, hosts, index, callback = std::move(callback)](bool available) mutable {
+                           if (available) {
+                               callback(true);
+                               return;
+                           }
+                           if (auto self = weakSelf.lock()) {
+                               self->probeHostsAsync(hosts, index + 1, std::move(callback));
+                           }
+                       });
     }
 
     void probeAvailableAsync(const ServiceInfo& serviceInfo, ProbeCallback callback) {
@@ -255,8 +256,8 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
         LOG_INFO("Switch service URL from " << current().serviceUrl() << " to " << serviceInfo->serviceUrl());
         currentServiceInfo_ = serviceInfo;
-        failedSince_.reset();
-        recoveredSince_.reset();
+        consecutiveFailureCount_ = 0;
+        consecutivePrimaryRecoveryCount_ = 0;
         onServiceInfoUpdate_(current());
     }
 
@@ -292,20 +293,13 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                 return;
             }
 
-            const auto now = std::chrono::steady_clock::now();
             if (primaryAvailable) {
-                self->failedSince_.reset();
+                self->consecutiveFailureCount_ = 0;
                 done();
                 return;
             }
 
-            if (!self->failedSince_) {
-                self->failedSince_ = now;
-                done();
-                return;
-            }
-
-            if (now - *self->failedSince_ < self->config_.failoverDelay) {
+            if (++self->consecutiveFailureCount_ < self->config_.failoverThreshold) {
                 done();
                 return;
             }
@@ -315,8 +309,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
     }
 
     void checkSwitchBackToPrimaryAsync(CompletionCallback done, std::optional<bool> primaryAvailableHint) {
-        const auto now = std::chrono::steady_clock::now();
-        auto handlePrimaryAvailable = [weakSelf = weak_from_this(), now,
+        auto handlePrimaryAvailable = [weakSelf = weak_from_this(),
                                        done = std::move(done)](bool primaryAvailable) mutable {
             auto self = weakSelf.lock();
             if (!self) {
@@ -324,18 +317,12 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
             }
 
             if (!primaryAvailable) {
-                self->recoveredSince_.reset();
+                self->consecutivePrimaryRecoveryCount_ = 0;
                 done();
                 return;
             }
 
-            if (!self->recoveredSince_) {
-                self->recoveredSince_ = now;
-                done();
-                return;
-            }
-
-            if (now - *self->recoveredSince_ >= self->config_.switchBackDelay) {
+            if (++self->consecutivePrimaryRecoveryCount_ >= self->config_.switchBackThreshold) {
                 self->switchTo(&self->config_.primary);
             }
             done();
@@ -357,20 +344,13 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                 return;
             }
 
-            const auto now = std::chrono::steady_clock::now();
             if (secondaryAvailable) {
-                self->failedSince_.reset();
+                self->consecutiveFailureCount_ = 0;
                 self->checkSwitchBackToPrimaryAsync(std::move(done), std::nullopt);
                 return;
             }
 
-            if (!self->failedSince_) {
-                self->failedSince_ = now;
-                self->checkSwitchBackToPrimaryAsync(std::move(done), std::nullopt);
-                return;
-            }
-
-            if (now - *self->failedSince_ < self->config_.failoverDelay) {
+            if (++self->consecutiveFailureCount_ < self->config_.failoverThreshold) {
                 self->checkSwitchBackToPrimaryAsync(std::move(done), std::nullopt);
                 return;
             }
