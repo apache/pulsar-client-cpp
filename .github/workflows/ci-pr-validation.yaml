@@ -99,10 +99,25 @@ jobs:
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-${{ runner.os }}-
 
+      - name: Restore vcpkg downloads cache
+        uses: actions/cache@v4
+        with:
+          path: vcpkg/downloads
+          key: vcpkg-downloads-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-downloads-${{ runner.os }}-
+
       - name: Build the project
         run: |
-          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-          cmake --build build -j8
+          for attempt in 1 2 3; do
+            echo "Build attempt $attempt/3"
+            if cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cmake --build build -j8; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed (e.g. vcpkg download 502), retrying in 90s..."
+            sleep 90
+          done
+          echo "All build attempts failed"
+          exit 1
 
       - name: Tidy check
         run: |
@@ -137,10 +152,25 @@ jobs:
           key: vcpkg-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
           restore-keys: vcpkg-${{ runner.os }}-
 
+      - name: Restore vcpkg downloads cache
+        uses: actions/cache@v4
+        with:
+          path: vcpkg/downloads
+          key: vcpkg-downloads-${{ runner.os }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: vcpkg-downloads-${{ runner.os }}-
+
       - name: Build core libraries
         run: |
-          cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF
-          cmake --build build -j8
+          for attempt in 1 2 3; do
+            echo "Build attempt $attempt/3"
+            if cmake -B build -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=OFF && cmake --build build -j8; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed (e.g. vcpkg download 502), retrying in 90s..."
+            sleep 90
+          done
+          echo "All build attempts failed"
+          exit 1
 
       - name: Check formatting
         run: |
@@ -164,8 +194,16 @@ jobs:
 
       - name: Build with Boost.Asio
         run: |
-          cmake -B build-boost-asio -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON
-          cmake --build build-boost-asio -j8
+          for attempt in 1 2 3; do
+            echo "Build Boost.Asio attempt $attempt/3"
+            if cmake -B build-boost-asio -DINTEGRATE_VCPKG=ON -DBUILD_TESTS=ON && cmake --build build-boost-asio -j8; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed (e.g. vcpkg download 502), retrying in 90s..."
+            sleep 90
+          done
+          echo "All build attempts failed"
+          exit 1
 
       - name: Build perf tools
         run: |
