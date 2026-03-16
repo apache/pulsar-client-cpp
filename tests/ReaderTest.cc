@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/Reader.h>
 #include <time.h>
 
@@ -953,6 +954,51 @@ TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
     };
     assertStartMessageId(true, firstMsgId);
     assertStartMessageId(false, secondMsgId);
+}
+
+// Regression test for segfault when Reader is used with messageListenerThreads=0.
+// Verifies ExecutorServiceProvider(0) does not cause undefined behavior and
+// ConsumerImpl::messageReceived does not dereference null listenerExecutor_.
+TEST(ReaderTest, testReaderWithZeroMessageListenerThreads) {
+    ClientConfiguration clientConf;
+    clientConf.setMessageListenerThreads(0);
+    Client client(serviceUrl, clientConf);
+
+    const std::string topicName =
+        "testReaderWithZeroMessageListenerThreads-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    ReaderConfiguration readerConf;
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    constexpr int numMessages = 5;
+    for (int i = 0; i < numMessages; i++) {
+        Message msg = MessageBuilder().setContent("msg-" + std::to_string(i)).build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    int received = 0;
+    for (int i = 0; i < numMessages + 2; i++) {
+        bool hasMessageAvailable = false;
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+        if (!hasMessageAvailable) {
+            break;
+        }
+        Message msg;
+        Result res = reader.readNext(msg, 3000);
+        ASSERT_EQ(ResultOk, res) << "readNext failed at iteration " << i;
+        std::string content = msg.getDataAsString();
+        EXPECT_EQ("msg-" + std::to_string(received), content);
+        ++received;
+    }
+    EXPECT_EQ(received, numMessages);
+
+    producer.close();
+    reader.close();
+    client.close();
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));

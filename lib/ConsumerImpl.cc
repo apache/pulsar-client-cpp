@@ -622,6 +622,11 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
     if (state == Closing || state == Closed) {
         return;
     }
+    if (!listenerExecutor_) {
+        LOG_ERROR(getName() << " listenerExecutor_ is null, discarding message to avoid null dereference");
+        increaseAvailablePermits(cnx);
+        return;
+    }
     uint32_t numOfMessageReceived = m.impl_->metadata.num_messages_in_batch();
     if (ackGroupingTrackerPtr_->isDuplicate(m.getMessageId())) {
         LOG_DEBUG(getName() << " Ignoring message as it was ACKed earlier by same consumer.");
@@ -663,8 +668,10 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
             return;
         }
         // Trigger message listener callback in a separate thread
-        while (numOfMessageReceived--) {
-            listenerExecutor_->postWork(std::bind(&ConsumerImpl::internalListener, get_shared_this_ptr()));
+        if (listenerExecutor_) {
+            while (numOfMessageReceived--) {
+                listenerExecutor_->postWork(std::bind(&ConsumerImpl::internalListener, get_shared_this_ptr()));
+            }
         }
     }
 }
@@ -713,8 +720,12 @@ void ConsumerImpl::executeNotifyCallback(Message& msg) {
 
     // has pending receive, direct callback.
     if (asyncReceivedWaiting) {
-        listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
-                                              get_shared_this_ptr(), ResultOk, msg, callback));
+        if (listenerExecutor_) {
+            listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
+                                                  get_shared_this_ptr(), ResultOk, msg, callback));
+        } else {
+            notifyPendingReceivedCallback(ResultOk, msg, callback);
+        }
         return;
     }
 

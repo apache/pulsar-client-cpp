@@ -18,6 +18,8 @@
  */
 #include "ExecutorService.h"
 
+#include <algorithm>
+
 #include "LogUtils.h"
 #include "TimeUtils.h"
 DECLARE_LOG_OBJECT()
@@ -130,9 +132,12 @@ void ExecutorService::postWork(std::function<void(void)> task) { ASIO::post(io_c
 /////////////////////
 
 ExecutorServiceProvider::ExecutorServiceProvider(int nthreads)
-    : executors_(nthreads), executorIdx_(0), mutex_() {}
+    : executors_(std::max(1, nthreads)), executorIdx_(0), mutex_() {}
 
 ExecutorServicePtr ExecutorServiceProvider::get(size_t idx) {
+    if (executors_.empty()) {
+        return nullptr;
+    }
     idx %= executors_.size();
     Lock lock(mutex_);
 

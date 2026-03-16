@@ -22,6 +22,7 @@
 #include <chrono>
 #include <stdexcept>
 
+#include "lib/ExecutorService.h"
 #include "lib/RetryableOperationCache.h"
 
 namespace pulsar {
@@ -81,6 +82,17 @@ class RetryableOperationCacheTest : public ::testing::Test {
 }  // namespace pulsar
 
 using namespace pulsar;
+
+// Regression test: ExecutorServiceProvider(0) must not cause undefined behavior (e.g. idx % 0).
+// After fix, nthreads is clamped to at least 1, so get() returns a valid executor.
+TEST(ExecutorServiceProviderTest, ZeroThreadsReturnsValidExecutor) {
+    ExecutorServiceProviderPtr provider = std::make_shared<ExecutorServiceProvider>(0);
+    for (int i = 0; i < 3; i++) {
+        ExecutorServicePtr executor = provider->get();
+        ASSERT_NE(executor, nullptr) << "get() must not return null when created with 0 threads (clamped to 1)";
+    }
+    provider->close();
+}
 
 TEST_F(RetryableOperationCacheTest, testRetry) {
     auto cache = RetryableOperationCache<int>::create(provider_, std::chrono::seconds(30));
