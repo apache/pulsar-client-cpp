@@ -144,7 +144,6 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         auto weakSelf = weak_from_this();
         timer_->async_wait([weakSelf](ASIO_ERROR error) {
             if (error) {
-                LOG_INFO("Failover check timer is cancelled or failed: " << error.message());
                 return;
             }
             if (auto self = weakSelf.lock()) {
@@ -179,12 +178,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         context->socket.close(ignored);
         context->timer.cancel(ignored);
 
-        if (error && error != ASIO::error::operation_aborted) {
-            LOG_DEBUG("Probe error for " << context->hostUrl << ": " << error.message());
-        }
-
-        auto callback = std::move(context->callback);
-        callback(success);
+        context->callback(success);
     }
 
     void probeHostAsync(const std::string& hostUrl, ProbeCallback callback) {
