@@ -34,7 +34,7 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
     struct Config {
         const ServiceInfo primary;
         const std::vector<ServiceInfo> secondary;
-        std::chrono::milliseconds checkInterval{30000};  // 30 seconds
+        std::chrono::milliseconds checkInterval{5000};  // 5 seconds
         uint32_t failoverThreshold{1};
         uint32_t switchBackThreshold{1};
 
@@ -49,7 +49,7 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
      *   ServiceInfo primary{...};
      *   std::vector<ServiceInfo> secondaries{...};
      *   AutoClusterFailover provider = AutoClusterFailover::Builder(primary, secondaries)
-     *       .withCheckInterval(std::chrono::seconds(30))
+     *       .withCheckInterval(std::chrono::seconds(5))
      *       .withFailoverThreshold(3)
      *       .withSwitchBackThreshold(3)
      *       .build();
@@ -68,19 +68,19 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
         Builder(ServiceInfo primary, std::vector<ServiceInfo> secondary)
             : config_(std::move(primary), std::move(secondary)) {}
 
-        // Set how frequently probes run against the active cluster(s).
+        // Set how frequently probes run against the active cluster(s). Default: 5 seconds.
         Builder& withCheckInterval(std::chrono::milliseconds interval) {
             config_.checkInterval = interval;
             return *this;
         }
 
-        // Set the number of consecutive failed probes required before attempting failover.
+        // Set the number of consecutive failed probes required before attempting failover. Default: 1.
         Builder& withFailoverThreshold(uint32_t threshold) {
             config_.failoverThreshold = threshold;
             return *this;
         }
 
-        // Set the number of consecutive successful primary probes required before switching back.
+        // Set the number of consecutive successful primary probes required before switching back. Default: 1.
         Builder& withSwitchBackThreshold(uint32_t threshold) {
             config_.switchBackThreshold = threshold;
             return *this;
