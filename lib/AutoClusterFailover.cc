@@ -227,12 +227,15 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         }
 
         auto hostUrl = (*hosts)[index];
-        probeHostAsync(hostUrl, [this, hosts, index, callback = std::move(callback)](bool available) mutable {
+        auto weakSelf = weak_from_this();
+        probeHostAsync(hostUrl, [weakSelf, hosts, index, callback = std::move(callback)](bool available) mutable {
             if (available) {
                 callback(true);
                 return;
             }
-            probeHostsAsync(hosts, index + 1, std::move(callback));
+            if (auto self = weakSelf.lock()) {
+                self->probeHostsAsync(hosts, index + 1, std::move(callback));
+            }
         });
     }
 
