@@ -181,13 +181,15 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
 }
 
 ConsumerImpl::~ConsumerImpl() {
-    LOG_DEBUG(consumerStr_ << "~ConsumerImpl");
+    auto client = client_.lock();
     if (state_ == Ready) {
         // this could happen at least in this condition:
         //      consumer seek, caused reconnection, if consumer close happened before connection ready,
         //      then consumer will not send closeConsumer to Broker side, and caused a leak of consumer in
         //      broker.
-        LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
+        if (client) {
+            LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
+        }
 
         ClientConnectionPtr cnx = getCnx().lock();
         if (cnx) {
@@ -195,9 +197,6 @@ ConsumerImpl::~ConsumerImpl() {
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
                                    "CLOSE_CONSUMER");
             cnx->removeConsumer(consumerId_);
-            LOG_INFO(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
-        } else {
-            LOG_WARN(consumerStr_ << "Client is destroyed and cannot send the CloseConsumer command");
         }
     }
     internalShutdown();
