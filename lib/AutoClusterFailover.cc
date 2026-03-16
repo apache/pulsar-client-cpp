@@ -26,9 +26,10 @@
 #include <utility>
 #include <vector>
 
+#include "AsioTimer.h"
+#include "LogUtils.h"
 #include "ServiceURI.h"
 #include "Url.h"
-#include "lib/LogUtils.h"
 
 #ifdef USE_ASIO
 #include <asio/connect.hpp>
@@ -65,9 +66,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
     ~AutoClusterFailoverImpl() {
         using namespace std::chrono_literals;
-        if (timer_) {
-            timer_->cancel();
-        }
+        cancelTimer(*timer_);
         workGuard_.reset();
         if (future_.valid()) {
             if (auto result = future_.wait_for(3s); result != std::future_status::ready) {
@@ -91,7 +90,6 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         ASIO::post(ioContext_, [weakSelf] {
             auto self = weakSelf.lock();
             if (self) {
-                self->onServiceInfoUpdate_(self->current());
                 self->scheduleFailoverCheck();
             }
         });

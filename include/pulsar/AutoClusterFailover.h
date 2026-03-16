@@ -31,11 +31,14 @@ class AutoClusterFailoverImpl;
 class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
    public:
     struct Config {
-        ServiceInfo primary;
-        std::vector<ServiceInfo> secondary;
+        const ServiceInfo primary;
+        const std::vector<ServiceInfo> secondary;
         std::chrono::milliseconds checkInterval{30000};    // 30 seconds
         std::chrono::milliseconds failoverDelay{30000};    // 30 seconds
         std::chrono::milliseconds switchBackDelay{60000};  // 60 seconds
+
+        Config(ServiceInfo primary, std::vector<ServiceInfo> secondary)
+            : primary(std::move(primary)), secondary(std::move(secondary)) {}
     };
 
     /**
@@ -59,10 +62,8 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
      */
     class Builder {
        public:
-        Builder(ServiceInfo primary, std::vector<ServiceInfo> secondary) {
-            config_.primary = std::move(primary);
-            config_.secondary = std::move(secondary);
-        }
+        Builder(ServiceInfo primary, std::vector<ServiceInfo> secondary)
+            : config_(std::move(primary), std::move(secondary)) {}
 
         // Set how frequently probes run against the active cluster(s).
         Builder& withCheckInterval(std::chrono::milliseconds interval) {

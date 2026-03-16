@@ -32,7 +32,6 @@ namespace pulsar {
  */
 class PULSAR_PUBLIC ServiceInfo final {
    public:
-    ServiceInfo() = default;  // only for storing in containers like std::vector, not for public use
     ServiceInfo(std::string serviceUrl, AuthenticationPtr authentication = AuthFactory::Disabled(),
                 std::optional<std::string> tlsTrustCertsFilePath = std::nullopt);
 
