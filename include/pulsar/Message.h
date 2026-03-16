@@ -198,6 +198,11 @@ class PULSAR_PUBLIC Message {
     const std::string& getSchemaVersion() const;
 
     /**
+     * Set the schema version of the message.
+     */
+    void setSchemaVersion(const std::string& schemaVersion);
+
+    /**
      * Get the producer name which produced this message.
      *
      * @return the producer name or empty string if not available

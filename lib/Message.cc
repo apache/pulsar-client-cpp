@@ -209,6 +209,12 @@ const std::string& Message::getSchemaVersion() const {
     return impl_->getSchemaVersion();
 }
 
+void Message::setSchemaVersion(const std::string& schemaVersion) {
+    if (impl_) {
+        impl_->metadata.set_schema_version(schemaVersion);
+    }
+}
+
 uint64_t Message::getPublishTimestamp() const { return impl_ ? impl_->getPublishTimestamp() : 0ull; }
 
 uint64_t Message::getEventTimestamp() const { return impl_ ? impl_->getEventTimestamp() : 0ull; }
