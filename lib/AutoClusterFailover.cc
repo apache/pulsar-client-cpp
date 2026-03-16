@@ -56,13 +56,7 @@ namespace pulsar {
 class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterFailoverImpl> {
    public:
     AutoClusterFailoverImpl(AutoClusterFailover::Config&& config)
-        : config_(std::move(config)), currentIndex_(0) {
-        clusters_.reserve(1 + config_.secondary.size());
-        clusters_.emplace_back(config_.primary);
-        for (const auto& info : config_.secondary) {
-            clusters_.emplace_back(info);
-        }
-    }
+        : config_(std::move(config)), currentServiceInfo_(&config_.primary) {}
 
     ~AutoClusterFailoverImpl() {
         using namespace std::chrono_literals;
@@ -128,8 +122,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
     };
 
     AutoClusterFailover::Config config_;
-    std::vector<ServiceInfo> clusters_;
-    size_t currentIndex_;
+    const ServiceInfo* currentServiceInfo_;
     std::optional<std::chrono::steady_clock::time_point> failedSince_;
     std::optional<std::chrono::steady_clock::time_point> recoveredSince_;
 
@@ -142,7 +135,9 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
     std::optional<ASIO::executor_work_guard<ASIO::io_context::executor_type>> workGuard_;
     std::optional<ASIO::steady_timer> timer_;
 
-    const ServiceInfo& current() const noexcept { return clusters_[currentIndex_]; }
+    bool isUsingPrimary() const noexcept { return currentServiceInfo_ == &config_.primary; }
+
+    const ServiceInfo& current() const noexcept { return *currentServiceInfo_; }
 
     void scheduleFailoverCheck() {
         timer_->expires_after(config_.checkInterval);
@@ -165,7 +160,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
             }
         };
 
-        if (currentIndex_ == 0) {
+        if (isUsingPrimary()) {
             checkAndFailoverToSecondaryAsync(std::move(done));
         } else {
             checkSecondaryAndPrimaryAsync(std::move(done));
@@ -256,27 +251,26 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         }
     }
 
-    void switchTo(size_t index) {
-        if (currentIndex_ == index) {
+    void switchTo(const ServiceInfo* serviceInfo) {
+        if (currentServiceInfo_ == serviceInfo) {
             return;
         }
 
-        LOG_INFO("Switch service URL from " << current().serviceUrl() << " to "
-                                            << clusters_[index].serviceUrl());
-        currentIndex_ = index;
+        LOG_INFO("Switch service URL from " << current().serviceUrl() << " to " << serviceInfo->serviceUrl());
+        currentServiceInfo_ = serviceInfo;
         failedSince_.reset();
         recoveredSince_.reset();
         onServiceInfoUpdate_(current());
     }
 
     void probeSecondaryFrom(size_t index, CompletionCallback done) {
-        if (index >= clusters_.size()) {
+        if (index >= config_.secondary.size()) {
             done();
             return;
         }
 
         auto weakSelf = weak_from_this();
-        probeAvailableAsync(clusters_[index],
+        probeAvailableAsync(config_.secondary[index],
                             [weakSelf, index, done = std::move(done)](bool available) mutable {
                                 auto self = weakSelf.lock();
                                 if (!self) {
@@ -284,7 +278,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                                 }
 
                                 if (available) {
-                                    self->switchTo(index);
+                                    self->switchTo(&self->config_.secondary[index]);
                                     done();
                                     return;
                                 }
@@ -319,7 +313,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                 return;
             }
 
-            self->probeSecondaryFrom(1, std::move(done));
+            self->probeSecondaryFrom(0, std::move(done));
         });
     }
 
@@ -345,7 +339,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
             }
 
             if (now - *self->recoveredSince_ >= self->config_.switchBackDelay) {
-                self->switchTo(0);
+                self->switchTo(&self->config_.primary);
             }
             done();
         };
@@ -392,7 +386,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                                           }
 
                                           if (primaryAvailable) {
-                                              self->switchTo(0);
+                                              self->switchTo(&self->config_.primary);
                                               done();
                                               return;
                                           }
