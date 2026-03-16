@@ -66,17 +66,21 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
     ~AutoClusterFailoverImpl() {
         using namespace std::chrono_literals;
+        if (!thread_.joinable() || !future_.valid()) {
+            return;
+        }
+
         cancelTimer(*timer_);
         workGuard_.reset();
-        if (future_.valid()) {
-            if (auto result = future_.wait_for(3s); result != std::future_status::ready) {
-                LOG_WARN("AutoClusterFailoverImpl is not stopped within 3 seconds, force stop it");
-                ioContext_.stop();
-                if (auto result = future_.wait_for(1s); result != std::future_status::ready) {
-                    LOG_ERROR("Failed to stop AutoClusterFailoverImpl within 1 seconds after force stop");
-                }
-            }
+        ioContext_.stop();
+
+        if (future_.wait_for(1s) != std::future_status::ready) {
+            LOG_WARN("AutoClusterFailoverImpl is not stopped within 3 seconds, skip it");
+            thread_.detach();
+        } else {
+            thread_.join();
         }
+        thread_.join();
     }
 
     auto primary() const noexcept { return config_.primary; }
@@ -88,13 +92,18 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
         auto weakSelf = weak_from_this();
         ASIO::post(ioContext_, [weakSelf] {
-            auto self = weakSelf.lock();
-            if (self) {
+            if (auto self = weakSelf.lock()) {
                 self->scheduleFailoverCheck();
             }
         });
 
-        future_ = std::async(std::launch::async, [this] { ioContext_.run(); });
+        // Capturing `this` is safe because the thread will be joined in the destructor
+        std::promise<void> promise;
+        future_ = promise.get_future();
+        thread_ = std::thread([this, promise{std::move(promise)}]() mutable {
+            ioContext_.run();
+            promise.set_value();
+        });
     }
 
    private:
@@ -123,7 +132,10 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
     size_t currentIndex_;
     std::optional<std::chrono::steady_clock::time_point> failedSince_;
     std::optional<std::chrono::steady_clock::time_point> recoveredSince_;
+
+    std::thread thread_;
     std::future<void> future_;
+
     ASIO::io_context ioContext_;
     std::function<void(ServiceInfo)> onServiceInfoUpdate_;
 
@@ -133,22 +145,16 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
     const ServiceInfo& current() const noexcept { return clusters_[currentIndex_]; }
 
     void scheduleFailoverCheck() {
-        if (!timer_) {
-            return;
-        }
         timer_->expires_after(config_.checkInterval);
         auto weakSelf = weak_from_this();
-        timer_->async_wait([this, weakSelf](ASIO_ERROR error) {
+        timer_->async_wait([weakSelf](ASIO_ERROR error) {
             if (error) {
                 LOG_INFO("Failover check timer is cancelled or failed: " << error.message());
                 return;
             }
-            auto self = weakSelf.lock();
-            if (!self) {
-                LOG_INFO("AutoClusterFailoverImpl is destroyed, skip failover check");
-                return;
+            if (auto self = weakSelf.lock()) {
+                self->executeFailoverCheck();
             }
-            executeFailoverCheck();
         });
     }
 
