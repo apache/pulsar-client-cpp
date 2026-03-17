@@ -17,22 +17,133 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <pulsar/AutoClusterFailover.h>
 #include <pulsar/Client.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
 #include <mutex>
 #include <optional>
 #include <thread>
+#include <vector>
 
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
+#include "lib/AsioDefines.h"
 #include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
 using namespace std::chrono_literals;
+
+namespace {
+
+class ProbeTcpServer {
+   public:
+    ProbeTcpServer() { start(); }
+
+    ~ProbeTcpServer() { stop(); }
+
+    void start() {
+        if (running_) {
+            return;
+        }
+
+        auto ioContext = std::unique_ptr<ASIO::io_context>(new ASIO::io_context);
+        auto acceptor = std::unique_ptr<ASIO::ip::tcp::acceptor>(new ASIO::ip::tcp::acceptor(*ioContext));
+        ASIO::ip::tcp::endpoint endpoint{ASIO::ip::tcp::v4(), static_cast<unsigned short>(port_)};
+        acceptor->open(endpoint.protocol());
+        acceptor->set_option(ASIO::ip::tcp::acceptor::reuse_address(true));
+        acceptor->bind(endpoint);
+        acceptor->listen();
+
+        port_ = acceptor->local_endpoint().port();
+        ioContext_ = std::move(ioContext);
+        acceptor_ = std::move(acceptor);
+        running_ = true;
+
+        scheduleAccept();
+        serverThread_ = std::thread([this] { ioContext_->run(); });
+    }
+
+    void stop() {
+        if (!running_.exchange(false)) {
+            return;
+        }
+
+        ASIO::post(*ioContext_, [this] {
+            ASIO_ERROR ignored;
+            if (acceptor_ && acceptor_->is_open()) {
+                acceptor_->close(ignored);
+            }
+        });
+
+        if (serverThread_.joinable()) {
+            serverThread_.join();
+        }
+
+        acceptor_.reset();
+        ioContext_.reset();
+    }
+
+    std::string getServiceUrl() const { return "pulsar://127.0.0.1:" + std::to_string(port_); }
+
+   private:
+    void scheduleAccept() {
+        if (!running_ || !acceptor_ || !acceptor_->is_open()) {
+            return;
+        }
+
+        auto socket = std::make_shared<ASIO::ip::tcp::socket>(*ioContext_);
+        acceptor_->async_accept(*socket, [this, socket](const ASIO_ERROR &error) {
+            if (!error) {
+                ASIO_ERROR ignored;
+                socket->close(ignored);
+            }
+
+            if (running_ && acceptor_ && acceptor_->is_open()) {
+                scheduleAccept();
+            }
+        });
+    }
+
+    int port_{0};
+    std::atomic_bool running_{false};
+    std::unique_ptr<ASIO::io_context> ioContext_;
+    std::unique_ptr<ASIO::ip::tcp::acceptor> acceptor_;
+    std::thread serverThread_;
+};
+
+class ServiceUrlObserver {
+   public:
+    void onUpdate(const ServiceInfo &serviceInfo) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        serviceUrls_.emplace_back(serviceInfo.serviceUrl());
+    }
+
+    size_t size() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return serviceUrls_.size();
+    }
+
+    std::string last() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return serviceUrls_.empty() ? std::string() : serviceUrls_.back();
+    }
+
+    std::vector<std::string> snapshot() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return serviceUrls_;
+    }
+
+   private:
+    mutable std::mutex mutex_;
+    std::vector<std::string> serviceUrls_;
+};
+
+}  // namespace
 
 class ServiceInfoHolder {
    public:
@@ -92,6 +203,113 @@ class TestServiceInfoProvider : public ServiceInfoProvider {
     std::atomic_bool running_{true};
     mutable std::mutex mutex_;
 };
+
+TEST(AutoClusterFailoverTest, testFailoverToFirstAvailableSecondaryAfterDelay) {
+    ProbeTcpServer availableSecondary;
+    ProbeTcpServer unavailableSecondary;
+    const auto primaryUrl = unavailableSecondary.getServiceUrl();
+    unavailableSecondary.stop();
+
+    ProbeTcpServer skippedSecondary;
+    const auto skippedSecondaryUrl = skippedSecondary.getServiceUrl();
+    skippedSecondary.stop();
+
+    const auto availableSecondaryUrl = availableSecondary.getServiceUrl();
+    ServiceUrlObserver observer;
+    AutoClusterFailover provider =
+        AutoClusterFailover::Builder(ServiceInfo(primaryUrl),
+                                     {ServiceInfo(skippedSecondaryUrl), ServiceInfo(availableSecondaryUrl)})
+            .withCheckInterval(20ms)
+            .withFailoverThreshold(6)
+            .withSwitchBackThreshold(6)
+            .build();
+
+    ASSERT_EQ(provider.initialServiceInfo().serviceUrl(), primaryUrl);
+
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+
+    ASSERT_FALSE(waitUntil(
+        80ms, [&observer, &availableSecondaryUrl] { return observer.last() == availableSecondaryUrl; }));
+    ASSERT_TRUE(waitUntil(
+        2s, [&observer, &availableSecondaryUrl] { return observer.last() == availableSecondaryUrl; }));
+
+    const auto updates = observer.snapshot();
+    ASSERT_EQ(updates.size(), 2u);
+    ASSERT_EQ(updates[0], primaryUrl);
+    ASSERT_EQ(updates[1], availableSecondaryUrl);
+}
+
+TEST(AutoClusterFailoverTest, testSwitchBackToPrimaryAfterRecoveryDelay) {
+    ProbeTcpServer primary;
+    const auto primaryUrl = primary.getServiceUrl();
+    primary.stop();
+
+    ProbeTcpServer secondary;
+    const auto secondaryUrl = secondary.getServiceUrl();
+
+    ServiceUrlObserver observer;
+    AutoClusterFailover provider =
+        AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(secondaryUrl)})
+            .withCheckInterval(20ms)
+            .withFailoverThreshold(4)
+            .withSwitchBackThreshold(6)
+            .build();
+
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+
+    ASSERT_TRUE(waitUntil(2s, [&observer, &secondaryUrl] { return observer.last() == secondaryUrl; }));
+
+    primary.start();
+
+    ASSERT_FALSE(waitUntil(80ms, [&observer, &primaryUrl] { return observer.last() == primaryUrl; }));
+    ASSERT_TRUE(waitUntil(2s, [&observer, &primaryUrl] { return observer.last() == primaryUrl; }));
+
+    const auto updates = observer.snapshot();
+    ASSERT_EQ(updates.size(), 3u);
+    ASSERT_EQ(updates[0], primaryUrl);
+    ASSERT_EQ(updates[1], secondaryUrl);
+    ASSERT_EQ(updates[2], primaryUrl);
+}
+
+TEST(AutoClusterFailoverTest, testFailoverToAnotherSecondaryWhenCurrentSecondaryIsUnavailable) {
+    ProbeTcpServer primary;
+    const auto primaryUrl = primary.getServiceUrl();
+    primary.stop();
+
+    ProbeTcpServer firstSecondary;
+    const auto firstSecondaryUrl = firstSecondary.getServiceUrl();
+
+    ProbeTcpServer secondSecondary;
+    const auto secondSecondaryUrl = secondSecondary.getServiceUrl();
+
+    ServiceUrlObserver observer;
+    AutoClusterFailover provider =
+        AutoClusterFailover::Builder(ServiceInfo(primaryUrl),
+                                     {ServiceInfo(firstSecondaryUrl), ServiceInfo(secondSecondaryUrl)})
+            .withCheckInterval(20ms)
+            .withFailoverThreshold(4)
+            .withSwitchBackThreshold(6)
+            .build();
+
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+
+    ASSERT_TRUE(
+        waitUntil(2s, [&observer, &firstSecondaryUrl] { return observer.last() == firstSecondaryUrl; }));
+
+    firstSecondary.stop();
+
+    ASSERT_TRUE(
+        waitUntil(2s, [&observer, &secondSecondaryUrl] { return observer.last() == secondSecondaryUrl; }));
+
+    const auto updates = observer.snapshot();
+    ASSERT_EQ(updates.size(), 3u);
+    ASSERT_EQ(updates[0], primaryUrl);
+    ASSERT_EQ(updates[1], firstSecondaryUrl);
+    ASSERT_EQ(updates[2], secondSecondaryUrl);
+}
 
 TEST(ServiceInfoProviderTest, testSwitchCluster) {
     extern std::string getToken();  // from tests/AuthTokenTest.cc
