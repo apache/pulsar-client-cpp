@@ -20,7 +20,6 @@
 
 #include <pulsar/Result.h>
 
-#include <asio/steady_timer.hpp>
 #include <atomic>
 #include <functional>
 #include <memory>

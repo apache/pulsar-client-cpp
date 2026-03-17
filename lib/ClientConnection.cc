@@ -960,6 +960,15 @@ Future<Result, BrokerConsumerStatsImpl> ClientConnection::newConsumerStats(uint6
         request->fail(ResultNotConnected);
         return request->getFuture();
     }
+    if (serverProtocolVersion_ < proto::v8) {
+        lock.unlock();
+        LOG_ERROR(cnxString() << "ConsumerStats is not supported since server protobuf version "
+                              << serverProtocolVersion_ << " is older than proto::v8");
+        auto request =
+            std::make_shared<ConsumerStatsRequest>(executor_->createTimer(operationsTimeout_), [] {});
+        request->fail(ResultUnsupportedVersionError);
+        return request->getFuture();
+    }
 
     auto request = std::make_shared<ConsumerStatsRequest>(
         executor_->createTimer(operationsTimeout_), [cnxString = cnxString(), requestId]() {
