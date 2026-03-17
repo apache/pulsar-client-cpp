@@ -964,8 +964,7 @@ TEST(ReaderTest, testReaderWithZeroMessageListenerThreads) {
     clientConf.setMessageListenerThreads(0);
     Client client(serviceUrl, clientConf);
 
-    const std::string topicName =
-        "testReaderWithZeroMessageListenerThreads-" + std::to_string(time(nullptr));
+    const std::string topicName = "testReaderWithZeroMessageListenerThreads-" + std::to_string(time(nullptr));
 
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));

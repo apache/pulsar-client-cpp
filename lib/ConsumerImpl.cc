@@ -670,7 +670,8 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
         // Trigger message listener callback in a separate thread
         if (listenerExecutor_) {
             while (numOfMessageReceived--) {
-                listenerExecutor_->postWork(std::bind(&ConsumerImpl::internalListener, get_shared_this_ptr()));
+                listenerExecutor_->postWork(
+                    std::bind(&ConsumerImpl::internalListener, get_shared_this_ptr()));
             }
         }
     }

@@ -89,7 +89,8 @@ TEST(ExecutorServiceProviderTest, ZeroThreadsReturnsValidExecutor) {
     ExecutorServiceProviderPtr provider = std::make_shared<ExecutorServiceProvider>(0);
     for (int i = 0; i < 3; i++) {
         ExecutorServicePtr executor = provider->get();
-        ASSERT_NE(executor, nullptr) << "get() must not return null when created with 0 threads (clamped to 1)";
+        ASSERT_NE(executor, nullptr)
+            << "get() must not return null when created with 0 threads (clamped to 1)";
     }
     provider->close();
 }
