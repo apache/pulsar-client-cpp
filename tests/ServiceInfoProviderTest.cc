@@ -273,6 +273,44 @@ TEST(AutoClusterFailoverTest, testSwitchBackToPrimaryAfterRecoveryDelay) {
     ASSERT_EQ(updates[2], primaryUrl);
 }
 
+TEST(AutoClusterFailoverTest, testFailoverToAnotherSecondaryWhenCurrentSecondaryIsUnavailable) {
+    ProbeTcpServer primary;
+    const auto primaryUrl = primary.getServiceUrl();
+    primary.stop();
+
+    ProbeTcpServer firstSecondary;
+    const auto firstSecondaryUrl = firstSecondary.getServiceUrl();
+
+    ProbeTcpServer secondSecondary;
+    const auto secondSecondaryUrl = secondSecondary.getServiceUrl();
+
+    ServiceUrlObserver observer;
+    AutoClusterFailover provider =
+        AutoClusterFailover::Builder(ServiceInfo(primaryUrl),
+                                     {ServiceInfo(firstSecondaryUrl), ServiceInfo(secondSecondaryUrl)})
+            .withCheckInterval(20ms)
+            .withFailoverThreshold(4)
+            .withSwitchBackThreshold(6)
+            .build();
+
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+
+    ASSERT_TRUE(
+        waitUntil(2s, [&observer, &firstSecondaryUrl] { return observer.last() == firstSecondaryUrl; }));
+
+    firstSecondary.stop();
+
+    ASSERT_TRUE(
+        waitUntil(2s, [&observer, &secondSecondaryUrl] { return observer.last() == secondSecondaryUrl; }));
+
+    const auto updates = observer.snapshot();
+    ASSERT_EQ(updates.size(), 3u);
+    ASSERT_EQ(updates[0], primaryUrl);
+    ASSERT_EQ(updates[1], firstSecondaryUrl);
+    ASSERT_EQ(updates[2], secondSecondaryUrl);
+}
+
 TEST(ServiceInfoProviderTest, testSwitchCluster) {
     extern std::string getToken();  // from tests/AuthTokenTest.cc
     // Access "private/auth" namespace in cluster 1
