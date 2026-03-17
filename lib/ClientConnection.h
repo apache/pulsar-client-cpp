@@ -29,7 +29,6 @@
 #include <future>
 #include <optional>
 
-#include "lib/PendingRequest.h"
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
 #include <asio/io_context.hpp>
@@ -56,6 +55,7 @@
 #include "Commands.h"
 #include "GetLastMessageIdResponse.h"
 #include "LookupDataResult.h"
+#include "PendingRequest.h"
 #include "SharedBuffer.h"
 #include "TimeUtils.h"
 #include "UtilAllocator.h"
