@@ -28,6 +28,8 @@
 #include <cstdint>
 #include <future>
 #include <optional>
+
+#include "lib/PendingRequest.h"
 #ifdef USE_ASIO
 #include <asio/bind_executor.hpp>
 #include <asio/io_context.hpp>
@@ -225,47 +227,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleKeepAliveTimeout(const ASIO_ERROR& ec);
 
    private:
-    struct PendingRequestData {
-        Promise<Result, ResponseData> promise;
-        DeadlineTimerPtr timer;
-        std::shared_ptr<std::atomic_bool> hasGotResponse{std::make_shared<std::atomic_bool>(false)};
-
-        void fail(Result result) {
-            cancelTimer(*timer);
-            promise.setFailed(result);
-        }
-    };
-
-    struct LookupRequestData {
-        LookupDataResultPromisePtr promise;
-        DeadlineTimerPtr timer;
-
-        void fail(Result result) {
-            cancelTimer(*timer);
-            promise->setFailed(result);
-        }
-    };
-
-    struct LastMessageIdRequestData {
-        GetLastMessageIdResponsePromisePtr promise;
-        DeadlineTimerPtr timer;
-
-        void fail(Result result) {
-            cancelTimer(*timer);
-            promise->setFailed(result);
-        }
-    };
-
-    struct GetSchemaRequest {
-        Promise<Result, SchemaInfo> promise;
-        DeadlineTimerPtr timer;
-
-        void fail(Result result) {
-            cancelTimer(*timer);
-            promise.setFailed(result);
-        }
-    };
-
     /*
      * handler for connectAsync
      * creates a ConnectionPtr which has a valid ClientConnection object
@@ -302,12 +263,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void sendPendingCommands();
     void newLookup(const SharedBuffer& cmd, uint64_t requestId, const char* requestType,
                    const LookupDataResultPromisePtr& promise);
-
-    void handleRequestTimeout(const ASIO_ERROR& ec, const PendingRequestData& pendingRequestData);
-
-    void handleLookupTimeout(const ASIO_ERROR&, const LookupRequestData&);
-
-    void handleGetLastMessageIdTimeout(const ASIO_ERROR&, const LastMessageIdRequestData& data);
 
     template <typename Handler>
     inline AllocHandler<Handler> customAllocReadHandler(Handler h) {
@@ -385,28 +340,34 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     const std::chrono::milliseconds connectTimeout_;
     const DeadlineTimerPtr connectTimer_;
 
-    typedef std::map<long, PendingRequestData> PendingRequestsMap;
+    using Request = PendingRequest<ResponseData>;
+    typedef std::unordered_map<long, PendingRequestPtr<ResponseData>> PendingRequestsMap;
     PendingRequestsMap pendingRequests_;
 
-    typedef std::map<long, LookupRequestData> PendingLookupRequestsMap;
+    using LookupRequest = PendingRequest<LookupDataResultPtr>;
+    typedef std::unordered_map<long, PendingRequestPtr<LookupDataResultPtr>> PendingLookupRequestsMap;
     PendingLookupRequestsMap pendingLookupRequests_;
 
-    typedef std::map<long, ProducerImplWeakPtr> ProducersMap;
+    typedef std::unordered_map<long, ProducerImplWeakPtr> ProducersMap;
     ProducersMap producers_;
 
-    typedef std::map<long, ConsumerImplWeakPtr> ConsumersMap;
+    typedef std::unordered_map<long, ConsumerImplWeakPtr> ConsumersMap;
     ConsumersMap consumers_;
 
-    typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
+    using ConsumerStatsRequest = PendingRequest<BrokerConsumerStatsImpl>;
+    typedef std::unordered_map<uint64_t, PendingRequestPtr<BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
     PendingConsumerStatsMap pendingConsumerStatsMap_;
 
-    typedef std::map<long, LastMessageIdRequestData> PendingGetLastMessageIdRequestsMap;
-    PendingGetLastMessageIdRequestsMap pendingGetLastMessageIdRequests_;
+    using GetLastMessageId = PendingRequest<GetLastMessageIdResponse>;
+    using PendingGetLastMessageIdMap = std::unordered_map<long, PendingRequestPtr<GetLastMessageIdResponse>>;
+    PendingGetLastMessageIdMap pendingGetLastMessageIdRequests_;
 
-    typedef std::map<long, Promise<Result, NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
+    using GetTopicsOfNamespace = PendingRequest<NamespaceTopicsPtr>;
+    typedef std::unordered_map<long, PendingRequestPtr<NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
     PendingGetNamespaceTopicsMap pendingGetNamespaceTopicsRequests_;
 
-    typedef std::unordered_map<uint64_t, GetSchemaRequest> PendingGetSchemaMap;
+    using GetSchema = PendingRequest<SchemaInfo>;
+    typedef std::unordered_map<uint64_t, PendingRequestPtr<SchemaInfo>> PendingGetSchemaMap;
     PendingGetSchemaMap pendingGetSchemaRequests_;
 
     mutable std::mutex mutex_;
@@ -426,14 +387,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     bool isSniProxy_ = false;
     unsigned int keepAliveIntervalInSeconds_;
     DeadlineTimerPtr keepAliveTimer_;
-    DeadlineTimerPtr consumerStatsRequestTimer_;
 
     std::atomic_bool mockingRequests_{false};
     std::shared_ptr<MockServer> mockServer_;
-
-    void handleConsumerStatsTimeout(const ASIO_ERROR& ec, const std::vector<uint64_t>& consumerStatsRequests);
-
-    void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
     uint32_t maxPendingLookupRequest_;
     uint32_t numOfPendingLookupRequest_ = 0;
 
