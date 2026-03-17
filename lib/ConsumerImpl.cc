@@ -1819,13 +1819,9 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
             if (result == ResultOk) {
                 LockGuard lock(mutex_);
                 if (getCnx().expired() || reconnectionPending_) {
-                    // It's during reconnection, complete the seek future after connection is established.
-                    // Clear local state now so hasMessageAvailable() does not see stale prefetched messages.
-                    ackGroupingTrackerPtr_->flushAndClean();
-                    incomingMessages_.clear();
-                    if (lastSeekArg_.has_value() && std::holds_alternative<MessageId>(lastSeekArg_.value())) {
-                        startMessageId_ = std::get<MessageId>(lastSeekArg_.value());
-                    }
+                    // Reconnection path: delay the seek callback until connectionOpened. clearReceiveQueue()
+                    // and handleCreateConsumer() (which clears incomingMessages_ under the lock) run before
+                    // the seek callback is invoked, so hasMessageAvailable() after seek sees cleared state.
                     seekStatus_ = SeekStatus::COMPLETED;
                     LOG_INFO(getName() << "Delay the seek future until the reconnection is done");
                 } else {
