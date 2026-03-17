@@ -60,7 +60,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
 
     ~AutoClusterFailoverImpl() {
         using namespace std::chrono_literals;
-        if (!thread_.joinable() || !future_.valid()) {
+        if (!thread_.joinable()) {
             return;
         }
 
@@ -68,12 +68,10 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         workGuard_.reset();
         ioContext_.stop();
 
-        if (future_.wait_for(1s) != std::future_status::ready) {
-            LOG_WARN("AutoClusterFailoverImpl is not stopped within 3 seconds, skip it");
-            thread_.detach();
-        } else {
-            thread_.join();
+        if (future_.wait_for(3s) != std::future_status::ready) {
+            LOG_WARN("AutoClusterFailoverImpl is not stopped within 3 seconds, waiting for it to finish");
         }
+        thread_.join();
     }
 
     auto primary() const noexcept { return config_.primary; }
@@ -367,7 +365,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                         return;
                     }
 
-                    LOG_DEBUG("Detected primary after secondary is available "
+                    LOG_DEBUG("Detected primary while secondary is unavailable "
                               << self->config_.primary.serviceUrl() << " availability: " << primaryAvailable);
                     if (primaryAvailable) {
                         self->switchTo(&self->config_.primary);

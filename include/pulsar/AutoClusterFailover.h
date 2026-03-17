@@ -23,6 +23,9 @@
 
 #include <chrono>
 #include <cstdint>
+#include <functional>
+#include <memory>
+#include <vector>
 
 namespace pulsar {
 
@@ -61,7 +64,9 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
      * - failoverThreshold: the number of consecutive failed probes required before switching away from
      *   the current cluster.
      * - switchBackThreshold: the number of consecutive successful probes to the primary required before
-     *   switching back from a secondary.
+     *   switching back from a secondary while that secondary remains available. If the active secondary
+     *   becomes unavailable and the primary is available, the implementation may switch back to the
+     *   primary immediately, regardless of this threshold.
      */
     class Builder {
        public:
@@ -80,7 +85,9 @@ class PULSAR_PUBLIC AutoClusterFailover final : public ServiceInfoProvider {
             return *this;
         }
 
-        // Set the number of consecutive successful primary probes required before switching back. Default: 1.
+        // Set the number of consecutive successful primary probes required before switching back from a
+        // healthy secondary. If the active secondary becomes unavailable and the primary is available,
+        // the implementation may switch back immediately regardless of this threshold. Default: 1.
         Builder& withSwitchBackThreshold(uint32_t threshold) {
             config_.switchBackThreshold = threshold;
             return *this;
