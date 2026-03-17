@@ -205,80 +205,72 @@ class TestServiceInfoProvider : public ServiceInfoProvider {
 };
 
 TEST(AutoClusterFailoverTest, testFailoverToFirstAvailableSecondaryAfterDelay) {
-    try {
-        ProbeTcpServer availableSecondary;
-        ProbeTcpServer unavailableSecondary;
-        const auto primaryUrl = unavailableSecondary.getServiceUrl();
-        unavailableSecondary.stop();
+    ProbeTcpServer availableSecondary;
+    ProbeTcpServer unavailableSecondary;
+    const auto primaryUrl = unavailableSecondary.getServiceUrl();
+    unavailableSecondary.stop();
 
-        ProbeTcpServer skippedSecondary;
-        const auto skippedSecondaryUrl = skippedSecondary.getServiceUrl();
-        skippedSecondary.stop();
+    ProbeTcpServer skippedSecondary;
+    const auto skippedSecondaryUrl = skippedSecondary.getServiceUrl();
+    skippedSecondary.stop();
 
-        const auto availableSecondaryUrl = availableSecondary.getServiceUrl();
-        ServiceUrlObserver observer;
-        AutoClusterFailover provider =
-            AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(skippedSecondaryUrl),
-                                                                   ServiceInfo(availableSecondaryUrl)})
-                .withCheckInterval(20ms)
-                .withFailoverThreshold(6)
-                .withSwitchBackThreshold(6)
-                .build();
+    const auto availableSecondaryUrl = availableSecondary.getServiceUrl();
+    ServiceUrlObserver observer;
+    AutoClusterFailover provider =
+        AutoClusterFailover::Builder(ServiceInfo(primaryUrl),
+                                     {ServiceInfo(skippedSecondaryUrl), ServiceInfo(availableSecondaryUrl)})
+            .withCheckInterval(20ms)
+            .withFailoverThreshold(6)
+            .withSwitchBackThreshold(6)
+            .build();
 
-        ASSERT_EQ(provider.initialServiceInfo().serviceUrl(), primaryUrl);
+    ASSERT_EQ(provider.initialServiceInfo().serviceUrl(), primaryUrl);
 
-        provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
 
-        ASSERT_TRUE(waitUntil(1s, [&observer] { return observer.size() >= 1; }));
-        ASSERT_EQ(observer.last(), primaryUrl);
-        ASSERT_FALSE(waitUntil(
-            80ms, [&observer, &availableSecondaryUrl] { return observer.last() == availableSecondaryUrl; }));
-        ASSERT_TRUE(waitUntil(
-            2s, [&observer, &availableSecondaryUrl] { return observer.last() == availableSecondaryUrl; }));
+    ASSERT_FALSE(waitUntil(
+        80ms, [&observer, &availableSecondaryUrl] { return observer.last() == availableSecondaryUrl; }));
+    ASSERT_TRUE(waitUntil(
+        2s, [&observer, &availableSecondaryUrl] { return observer.last() == availableSecondaryUrl; }));
 
-        const auto updates = observer.snapshot();
-        ASSERT_EQ(updates.size(), 2u);
-        ASSERT_EQ(updates[0], primaryUrl);
-        ASSERT_EQ(updates[1], availableSecondaryUrl);
-    } catch (const ASIO_SYSTEM_ERROR &e) {
-        GTEST_SKIP() << "Cannot bind local probe server in this environment: " << e.what();
-    }
+    const auto updates = observer.snapshot();
+    ASSERT_EQ(updates.size(), 2u);
+    ASSERT_EQ(updates[0], primaryUrl);
+    ASSERT_EQ(updates[1], availableSecondaryUrl);
 }
 
 TEST(AutoClusterFailoverTest, testSwitchBackToPrimaryAfterRecoveryDelay) {
-    try {
-        ProbeTcpServer primary;
-        const auto primaryUrl = primary.getServiceUrl();
-        primary.stop();
+    ProbeTcpServer primary;
+    const auto primaryUrl = primary.getServiceUrl();
+    primary.stop();
 
-        ProbeTcpServer secondary;
-        const auto secondaryUrl = secondary.getServiceUrl();
+    ProbeTcpServer secondary;
+    const auto secondaryUrl = secondary.getServiceUrl();
 
-        ServiceUrlObserver observer;
-        AutoClusterFailover provider =
-            AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(secondaryUrl)})
-                .withCheckInterval(20ms)
-                .withFailoverThreshold(4)
-                .withSwitchBackThreshold(6)
-                .build();
+    ServiceUrlObserver observer;
+    AutoClusterFailover provider =
+        AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(secondaryUrl)})
+            .withCheckInterval(20ms)
+            .withFailoverThreshold(4)
+            .withSwitchBackThreshold(6)
+            .build();
 
-        provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
 
-        ASSERT_TRUE(waitUntil(2s, [&observer, &secondaryUrl] { return observer.last() == secondaryUrl; }));
+    ASSERT_TRUE(waitUntil(2s, [&observer, &secondaryUrl] { return observer.last() == secondaryUrl; }));
 
-        primary.start();
+    primary.start();
 
-        ASSERT_FALSE(waitUntil(80ms, [&observer, &primaryUrl] { return observer.last() == primaryUrl; }));
-        ASSERT_TRUE(waitUntil(2s, [&observer, &primaryUrl] { return observer.last() == primaryUrl; }));
+    ASSERT_FALSE(waitUntil(80ms, [&observer, &primaryUrl] { return observer.last() == primaryUrl; }));
+    ASSERT_TRUE(waitUntil(2s, [&observer, &primaryUrl] { return observer.last() == primaryUrl; }));
 
-        const auto updates = observer.snapshot();
-        ASSERT_EQ(updates.size(), 3u);
-        ASSERT_EQ(updates[0], primaryUrl);
-        ASSERT_EQ(updates[1], secondaryUrl);
-        ASSERT_EQ(updates[2], primaryUrl);
-    } catch (const ASIO_SYSTEM_ERROR &e) {
-        GTEST_SKIP() << "Cannot bind local probe server in this environment: " << e.what();
-    }
+    const auto updates = observer.snapshot();
+    ASSERT_EQ(updates.size(), 3u);
+    ASSERT_EQ(updates[0], primaryUrl);
+    ASSERT_EQ(updates[1], secondaryUrl);
+    ASSERT_EQ(updates[2], primaryUrl);
 }
 
 TEST(ServiceInfoProviderTest, testSwitchCluster) {

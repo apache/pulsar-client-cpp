@@ -74,7 +74,6 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         } else {
             thread_.join();
         }
-        thread_.join();
     }
 
     auto primary() const noexcept { return config_.primary; }
@@ -275,6 +274,8 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                                     return;
                                 }
 
+                                LOG_DEBUG("Detected secondary " << self->config_.secondary[index].serviceUrl()
+                                                                << " availability: " << available);
                                 if (available) {
                                     self->switchTo(&self->config_.secondary[index]);
                                     done();
@@ -293,6 +294,8 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                 return;
             }
 
+            LOG_DEBUG("Detected primary " << self->current().serviceUrl()
+                                          << " availability: " << primaryAvailable);
             if (primaryAvailable) {
                 self->consecutiveFailureCount_ = 0;
                 done();
@@ -344,6 +347,8 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                 return;
             }
 
+            LOG_DEBUG("Detected secondary " << self->current().serviceUrl()
+                                            << " availability: " << secondaryAvailable);
             if (secondaryAvailable) {
                 self->consecutiveFailureCount_ = 0;
                 self->checkSwitchBackToPrimaryAsync(std::move(done), std::nullopt);
@@ -355,21 +360,23 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
                 return;
             }
 
-            self->probeAvailableAsync(self->config_.primary,
-                                      [weakSelf, done = std::move(done)](bool primaryAvailable) mutable {
-                                          auto self = weakSelf.lock();
-                                          if (!self) {
-                                              return;
-                                          }
+            self->probeAvailableAsync(
+                self->config_.primary, [weakSelf, done = std::move(done)](bool primaryAvailable) mutable {
+                    auto self = weakSelf.lock();
+                    if (!self) {
+                        return;
+                    }
 
-                                          if (primaryAvailable) {
-                                              self->switchTo(&self->config_.primary);
-                                              done();
-                                              return;
-                                          }
+                    LOG_DEBUG("Detected primary after secondary is available "
+                              << self->config_.primary.serviceUrl() << " availability: " << primaryAvailable);
+                    if (primaryAvailable) {
+                        self->switchTo(&self->config_.primary);
+                        done();
+                        return;
+                    }
 
-                                          self->checkSwitchBackToPrimaryAsync(std::move(done), false);
-                                      });
+                    self->checkSwitchBackToPrimaryAsync(std::move(done), false);
+                });
         });
     }
 };
