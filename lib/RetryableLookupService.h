@@ -18,6 +18,8 @@
  */
 #pragma once
 
+#include <string>
+
 #include "LookupDataResult.h"
 #include "LookupService.h"
 #include "NamespaceName.h"
@@ -64,7 +66,7 @@ class RetryableLookupService : public LookupService {
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override {
         return namespaceLookupCache_->run(
-            "get-topics-of-namespace-" + nsName->toString(),
+            "get-topics-of-namespace-" + nsName->toString() + "-" + std::to_string(mode),
             [this, nsName, mode] { return lookupService_->getTopicsOfNamespaceAsync(nsName, mode); });
     }
 
