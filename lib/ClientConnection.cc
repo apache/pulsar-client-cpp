@@ -200,6 +200,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
       connectTimer_(executor_->createDeadlineTimer()),
       outgoingBuffer_(SharedBuffer::allocate(DefaultBufferSize)),
       keepAliveIntervalInSeconds_(clientConfiguration.getKeepAliveIntervalInSeconds()),
+      consumerStatsRequestTimer_(executor_->createDeadlineTimer()),
       maxPendingLookupRequest_(clientConfiguration.getConcurrentLookupRequest()),
       clientVersion_(clientVersion),
       pool_(pool),
@@ -335,6 +336,49 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
     lock.unlock();
 
     connectPromise_.setValue(shared_from_this());
+
+    if (serverProtocolVersion_ >= proto::v8) {
+        startConsumerStatsTimer(std::vector<uint64_t>());
+    }
+}
+
+void ClientConnection::startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests) {
+    std::vector<Promise<Result, BrokerConsumerStatsImpl>> consumerStatsPromises;
+    Lock lock(mutex_);
+
+    for (int i = 0; i < consumerStatsRequests.size(); i++) {
+        PendingConsumerStatsMap::iterator it = pendingConsumerStatsMap_.find(consumerStatsRequests[i]);
+        if (it != pendingConsumerStatsMap_.end()) {
+            LOG_DEBUG(cnxString() << " removing request_id " << it->first
+                                  << " from the pendingConsumerStatsMap_");
+            consumerStatsPromises.push_back(it->second);
+            pendingConsumerStatsMap_.erase(it);
+        } else {
+            LOG_DEBUG(cnxString() << "request_id " << it->first << " already fulfilled - not removing it");
+        }
+    }
+
+    consumerStatsRequests.clear();
+    for (PendingConsumerStatsMap::iterator it = pendingConsumerStatsMap_.begin();
+         it != pendingConsumerStatsMap_.end(); ++it) {
+        consumerStatsRequests.push_back(it->first);
+    }
+
+    // If the close operation has reset the consumerStatsRequestTimer_ then the use_count will be zero
+    // Check if we have a timer still before we set the request timer to pop again.
+    if (consumerStatsRequestTimer_) {
+        consumerStatsRequestTimer_->expires_after(operationsTimeout_);
+        consumerStatsRequestTimer_->async_wait(
+            [this, self{shared_from_this()}, consumerStatsRequests](const ASIO_ERROR& err) {
+                handleConsumerStatsTimeout(err, consumerStatsRequests);
+            });
+    }
+    lock.unlock();
+    // Complex logic since promises need to be fulfilled outside the lock
+    for (int i = 0; i < consumerStatsPromises.size(); i++) {
+        consumerStatsPromises[i].setFailed(ResultTimeout);
+        LOG_WARN(cnxString() << " Operation timedout, didn't get response from broker");
+    }
 }
 
 /// The number of unacknowledged probes to send before considering the connection dead and notifying the
@@ -952,38 +996,22 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
 Future<Result, BrokerConsumerStatsImpl> ClientConnection::newConsumerStats(uint64_t consumerId,
                                                                            uint64_t requestId) {
     Lock lock(mutex_);
+    Promise<Result, BrokerConsumerStatsImpl> promise;
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << " Client is not connected to the broker");
-        auto request =
-            std::make_shared<ConsumerStatsRequest>(executor_->createTimer(operationsTimeout_), [] {});
-        request->fail(ResultNotConnected);
-        return request->getFuture();
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
     }
-    if (serverProtocolVersion_ < proto::v8) {
-        lock.unlock();
-        LOG_ERROR(cnxString() << "ConsumerStats is not supported since server protobuf version "
-                              << serverProtocolVersion_ << " is older than proto::v8");
-        auto request =
-            std::make_shared<ConsumerStatsRequest>(executor_->createTimer(operationsTimeout_), [] {});
-        request->fail(ResultUnsupportedVersionError);
-        return request->getFuture();
-    }
-
-    auto request = std::make_shared<ConsumerStatsRequest>(
-        executor_->createTimer(operationsTimeout_), [cnxString = cnxString(), requestId]() {
-            LOG_WARN(cnxString << "ConsumerStats request timeout to broker, req_id: " << requestId);
-        });
-    pendingConsumerStatsMap_.emplace(requestId, request);
-    request->initialize();
+    pendingConsumerStatsMap_.insert(std::make_pair(requestId, promise));
     lock.unlock();
 
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("CONSUMER_STATS", requestId)) {
-        return request->getFuture();
+        return promise.getFuture();
     }
     sendCommand(Commands::newConsumerStats(consumerId, requestId));
-    return request->getFuture();
+    return promise.getFuture();
 }
 
 void ClientConnection::newTopicLookup(const std::string& topicName, bool authoritative,
@@ -1013,9 +1041,13 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
     }
 
     auto request = std::make_shared<LookupRequest>(
-        executor_->createTimer(operationsTimeout_), [cnxString = cnxString(), requestId, requestType]() {
-            LOG_WARN(cnxString << requestType << " request timeout to broker, req_id: " << requestId);
-        });
+        executor_->createTimer(operationsTimeout_),
+        makePendingRequestTimeoutHandler(
+            pendingLookupRequests_, requestId,
+            [cnxString = cnxString(), requestId, requestType]() {
+                LOG_WARN(cnxString << requestType << " request timeout to broker, req_id: " << requestId);
+            },
+            [](ClientConnection& connection) { connection.numOfPendingLookupRequest_--; }));
     request->getFuture().addListener([promise](Result result, const LookupDataResultPtr& lookupDataResult) {
         if (result == ResultOk) {
             promise->setValue(lookupDataResult);
@@ -1029,6 +1061,10 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
     request->initialize();
     lock.unlock();
     LOG_DEBUG(cnxString() << "Inserted lookup request " << requestType << " (req_id: " << requestId << ")");
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest(requestType, requestId)) {
+        return;
+    }
     sendCommand(cmd);
 }
 
@@ -1138,17 +1174,20 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
         lock.unlock();
         LOG_DEBUG(cnxString() << "Fail " << requestType << "(req_id: " << requestId
                               << ") to a closed connection");
-        auto request = std::make_shared<Request>(executor_->createTimer(operationsTimeout_), [] {});
+        auto request =
+            std::make_shared<Request>(executor_->createTimer(operationsTimeout_), [] { return false; });
         request->fail(ResultNotConnected);
         return request->getFuture();
     }
 
     auto request = std::make_shared<Request>(
         executor_->createTimer(operationsTimeout_),
-        [cnxString = cnxString(), physicalAddress = physicalAddress_, requestId, requestType]() {
-            LOG_WARN(cnxString << "Network request timeout to broker, remote: " << physicalAddress
-                               << ", req_id: " << requestId << ", request: " << requestType);
-        });
+        makePendingRequestTimeoutHandler(
+            pendingRequests_, requestId,
+            [cnxString = cnxString(), physicalAddress = physicalAddress_, requestId, requestType]() {
+                LOG_WARN(cnxString << "Network request timeout to broker, remote: " << physicalAddress
+                                   << ", req_id: " << requestId << ", request: " << requestType);
+            }));
     pendingRequests_.emplace(requestId, request);
     request->initialize();
     lock.unlock();
@@ -1191,6 +1230,15 @@ void ClientConnection::handleKeepAliveTimeout(const ASIO_ERROR& ec) {
         }
         lock.unlock();
     }
+}
+
+void ClientConnection::handleConsumerStatsTimeout(const ASIO_ERROR& ec,
+                                                  const std::vector<uint64_t>& consumerStatsRequests) {
+    if (ec) {
+        LOG_DEBUG(cnxString() << " Ignoring timer cancelled event, code[" << ec << "]");
+        return;
+    }
+    startConsumerStatsTimer(consumerStatsRequests);
 }
 
 const std::future<void>& ClientConnection::close(Result result, bool switchCluster) {
@@ -1292,7 +1340,7 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
     }
     for (auto& kv : pendingConsumerStatsMap) {
         LOG_ERROR(cnxString() << " Closing Client Connection, please try again later");
-        kv.second->fail(result);
+        kv.second.setFailed(result);
     }
     for (auto& kv : pendingGetLastMessageIdRequests) {
         kv.second->fail(result);
@@ -1354,12 +1402,18 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     }
 
     auto request = std::make_shared<GetLastMessageId>(
-        executor_->createTimer(operationsTimeout_), [cnxString = cnxString(), requestId]() {
-            LOG_WARN(cnxString << "GetLastMessageId request timeout to broker, req_id: " << requestId);
-        });
+        executor_->createTimer(operationsTimeout_),
+        makePendingRequestTimeoutHandler(
+            pendingGetLastMessageIdRequests_, requestId, [cnxString = cnxString(), requestId]() {
+                LOG_WARN(cnxString << "GetLastMessageId request timeout to broker, req_id: " << requestId);
+            }));
     pendingGetLastMessageIdRequests_.emplace(requestId, request);
     request->initialize();
     lock.unlock();
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("GET_LAST_MESSAGE_ID", requestId)) {
+        return request->getFuture();
+    }
     sendCommand(Commands::newGetLastMessageId(consumerId, requestId));
     return request->getFuture();
 }
@@ -1370,19 +1424,26 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        auto request =
-            std::make_shared<GetTopicsOfNamespace>(executor_->createTimer(operationsTimeout_), [] {});
+        auto request = std::make_shared<GetTopicsOfNamespace>(executor_->createTimer(operationsTimeout_),
+                                                              [] { return false; });
         request->fail(ResultNotConnected);
         return request->getFuture();
     }
 
     auto request = std::make_shared<GetTopicsOfNamespace>(
-        executor_->createTimer(operationsTimeout_), [cnxString = cnxString(), requestId]() {
-            LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: " << requestId);
-        });
+        executor_->createTimer(operationsTimeout_),
+        makePendingRequestTimeoutHandler(
+            pendingGetNamespaceTopicsRequests_, requestId, [cnxString = cnxString(), requestId]() {
+                LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: "
+                                   << requestId);
+            }));
     pendingGetNamespaceTopicsRequests_.emplace(requestId, request);
     request->initialize();
     lock.unlock();
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("GET_TOPICS_OF_NAMESPACE", requestId)) {
+        return request->getFuture();
+    }
     sendCommand(Commands::newGetTopicsOfNamespace(nsName, mode, requestId));
     return request->getFuture();
 }
@@ -1394,19 +1455,26 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        auto request = std::make_shared<GetSchema>(executor_->createTimer(operationsTimeout_), [] {});
+        auto request =
+            std::make_shared<GetSchema>(executor_->createTimer(operationsTimeout_), [] { return false; });
         request->fail(ResultNotConnected);
         return request->getFuture();
     }
 
     auto request = std::make_shared<GetSchema>(
-        executor_->createTimer(operationsTimeout_), [cnxString = cnxString(), requestId]() {
-            LOG_WARN(cnxString << "GetSchema request timeout to broker, req_id: " << requestId);
-        });
+        executor_->createTimer(operationsTimeout_),
+        makePendingRequestTimeoutHandler(
+            pendingGetSchemaRequests_, requestId, [cnxString = cnxString(), requestId]() {
+                LOG_WARN(cnxString << "GetSchema request timeout to broker, req_id: " << requestId);
+            }));
     pendingGetSchemaRequests_.emplace(requestId, request);
     request->initialize();
     lock.unlock();
 
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("GET_SCHEMA", requestId)) {
+        return request->getFuture();
+    }
     sendCommand(Commands::newGetSchema(topicName, version, requestId));
     return request->getFuture();
 }
@@ -1538,7 +1606,7 @@ void ClientConnection::handleConsumerStatsResponse(
                 LOG_ERROR(cnxString()
                           << " Failed to get consumer stats - " << consumerStatsResponse.error_message());
             }
-            request->fail(
+            request.setFailed(
                 getResult(consumerStatsResponse.error_code(), consumerStatsResponse.error_message()));
         } else {
             LOG_DEBUG(cnxString() << "ConsumerStatsResponse command - Received consumer stats "
@@ -1551,7 +1619,7 @@ void ClientConnection::handleConsumerStatsResponse(
                 consumerStatsResponse.blockedconsumeronunackedmsgs(), consumerStatsResponse.address(),
                 consumerStatsResponse.connectedsince(), consumerStatsResponse.type(),
                 consumerStatsResponse.msgrateexpired(), consumerStatsResponse.msgbacklog());
-            request->complete(brokerStats);
+            request.setValue(brokerStats);
         }
     } else {
         LOG_WARN("ConsumerStatsResponse command - Received unknown request id from server: "

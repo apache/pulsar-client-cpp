@@ -33,7 +33,7 @@ namespace pulsar {
 template <typename T>
 class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
    public:
-    PendingRequest(ASIO::steady_timer timer, std::function<void()> timeoutCallback)
+    PendingRequest(ASIO::steady_timer timer, std::function<bool()> timeoutCallback)
         : timer_(std::move(timer)), timeoutCallback_(std::move(timeoutCallback)) {}
 
     void initialize() {
@@ -42,7 +42,9 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
             if (!self || error || timeoutDisabled_.load(std::memory_order_acquire)) {
                 return;
             }
-            timeoutCallback_();
+            if (!timeoutCallback_()) {
+                return;
+            }
             promise_.setFailed(ResultTimeout);
         });
     }
@@ -66,7 +68,7 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
    private:
     ASIO::steady_timer timer_;
     Promise<Result, T> promise_;
-    std::function<void()> timeoutCallback_;
+    std::function<bool()> timeoutCallback_;
     std::atomic_bool timeoutDisabled_{false};
 };
 

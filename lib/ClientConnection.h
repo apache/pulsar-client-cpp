@@ -354,8 +354,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::unordered_map<long, ConsumerImplWeakPtr> ConsumersMap;
     ConsumersMap consumers_;
 
-    using ConsumerStatsRequest = PendingRequest<BrokerConsumerStatsImpl>;
-    typedef std::unordered_map<uint64_t, PendingRequestPtr<BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
+    typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
     PendingConsumerStatsMap pendingConsumerStatsMap_;
 
     using GetLastMessageId = PendingRequest<GetLastMessageIdResponse>;
@@ -373,6 +372,41 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     mutable std::mutex mutex_;
     typedef std::unique_lock<std::mutex> Lock;
 
+    template <typename RequestMap, typename OnTimeout, typename OnCleanup>
+    std::function<bool()> makePendingRequestTimeoutHandler(RequestMap& pendingRequests,
+                                                           const typename RequestMap::key_type& requestId,
+                                                           OnTimeout onTimeout, OnCleanup onCleanup) {
+        auto weakSelf = weak_from_this();
+        return [weakSelf, pendingRequestsPtr = &pendingRequests, requestId, onTimeout = std::move(onTimeout),
+                onCleanup = std::move(onCleanup)]() mutable {
+            auto self = weakSelf.lock();
+            if (!self) {
+                return false;
+            }
+
+            {
+                Lock lock(self->mutex_);
+                auto it = pendingRequestsPtr->find(requestId);
+                if (it == pendingRequestsPtr->end()) {
+                    return false;
+                }
+                pendingRequestsPtr->erase(it);
+                onCleanup(*self);
+            }
+
+            onTimeout();
+            return true;
+        };
+    }
+
+    template <typename RequestMap, typename OnTimeout>
+    std::function<bool()> makePendingRequestTimeoutHandler(RequestMap& pendingRequests,
+                                                           const typename RequestMap::key_type& requestId,
+                                                           OnTimeout onTimeout) {
+        return makePendingRequestTimeoutHandler(pendingRequests, requestId, std::move(onTimeout),
+                                                [](ClientConnection&) {});
+    }
+
     // Pending buffers to write on the socket
     std::deque<std::any> pendingWriteBuffers_;
     int pendingWriteOperations_ = 0;
@@ -387,9 +421,14 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     bool isSniProxy_ = false;
     unsigned int keepAliveIntervalInSeconds_;
     DeadlineTimerPtr keepAliveTimer_;
+    DeadlineTimerPtr consumerStatsRequestTimer_;
 
     std::atomic_bool mockingRequests_{false};
     std::shared_ptr<MockServer> mockServer_;
+
+    void handleConsumerStatsTimeout(const ASIO_ERROR& ec, const std::vector<uint64_t>& consumerStatsRequests);
+
+    void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
     uint32_t maxPendingLookupRequest_;
     uint32_t numOfPendingLookupRequest_ = 0;
 

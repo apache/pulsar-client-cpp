@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/ServiceInfo.h>
 #include <pulsar/Version.h>
 
 #include <algorithm>
@@ -33,8 +34,13 @@
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
 #include "lib/AsioDefines.h"
+#include "lib/AtomicSharedPtr.h"
+#include "lib/BrokerConsumerStatsImpl.h"
 #include "lib/ClientConnection.h"
+#include "lib/ConnectionPool.h"
+#include "lib/ExecutorService.h"
 #include "lib/LogUtils.h"
+#include "lib/MockServer.h"
 #include "lib/checksum/ChecksumProvider.h"
 #include "lib/stats/ProducerStatsImpl.h"
 
@@ -229,6 +235,70 @@ TEST(ClientTest, testConnectTimeoutAfterTcpConnected) {
 
     client.close();
     server->stop();
+}
+
+TEST(ClientTest, testTimedOutPendingRequestsAreErasedFromConnectionMaps) {
+    const auto suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    ClientConfiguration conf;
+    conf.setOperationTimeoutSeconds(1);
+
+    auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(lookupUrl));
+    ConnectionPool pool(serviceInfo, conf, executorProvider, "");
+    auto connection = std::make_shared<ClientConnection>(lookupUrl, lookupUrl, *serviceInfo.load(),
+                                                         executorProvider->get(), conf, "", pool, 0);
+    PulsarFriend::setServerProtocolVersion(*connection, 8);
+
+    long requestIdGenerator = 0;
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+    mockServer->setRequestDelay({{"TEST_PENDING_REQUEST", 1200},
+                                 {"LOOKUP", 1200},
+                                 {"GET_LAST_MESSAGE_ID", 1200},
+                                 {"GET_TOPICS_OF_NAMESPACE", 1200},
+                                 {"GET_SCHEMA", 1200}});
+
+    auto pingFuture =
+        connection->sendRequestWithId(Commands::newPing(), requestIdGenerator++, "TEST_PENDING_REQUEST");
+
+    auto lookupPromise = std::make_shared<LookupDataResultPromise>();
+    auto lookupFuture = lookupPromise->getFuture();
+    connection->newTopicLookup("persistent://public/default/testTimedOutPendingRequests-" + suffix, false, "",
+                               requestIdGenerator++, lookupPromise);
+
+    auto lastMessageIdFuture = connection->newGetLastMessageId(0, requestIdGenerator++);
+
+    auto getTopicsOfNamespaceFuture = connection->newGetTopicsOfNamespace(
+        "public/default", CommandGetTopicsOfNamespace_Mode_PERSISTENT, requestIdGenerator++);
+
+    auto getSchemaFuture = connection->newGetSchema(
+        "persistent://public/default/testTimedOutPendingRequests-" + suffix, "", requestIdGenerator++);
+
+    ResponseData responseData;
+    ASSERT_EQ(ResultTimeout, pingFuture.get(responseData));
+    ASSERT_EQ(0u, PulsarFriend::getPendingRequests(*connection));
+
+    LookupDataResultPtr lookupData;
+    ASSERT_EQ(ResultTimeout, lookupFuture.get(lookupData));
+    ASSERT_EQ(0u, PulsarFriend::getPendingLookupRequests(*connection));
+    ASSERT_EQ(0u, PulsarFriend::getNumOfPendingLookupRequests(*connection));
+
+    GetLastMessageIdResponse lastMessageIdResponse;
+    ASSERT_EQ(ResultTimeout, lastMessageIdFuture.get(lastMessageIdResponse));
+    ASSERT_EQ(0u, PulsarFriend::getPendingGetLastMessageIdRequests(*connection));
+
+    NamespaceTopicsPtr topics;
+    ASSERT_EQ(ResultTimeout, getTopicsOfNamespaceFuture.get(topics));
+    ASSERT_EQ(0u, PulsarFriend::getPendingGetTopicsOfNamespaceRequests(*connection));
+
+    SchemaInfo schemaInfo;
+    ASSERT_EQ(ResultTimeout, getSchemaFuture.get(schemaInfo));
+    ASSERT_EQ(0u, PulsarFriend::getPendingGetSchemaRequests(*connection));
+
+    mockServer->close();
+    connection->close(ResultDisconnected).wait();
+    executorProvider->close();
 }
 
 TEST(ClientTest, testGetNumberOfReferences) {
