@@ -38,6 +38,7 @@
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
 #include "lib/ReaderImpl.h"
+#include "lib/TimeUtils.h"
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
@@ -865,13 +866,7 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
     }
 
     ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
-    // After seek-to-end the broker may close the consumer and trigger reconnect; allow a short
-    // delay for hasMessageAvailable to become false (avoids flakiness when reconnect completes).
-    for (int i = 0; i < 50; i++) {
-        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
-        if (!hasMessageAvailable) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     ASSERT_FALSE(hasMessageAvailable);
 
     producer.send(MessageBuilder().setContent("msg-2").build());
@@ -981,6 +976,26 @@ TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
     };
     assertStartMessageId(true, firstMsgId);
     assertStartMessageId(false, secondMsgId);
+}
+
+TEST_P(ReaderSeekTest, testSeekToEndByTimestamp) {
+    auto topic = "test-seek-to-end-by-timestamp-" + std::to_string(time(nullptr));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+
+    ReaderConfiguration readerConf;
+    readerConf.setStartMessageIdInclusive(GetParam());
+
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), readerConf, reader));
+
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build()));
+    auto now = TimeUtils::currentTimeMillis() + 1000;
+    ASSERT_EQ(ResultOk, reader.seek(now));
+
+    bool hasMessageAvailable;
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    ASSERT_FALSE(hasMessageAvailable);
 }
 
 // Regression test for segfault when Reader is used with messageListenerThreads=0.
