@@ -28,12 +28,14 @@
 #include <asio/ip/tcp.hpp>
 #include <asio/post.hpp>
 #include <asio/ssl.hpp>
+#include <asio/steady_timer.hpp>
 #else
 #include <boost/asio/dispatch.hpp>
 #include <boost/asio/io_context.hpp>
 #include <boost/asio/ip/tcp.hpp>
 #include <boost/asio/post.hpp>
 #include <boost/asio/ssl.hpp>
+#include <boost/asio/steady_timer.hpp>
 #endif
 #include <chrono>
 #include <condition_variable>
@@ -67,6 +69,13 @@ class PULSAR_PUBLIC ExecutorService : public std::enable_shared_from_this<Execut
     TcpResolverPtr createTcpResolver();
     // throws std::runtime_error if failed
     DeadlineTimerPtr createDeadlineTimer();
+
+    template <typename Duration>
+    ASIO::steady_timer createTimer(const Duration &duration) {
+        auto timer = ASIO::steady_timer(io_context_);
+        timer.expires_after(duration);
+        return timer;
+    }
 
     // Execute the task in the event loop thread asynchronously, i.e. the task will be put in the event loop
     // queue and executed later.

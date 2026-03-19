@@ -81,6 +81,26 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
                              proto::CommandConsumerStatsResponse response;
                              response.set_request_id(requestId);
                              connection->handleConsumerStatsResponse(response);
+                         } else if (request == "LOOKUP") {
+                             proto::CommandLookupTopicResponse response;
+                             response.set_request_id(requestId);
+                             response.set_response(proto::CommandLookupTopicResponse_LookupType_Connect);
+                             response.set_brokerserviceurl("pulsar://localhost:6650");
+                             connection->handleLookupTopicRespose(response);
+                         } else if (request == "GET_LAST_MESSAGE_ID") {
+                             proto::CommandGetLastMessageIdResponse response;
+                             response.set_request_id(requestId);
+                             response.mutable_last_message_id();
+                             connection->handleGetLastMessageIdResponse(response);
+                         } else if (request == "GET_TOPICS_OF_NAMESPACE") {
+                             proto::CommandGetTopicsOfNamespaceResponse response;
+                             response.set_request_id(requestId);
+                             connection->handleGetTopicOfNamespaceResponse(response);
+                         } else if (request == "GET_SCHEMA") {
+                             proto::CommandGetSchemaResponse response;
+                             response.set_request_id(requestId);
+                             response.mutable_schema()->set_type(proto::Schema_Type_String);
+                             connection->handleGetSchemaResponse(response);
                          } else {
                              proto::CommandSuccess success;
                              success.set_request_id(requestId);
