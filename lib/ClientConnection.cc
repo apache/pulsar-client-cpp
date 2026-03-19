@@ -1279,7 +1279,7 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
     cancelTimer(*connectTimer_);
     lock.unlock();
     int refCount = weak_from_this().use_count();
-    if (!isResultRetryable(result)) {
+    if (result != ResultAlreadyClosed /* closed by the pool */ && !isResultRetryable(result)) {
         LOG_ERROR(cnxString() << "Connection closed with " << result << " (refCnt: " << refCount << ")");
     } else {
         LOG_INFO(cnxString() << "Connection disconnected (refCnt: " << refCount << ")");
