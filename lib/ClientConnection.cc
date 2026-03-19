@@ -1428,7 +1428,6 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
         insertRequest(pendingGetNamespaceTopicsRequests_, requestId, [cnxString = cnxString(), requestId]() {
             LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: " << requestId);
         });
-    pendingGetNamespaceTopicsRequests_.emplace(requestId, request);
     lock.unlock();
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("GET_TOPICS_OF_NAMESPACE", requestId)) {
