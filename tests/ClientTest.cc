@@ -35,12 +35,12 @@
 #include "WaitUtils.h"
 #include "lib/AsioDefines.h"
 #include "lib/AtomicSharedPtr.h"
-#include "lib/BrokerConsumerStatsImpl.h"
 #include "lib/ClientConnection.h"
 #include "lib/ConnectionPool.h"
 #include "lib/ExecutorService.h"
 #include "lib/LogUtils.h"
 #include "lib/MockServer.h"
+#include "lib/TimeUtils.h"
 #include "lib/checksum/ChecksumProvider.h"
 #include "lib/stats/ProducerStatsImpl.h"
 
@@ -235,6 +235,33 @@ TEST(ClientTest, testConnectTimeoutAfterTcpConnected) {
 
     client.close();
     server->stop();
+}
+
+TEST(ClientTest, testConnectionNotReferredAfterClose) {
+    Client client(lookupUrl);
+    auto topic = "test-connection-not-referred-after-close-" + std::to_string(time(nullptr));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), {}, reader));
+
+    bool available;
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(available));
+    ASSERT_FALSE(available);
+
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("test").build()));
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(available));
+    ASSERT_TRUE(available);
+
+    Message msg;
+    ASSERT_EQ(ResultOk, reader.readNext(msg));
+    ASSERT_EQ("test", msg.getDataAsString());
+
+    auto start = TimeUtils::currentTimeMillis();
+    ASSERT_EQ(ResultOk, client.close());
+    auto closeTimeMs = TimeUtils::currentTimeMillis() - start;
+    ASSERT_LT(closeTimeMs, 3000) << "close time: " << closeTimeMs << " ms";
 }
 
 TEST(ClientTest, testTimedOutPendingRequestsAreErasedFromConnectionMaps) {

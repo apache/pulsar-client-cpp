@@ -53,6 +53,7 @@
 
 #include "AsioTimer.h"
 #include "Commands.h"
+#include "ExecutorService.h"
 #include "GetLastMessageIdResponse.h"
 #include "LookupDataResult.h"
 #include "PendingRequest.h"
@@ -67,9 +68,6 @@ namespace pulsar {
 class PulsarFriend;
 
 using TcpResolverPtr = std::shared_ptr<ASIO::ip::tcp::resolver>;
-
-class ExecutorService;
-using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
 
 class ConnectionPool;
 class ClientConnection;
@@ -340,13 +338,14 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     const std::chrono::milliseconds connectTimeout_;
     const DeadlineTimerPtr connectTimer_;
 
-    using Request = PendingRequest<ResponseData>;
-    typedef std::unordered_map<long, PendingRequestPtr<ResponseData>> PendingRequestsMap;
-    PendingRequestsMap pendingRequests_;
+    template <typename T>
+    using RequestMap = std::unordered_map<uint64_t, PendingRequestPtr<T>>;
 
-    using LookupRequest = PendingRequest<LookupDataResultPtr>;
-    typedef std::unordered_map<long, PendingRequestPtr<LookupDataResultPtr>> PendingLookupRequestsMap;
-    PendingLookupRequestsMap pendingLookupRequests_;
+    RequestMap<ResponseData> pendingRequests_;
+    RequestMap<LookupDataResultPtr> pendingLookupRequests_;
+    RequestMap<GetLastMessageIdResponse> pendingGetLastMessageIdRequests_;
+    RequestMap<NamespaceTopicsPtr> pendingGetNamespaceTopicsRequests_;
+    RequestMap<SchemaInfo> pendingGetSchemaRequests_;
 
     typedef std::unordered_map<long, ProducerImplWeakPtr> ProducersMap;
     ProducersMap producers_;
@@ -357,54 +356,29 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
     PendingConsumerStatsMap pendingConsumerStatsMap_;
 
-    using GetLastMessageId = PendingRequest<GetLastMessageIdResponse>;
-    using PendingGetLastMessageIdMap = std::unordered_map<long, PendingRequestPtr<GetLastMessageIdResponse>>;
-    PendingGetLastMessageIdMap pendingGetLastMessageIdRequests_;
-
-    using GetTopicsOfNamespace = PendingRequest<NamespaceTopicsPtr>;
-    typedef std::unordered_map<long, PendingRequestPtr<NamespaceTopicsPtr>> PendingGetNamespaceTopicsMap;
-    PendingGetNamespaceTopicsMap pendingGetNamespaceTopicsRequests_;
-
-    using GetSchema = PendingRequest<SchemaInfo>;
-    typedef std::unordered_map<uint64_t, PendingRequestPtr<SchemaInfo>> PendingGetSchemaMap;
-    PendingGetSchemaMap pendingGetSchemaRequests_;
-
     mutable std::mutex mutex_;
     typedef std::unique_lock<std::mutex> Lock;
 
-    template <typename RequestMap, typename OnTimeout, typename OnCleanup>
-    std::function<bool()> makePendingRequestTimeoutHandler(RequestMap& pendingRequests,
-                                                           const typename RequestMap::key_type& requestId,
-                                                           OnTimeout onTimeout, OnCleanup onCleanup) {
-        auto weakSelf = weak_from_this();
-        return [weakSelf, pendingRequestsPtr = &pendingRequests, requestId, onTimeout = std::move(onTimeout),
-                onCleanup = std::move(onCleanup)]() mutable {
-            auto self = weakSelf.lock();
-            if (!self) {
-                return false;
-            }
-
-            {
-                Lock lock(self->mutex_);
-                auto it = pendingRequestsPtr->find(requestId);
-                if (it == pendingRequestsPtr->end()) {
-                    return false;
+    // Note: this method must be called when holding `mutex_`
+    template <typename T, typename OnTimeout>
+    auto insertRequest(RequestMap<T>& pendingRequests, uint64_t requestId, OnTimeout onTimeout) {
+        auto request = std::make_shared<PendingRequest<T>>(
+            executor_->createTimer(operationsTimeout_),
+            [this, self{shared_from_this()}, requestId, onTimeout{std::move(onTimeout)},
+             &pendingRequests]() mutable {
+                {
+                    std::lock_guard lock{mutex_};
+                    if (auto it = pendingRequests.find(requestId); it != pendingRequests.end()) {
+                        pendingRequests.erase(it);
+                    }
                 }
-                pendingRequestsPtr->erase(it);
-                onCleanup(*self);
-            }
-
-            onTimeout();
-            return true;
-        };
-    }
-
-    template <typename RequestMap, typename OnTimeout>
-    std::function<bool()> makePendingRequestTimeoutHandler(RequestMap& pendingRequests,
-                                                           const typename RequestMap::key_type& requestId,
-                                                           OnTimeout onTimeout) {
-        return makePendingRequestTimeoutHandler(pendingRequests, requestId, std::move(onTimeout),
-                                                [](ClientConnection&) {});
+                onTimeout();
+            });
+        auto [iterator, inserted] = pendingRequests.emplace(requestId, request);
+        if (inserted) {
+            request->initialize();
+        }  // else: the request id is duplicated
+        return iterator->second;
     }
 
     // Pending buffers to write on the socket
@@ -430,7 +404,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
     uint32_t maxPendingLookupRequest_;
-    uint32_t numOfPendingLookupRequest_ = 0;
+    std::atomic_uint32_t numOfPendingLookupRequest_{0};
 
     bool isTlsAllowInsecureConnection_ = false;
 

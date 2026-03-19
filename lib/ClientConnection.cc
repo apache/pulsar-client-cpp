@@ -33,6 +33,7 @@
 #include "ConnectionPool.h"
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
+#include "Future.h"
 #include "LogUtils.h"
 #include "MockServer.h"
 #include "OpSendMsg.h"
@@ -1005,7 +1006,6 @@ Future<Result, BrokerConsumerStatsImpl> ClientConnection::newConsumerStats(uint6
     }
     pendingConsumerStatsMap_.insert(std::make_pair(requestId, promise));
     lock.unlock();
-
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("CONSUMER_STATS", requestId)) {
         return promise.getFuture();
@@ -1040,14 +1040,14 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
         return;
     }
 
-    auto request = std::make_shared<LookupRequest>(
-        executor_->createTimer(operationsTimeout_),
-        makePendingRequestTimeoutHandler(
-            pendingLookupRequests_, requestId,
-            [cnxString = cnxString(), requestId, requestType]() {
-                LOG_WARN(cnxString << requestType << " request timeout to broker, req_id: " << requestId);
-            },
-            [](ClientConnection& connection) { connection.numOfPendingLookupRequest_--; }));
+    auto request = insertRequest(
+        pendingLookupRequests_, requestId, [weakSelf{weak_from_this()}, requestId, requestType]() {
+            if (auto self = weakSelf.lock()) {
+                LOG_WARN(self->cnxString()
+                         << requestType << " request timeout to broker, req_id: " << requestId);
+                self->numOfPendingLookupRequest_--;
+            }
+        });
     request->getFuture().addListener([promise](Result result, const LookupDataResultPtr& lookupDataResult) {
         if (result == ResultOk) {
             promise->setValue(lookupDataResult);
@@ -1056,9 +1056,7 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
         }
     });
 
-    pendingLookupRequests_.emplace(requestId, request);
     numOfPendingLookupRequest_++;
-    request->initialize();
     lock.unlock();
     LOG_DEBUG(cnxString() << "Inserted lookup request " << requestType << " (req_id: " << requestId << ")");
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
@@ -1174,22 +1172,17 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
         lock.unlock();
         LOG_DEBUG(cnxString() << "Fail " << requestType << "(req_id: " << requestId
                               << ") to a closed connection");
-        auto request =
-            std::make_shared<Request>(executor_->createTimer(operationsTimeout_), [] { return false; });
-        request->fail(ResultNotConnected);
-        return request->getFuture();
+        Promise<Result, ResponseData> promise;
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
     }
 
-    auto request = std::make_shared<Request>(
-        executor_->createTimer(operationsTimeout_),
-        makePendingRequestTimeoutHandler(
-            pendingRequests_, requestId,
-            [cnxString = cnxString(), physicalAddress = physicalAddress_, requestId, requestType]() {
-                LOG_WARN(cnxString << "Network request timeout to broker, remote: " << physicalAddress
-                                   << ", req_id: " << requestId << ", request: " << requestType);
-            }));
-    pendingRequests_.emplace(requestId, request);
-    request->initialize();
+    auto request = insertRequest(
+        pendingRequests_, requestId,
+        [cnxString{cnxString()}, physicalAddress{physicalAddress_}, requestId, requestType]() {
+            LOG_WARN(cnxString << "Network request timeout to broker, remote: " << physicalAddress
+                               << ", req_id: " << requestId << ", request: " << requestType);
+        });
     lock.unlock();
 
     LOG_DEBUG(cnxString() << "Inserted request " << requestType << " (req_id: " << requestId << ")");
@@ -1276,6 +1269,11 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
     if (keepAliveTimer_) {
         cancelTimer(*keepAliveTimer_);
         keepAliveTimer_.reset();
+    }
+
+    if (consumerStatsRequestTimer_) {
+        cancelTimer(*consumerStatsRequestTimer_);
+        consumerStatsRequestTimer_.reset();
     }
 
     cancelTimer(*connectTimer_);
@@ -1401,15 +1399,12 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
         return promise->getFuture();
     }
 
-    auto request = std::make_shared<GetLastMessageId>(
-        executor_->createTimer(operationsTimeout_),
-        makePendingRequestTimeoutHandler(
-            pendingGetLastMessageIdRequests_, requestId, [cnxString = cnxString(), requestId]() {
-                LOG_WARN(cnxString << "GetLastMessageId request timeout to broker, req_id: " << requestId);
-            }));
-    pendingGetLastMessageIdRequests_.emplace(requestId, request);
-    request->initialize();
+    auto request =
+        insertRequest(pendingGetLastMessageIdRequests_, requestId, [cnxString = cnxString(), requestId]() {
+            LOG_WARN(cnxString << "GetLastMessageId request timeout to broker, req_id: " << requestId);
+        });
     lock.unlock();
+
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("GET_LAST_MESSAGE_ID", requestId)) {
         return request->getFuture();
@@ -1424,21 +1419,16 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        auto request = std::make_shared<GetTopicsOfNamespace>(executor_->createTimer(operationsTimeout_),
-                                                              [] { return false; });
-        request->fail(ResultNotConnected);
-        return request->getFuture();
+        Promise<Result, NamespaceTopicsPtr> promise;
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
     }
 
-    auto request = std::make_shared<GetTopicsOfNamespace>(
-        executor_->createTimer(operationsTimeout_),
-        makePendingRequestTimeoutHandler(
-            pendingGetNamespaceTopicsRequests_, requestId, [cnxString = cnxString(), requestId]() {
-                LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: "
-                                   << requestId);
-            }));
+    auto request =
+        insertRequest(pendingGetNamespaceTopicsRequests_, requestId, [cnxString = cnxString(), requestId]() {
+            LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: " << requestId);
+        });
     pendingGetNamespaceTopicsRequests_.emplace(requestId, request);
-    request->initialize();
     lock.unlock();
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("GET_TOPICS_OF_NAMESPACE", requestId)) {
@@ -1455,20 +1445,15 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        auto request =
-            std::make_shared<GetSchema>(executor_->createTimer(operationsTimeout_), [] { return false; });
-        request->fail(ResultNotConnected);
-        return request->getFuture();
+        Promise<Result, SchemaInfo> promise;
+        promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
     }
 
-    auto request = std::make_shared<GetSchema>(
-        executor_->createTimer(operationsTimeout_),
-        makePendingRequestTimeoutHandler(
-            pendingGetSchemaRequests_, requestId, [cnxString = cnxString(), requestId]() {
-                LOG_WARN(cnxString << "GetSchema request timeout to broker, req_id: " << requestId);
-            }));
-    pendingGetSchemaRequests_.emplace(requestId, request);
-    request->initialize();
+    auto request =
+        insertRequest(pendingGetSchemaRequests_, requestId, [cnxString = cnxString(), requestId]() {
+            LOG_WARN(cnxString << "GetSchema request timeout to broker, req_id: " << requestId);
+        });
     lock.unlock();
 
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
@@ -1737,8 +1722,7 @@ void ClientConnection::handleError(const proto::CommandError& error) {
 
             request->fail(result);
         } else {
-            PendingGetNamespaceTopicsMap::iterator it =
-                pendingGetNamespaceTopicsRequests_.find(error.request_id());
+            auto it = pendingGetNamespaceTopicsRequests_.find(error.request_id());
             if (it != pendingGetNamespaceTopicsRequests_.end()) {
                 auto request = std::move(it->second);
                 pendingGetNamespaceTopicsRequests_.erase(it);
