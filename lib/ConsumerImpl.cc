@@ -1642,18 +1642,6 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                 callback(result, {});
                 return;
             }
-            auto handleResponse = [self, response, callback] {
-                if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
-                    // We only care about comparing ledger ids and entry ids as mark delete position
-                    // doesn't have other ids such as batch index
-                    auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
-                                                                 response.getLastMessageId());
-                    callback(ResultOk, self->config_.isStartMessageIdInclusive() ? compareResult <= 0
-                                                                                 : compareResult < 0);
-                } else {
-                    callback(ResultOk, false);
-                }
-            };
             bool lastSeekIsByTimestamp = false;
             {
                 LockGuard lock{self->mutex_};
@@ -1662,6 +1650,23 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                     lastSeekIsByTimestamp = true;
                 }
             }
+            auto handleResponse = [self, lastSeekIsByTimestamp, response, callback] {
+                if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
+                    // We only care about comparing ledger ids and entry ids as mark delete position
+                    // doesn't have other ids such as batch index
+                    auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
+                                                                 response.getLastMessageId());
+                    // When the consumer has sought by timestamp, broker will ignore the
+                    // startMessageIdInclusive config, so the compare should still be exclusive
+                    if (lastSeekIsByTimestamp || !self->config_.isStartMessageIdInclusive()) {
+                        callback(ResultOk, compareResult < 0);
+                    } else {
+                        callback(ResultOk, compareResult <= 0);
+                    }
+                } else {
+                    callback(ResultOk, false);
+                }
+            };
             if (self->config_.isStartMessageIdInclusive() && !lastSeekIsByTimestamp) {
                 self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
                     if (result != ResultOk) {
