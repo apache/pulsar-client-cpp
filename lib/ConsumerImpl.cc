@@ -1656,10 +1656,8 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                     // doesn't have other ids such as batch index
                     auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
                                                                  response.getLastMessageId());
-                    // When the consumer has sought by timestamp that is later than the last message, the
-                    // mark-delete position will still be the same with the last message id's position. But
-                    // broker won't dispatch messages even if startMessageId is inclusive, so we should return
-                    // false in this case.
+                    // When the consumer has sought by timestamp, broker will ignore the
+                    // startMessageIdInclusive config, so the compare should still be exclusive
                     if (lastSeekIsByTimestamp || !self->config_.isStartMessageIdInclusive()) {
                         callback(ResultOk, compareResult < 0);
                     } else {
