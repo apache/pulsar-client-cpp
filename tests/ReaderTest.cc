@@ -24,8 +24,10 @@
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <future>
+#include <limits>
 #include <set>
 #include <string>
 #include <thread>
@@ -38,7 +40,6 @@
 #include "lib/Latch.h"
 #include "lib/LogUtils.h"
 #include "lib/ReaderImpl.h"
-#include "lib/TimeUtils.h"
 DECLARE_LOG_OBJECT()
 
 using namespace pulsar;
@@ -990,7 +991,7 @@ TEST_P(ReaderSeekTest, testSeekToEndByTimestamp) {
     ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), readerConf, reader));
 
     ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build()));
-    auto now = TimeUtils::currentTimeMillis() + 1000;
+    auto now = std::numeric_limits<uint64_t>::max();
     ASSERT_EQ(ResultOk, reader.seek(now));
 
     bool hasMessageAvailable;
