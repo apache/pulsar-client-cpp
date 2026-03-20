@@ -991,7 +991,9 @@ TEST_P(ReaderSeekTest, testSeekToEndByTimestamp) {
     ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), readerConf, reader));
 
     ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build()));
-    auto now = std::numeric_limits<uint64_t>::max();
+    // Server side (Java) uses signal 64 bits integers to represent the timestamp, so use max int64_t here to
+    // seek to the end of topic.
+    auto now = std::numeric_limits<int64_t>::max();
     ASSERT_EQ(ResultOk, reader.seek(now));
 
     bool hasMessageAvailable;
