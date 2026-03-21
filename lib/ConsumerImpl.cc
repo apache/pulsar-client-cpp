@@ -334,11 +334,11 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                 return ResultAlreadyClosed;
             }
 
+            mutexLock.unlock();
+            LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             backoff_.reset();
-            mutexLock.unlock();
-            LOG_INFO(getName() << "Created consumer on broker " << cnx->cnxString());
             if (!messageListener_ && config_.getReceiverQueueSize() == 0) {
                 // Complicated logic since we don't have a isLocked() function for mutex
                 if (waitingForZeroQueueSizeMessage) {
@@ -1846,9 +1846,10 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                 LockGuard lock{mutex_};
                 seekStatus_ = SeekStatus::NOT_STARTED;
                 lastSeekArg_ = previousLastSeekArg;
-                executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
-                    callback(ResultOk);
-                });
+                executor_->postWork(
+                    [self, callback{std::exchange(seekCallback_, std::nullopt).value()}, result]() {
+                        callback(result);
+                    });
             }
         });
 }
