@@ -1846,10 +1846,8 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                 LockGuard lock{mutex_};
                 seekStatus_ = SeekStatus::NOT_STARTED;
                 lastSeekArg_ = previousLastSeekArg;
-                executor_->postWork(
-                    [self, callback{std::exchange(seekCallback_, std::nullopt).value()}, result]() {
-                        callback(result);
-                    });
+                executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()},
+                                     result]() { callback(result); });
             }
         });
 }
