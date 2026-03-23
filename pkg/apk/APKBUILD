@@ -41,6 +41,11 @@ build() {
     git clone https://github.com/microsoft/vcpkg.git
     mv vcpkg $ROOT_DIR/
     export VCPKG_FORCE_SYSTEM_BINARIES=1
+    # On aarch64 musl, vcpkg has no prebuilt binary and builds from source.
+    # The default bootstrap downloads old curl 7.29.0 headers that lack
+    # target-independent curlbuild.h, failing on aarch64. Use system curl instead.
+    sed -i 's/-DCMAKE_BUILD_TYPE=Release/-DVCPKG_LIBCURL_DLSYM=OFF -DCMAKE_BUILD_TYPE=Release/' \
+        $ROOT_DIR/vcpkg/scripts/bootstrap.sh
     set +e
     cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_MAKE_PROGRAM=make \
