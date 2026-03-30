@@ -123,6 +123,12 @@ Message::Message(const MessageId& messageID, proto::BrokerEntryMetadata& brokerE
     } else {
         impl_->metadata.clear_sequence_id();
     }
+
+    if (singleMetadata.null_value()) {
+        impl_->metadata.set_null_value(true);
+    } else {
+        impl_->metadata.clear_null_value();
+    }
 }
 
 const MessageId& Message::getMessageId() const {
@@ -175,6 +181,13 @@ const std::string& Message::getOrderingKey() const {
         return emptyString;
     }
     return impl_->getOrderingKey();
+}
+
+bool Message::hasNullValue() const {
+    if (impl_) {
+        return impl_->metadata.null_value();
+    }
+    return false;
 }
 
 const std::string& Message::getTopicName() const {

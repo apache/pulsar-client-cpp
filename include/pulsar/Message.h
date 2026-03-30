@@ -160,6 +160,17 @@ class PULSAR_PUBLIC Message {
     bool hasOrderingKey() const;
 
     /**
+     * Check if the message has a null value.
+     *
+     * Messages with null values are used as tombstones on compacted topics
+     * to delete the message for a specific key.
+     *
+     * @return true if the message has a null value (tombstone)
+     *         false if the message has actual payload data
+     */
+    bool hasNullValue() const;
+
+    /**
      * Get the UTC based timestamp in milliseconds referring to when the message was published by the client
      * producer
      */

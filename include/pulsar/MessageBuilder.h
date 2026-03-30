@@ -157,6 +157,17 @@ class PULSAR_PUBLIC MessageBuilder {
     MessageBuilder& disableReplication(bool flag);
 
     /**
+     * Mark the message as having a null value.
+     *
+     * This is used for messages on compacted topics where a null value
+     * acts as a tombstone for a specific key, removing the message from
+     * the compacted view.
+     *
+     * @return the message builder instance
+     */
+    MessageBuilder& setNullValue();
+
+    /**
      * create a empty message, with no properties or data
      *
      */

@@ -871,6 +871,10 @@ static std::pair<std::unique_ptr<char[]>, size_t> serializeSingleMessageMetadata
         metadata.set_sequence_id(msgMetadata.sequence_id());
     }
 
+    if (msgMetadata.null_value()) {
+        metadata.set_null_value(true);
+    }
+
     size_t size = metadata.ByteSizeLong();
     std::unique_ptr<char[]> data{new char[size]};
     metadata.SerializeToArray(data.get(), size);

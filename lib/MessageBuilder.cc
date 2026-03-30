@@ -157,6 +157,12 @@ MessageBuilder& MessageBuilder::disableReplication(bool flag) {
     return *this;
 }
 
+MessageBuilder& MessageBuilder::setNullValue() {
+    checkMetadata();
+    impl_->metadata.set_null_value(true);
+    return *this;
+}
+
 const char* MessageBuilder::data() const {
     assert(impl_->payload.data());
     return impl_->payload.data();
