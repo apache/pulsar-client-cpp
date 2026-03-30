@@ -157,6 +157,95 @@ TEST(TableViewTest, testPublishEmptyValue) {
     client.close();
 }
 
+TEST(TableViewTest, testNullValueTombstone) {
+    const std::string topic = "testNullValueTombstone" + std::to_string(time(nullptr));
+    Client client(lookupUrl);
+
+    ProducerConfiguration producerConfiguration;
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConfiguration, producer));
+
+    // Send initial messages with keys
+    auto count = 10;
+    for (int i = 0; i < count; ++i) {
+        auto msg = MessageBuilder()
+                       .setPartitionKey("key" + std::to_string(i))
+                       .setContent("value" + std::to_string(i))
+                       .build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    // Create table view and verify all keys are present
+    TableView tableView;
+    ASSERT_EQ(ResultOk, client.createTableView(topic, {}, tableView));
+    ASSERT_EQ(tableView.size(), count);
+
+    std::string value;
+    ASSERT_TRUE(tableView.containsKey("key5"));
+    ASSERT_TRUE(tableView.getValue("key5", value));
+    ASSERT_EQ(value, "value5");
+
+    // Send a null value (tombstone) for key5 using setNullValue()
+    auto tombstone = MessageBuilder().setPartitionKey("key5").setNullValue().build();
+    ASSERT_TRUE(tombstone.hasNullValue());
+    ASSERT_EQ(ResultOk, producer.send(tombstone));
+
+    // Wait for table view to process the tombstone and remove the key
+    waitUntil(
+        std::chrono::seconds(2), [&] { return !tableView.containsKey("key5"); }, 100);
+
+    // Verify key5 was removed by the tombstone
+    ASSERT_FALSE(tableView.containsKey("key5"));
+    ASSERT_EQ(tableView.size(), count - 1);
+
+    // Verify other keys are still present
+    ASSERT_TRUE(tableView.containsKey("key0"));
+    ASSERT_TRUE(tableView.containsKey("key9"));
+
+    client.close();
+}
+
+TEST(TableViewTest, testNullValueVsEmptyString) {
+    const std::string topic = "testNullValueVsEmptyString" + std::to_string(time(nullptr));
+    Client client(lookupUrl);
+
+    ProducerConfiguration producerConfiguration;
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConfiguration, producer));
+
+    // Send messages for two keys
+    ASSERT_EQ(ResultOk, producer.send(
+        MessageBuilder().setPartitionKey("keyA").setContent("valueA").build()));
+    ASSERT_EQ(ResultOk, producer.send(
+        MessageBuilder().setPartitionKey("keyB").setContent("valueB").build()));
+
+    TableView tableView;
+    ASSERT_EQ(ResultOk, client.createTableView(topic, {}, tableView));
+    ASSERT_EQ(tableView.size(), 2);
+
+    // Send empty string for keyA - this should also remove it from TableView
+    // (TableView treats empty payload as deletion)
+    auto emptyMsg = MessageBuilder().setPartitionKey("keyA").setContent("").build();
+    ASSERT_FALSE(emptyMsg.hasNullValue());
+    ASSERT_EQ(ResultOk, producer.send(emptyMsg));
+
+    // Send null value (tombstone) for keyB using setNullValue()
+    auto nullMsg = MessageBuilder().setPartitionKey("keyB").setNullValue().build();
+    ASSERT_TRUE(nullMsg.hasNullValue());
+    ASSERT_EQ(ResultOk, producer.send(nullMsg));
+
+    // Wait for both to be processed
+    waitUntil(
+        std::chrono::seconds(2), [&] { return tableView.size() == 0; }, 100);
+
+    // Both keys should be removed
+    ASSERT_FALSE(tableView.containsKey("keyA"));
+    ASSERT_FALSE(tableView.containsKey("keyB"));
+    ASSERT_EQ(tableView.size(), 0);
+
+    client.close();
+}
+
 TEST(TableViewTest, testNotSupportNonPersistentTopic) {
     const std::string topic = TopicDomain::NonPersistent +
                               "://public/default/testNotSupportNonPersistentTopic" +

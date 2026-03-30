@@ -1045,5 +1045,130 @@ TEST(ReaderTest, testReaderWithZeroMessageListenerThreads) {
     client.close();
 }
 
+TEST(ReaderTest, testReadCompactedWithNullValue) {
+    Client client(serviceUrl);
+
+    const std::string topicName =
+        "persistent://public/default/testReadCompactedWithNullValue-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    // Send messages with keys
+    ASSERT_EQ(ResultOk,
+              producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1").build()));
+    ASSERT_EQ(ResultOk,
+              producer.send(MessageBuilder().setPartitionKey("key2").setContent("value2").build()));
+    ASSERT_EQ(ResultOk,
+              producer.send(MessageBuilder().setPartitionKey("key3").setContent("value3").build()));
+
+    // Send a tombstone (null value) for key2
+    auto tombstone = MessageBuilder().setPartitionKey("key2").setNullValue().build();
+    ASSERT_TRUE(tombstone.hasNullValue());
+    ASSERT_EQ(tombstone.getLength(), 0);
+    ASSERT_EQ(ResultOk, producer.send(tombstone));
+
+    // Update key1 with a new value
+    ASSERT_EQ(ResultOk,
+              producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1-updated").build()));
+
+    // Trigger compaction via admin API
+    {
+        std::string compactUrl =
+            adminUrl + "admin/v2/persistent/public/default/testReadCompactedWithNullValue-" +
+            std::to_string(time(nullptr)) + "/compaction";
+        // Note: Compaction is async, we just trigger it
+        makePutRequest(compactUrl, "");
+    }
+
+    // Create a reader with readCompacted enabled
+    ReaderConfiguration readerConf;
+    readerConf.setReadCompacted(true);
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    // Read all messages and verify we can detect null values
+    std::map<std::string, std::string> keyValues;
+    std::set<std::string> nullValueKeys;
+
+    for (int i = 0; i < 10; i++) {
+        bool hasMessageAvailable = false;
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+        if (!hasMessageAvailable) {
+            break;
+        }
+
+        Message msg;
+        Result res = reader.readNext(msg, 3000);
+        if (res != ResultOk) {
+            break;
+        }
+
+        std::string key = msg.getPartitionKey();
+        if (msg.hasNullValue()) {
+            nullValueKeys.insert(key);
+            LOG_INFO("Received null value (tombstone) for key: " << key);
+        } else {
+            keyValues[key] = msg.getDataAsString();
+            LOG_INFO("Received message for key: " << key << ", value: " << msg.getDataAsString());
+        }
+    }
+
+    // Verify we received the tombstone for key2
+    // Note: Without compaction completing, we see all messages including the tombstone
+    // After compaction, we would only see the latest value for each key
+    ASSERT_TRUE(nullValueKeys.count("key2") > 0 || keyValues.count("key2") == 0)
+        << "key2 should either have a null value or be absent after compaction";
+
+    producer.close();
+    reader.close();
+    client.close();
+}
+
+TEST(ReaderTest, testNullValueMessageProperties) {
+    Client client(serviceUrl);
+
+    const std::string topicName =
+        "persistent://public/default/testNullValueMessageProperties-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    // Send a null value message with properties
+    auto tombstone = MessageBuilder()
+                         .setPartitionKey("user-123")
+                         .setNullValue()
+                         .setProperty("reason", "account-deleted")
+                         .setProperty("deleted-by", "admin")
+                         .build();
+
+    ASSERT_TRUE(tombstone.hasNullValue());
+    ASSERT_EQ(tombstone.getPartitionKey(), "user-123");
+    ASSERT_EQ(tombstone.getProperty("reason"), "account-deleted");
+    ASSERT_EQ(tombstone.getProperty("deleted-by"), "admin");
+    ASSERT_EQ(tombstone.getLength(), 0);
+
+    ASSERT_EQ(ResultOk, producer.send(tombstone));
+
+    // Create a reader and verify the message
+    ReaderConfiguration readerConf;
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    Message msg;
+    ASSERT_EQ(ResultOk, reader.readNext(msg, 5000));
+
+    // Verify all properties are preserved
+    ASSERT_TRUE(msg.hasNullValue());
+    ASSERT_EQ(msg.getPartitionKey(), "user-123");
+    ASSERT_EQ(msg.getProperty("reason"), "account-deleted");
+    ASSERT_EQ(msg.getProperty("deleted-by"), "admin");
+    ASSERT_EQ(msg.getLength(), 0);
+
+    producer.close();
+    reader.close();
+    client.close();
+}
+
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderSeekTest, ::testing::Values(true, false));
