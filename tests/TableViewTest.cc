@@ -214,10 +214,8 @@ TEST(TableViewTest, testNullValueVsEmptyString) {
     ASSERT_EQ(ResultOk, client.createProducer(topic, producerConfiguration, producer));
 
     // Send messages for two keys
-    ASSERT_EQ(ResultOk, producer.send(
-        MessageBuilder().setPartitionKey("keyA").setContent("valueA").build()));
-    ASSERT_EQ(ResultOk, producer.send(
-        MessageBuilder().setPartitionKey("keyB").setContent("valueB").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("keyA").setContent("valueA").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("keyB").setContent("valueB").build()));
 
     TableView tableView;
     ASSERT_EQ(ResultOk, client.createTableView(topic, {}, tableView));
