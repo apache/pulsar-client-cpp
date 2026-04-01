@@ -1055,12 +1055,9 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
     ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
 
     // Send messages with keys
-    ASSERT_EQ(ResultOk,
-              producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1").build()));
-    ASSERT_EQ(ResultOk,
-              producer.send(MessageBuilder().setPartitionKey("key2").setContent("value2").build()));
-    ASSERT_EQ(ResultOk,
-              producer.send(MessageBuilder().setPartitionKey("key3").setContent("value3").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("key2").setContent("value2").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("key3").setContent("value3").build()));
 
     // Send a tombstone (null value) for key2
     auto tombstone = MessageBuilder().setPartitionKey("key2").setNullValue().build();
@@ -1074,11 +1071,16 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
 
     // Trigger compaction via admin API
     {
-        std::string compactUrl =
-            adminUrl + "admin/v2/persistent/public/default/testReadCompactedWithNullValue-" +
-            std::to_string(time(nullptr)) + "/compaction";
-        // Note: Compaction is async, we just trigger it
-        makePutRequest(compactUrl, "");
+        // Build compaction URL directly from topicName to avoid mismatches
+        // topicName is "persistent://public/default/..." -> need "persistent/public/default/..."
+        std::string topicPath = topicName;
+        std::size_t schemePos = topicPath.find("://");
+        if (schemePos != std::string::npos) {
+            topicPath.erase(schemePos, 3);
+        }
+        std::string compactUrl = adminUrl + "admin/v2/" + topicPath + "/compaction";
+        int res = makePutRequest(compactUrl, "");
+        ASSERT_TRUE(res == 204 || res == 409) << "Failed to trigger compaction, res: " << res;
     }
 
     // Create a reader with readCompacted enabled
@@ -1091,18 +1093,11 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
     std::map<std::string, std::string> keyValues;
     std::set<std::string> nullValueKeys;
 
-    for (int i = 0; i < 10; i++) {
-        bool hasMessageAvailable = false;
-        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
-        if (!hasMessageAvailable) {
-            break;
-        }
-
+    bool hasMessageAvailable = false;
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    while (hasMessageAvailable) {
         Message msg;
-        Result res = reader.readNext(msg, 3000);
-        if (res != ResultOk) {
-            break;
-        }
+        ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
 
         std::string key = msg.getPartitionKey();
         if (msg.hasNullValue()) {
@@ -1112,11 +1107,21 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
             keyValues[key] = msg.getDataAsString();
             LOG_INFO("Received message for key: " << key << ", value: " << msg.getDataAsString());
         }
+
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     }
 
-    // Verify we received the tombstone for key2
-    // Note: Without compaction completing, we see all messages including the tombstone
-    // After compaction, we would only see the latest value for each key
+    // Verify we actually read messages (test should not silently succeed with no messages)
+    ASSERT_FALSE(keyValues.empty() && nullValueKeys.empty()) << "Expected to read at least one message";
+
+    // Verify concrete outcomes:
+    // - key1 should have the updated value "value1-updated"
+    // - key2 should either be a tombstone (null value) or absent after compaction
+    // - key3 should have value "value3"
+    ASSERT_TRUE(keyValues.count("key1") > 0) << "key1 should be present";
+    ASSERT_EQ(keyValues["key1"], "value1-updated") << "key1 should have the updated value";
+    ASSERT_TRUE(keyValues.count("key3") > 0) << "key3 should be present";
+    ASSERT_EQ(keyValues["key3"], "value3") << "key3 should have value3";
     ASSERT_TRUE(nullValueKeys.count("key2") > 0 || keyValues.count("key2") == 0)
         << "key2 should either have a null value or be absent after compaction";
 
