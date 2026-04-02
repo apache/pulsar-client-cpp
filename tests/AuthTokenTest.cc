@@ -22,6 +22,7 @@
 #include <pulsar/Client.h>
 
 #include <boost/algorithm/string.hpp>
+#include <cctype>
 #include <fstream>
 #include <streambuf>
 #include <string>
@@ -45,6 +46,9 @@ static const std::string tokenPath = TOKEN_PATH;
 std::string getToken() {
     std::ifstream file(tokenPath);
     std::string str((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+    while (!str.empty() && isspace(str.back())) {
+        str.pop_back();
+    }
     return str;
 }
 
