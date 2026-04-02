@@ -173,7 +173,7 @@ class AutoClusterFailoverImpl : public std::enable_shared_from_this<AutoClusterF
         ASIO_ERROR ignored;
         context->resolver.cancel();
         context->socket.close(ignored);
-        context->timer.cancel(ignored);
+        cancelTimer(context->timer);
 
         context->callback(success);
     }
