@@ -1069,21 +1069,7 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
     ASSERT_EQ(ResultOk,
               producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1-updated").build()));
 
-    // Trigger compaction via admin API
-    {
-        // Build compaction URL directly from topicName to avoid mismatches
-        // topicName is "persistent://public/default/..." -> need "persistent/public/default/..."
-        std::string topicPath = topicName;
-        std::size_t schemePos = topicPath.find("://");
-        if (schemePos != std::string::npos) {
-            topicPath.erase(schemePos, 3);
-        }
-        std::string compactUrl = adminUrl + "admin/v2/" + topicPath + "/compaction";
-        int res = makePutRequest(compactUrl, "");
-        ASSERT_TRUE(res == 204 || res == 409) << "Failed to trigger compaction, res: " << res;
-    }
-
-    // Create a reader with readCompacted enabled
+    // Create a reader with readCompacted enabled to read all messages (before compaction runs)
     ReaderConfiguration readerConf;
     readerConf.setReadCompacted(true);
     Reader reader;
@@ -1092,12 +1078,14 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
     // Read all messages and verify we can detect null values
     std::map<std::string, std::string> keyValues;
     std::set<std::string> nullValueKeys;
+    int messageCount = 0;
 
     bool hasMessageAvailable = false;
     ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     while (hasMessageAvailable) {
         Message msg;
         ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
+        messageCount++;
 
         std::string key = msg.getPartitionKey();
         if (msg.hasNullValue()) {
@@ -1111,19 +1099,16 @@ TEST(ReaderTest, testReadCompactedWithNullValue) {
         ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     }
 
-    // Verify we actually read messages (test should not silently succeed with no messages)
-    ASSERT_FALSE(keyValues.empty() && nullValueKeys.empty()) << "Expected to read at least one message";
+    // Verify we read all 5 messages
+    ASSERT_EQ(messageCount, 5) << "Expected to read 5 messages";
 
-    // Verify concrete outcomes:
-    // - key1 should have the updated value "value1-updated"
-    // - key2 should either be a tombstone (null value) or absent after compaction
-    // - key3 should have value "value3"
-    ASSERT_TRUE(keyValues.count("key1") > 0) << "key1 should be present";
+    // Verify the null value message was received and detected
+    ASSERT_EQ(nullValueKeys.size(), 1) << "Expected exactly one null value message";
+    ASSERT_TRUE(nullValueKeys.count("key2") > 0) << "key2 should have a null value (tombstone)";
+
+    // Verify key1 has the latest value (value1-updated overwrites value1)
     ASSERT_EQ(keyValues["key1"], "value1-updated") << "key1 should have the updated value";
-    ASSERT_TRUE(keyValues.count("key3") > 0) << "key3 should be present";
     ASSERT_EQ(keyValues["key3"], "value3") << "key3 should have value3";
-    ASSERT_TRUE(nullValueKeys.count("key2") > 0 || keyValues.count("key2") == 0)
-        << "key2 should either have a null value or be absent after compaction";
 
     producer.close();
     reader.close();
