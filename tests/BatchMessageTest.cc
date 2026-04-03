@@ -988,6 +988,36 @@ TEST(BatchMessageTest, testParseMessageBatchEntry) {
     }
 }
 
+TEST(BatchMessageTest, testParseMessageBatchEntryWithNullValue) {
+    std::vector<Message> msgs;
+    msgs.emplace_back(MessageBuilder().setPartitionKey("key1").setNullValue().build());
+    msgs.emplace_back(MessageBuilder().setContent("content2").setPartitionKey("key2").build());
+    msgs.emplace_back(MessageBuilder().setPartitionKey("key3").setNullValue().build());
+
+    SharedBuffer payload;
+    Commands::serializeSingleMessagesToBatchPayload(payload, msgs);
+    ASSERT_EQ(payload.writableBytes(), 0);
+
+    MessageBatch messageBatch;
+    auto fakeId = MessageIdBuilder().ledgerId(6000L).entryId(20L).partition(0).build();
+    messageBatch.withMessageId(fakeId).parseFrom(payload, static_cast<uint32_t>(msgs.size()));
+    const std::vector<Message>& messages = messageBatch.messages();
+
+    ASSERT_EQ(messages.size(), 3);
+
+    ASSERT_TRUE(messages[0].hasNullValue());
+    ASSERT_EQ(messages[0].getPartitionKey(), "key1");
+    ASSERT_EQ(messages[0].getLength(), 0);
+
+    ASSERT_FALSE(messages[1].hasNullValue());
+    ASSERT_EQ(messages[1].getPartitionKey(), "key2");
+    ASSERT_EQ(messages[1].getDataAsString(), "content2");
+
+    ASSERT_TRUE(messages[2].hasNullValue());
+    ASSERT_EQ(messages[2].getPartitionKey(), "key3");
+    ASSERT_EQ(messages[2].getLength(), 0);
+}
+
 TEST(BatchMessageTest, testSendCallback) {
     const std::string topicName = "persistent://public/default/BasicMessageTest-testSendCallback";
 

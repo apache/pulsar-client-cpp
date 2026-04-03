@@ -127,6 +127,15 @@ PULSAR_PUBLIC void pulsar_message_set_replication_clusters(pulsar_message_t *mes
  */
 PULSAR_PUBLIC void pulsar_message_disable_replication(pulsar_message_t *message, int flag);
 
+/**
+ * Mark the message as having a null value.
+ *
+ * This is used for messages on compacted topics where a null value
+ * acts as a tombstone for a specific key, removing the message from
+ * the compacted view.
+ */
+PULSAR_PUBLIC void pulsar_message_set_null_value(pulsar_message_t *message);
+
 /// Accessor for built messages
 
 /**
@@ -220,6 +229,16 @@ PULSAR_PUBLIC void pulsar_message_set_schema_version(pulsar_message_t *message, 
  * caller should not free it.
  */
 PULSAR_PUBLIC const char *pulsar_message_get_producer_name(pulsar_message_t *message);
+
+/**
+ * Check if the message has a null value.
+ *
+ * Messages with null values are used as tombstones on compacted topics
+ * to delete the message for a specific key.
+ *
+ * @return 1 if the message has a null value, 0 otherwise
+ */
+PULSAR_PUBLIC int pulsar_message_has_null_value(pulsar_message_t *message);
 
 #ifdef __cplusplus
 }
