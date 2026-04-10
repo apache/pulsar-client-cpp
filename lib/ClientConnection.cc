@@ -33,6 +33,7 @@
 #include "ConnectionPool.h"
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
+#include "Future.h"
 #include "LogUtils.h"
 #include "MockServer.h"
 #include "OpSendMsg.h"
@@ -1029,8 +1030,6 @@ void ClientConnection::newPartitionedMetadataLookup(const std::string& topicName
 void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, const char* requestType,
                                  const LookupDataResultPromisePtr& promise) {
     Lock lock(mutex_);
-    std::shared_ptr<LookupDataResultPtr> lookupDataResult;
-    lookupDataResult = std::make_shared<LookupDataResultPtr>();
     if (isClosed()) {
         lock.unlock();
         promise->setFailed(ResultNotConnected);
@@ -1040,18 +1039,30 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
         promise->setFailed(ResultTooManyLookupRequestException);
         return;
     }
-    LookupRequestData requestData;
-    requestData.promise = promise;
-    requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_after(operationsTimeout_);
-    requestData.timer->async_wait([this, self{shared_from_this()}, requestData](const ASIO_ERROR& ec) {
-        handleLookupTimeout(ec, requestData);
+
+    auto request = insertRequest(
+        pendingLookupRequests_, requestId, [weakSelf{weak_from_this()}, requestId, requestType]() {
+            if (auto self = weakSelf.lock()) {
+                LOG_WARN(self->cnxString()
+                         << requestType << " request timeout to broker, req_id: " << requestId);
+                self->numOfPendingLookupRequest_--;
+            }
+        });
+    request->getFuture().addListener([promise](Result result, const LookupDataResultPtr& lookupDataResult) {
+        if (result == ResultOk) {
+            promise->setValue(lookupDataResult);
+        } else {
+            promise->setFailed(result);
+        }
     });
 
-    pendingLookupRequests_.insert(std::make_pair(requestId, requestData));
     numOfPendingLookupRequest_++;
     lock.unlock();
     LOG_DEBUG(cnxString() << "Inserted lookup request " << requestType << " (req_id: " << requestId << ")");
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest(requestType, requestId)) {
+        return;
+    }
     sendCommand(cmd);
 }
 
@@ -1159,21 +1170,19 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
 
     if (isClosed()) {
         lock.unlock();
-        Promise<Result, ResponseData> promise;
         LOG_DEBUG(cnxString() << "Fail " << requestType << "(req_id: " << requestId
                               << ") to a closed connection");
+        Promise<Result, ResponseData> promise;
         promise.setFailed(ResultNotConnected);
         return promise.getFuture();
     }
 
-    PendingRequestData requestData;
-    requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_after(operationsTimeout_);
-    requestData.timer->async_wait([this, self{shared_from_this()}, requestData](const ASIO_ERROR& ec) {
-        handleRequestTimeout(ec, requestData);
-    });
-
-    pendingRequests_.insert(std::make_pair(requestId, requestData));
+    auto request = insertRequest(
+        pendingRequests_, requestId,
+        [cnxString{cnxString()}, physicalAddress{physicalAddress_}, requestId, requestType]() {
+            LOG_WARN(cnxString << "Network request timeout to broker, remote: " << physicalAddress
+                               << ", req_id: " << requestId << ", request: " << requestType);
+        });
     lock.unlock();
 
     LOG_DEBUG(cnxString() << "Inserted request " << requestType << " (req_id: " << requestId << ")");
@@ -1187,31 +1196,7 @@ Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuf
     } else {
         sendCommand(cmd);
     }
-    return requestData.promise.getFuture();
-}
-
-void ClientConnection::handleRequestTimeout(const ASIO_ERROR& ec,
-                                            const PendingRequestData& pendingRequestData) {
-    if (!ec && !pendingRequestData.hasGotResponse->load()) {
-        LOG_WARN(cnxString() << "Network request timeout to broker, remote: " << physicalAddress_);
-        pendingRequestData.promise.setFailed(ResultTimeout);
-    }
-}
-
-void ClientConnection::handleLookupTimeout(const ASIO_ERROR& ec,
-                                           const LookupRequestData& pendingRequestData) {
-    if (!ec) {
-        LOG_WARN(cnxString() << "Lookup request timeout to broker, remote: " << physicalAddress_);
-        pendingRequestData.promise->setFailed(ResultTimeout);
-    }
-}
-
-void ClientConnection::handleGetLastMessageIdTimeout(const ASIO_ERROR& ec,
-                                                     const ClientConnection::LastMessageIdRequestData& data) {
-    if (!ec) {
-        LOG_WARN(cnxString() << "GetLastMessageId request timeout to broker, remote: " << physicalAddress_);
-        data.promise->setFailed(ResultTimeout);
-    }
+    return request->getFuture();
 }
 
 void ClientConnection::handleKeepAliveTimeout(const ASIO_ERROR& ec) {
@@ -1294,7 +1279,7 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
     cancelTimer(*connectTimer_);
     lock.unlock();
     int refCount = weak_from_this().use_count();
-    if (!isResultRetryable(result)) {
+    if (result != ResultAlreadyClosed /* closed by the pool */ && !isResultRetryable(result)) {
         LOG_ERROR(cnxString() << "Connection closed with " << result << " (refCnt: " << refCount << ")");
     } else {
         LOG_INFO(cnxString() << "Connection disconnected (refCnt: " << refCount << ")");
@@ -1344,25 +1329,25 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
 
     connectPromise_.setFailed(result);
 
-    // Fail all pending requests, all these type are map whose value type contains the Promise object
+    // Fail all pending requests after releasing the lock.
     for (auto& kv : pendingRequests) {
-        kv.second.fail(result);
+        kv.second->fail(result);
     }
     for (auto& kv : pendingLookupRequests) {
-        kv.second.fail(result);
+        kv.second->fail(result);
     }
     for (auto& kv : pendingConsumerStatsMap) {
         LOG_ERROR(cnxString() << " Closing Client Connection, please try again later");
         kv.second.setFailed(result);
     }
     for (auto& kv : pendingGetLastMessageIdRequests) {
-        kv.second.fail(result);
+        kv.second->fail(result);
     }
     for (auto& kv : pendingGetNamespaceTopicsRequests) {
-        kv.second.setFailed(result);
+        kv.second->fail(result);
     }
     for (auto& kv : pendingGetSchemaRequests) {
-        kv.second.fail(result);
+        kv.second->fail(result);
     }
     return *closeFuture_;
 }
@@ -1406,77 +1391,76 @@ Commands::ChecksumType ClientConnection::getChecksumType() const {
 Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(uint64_t consumerId,
                                                                                uint64_t requestId) {
     Lock lock(mutex_);
-    auto promise = std::make_shared<GetLastMessageIdResponsePromisePtr::element_type>();
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << " Client is not connected to the broker");
+        auto promise = std::make_shared<GetLastMessageIdResponsePromisePtr::element_type>();
         promise->setFailed(ResultNotConnected);
         return promise->getFuture();
     }
 
-    LastMessageIdRequestData requestData;
-    requestData.promise = promise;
-    requestData.timer = executor_->createDeadlineTimer();
-    requestData.timer->expires_after(operationsTimeout_);
-    requestData.timer->async_wait([this, self{shared_from_this()}, requestData](const ASIO_ERROR& ec) {
-        handleGetLastMessageIdTimeout(ec, requestData);
-    });
-    pendingGetLastMessageIdRequests_.insert(std::make_pair(requestId, requestData));
+    auto request =
+        insertRequest(pendingGetLastMessageIdRequests_, requestId, [cnxString = cnxString(), requestId]() {
+            LOG_WARN(cnxString << "GetLastMessageId request timeout to broker, req_id: " << requestId);
+        });
     lock.unlock();
+
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("GET_LAST_MESSAGE_ID", requestId)) {
+        return request->getFuture();
+    }
     sendCommand(Commands::newGetLastMessageId(consumerId, requestId));
-    return promise->getFuture();
+    return request->getFuture();
 }
 
 Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
     const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId) {
     Lock lock(mutex_);
-    Promise<Result, NamespaceTopicsPtr> promise;
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
+        Promise<Result, NamespaceTopicsPtr> promise;
         promise.setFailed(ResultNotConnected);
         return promise.getFuture();
     }
 
-    pendingGetNamespaceTopicsRequests_.insert(std::make_pair(requestId, promise));
+    auto request =
+        insertRequest(pendingGetNamespaceTopicsRequests_, requestId, [cnxString = cnxString(), requestId]() {
+            LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: " << requestId);
+        });
     lock.unlock();
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("GET_TOPICS_OF_NAMESPACE", requestId)) {
+        return request->getFuture();
+    }
     sendCommand(Commands::newGetTopicsOfNamespace(nsName, mode, requestId));
-    return promise.getFuture();
+    return request->getFuture();
 }
 
 Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
                                                           const std::string& version, uint64_t requestId) {
     Lock lock(mutex_);
 
-    Promise<Result, SchemaInfo> promise;
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
+        Promise<Result, SchemaInfo> promise;
         promise.setFailed(ResultNotConnected);
         return promise.getFuture();
     }
 
-    auto timer = executor_->createDeadlineTimer();
-    pendingGetSchemaRequests_.emplace(requestId, GetSchemaRequest{promise, timer});
+    auto request =
+        insertRequest(pendingGetSchemaRequests_, requestId, [cnxString = cnxString(), requestId]() {
+            LOG_WARN(cnxString << "GetSchema request timeout to broker, req_id: " << requestId);
+        });
     lock.unlock();
 
-    timer->expires_after(operationsTimeout_);
-    timer->async_wait([this, self{shared_from_this()}, requestId](const ASIO_ERROR& ec) {
-        if (ec) {
-            return;
-        }
-        Lock lock(mutex_);
-        auto it = pendingGetSchemaRequests_.find(requestId);
-        if (it != pendingGetSchemaRequests_.end()) {
-            auto promise = std::move(it->second.promise);
-            pendingGetSchemaRequests_.erase(it);
-            lock.unlock();
-            promise.setFailed(ResultTimeout);
-        }
-    });
-
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("GET_SCHEMA", requestId)) {
+        return request->getFuture();
+    }
     sendCommand(Commands::newGetSchema(topicName, version, requestId));
-    return promise.getFuture();
+    return request->getFuture();
 }
 
 void ClientConnection::checkServerError(ServerError error, const std::string& message) {
@@ -1541,12 +1525,11 @@ void ClientConnection::handleSuccess(const proto::CommandSuccess& success) {
     Lock lock(mutex_);
     auto it = pendingRequests_.find(success.request_id());
     if (it != pendingRequests_.end()) {
-        PendingRequestData requestData = it->second;
+        auto request = std::move(it->second);
         pendingRequests_.erase(it);
         lock.unlock();
 
-        requestData.promise.setValue({});
-        cancelTimer(*requestData.timer);
+        request->complete({});
     }
 }
 
@@ -1558,9 +1541,7 @@ void ClientConnection::handlePartitionedMetadataResponse(
     Lock lock(mutex_);
     auto it = pendingLookupRequests_.find(partitionMetadataResponse.request_id());
     if (it != pendingLookupRequests_.end()) {
-        cancelTimer(*it->second.timer);
-
-        LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
+        auto request = std::move(it->second);
         pendingLookupRequests_.erase(it);
         numOfPendingLookupRequest_--;
         lock.unlock();
@@ -1574,17 +1555,17 @@ void ClientConnection::handlePartitionedMetadataResponse(
                                       << " error: " << partitionMetadataResponse.error()
                                       << " msg: " << partitionMetadataResponse.message());
                 checkServerError(partitionMetadataResponse.error(), partitionMetadataResponse.message());
-                lookupDataPromise->setFailed(
+                request->fail(
                     getResult(partitionMetadataResponse.error(), partitionMetadataResponse.message()));
             } else {
                 LOG_ERROR(cnxString() << "Failed partition-metadata lookup req_id: "
                                       << partitionMetadataResponse.request_id() << " with empty response: ");
-                lookupDataPromise->setFailed(ResultConnectError);
+                request->fail(ResultConnectError);
             }
         } else {
             LookupDataResultPtr lookupResultPtr = std::make_shared<LookupDataResult>();
             lookupResultPtr->setPartitions(partitionMetadataResponse.partitions());
-            lookupDataPromise->setValue(lookupResultPtr);
+            request->complete(lookupResultPtr);
         }
 
     } else {
@@ -1600,7 +1581,7 @@ void ClientConnection::handleConsumerStatsResponse(
     Lock lock(mutex_);
     auto it = pendingConsumerStatsMap_.find(consumerStatsResponse.request_id());
     if (it != pendingConsumerStatsMap_.end()) {
-        Promise<Result, BrokerConsumerStatsImpl> consumerStatsPromise = it->second;
+        auto request = std::move(it->second);
         pendingConsumerStatsMap_.erase(it);
         lock.unlock();
 
@@ -1609,7 +1590,7 @@ void ClientConnection::handleConsumerStatsResponse(
                 LOG_ERROR(cnxString()
                           << " Failed to get consumer stats - " << consumerStatsResponse.error_message());
             }
-            consumerStatsPromise.setFailed(
+            request.setFailed(
                 getResult(consumerStatsResponse.error_code(), consumerStatsResponse.error_message()));
         } else {
             LOG_DEBUG(cnxString() << "ConsumerStatsResponse command - Received consumer stats "
@@ -1622,7 +1603,7 @@ void ClientConnection::handleConsumerStatsResponse(
                 consumerStatsResponse.blockedconsumeronunackedmsgs(), consumerStatsResponse.address(),
                 consumerStatsResponse.connectedsince(), consumerStatsResponse.type(),
                 consumerStatsResponse.msgrateexpired(), consumerStatsResponse.msgbacklog());
-            consumerStatsPromise.setValue(brokerStats);
+            request.setValue(brokerStats);
         }
     } else {
         LOG_WARN("ConsumerStatsResponse command - Received unknown request id from server: "
@@ -1635,8 +1616,7 @@ void ClientConnection::handleLookupTopicRespose(
     Lock lock(mutex_);
     auto it = pendingLookupRequests_.find(lookupTopicResponse.request_id());
     if (it != pendingLookupRequests_.end()) {
-        cancelTimer(*it->second.timer);
-        LookupDataResultPromisePtr lookupDataPromise = it->second.promise;
+        auto request = std::move(it->second);
         pendingLookupRequests_.erase(it);
         numOfPendingLookupRequest_--;
         lock.unlock();
@@ -1648,12 +1628,11 @@ void ClientConnection::handleLookupTopicRespose(
                                       << " error: " << lookupTopicResponse.error()
                                       << " msg: " << lookupTopicResponse.message());
                 checkServerError(lookupTopicResponse.error(), lookupTopicResponse.message());
-                lookupDataPromise->setFailed(
-                    getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
+                request->fail(getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
             } else {
                 LOG_ERROR(cnxString() << "Failed lookup req_id: " << lookupTopicResponse.request_id()
                                       << " with empty response: ");
-                lookupDataPromise->setFailed(ResultConnectError);
+                request->fail(ResultConnectError);
             }
         } else {
             LOG_DEBUG(cnxString() << "Received lookup response from server. req_id: "
@@ -1676,7 +1655,7 @@ void ClientConnection::handleLookupTopicRespose(
             lookupResultPtr->setRedirect(lookupTopicResponse.response() ==
                                          proto::CommandLookupTopicResponse::Redirect);
             lookupResultPtr->setShouldProxyThroughServiceUrl(lookupTopicResponse.proxy_through_service_url());
-            lookupDataPromise->setValue(lookupResultPtr);
+            request->complete(lookupResultPtr);
         }
 
     } else {
@@ -1692,12 +1671,12 @@ void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess
     Lock lock(mutex_);
     auto it = pendingRequests_.find(producerSuccess.request_id());
     if (it != pendingRequests_.end()) {
-        PendingRequestData requestData = it->second;
+        auto request = it->second;
         if (!producerSuccess.producer_ready()) {
             LOG_INFO(cnxString() << " Producer " << producerSuccess.producer_name()
                                  << " has been queued up at broker. req_id: "
                                  << producerSuccess.request_id());
-            requestData.hasGotResponse->store(true);
+            request->disableTimeout();
             lock.unlock();
         } else {
             pendingRequests_.erase(it);
@@ -1713,8 +1692,7 @@ void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess
             } else {
                 data.topicEpoch = std::nullopt;
             }
-            requestData.promise.setValue(data);
-            cancelTimer(*requestData.timer);
+            request->complete(data);
         }
     }
 }
@@ -1729,30 +1707,27 @@ void ClientConnection::handleError(const proto::CommandError& error) {
 
     auto it = pendingRequests_.find(error.request_id());
     if (it != pendingRequests_.end()) {
-        PendingRequestData requestData = it->second;
+        auto request = std::move(it->second);
         pendingRequests_.erase(it);
         lock.unlock();
 
-        requestData.promise.setFailed(result);
-        cancelTimer(*requestData.timer);
+        request->fail(result);
     } else {
-        PendingGetLastMessageIdRequestsMap::iterator it =
-            pendingGetLastMessageIdRequests_.find(error.request_id());
+        auto it = pendingGetLastMessageIdRequests_.find(error.request_id());
         if (it != pendingGetLastMessageIdRequests_.end()) {
-            auto getLastMessageIdPromise = it->second.promise;
+            auto request = std::move(it->second);
             pendingGetLastMessageIdRequests_.erase(it);
             lock.unlock();
 
-            getLastMessageIdPromise->setFailed(result);
+            request->fail(result);
         } else {
-            PendingGetNamespaceTopicsMap::iterator it =
-                pendingGetNamespaceTopicsRequests_.find(error.request_id());
+            auto it = pendingGetNamespaceTopicsRequests_.find(error.request_id());
             if (it != pendingGetNamespaceTopicsRequests_.end()) {
-                Promise<Result, NamespaceTopicsPtr> getNamespaceTopicsPromise = it->second;
+                auto request = std::move(it->second);
                 pendingGetNamespaceTopicsRequests_.erase(it);
                 lock.unlock();
 
-                getNamespaceTopicsPromise.setFailed(result);
+                request->fail(result);
             } else {
                 lock.unlock();
             }
@@ -1904,16 +1879,15 @@ void ClientConnection::handleGetLastMessageIdResponse(
     auto it = pendingGetLastMessageIdRequests_.find(getLastMessageIdResponse.request_id());
 
     if (it != pendingGetLastMessageIdRequests_.end()) {
-        auto getLastMessageIdPromise = it->second.promise;
+        auto request = std::move(it->second);
         pendingGetLastMessageIdRequests_.erase(it);
         lock.unlock();
 
         if (getLastMessageIdResponse.has_consumer_mark_delete_position()) {
-            getLastMessageIdPromise->setValue(
-                {toMessageId(getLastMessageIdResponse.last_message_id()),
-                 toMessageId(getLastMessageIdResponse.consumer_mark_delete_position())});
+            request->complete({toMessageId(getLastMessageIdResponse.last_message_id()),
+                               toMessageId(getLastMessageIdResponse.consumer_mark_delete_position())});
         } else {
-            getLastMessageIdPromise->setValue({toMessageId(getLastMessageIdResponse.last_message_id())});
+            request->complete({toMessageId(getLastMessageIdResponse.last_message_id())});
         }
     } else {
         lock.unlock();
@@ -1931,7 +1905,7 @@ void ClientConnection::handleGetTopicOfNamespaceResponse(
     auto it = pendingGetNamespaceTopicsRequests_.find(response.request_id());
 
     if (it != pendingGetNamespaceTopicsRequests_.end()) {
-        Promise<Result, NamespaceTopicsPtr> getTopicsPromise = it->second;
+        auto request = std::move(it->second);
         pendingGetNamespaceTopicsRequests_.erase(it);
         lock.unlock();
 
@@ -1953,7 +1927,7 @@ void ClientConnection::handleGetTopicOfNamespaceResponse(
         NamespaceTopicsPtr topicsPtr =
             std::make_shared<std::vector<std::string>>(topicSet.begin(), topicSet.end());
 
-        getTopicsPromise.setValue(topicsPtr);
+        request->complete(topicsPtr);
     } else {
         lock.unlock();
         LOG_WARN(
@@ -1968,7 +1942,7 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
     Lock lock(mutex_);
     auto it = pendingGetSchemaRequests_.find(response.request_id());
     if (it != pendingGetSchemaRequests_.end()) {
-        Promise<Result, SchemaInfo> getSchemaPromise = it->second.promise;
+        auto request = std::move(it->second);
         pendingGetSchemaRequests_.erase(it);
         lock.unlock();
 
@@ -1981,7 +1955,7 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
                                              : "")
                                      << " -- req_id: " << response.request_id());
             }
-            getSchemaPromise.setFailed(result);
+            request->fail(result);
             return;
         }
 
@@ -1992,7 +1966,7 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
             properties[kv->key()] = kv->value();
         }
         SchemaInfo schemaInfo(static_cast<SchemaType>(schema.type()), "", schema.schema_data(), properties);
-        getSchemaPromise.setValue(schemaInfo);
+        request->complete(schemaInfo);
     } else {
         lock.unlock();
         LOG_WARN(
@@ -2013,24 +1987,23 @@ void ClientConnection::handleAckResponse(const proto::CommandAckResponse& respon
         return;
     }
 
-    auto promise = it->second.promise;
+    auto request = std::move(it->second);
     pendingRequests_.erase(it);
     lock.unlock();
 
     if (response.has_error()) {
-        promise.setFailed(getResult(response.error(), ""));
+        request->fail(getResult(response.error(), ""));
     } else {
-        promise.setValue({});
+        request->complete({});
     }
 }
 
 void ClientConnection::unsafeRemovePendingRequest(long requestId) {
     auto it = pendingRequests_.find(requestId);
     if (it != pendingRequests_.end()) {
-        it->second.promise.setFailed(ResultDisconnected);
-        cancelTimer(*it->second.timer);
-
+        auto request = std::move(it->second);
         pendingRequests_.erase(it);
+        request->fail(ResultDisconnected);
     }
 }
 

@@ -30,11 +30,7 @@ namespace pulsar {
 BatchMessageContainer::BatchMessageContainer(const ProducerImpl& producer)
     : BatchMessageContainerBase(producer) {}
 
-BatchMessageContainer::~BatchMessageContainer() {
-    LOG_DEBUG(*this << " destructed");
-    LOG_DEBUG("[numberOfBatchesSent = " << numberOfBatchesSent_
-                                        << "] [averageBatchSize_ = " << averageBatchSize_ << "]");
-}
+BatchMessageContainer::~BatchMessageContainer() {}
 
 bool BatchMessageContainer::add(const Message& msg, const SendCallback& callback) {
     LOG_DEBUG("Before add: " << *this << " [message = " << msg << "]");

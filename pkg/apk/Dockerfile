@@ -28,6 +28,7 @@ RUN apk add \
       abuild \
       bash \
       curl \
+      curl-dev \
       g++ \
       make \
       cmake \

@@ -18,13 +18,16 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/ClientConfiguration.h>
 #include <pulsar/Reader.h>
 #include <time.h>
 
 #include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <future>
+#include <limits>
 #include <set>
 #include <string>
 #include <thread>
@@ -864,13 +867,7 @@ TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
     }
 
     ASSERT_EQ(ResultOk, reader.seek(MessageId::latest()));
-    // After seek-to-end the broker may close the consumer and trigger reconnect; allow a short
-    // delay for hasMessageAvailable to become false (avoids flakiness when reconnect completes).
-    for (int i = 0; i < 50; i++) {
-        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
-        if (!hasMessageAvailable) break;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
     ASSERT_FALSE(hasMessageAvailable);
 
     producer.send(MessageBuilder().setContent("msg-2").build());
@@ -980,6 +977,187 @@ TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
     };
     assertStartMessageId(true, firstMsgId);
     assertStartMessageId(false, secondMsgId);
+}
+
+TEST_P(ReaderSeekTest, testSeekToEndByTimestamp) {
+    auto topic = "test-seek-to-end-by-timestamp-" + std::to_string(time(nullptr));
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+
+    ReaderConfiguration readerConf;
+    readerConf.setStartMessageIdInclusive(GetParam());
+
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topic, MessageId::earliest(), readerConf, reader));
+
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("msg").build()));
+    // Server side (Java) uses signal 64 bits integers to represent the timestamp, so use max int64_t here to
+    // seek to the end of topic.
+    auto now = std::numeric_limits<int64_t>::max();
+    ASSERT_EQ(ResultOk, reader.seek(now));
+
+    bool hasMessageAvailable;
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    ASSERT_FALSE(hasMessageAvailable);
+}
+
+// Regression test for segfault when Reader is used with messageListenerThreads=0.
+// Verifies ExecutorServiceProvider(0) does not cause undefined behavior and
+// ConsumerImpl::messageReceived does not dereference null listenerExecutor_.
+TEST(ReaderTest, testReaderWithZeroMessageListenerThreads) {
+    ClientConfiguration clientConf;
+    clientConf.setMessageListenerThreads(0);
+    Client client(serviceUrl, clientConf);
+
+    const std::string topicName = "testReaderWithZeroMessageListenerThreads-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    ReaderConfiguration readerConf;
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    constexpr int numMessages = 5;
+    for (int i = 0; i < numMessages; i++) {
+        Message msg = MessageBuilder().setContent("msg-" + std::to_string(i)).build();
+        ASSERT_EQ(ResultOk, producer.send(msg));
+    }
+
+    int received = 0;
+    for (int i = 0; i < numMessages + 2; i++) {
+        bool hasMessageAvailable = false;
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+        if (!hasMessageAvailable) {
+            break;
+        }
+        Message msg;
+        Result res = reader.readNext(msg, 3000);
+        ASSERT_EQ(ResultOk, res) << "readNext failed at iteration " << i;
+        std::string content = msg.getDataAsString();
+        EXPECT_EQ("msg-" + std::to_string(received), content);
+        ++received;
+    }
+    EXPECT_EQ(received, numMessages);
+
+    producer.close();
+    reader.close();
+    client.close();
+}
+
+TEST(ReaderTest, testReadCompactedWithNullValue) {
+    Client client(serviceUrl);
+
+    const std::string topicName =
+        "persistent://public/default/testReadCompactedWithNullValue-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    // Send messages with keys
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("key2").setContent("value2").build()));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setPartitionKey("key3").setContent("value3").build()));
+
+    // Send a tombstone (null value) for key2
+    auto tombstone = MessageBuilder().setPartitionKey("key2").setNullValue().build();
+    ASSERT_TRUE(tombstone.hasNullValue());
+    ASSERT_EQ(tombstone.getLength(), 0);
+    ASSERT_EQ(ResultOk, producer.send(tombstone));
+
+    // Update key1 with a new value
+    ASSERT_EQ(ResultOk,
+              producer.send(MessageBuilder().setPartitionKey("key1").setContent("value1-updated").build()));
+
+    // Create a reader with readCompacted enabled to read all messages (before compaction runs)
+    ReaderConfiguration readerConf;
+    readerConf.setReadCompacted(true);
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    // Read all messages and verify we can detect null values
+    std::map<std::string, std::string> keyValues;
+    std::set<std::string> nullValueKeys;
+    int messageCount = 0;
+
+    bool hasMessageAvailable = false;
+    ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    while (hasMessageAvailable) {
+        Message msg;
+        ASSERT_EQ(ResultOk, reader.readNext(msg, 3000));
+        messageCount++;
+
+        std::string key = msg.getPartitionKey();
+        if (msg.hasNullValue()) {
+            nullValueKeys.insert(key);
+            LOG_INFO("Received null value (tombstone) for key: " << key);
+        } else {
+            keyValues[key] = msg.getDataAsString();
+            LOG_INFO("Received message for key: " << key << ", value: " << msg.getDataAsString());
+        }
+
+        ASSERT_EQ(ResultOk, reader.hasMessageAvailable(hasMessageAvailable));
+    }
+
+    // Verify we read all 5 messages
+    ASSERT_EQ(messageCount, 5) << "Expected to read 5 messages";
+
+    // Verify the null value message was received and detected
+    ASSERT_EQ(nullValueKeys.size(), 1) << "Expected exactly one null value message";
+    ASSERT_TRUE(nullValueKeys.count("key2") > 0) << "key2 should have a null value (tombstone)";
+
+    // Verify key1 has the latest value (value1-updated overwrites value1)
+    ASSERT_EQ(keyValues["key1"], "value1-updated") << "key1 should have the updated value";
+    ASSERT_EQ(keyValues["key3"], "value3") << "key3 should have value3";
+
+    producer.close();
+    reader.close();
+    client.close();
+}
+
+TEST(ReaderTest, testNullValueMessageProperties) {
+    Client client(serviceUrl);
+
+    const std::string topicName =
+        "persistent://public/default/testNullValueMessageProperties-" + std::to_string(time(nullptr));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topicName, producer));
+
+    // Send a null value message with properties
+    auto tombstone = MessageBuilder()
+                         .setPartitionKey("user-123")
+                         .setNullValue()
+                         .setProperty("reason", "account-deleted")
+                         .setProperty("deleted-by", "admin")
+                         .build();
+
+    ASSERT_TRUE(tombstone.hasNullValue());
+    ASSERT_EQ(tombstone.getPartitionKey(), "user-123");
+    ASSERT_EQ(tombstone.getProperty("reason"), "account-deleted");
+    ASSERT_EQ(tombstone.getProperty("deleted-by"), "admin");
+    ASSERT_EQ(tombstone.getLength(), 0);
+
+    ASSERT_EQ(ResultOk, producer.send(tombstone));
+
+    // Create a reader and verify the message
+    ReaderConfiguration readerConf;
+    Reader reader;
+    ASSERT_EQ(ResultOk, client.createReader(topicName, MessageId::earliest(), readerConf, reader));
+
+    Message msg;
+    ASSERT_EQ(ResultOk, reader.readNext(msg, 5000));
+
+    // Verify all properties are preserved
+    ASSERT_TRUE(msg.hasNullValue());
+    ASSERT_EQ(msg.getPartitionKey(), "user-123");
+    ASSERT_EQ(msg.getProperty("reason"), "account-deleted");
+    ASSERT_EQ(msg.getProperty("deleted-by"), "admin");
+    ASSERT_EQ(msg.getLength(), 0);
+
+    producer.close();
+    reader.close();
+    client.close();
 }
 
 INSTANTIATE_TEST_SUITE_P(Pulsar, ReaderTest, ::testing::Values(true, false));

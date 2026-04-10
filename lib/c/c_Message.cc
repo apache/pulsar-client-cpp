@@ -81,6 +81,8 @@ void pulsar_message_disable_replication(pulsar_message_t *message, int flag) {
     message->builder.disableReplication(flag);
 }
 
+void pulsar_message_set_null_value(pulsar_message_t *message) { message->builder.setNullValue(); }
+
 int pulsar_message_has_property(pulsar_message_t *message, const char *name) {
     return message->message.hasProperty(name);
 }
@@ -141,6 +143,12 @@ int pulsar_message_has_schema_version(pulsar_message_t *message) {
     return message->message.hasSchemaVersion();
 }
 
+void pulsar_message_set_schema_version(pulsar_message_t *message, const char *schemaVersion) {
+    message->message.setSchemaVersion(schemaVersion ? schemaVersion : "");
+}
+
 const char *pulsar_message_get_producer_name(pulsar_message_t *message) {
     return message->message.getProducerName().c_str();
 }
+
+int pulsar_message_has_null_value(pulsar_message_t *message) { return message->message.hasNullValue(); }

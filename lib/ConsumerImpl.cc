@@ -181,13 +181,15 @@ ConsumerImpl::ConsumerImpl(const ClientImplPtr& client, const std::string& topic
 }
 
 ConsumerImpl::~ConsumerImpl() {
-    LOG_DEBUG(consumerStr_ << "~ConsumerImpl");
+    auto client = client_.lock();
     if (state_ == Ready) {
         // this could happen at least in this condition:
         //      consumer seek, caused reconnection, if consumer close happened before connection ready,
         //      then consumer will not send closeConsumer to Broker side, and caused a leak of consumer in
         //      broker.
-        LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
+        if (client) {
+            LOG_WARN(consumerStr_ << "Destroyed consumer which was not properly closed");
+        }
 
         ClientConnectionPtr cnx = getCnx().lock();
         if (cnx) {
@@ -195,9 +197,6 @@ ConsumerImpl::~ConsumerImpl() {
             cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
                                    "CLOSE_CONSUMER");
             cnx->removeConsumer(consumerId_);
-            LOG_INFO(consumerStr_ << "Closed consumer for race condition: " << consumerId_);
-        } else {
-            LOG_WARN(consumerStr_ << "Client is destroyed and cannot send the CloseConsumer command");
         }
     }
     internalShutdown();
@@ -623,6 +622,11 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
     if (state == Closing || state == Closed) {
         return;
     }
+    if (!listenerExecutor_) {
+        LOG_ERROR(getName() << " listenerExecutor_ is null, discarding message to avoid null dereference");
+        increaseAvailablePermits(cnx);
+        return;
+    }
     uint32_t numOfMessageReceived = m.impl_->metadata.num_messages_in_batch();
     if (ackGroupingTrackerPtr_->isDuplicate(m.getMessageId())) {
         LOG_DEBUG(getName() << " Ignoring message as it was ACKed earlier by same consumer.");
@@ -664,8 +668,11 @@ void ConsumerImpl::messageReceived(const ClientConnectionPtr& cnx, const proto::
             return;
         }
         // Trigger message listener callback in a separate thread
-        while (numOfMessageReceived--) {
-            listenerExecutor_->postWork(std::bind(&ConsumerImpl::internalListener, get_shared_this_ptr()));
+        if (listenerExecutor_) {
+            while (numOfMessageReceived--) {
+                listenerExecutor_->postWork(
+                    std::bind(&ConsumerImpl::internalListener, get_shared_this_ptr()));
+            }
         }
     }
 }
@@ -714,8 +721,12 @@ void ConsumerImpl::executeNotifyCallback(Message& msg) {
 
     // has pending receive, direct callback.
     if (asyncReceivedWaiting) {
-        listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
-                                              get_shared_this_ptr(), ResultOk, msg, callback));
+        if (listenerExecutor_) {
+            listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
+                                                  get_shared_this_ptr(), ResultOk, msg, callback));
+        } else {
+            notifyPendingReceivedCallback(ResultOk, msg, callback);
+        }
         return;
     }
 
@@ -1631,18 +1642,6 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                 callback(result, {});
                 return;
             }
-            auto handleResponse = [self, response, callback] {
-                if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
-                    // We only care about comparing ledger ids and entry ids as mark delete position
-                    // doesn't have other ids such as batch index
-                    auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
-                                                                 response.getLastMessageId());
-                    callback(ResultOk, self->config_.isStartMessageIdInclusive() ? compareResult <= 0
-                                                                                 : compareResult < 0);
-                } else {
-                    callback(ResultOk, false);
-                }
-            };
             bool lastSeekIsByTimestamp = false;
             {
                 LockGuard lock{self->mutex_};
@@ -1651,6 +1650,23 @@ void ConsumerImpl::hasMessageAvailableAsync(const HasMessageAvailableCallback& c
                     lastSeekIsByTimestamp = true;
                 }
             }
+            auto handleResponse = [self, lastSeekIsByTimestamp, response, callback] {
+                if (response.hasMarkDeletePosition() && response.getLastMessageId().entryId() >= 0) {
+                    // We only care about comparing ledger ids and entry ids as mark delete position
+                    // doesn't have other ids such as batch index
+                    auto compareResult = compareLedgerAndEntryId(response.getMarkDeletePosition(),
+                                                                 response.getLastMessageId());
+                    // When the consumer has sought by timestamp, broker will ignore the
+                    // startMessageIdInclusive config, so the compare should still be exclusive
+                    if (lastSeekIsByTimestamp || !self->config_.isStartMessageIdInclusive()) {
+                        callback(ResultOk, compareResult < 0);
+                    } else {
+                        callback(ResultOk, compareResult <= 0);
+                    }
+                } else {
+                    callback(ResultOk, false);
+                }
+            };
             if (self->config_.isStartMessageIdInclusive() && !lastSeekIsByTimestamp) {
                 self->seekAsync(response.getLastMessageId(), [callback, handleResponse](Result result) {
                     if (result != ResultOk) {

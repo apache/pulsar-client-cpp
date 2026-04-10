@@ -123,6 +123,12 @@ Message::Message(const MessageId& messageID, proto::BrokerEntryMetadata& brokerE
     } else {
         impl_->metadata.clear_sequence_id();
     }
+
+    if (singleMetadata.null_value()) {
+        impl_->metadata.set_null_value(true);
+    } else {
+        impl_->metadata.clear_null_value();
+    }
 }
 
 const MessageId& Message::getMessageId() const {
@@ -177,6 +183,13 @@ const std::string& Message::getOrderingKey() const {
     return impl_->getOrderingKey();
 }
 
+bool Message::hasNullValue() const {
+    if (impl_) {
+        return impl_->metadata.null_value();
+    }
+    return false;
+}
+
 const std::string& Message::getTopicName() const {
     if (!impl_) {
         return emptyString;
@@ -207,6 +220,12 @@ const std::string& Message::getSchemaVersion() const {
         return emptyString;
     }
     return impl_->getSchemaVersion();
+}
+
+void Message::setSchemaVersion(const std::string& schemaVersion) {
+    if (impl_) {
+        impl_->metadata.set_schema_version(schemaVersion);
+    }
 }
 
 uint64_t Message::getPublishTimestamp() const { return impl_ ? impl_->getPublishTimestamp() : 0ull; }

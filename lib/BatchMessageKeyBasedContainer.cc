@@ -40,11 +40,7 @@ inline std::string getKey(const Message& msg) {
 BatchMessageKeyBasedContainer::BatchMessageKeyBasedContainer(const ProducerImpl& producer)
     : BatchMessageContainerBase(producer) {}
 
-BatchMessageKeyBasedContainer::~BatchMessageKeyBasedContainer() {
-    LOG_DEBUG(*this << " destructed");
-    LOG_INFO("[numberOfBatchesSent = " << numberOfBatchesSent_
-                                       << "] [averageBatchSize_ = " << averageBatchSize_ << "]");
-}
+BatchMessageKeyBasedContainer::~BatchMessageKeyBasedContainer() {}
 
 bool BatchMessageKeyBasedContainer::isFirstMessageToAdd(const Message& msg) const {
     auto it = batches_.find(getKey(msg));
