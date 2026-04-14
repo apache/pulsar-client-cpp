@@ -215,6 +215,53 @@ TEST(ProducerTest, testBacklogQuotasExceeded) {
     client.close();
 }
 
+TEST(ProducerTest, testCreateProducerAfterTopicTermination) {
+    const auto topicName =
+        "testCreateProducerAfterTopicTermination-" + std::to_string(time(nullptr));
+    const auto topic = "persistent://public/default/" + topicName;
+
+    Client client(serviceUrl, ClientConfiguration().setOperationTimeoutSeconds(1));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("content").build()));
+    ASSERT_EQ(ResultOk, producer.close());
+
+    const auto httpCode =
+        makePostRequest(adminUrl + "admin/v2/persistent/public/default/" + topicName + "/terminate", "");
+    ASSERT_EQ(200, httpCode) << "httpCode: " << httpCode;
+
+    Producer terminatedProducer;
+    ASSERT_EQ(ResultTopicTerminated, client.createProducer(topic, terminatedProducer));
+
+    client.close();
+}
+
+TEST(ProducerTest, testSendAfterTopicTerminationReconnect) {
+    const auto topicName =
+        "testSendAfterTopicTerminationReconnect-" + std::to_string(time(nullptr));
+    const auto topic = "persistent://public/default/" + topicName;
+
+    Client client(serviceUrl, ClientConfiguration().setOperationTimeoutSeconds(1));
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("before-terminate").build()));
+
+    const auto httpCode =
+        makePostRequest(adminUrl + "admin/v2/persistent/public/default/" + topicName + "/terminate", "");
+    ASSERT_EQ(200, httpCode) << "httpCode: " << httpCode;
+
+    PulsarFriend::getProducerImpl(producer).disconnectProducer();
+    ASSERT_TRUE(waitUntil(std::chrono::seconds(3),
+                          [&producer] { return PulsarFriend::isTerminated(producer); }));
+
+    ASSERT_EQ(ResultTopicTerminated,
+              producer.send(MessageBuilder().setContent("after-terminate").build()));
+
+    client.close();
+}
+
 class ProducerTest : public ::testing::TestWithParam<bool> {};
 
 TEST_P(ProducerTest, testMaxMessageSize) {

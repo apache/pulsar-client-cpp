@@ -257,6 +257,11 @@ class PulsarFriend {
         return waitUntil(std::chrono::seconds(3),
                          [producerImpl] { return !producerImpl->getCnx().expired(); });
     }
+
+    static bool isTerminated(Producer producer) {
+        auto producerImpl = std::dynamic_pointer_cast<ProducerImpl>(producer.impl_);
+        return producerImpl && producerImpl->state_ == HandlerBase::Terminated;
+    }
 };
 }  // namespace pulsar
 
