@@ -258,6 +258,31 @@ TEST_F(ConsumerSeekTest, testReconnectionSlow) {
     client.close();
 }
 
+TEST_F(ConsumerSeekTest, testSeekFailureIsPropagated) {
+    using namespace std::chrono_literals;
+
+    Client client(lookupUrl, ClientConfiguration().setOperationTimeoutSeconds(1));
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe("testSeekFailureIsPropagated", "sub", consumer));
+
+    auto connection = *PulsarFriend::getConnections(client).begin();
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+    mockServer->setRequestDelay({{"SEEK", 5000}});
+
+    std::promise<Result> promise;
+    auto future = promise.get_future();
+    consumer.seekAsync(MessageId::earliest(), [&promise](Result result) { promise.set_value(result); });
+
+    // Cancel the mocked SEEK success so request completes with timeout.
+    ASSERT_GE(mockServer->close(), 1);
+
+    ASSERT_EQ(future.wait_for(5s), std::future_status::ready);
+    ASSERT_EQ(future.get(), ResultTimeout);
+
+    client.close();
+}
+
 INSTANTIATE_TEST_SUITE_P(Pulsar, ConsumerSeekTest, ::testing::Values(true, false));
 
 }  // namespace pulsar

@@ -1835,7 +1835,9 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
             if (result == ResultOk) {
                 LockGuard lock(mutex_);
                 if (getCnx().expired() || reconnectionPending_) {
-                    // It's during reconnection, complete the seek future after connection is established
+                    // Reconnection path: delay the seek callback until connectionOpened. clearReceiveQueue()
+                    // and handleCreateConsumer() (which clears incomingMessages_ under the lock) run before
+                    // the seek callback is invoked, so hasMessageAvailable() after seek sees cleared state.
                     seekStatus_ = SeekStatus::COMPLETED;
                     LOG_INFO(getName() << "Delay the seek future until the reconnection is done");
                 } else {
@@ -1860,9 +1862,8 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                 LockGuard lock{mutex_};
                 seekStatus_ = SeekStatus::NOT_STARTED;
                 lastSeekArg_ = previousLastSeekArg;
-                executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()}]() {
-                    callback(ResultOk);
-                });
+                executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()},
+                                     result]() { callback(result); });
             }
         });
 }
