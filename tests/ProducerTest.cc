@@ -216,8 +216,7 @@ TEST(ProducerTest, testBacklogQuotasExceeded) {
 }
 
 TEST(ProducerTest, testCreateProducerAfterTopicTermination) {
-    const auto topicName =
-        "testCreateProducerAfterTopicTermination-" + std::to_string(time(nullptr));
+    const auto topicName = "testCreateProducerAfterTopicTermination-" + std::to_string(time(nullptr));
     const auto topic = "persistent://public/default/" + topicName;
 
     Client client(serviceUrl, ClientConfiguration().setOperationTimeoutSeconds(1));
@@ -238,8 +237,7 @@ TEST(ProducerTest, testCreateProducerAfterTopicTermination) {
 }
 
 TEST(ProducerTest, testSendAfterTopicTerminationReconnect) {
-    const auto topicName =
-        "testSendAfterTopicTerminationReconnect-" + std::to_string(time(nullptr));
+    const auto topicName = "testSendAfterTopicTerminationReconnect-" + std::to_string(time(nullptr));
     const auto topic = "persistent://public/default/" + topicName;
 
     Client client(serviceUrl, ClientConfiguration().setOperationTimeoutSeconds(1));
@@ -253,11 +251,10 @@ TEST(ProducerTest, testSendAfterTopicTerminationReconnect) {
     ASSERT_EQ(200, httpCode) << "httpCode: " << httpCode;
 
     PulsarFriend::getProducerImpl(producer).disconnectProducer();
-    ASSERT_TRUE(waitUntil(std::chrono::seconds(3),
-                          [&producer] { return PulsarFriend::isTerminated(producer); }));
+    ASSERT_TRUE(
+        waitUntil(std::chrono::seconds(3), [&producer] { return PulsarFriend::isTerminated(producer); }));
 
-    ASSERT_EQ(ResultTopicTerminated,
-              producer.send(MessageBuilder().setContent("after-terminate").build()));
+    ASSERT_EQ(ResultTopicTerminated, producer.send(MessageBuilder().setContent("after-terminate").build()));
 
     client.close();
 }
