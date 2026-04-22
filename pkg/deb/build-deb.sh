@@ -63,6 +63,7 @@ cmake --build build -j8
 cp build/lib/libpulsar.a lib/libpulsar.a
 cp build/lib/libpulsar.so lib/libpulsar.so
 cp build/libpulsarwithdeps.a lib/libpulsarwithdeps.a
+cp build/include/pulsar/Version.h include/pulsar/Version.h
 popd
 
 DEST_DIR=apache-pulsar-client
@@ -95,6 +96,7 @@ mkdir -p $DEVEL_DEST_DIR/usr/share/doc/pulsar-client-dev-$VERSION
 ls $CPP_DIR/lib/libpulsar*
 
 cp -ar $CPP_DIR/include/pulsar $DEVEL_DEST_DIR/usr/include/
+cp $CPP_DIR/include/pulsar/Version.h $DEVEL_DEST_DIR/usr/include/
 cp $CPP_DIR/lib/libpulsar.a $DEVEL_DEST_DIR/usr/lib
 cp $CPP_DIR/lib/libpulsarwithdeps.a $DEVEL_DEST_DIR/usr/lib
 cp $CPP_DIR/lib/libpulsar.so $DEST_DIR/usr/lib
