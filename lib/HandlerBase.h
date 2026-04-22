@@ -138,6 +138,8 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
         Failed,           // Handler is failed, in Java client: HandlerState.State.Failed
         Producer_Fenced,  // The producer has been fenced by the broker
                           // in Java client: HandlerState.State.ProducerFenced
+        Terminated,       // The topic has been terminatedproducer has been fenced by the broker
+                          // in Java client: HandlerState.State.Terminated
     };
 
     std::atomic<State> state_;

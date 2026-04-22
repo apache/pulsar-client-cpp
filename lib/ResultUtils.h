@@ -39,6 +39,7 @@ inline bool isResultRetryable(Result result) {
                                                       ResultInvalidConfiguration,
                                                       ResultIncompatibleSchema,
                                                       ResultTopicNotFound,
+                                                      ResultTopicTerminated,
                                                       ResultOperationNotSupported,
                                                       ResultNotAllowedError,
                                                       ResultChecksumError,
