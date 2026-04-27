@@ -515,11 +515,22 @@ typedef std::shared_ptr<CachedToken> CachedTokenPtr;
  * Passed in parameter would be like:
  * ```
  *   "type": "client_credentials",
+ *   "tokenEndpointAuthMethod": "client_secret_post",
  *   "issuer_url": "https://accounts.google.com",
  *   "client_id": "d9ZyX97q1ef8Cr81WHVC4hFQ64vSlDK3",
  *   "client_secret": "on1uJ...k6F6R",
  *   "audience": "https://broker.example.com"
  *  ```
+ *
+ * For `tokenEndpointAuthMethod = "tls_client_auth"`:
+ * ```
+ *   "type": "client_credentials",
+ *   "tokenEndpointAuthMethod": "tls_client_auth",
+ *   "issuer_url": "https://accounts.google.com",
+ *   "client_id": "d9ZyX97q1ef8Cr81WHVC4hFQ64vSlDK3",
+ *   "tls_cert_file": "/path/to/cert.pem",
+ *   "tls_key_file": "/path/to/key.pem"
+ * ```
  *  If passed in as std::string, it should be in Json format.
  */
 class PULSAR_PUBLIC AuthOauth2 : public Authentication {
@@ -530,7 +541,14 @@ class PULSAR_PUBLIC AuthOauth2 : public Authentication {
     /**
      * Create an AuthOauth2 with a ParamMap
      *
-     * The required parameter keys are “issuer_url”, “private_key”, and “audience”
+     * For `tokenEndpointAuthMethod = "client_secret_post"` (default), the required parameter
+     * keys are “issuer_url”, “private_key”, and “audience”.
+     * Optional keys: `scope`, `tls_cert_file`, `tls_key_file`.
+     *
+     * For `tokenEndpointAuthMethod = "tls_client_auth"`, the required parameter keys are
+     * `issuer_url`, `tls_cert_file`, and `tls_key_file`.
+     * Optional keys: `client_id`, `audience`, `scope`. If `client_id` is omitted, the client
+     * uses `pulsar-client`.
      *
      * @param parameters the key-value to create OAuth 2.0 client credentials
      * @see http://pulsar.apache.org/docs/en/security-oauth2/#client-credentials

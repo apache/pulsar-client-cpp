@@ -31,6 +31,32 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
+const std::string TlsClientAuthFlow::DEFAULT_CLIENT_ID = "pulsar-client";
+namespace {
+enum class OAuth2TokenEndpointAuthMethod
+{
+    ClientSecretPost,
+    TlsClientAuth,
+};
+
+OAuth2TokenEndpointAuthMethod parseTokenEndpointAuthMethod(const std::string& authMethod) {
+    if (authMethod == "tls_client_auth") {
+        return OAuth2TokenEndpointAuthMethod::TlsClientAuth;
+    }
+    return OAuth2TokenEndpointAuthMethod::ClientSecretPost;
+}
+
+std::string toFlowName(OAuth2TokenEndpointAuthMethod authMethod) {
+    switch (authMethod) {
+        case OAuth2TokenEndpointAuthMethod::TlsClientAuth:
+            return "TlsClientAuthFlow";
+        case OAuth2TokenEndpointAuthMethod::ClientSecretPost:
+        default:
+            return "ClientCredentialFlow";
+    }
+}
+}  // namespace
+
 // AuthDataOauth2
 
 AuthDataOauth2::AuthDataOauth2(const std::string& accessToken) { accessToken_ = accessToken; }
@@ -110,6 +136,8 @@ bool Oauth2CachedToken::isExpired() { return expiresAt_ < Clock::now(); }
 
 Oauth2Flow::Oauth2Flow() {}
 Oauth2Flow::~Oauth2Flow() {}
+
+static std::string buildClientCredentialsBody(CurlWrapper& curl, const ParamMap& params);
 
 KeyFile KeyFile::fromParamMap(ParamMap& params) {
     const auto it = params.find("private_key");
@@ -199,11 +227,168 @@ KeyFile KeyFile::fromBase64(const std::string& encoded) {
     }
 }
 
+static std::string getWellKnownUrl(const std::string& issuerUrl) {
+    std::string wellKnownUrl = issuerUrl;
+    if (!wellKnownUrl.empty() && wellKnownUrl.back() == '/') {
+        wellKnownUrl.pop_back();
+    }
+    wellKnownUrl.append("/.well-known/openid-configuration");
+    return wellKnownUrl;
+}
+
+static std::unique_ptr<CurlWrapper::TlsContext> createTlsContext(const std::string& tlsTrustCertsFilePath,
+                                                                 const std::string& tlsCertFilePath,
+                                                                 const std::string& tlsKeyFilePath,
+                                                                 OAuth2TokenEndpointAuthMethod authMethod) {
+    if (tlsTrustCertsFilePath.empty() && tlsCertFilePath.empty() && tlsKeyFilePath.empty()) {
+        return nullptr;
+    }
+
+    auto tlsContext = std::unique_ptr<CurlWrapper::TlsContext>(new CurlWrapper::TlsContext);
+    if (!tlsTrustCertsFilePath.empty()) {
+        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath;
+    }
+    if (!tlsCertFilePath.empty() && !tlsKeyFilePath.empty()) {
+        tlsContext->certPath = tlsCertFilePath;
+        tlsContext->keyPath = tlsKeyFilePath;
+    } else if (!tlsCertFilePath.empty() || !tlsKeyFilePath.empty()) {
+        LOG_WARN("Ignore incomplete mTLS settings for "
+                 << toFlowName(authMethod) << ": both tls_cert_file and tls_key_file are required");
+    }
+    return tlsContext;
+}
+
+static std::string fetchTokenEndpoint(const std::string& issuerUrl,
+                                      const CurlWrapper::TlsContext* tlsContext) {
+    const auto wellKnownUrl = getWellKnownUrl(issuerUrl);
+    CurlWrapper curl;
+    if (!curl.init()) {
+        LOG_ERROR("Failed to initialize curl");
+        return "";
+    }
+
+    auto result = curl.get(wellKnownUrl, "Accept: application/json", {}, tlsContext);
+    if (!result.error.empty()) {
+        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl << ": " << result.error);
+        return "";
+    }
+
+    const auto res = result.code;
+    const auto responseCode = result.responseCode;
+    const auto& responseData = result.responseData;
+    const auto& errorBuffer = result.serverError;
+
+    switch (res) {
+        case CURLE_OK:
+            LOG_DEBUG("Received well-known configuration data " << issuerUrl << " code " << responseCode);
+            if (responseCode == 200) {
+                boost::property_tree::ptree root;
+                std::stringstream stream;
+                stream << responseData;
+                try {
+                    boost::property_tree::read_json(stream, root);
+                    return root.get<std::string>("token_endpoint");
+                } catch (boost::property_tree::json_parser_error& e) {
+                    LOG_ERROR("Failed to parse well-known configuration data response: "
+                              << e.what() << "\nInput Json = " << responseData);
+                }
+            } else {
+                LOG_ERROR("Response failed for getting the well-known configuration "
+                          << issuerUrl << ". response Code " << responseCode);
+            }
+            break;
+        default:
+            LOG_ERROR("Response failed for getting the well-known configuration "
+                      << issuerUrl << ". Error Code " << res << ": " << errorBuffer);
+            break;
+    }
+    return "";
+}
+
+static Oauth2TokenResultPtr fetchOauth2Token(const std::string& issuerUrl, const std::string& tokenEndpoint,
+                                             const ParamMap& params,
+                                             const CurlWrapper::TlsContext* tlsContext,
+                                             OAuth2TokenEndpointAuthMethod authMethod) {
+    Oauth2TokenResultPtr resultPtr = Oauth2TokenResultPtr(new Oauth2TokenResult());
+    if (tokenEndpoint.empty()) {
+        return resultPtr;
+    }
+
+    CurlWrapper curl;
+    if (!curl.init()) {
+        LOG_ERROR("Failed to initialize curl");
+        return resultPtr;
+    }
+
+    auto postData = buildClientCredentialsBody(curl, params);
+    if (postData.empty()) {
+        return resultPtr;
+    }
+    LOG_DEBUG("Generate URL encoded body for " << toFlowName(authMethod) << ": " << postData);
+
+    CurlWrapper::Options options;
+    options.postFields = std::move(postData);
+    auto result =
+        curl.get(tokenEndpoint, "Content-Type: application/x-www-form-urlencoded", options, tlsContext);
+    if (!result.error.empty()) {
+        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl << ": " << result.error);
+        return resultPtr;
+    }
+
+    const auto res = result.code;
+    const auto responseCode = result.responseCode;
+    const auto& responseData = result.responseData;
+    const auto& errorBuffer = result.serverError;
+
+    switch (res) {
+        case CURLE_OK:
+            LOG_DEBUG("Response received for issuerurl " << issuerUrl << " code " << responseCode);
+            if (responseCode == 200) {
+                boost::property_tree::ptree root;
+                std::stringstream stream;
+                stream << responseData;
+                try {
+                    boost::property_tree::read_json(stream, root);
+                } catch (boost::property_tree::json_parser_error& e) {
+                    LOG_ERROR("Failed to parse json of Oauth2 response: "
+                              << e.what() << "\nInput Json = " << responseData
+                              << " passedin: " << options.postFields);
+                    break;
+                }
+
+                resultPtr->setAccessToken(root.get<std::string>("access_token", ""));
+                resultPtr->setExpiresIn(
+                    root.get<uint32_t>("expires_in", Oauth2TokenResult::undefined_expiration));
+                resultPtr->setRefreshToken(root.get<std::string>("refresh_token", ""));
+                resultPtr->setIdToken(root.get<std::string>("id_token", ""));
+
+                if (!resultPtr->getAccessToken().empty()) {
+                    LOG_DEBUG("access_token: " << resultPtr->getAccessToken()
+                                               << " expires_in: " << resultPtr->getExpiresIn());
+                } else {
+                    LOG_ERROR("Response doesn't contain access_token, the response is: " << responseData);
+                }
+            } else {
+                LOG_ERROR("Response failed for issuerurl " << issuerUrl << ". response Code " << responseCode
+                                                           << " passedin: " << options.postFields);
+            }
+            break;
+        default:
+            LOG_ERROR("Response failed for issuerurl " << issuerUrl << ". ErrorCode " << res << ": "
+                                                       << errorBuffer << " passedin: " << options.postFields);
+            break;
+    }
+
+    return resultPtr;
+}
+
 ClientCredentialFlow::ClientCredentialFlow(ParamMap& params)
     : issuerUrl_(params["issuer_url"]),
       keyFile_(KeyFile::fromParamMap(params)),
       audience_(params["audience"]),
-      scope_(params["scope"]) {}
+      scope_(params["scope"]),
+      tlsCertFilePath_(params["tls_cert_file"]),
+      tlsKeyFilePath_(params["tls_key_file"]) {}
 
 std::string ClientCredentialFlow::getTokenEndPoint() const { return tokenEndPoint_; }
 
@@ -216,62 +401,11 @@ void ClientCredentialFlow::initialize() {
         return;
     }
 
-    // set URL: well-know endpoint
-    std::string wellKnownUrl = issuerUrl_;
-    if (wellKnownUrl.back() == '/') {
-        wellKnownUrl.pop_back();
-    }
-    wellKnownUrl.append("/.well-known/openid-configuration");
-
-    CurlWrapper curl;
-    if (!curl.init()) {
-        LOG_ERROR("Failed to initialize curl");
-        return;
-    }
-    std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
-    if (!tlsTrustCertsFilePath_.empty()) {
-        tlsContext.reset(new CurlWrapper::TlsContext);
-        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
-    }
-
-    auto result = curl.get(wellKnownUrl, "Accept: application/json", {}, tlsContext.get());
-    if (!result.error.empty()) {
-        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl_ << ": " << result.error);
-        return;
-    }
-
-    const auto res = result.code;
-    const auto response_code = result.responseCode;
-    const auto& responseData = result.responseData;
-    const auto& errorBuffer = result.serverError;
-
-    switch (res) {
-        case CURLE_OK:
-            LOG_DEBUG("Received well-known configuration data " << issuerUrl_ << " code " << response_code);
-            if (response_code == 200) {
-                boost::property_tree::ptree root;
-                std::stringstream stream;
-                stream << responseData;
-                try {
-                    boost::property_tree::read_json(stream, root);
-                } catch (boost::property_tree::json_parser_error& e) {
-                    LOG_ERROR("Failed to parse well-known configuration data response: "
-                              << e.what() << "\nInput Json = " << responseData);
-                    break;
-                }
-
-                this->tokenEndPoint_ = root.get<std::string>("token_endpoint");
-
-                LOG_DEBUG("Get token endpoint: " << this->tokenEndPoint_);
-            } else {
-                LOG_ERROR("Response failed for getting the well-known configuration "
-                          << issuerUrl_ << ". response Code " << response_code);
-            }
-            break;
-        default:
-            LOG_ERROR("Response failed for getting the well-known configuration "
-                      << issuerUrl_ << ". Error Code " << res << ": " << errorBuffer);
-            break;
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
+                                             OAuth2TokenEndpointAuthMethod::ClientSecretPost);
+    this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get());
+    if (!this->tokenEndPoint_.empty()) {
+        LOG_DEBUG("Get token endpoint: " << this->tokenEndPoint_);
     }
 }
 void ClientCredentialFlow::close() {}
@@ -324,84 +458,82 @@ static std::string buildClientCredentialsBody(CurlWrapper& curl, const ParamMap&
 
 Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
     std::call_once(initializeOnce_, &ClientCredentialFlow::initialize, this);
-    Oauth2TokenResultPtr resultPtr = Oauth2TokenResultPtr(new Oauth2TokenResult());
-    if (tokenEndPoint_.empty()) {
+    const auto params = generateParamMap();
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
+                                             OAuth2TokenEndpointAuthMethod::ClientSecretPost);
+    return fetchOauth2Token(issuerUrl_, tokenEndPoint_, params, tlsContext.get(),
+                            OAuth2TokenEndpointAuthMethod::ClientSecretPost);
+}
+
+TlsClientAuthFlow::TlsClientAuthFlow(ParamMap& params)
+    : issuerUrl_(params["issuer_url"]),
+      clientId_(params["client_id"].empty() ? DEFAULT_CLIENT_ID : params["client_id"]),
+      audience_(params["audience"]),
+      scope_(params["scope"]),
+      tlsCertFilePath_(params["tls_cert_file"]),
+      tlsKeyFilePath_(params["tls_key_file"]) {}
+
+std::string TlsClientAuthFlow::getTokenEndPoint() const { return tokenEndPoint_; }
+
+void TlsClientAuthFlow::initialize() {
+    if (issuerUrl_.empty()) {
+        LOG_ERROR("Failed to initialize TlsClientAuthFlow: issuer_url is not set");
+        return;
+    }
+    if (tlsCertFilePath_.empty() || tlsKeyFilePath_.empty()) {
+        LOG_ERROR("Failed to initialize TlsClientAuthFlow: tls_cert_file or tls_key_file is not set");
+        return;
+    }
+
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
+                                             OAuth2TokenEndpointAuthMethod::TlsClientAuth);
+    if (!tlsContext || tlsContext->certPath.empty() || tlsContext->keyPath.empty()) {
+        LOG_ERROR("Failed to initialize TlsClientAuthFlow: tls_cert_file or tls_key_file is not set");
+        return;
+    }
+    this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get());
+    if (!this->tokenEndPoint_.empty()) {
+        LOG_DEBUG("Get token endpoint: " << this->tokenEndPoint_);
+    }
+}
+void TlsClientAuthFlow::close() {}
+
+ParamMap TlsClientAuthFlow::generateParamMap() const {
+    ParamMap params;
+    params.emplace("grant_type", "client_credentials");
+    params.emplace("client_id", clientId_);
+    if (!audience_.empty()) {
+        params.emplace("audience", audience_);
+    }
+    if (!scope_.empty()) {
+        params.emplace("scope", scope_);
+    }
+    return params;
+}
+
+Oauth2TokenResultPtr TlsClientAuthFlow::authenticate() {
+    std::call_once(initializeOnce_, &TlsClientAuthFlow::initialize, this);
+    const auto params = generateParamMap();
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
+                                             OAuth2TokenEndpointAuthMethod::TlsClientAuth);
+    if (!tlsContext || tlsContext->certPath.empty() || tlsContext->keyPath.empty()) {
+        Oauth2TokenResultPtr resultPtr = Oauth2TokenResultPtr(new Oauth2TokenResult());
         return resultPtr;
     }
-
-    CurlWrapper curl;
-    if (!curl.init()) {
-        LOG_ERROR("Failed to initialize curl");
-        return resultPtr;
-    }
-    auto postData = buildClientCredentialsBody(curl, generateParamMap());
-    if (postData.empty()) {
-        return resultPtr;
-    }
-    LOG_DEBUG("Generate URL encoded body for ClientCredentialFlow: " << postData);
-
-    CurlWrapper::Options options;
-    options.postFields = std::move(postData);
-    std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
-    if (!tlsTrustCertsFilePath_.empty()) {
-        tlsContext.reset(new CurlWrapper::TlsContext);
-        tlsContext->trustCertsFilePath = tlsTrustCertsFilePath_;
-    }
-    auto result = curl.get(tokenEndPoint_, "Content-Type: application/x-www-form-urlencoded", options,
-                           tlsContext.get());
-    if (!result.error.empty()) {
-        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl_ << ": " << result.error);
-        return resultPtr;
-    }
-    const auto res = result.code;
-    const auto response_code = result.responseCode;
-    const auto& responseData = result.responseData;
-    const auto& errorBuffer = result.serverError;
-
-    switch (res) {
-        case CURLE_OK:
-            LOG_DEBUG("Response received for issuerurl " << issuerUrl_ << " code " << response_code);
-            if (response_code == 200) {
-                boost::property_tree::ptree root;
-                std::stringstream stream;
-                stream << responseData;
-                try {
-                    boost::property_tree::read_json(stream, root);
-                } catch (boost::property_tree::json_parser_error& e) {
-                    LOG_ERROR("Failed to parse json of Oauth2 response: "
-                              << e.what() << "\nInput Json = " << responseData << " passedin: " << postData);
-                    break;
-                }
-
-                resultPtr->setAccessToken(root.get<std::string>("access_token", ""));
-                resultPtr->setExpiresIn(
-                    root.get<uint32_t>("expires_in", Oauth2TokenResult::undefined_expiration));
-                resultPtr->setRefreshToken(root.get<std::string>("refresh_token", ""));
-                resultPtr->setIdToken(root.get<std::string>("id_token", ""));
-
-                if (!resultPtr->getAccessToken().empty()) {
-                    LOG_DEBUG("access_token: " << resultPtr->getAccessToken()
-                                               << " expires_in: " << resultPtr->getExpiresIn());
-                } else {
-                    LOG_ERROR("Response doesn't contain access_token, the response is: " << responseData);
-                }
-            } else {
-                LOG_ERROR("Response failed for issuerurl " << issuerUrl_ << ". response Code "
-                                                           << response_code << " passedin: " << postData);
-            }
-            break;
-        default:
-            LOG_ERROR("Response failed for issuerurl " << issuerUrl_ << ". ErrorCode " << res << ": "
-                                                       << errorBuffer << " passedin: " << postData);
-            break;
-    }
-
-    return resultPtr;
+    return fetchOauth2Token(issuerUrl_, tokenEndPoint_, params, tlsContext.get(),
+                            OAuth2TokenEndpointAuthMethod::TlsClientAuth);
 }
 
 // AuthOauth2
 
-AuthOauth2::AuthOauth2(ParamMap& params) : flowPtr_(new ClientCredentialFlow(params)) {}
+AuthOauth2::AuthOauth2(ParamMap& params) {
+    const auto tokenEndpointAuthMethod = parseTokenEndpointAuthMethod(params["tokenEndpointAuthMethod"]);
+    if (tokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethod::TlsClientAuth) {
+        flowPtr_ = FlowPtr(new TlsClientAuthFlow(params));
+    } else {
+        flowPtr_ = FlowPtr(new ClientCredentialFlow(params));
+    }
+}
 
 AuthOauth2::~AuthOauth2() {}
 
@@ -436,11 +568,13 @@ const std::string AuthOauth2::getAuthMethodName() const { return "token"; }
 Result AuthOauth2::getAuthData(AuthenticationDataPtr& authDataContent) {
     auto initialAuthData = std::dynamic_pointer_cast<InitialAuthData>(authDataContent);
     if (initialAuthData) {
-        auto flowPtr = std::dynamic_pointer_cast<ClientCredentialFlow>(flowPtr_);
-        if (!flowPtr_) {
-            throw std::invalid_argument("AuthOauth2::flowPtr_ is not a ClientCredentialFlow");
+        if (auto clientCredentialFlow = std::dynamic_pointer_cast<ClientCredentialFlow>(flowPtr_)) {
+            clientCredentialFlow->setTlsTrustCertsFilePath(initialAuthData->tlsTrustCertsFilePath_);
+        } else if (auto tlsClientAuthFlow = std::dynamic_pointer_cast<TlsClientAuthFlow>(flowPtr_)) {
+            tlsClientAuthFlow->setTlsTrustCertsFilePath(initialAuthData->tlsTrustCertsFilePath_);
+        } else {
+            throw std::invalid_argument("AuthOauth2::flowPtr_ is not an OAuth2 flow implementation");
         }
-        flowPtr->setTlsTrustCertsFilePath(initialAuthData->tlsTrustCertsFilePath_);
     }
 
     if (cachedTokenPtr_ == nullptr || cachedTokenPtr_->isExpired()) {
