@@ -37,13 +37,17 @@ enum class OAuth2TokenEndpointAuthMethod
 {
     ClientSecretPost,
     TlsClientAuth,
+    Unknown,
 };
 
 OAuth2TokenEndpointAuthMethod parseTokenEndpointAuthMethod(const std::string& authMethod) {
     if (authMethod == "tls_client_auth") {
         return OAuth2TokenEndpointAuthMethod::TlsClientAuth;
     }
-    return OAuth2TokenEndpointAuthMethod::ClientSecretPost;
+    if (authMethod == "client_secret_post") {
+        return OAuth2TokenEndpointAuthMethod::ClientSecretPost;
+    }
+    return OAuth2TokenEndpointAuthMethod::Unknown;
 }
 
 std::string toFlowName(OAuth2TokenEndpointAuthMethod authMethod) {
@@ -251,9 +255,8 @@ static std::unique_ptr<CurlWrapper::TlsContext> createTlsContext(const std::stri
     if (!tlsCertFilePath.empty() && !tlsKeyFilePath.empty()) {
         tlsContext->certPath = tlsCertFilePath;
         tlsContext->keyPath = tlsKeyFilePath;
-    } else if (!tlsCertFilePath.empty() || !tlsKeyFilePath.empty()) {
-        LOG_WARN("Ignore incomplete mTLS settings for "
-                 << toFlowName(authMethod) << ": both tls_cert_file and tls_key_file are required");
+    } else if (authMethod == OAuth2TokenEndpointAuthMethod::TlsClientAuth) {
+        LOG_WARN("Ignore incomplete mTLS settings: both tls_cert_file and tls_key_file are required");
     }
     return tlsContext;
 }
@@ -291,6 +294,7 @@ static std::string fetchTokenEndpoint(const std::string& issuerUrl,
                 } catch (boost::property_tree::json_parser_error& e) {
                     LOG_ERROR("Failed to parse well-known configuration data response: "
                               << e.what() << "\nInput Json = " << responseData);
+                    return "";
                 }
             } else {
                 LOG_ERROR("Response failed for getting the well-known configuration "
@@ -527,11 +531,21 @@ Oauth2TokenResultPtr TlsClientAuthFlow::authenticate() {
 // AuthOauth2
 
 AuthOauth2::AuthOauth2(ParamMap& params) {
-    const auto tokenEndpointAuthMethod = parseTokenEndpointAuthMethod(params["tokenEndpointAuthMethod"]);
-    if (tokenEndpointAuthMethod == OAuth2TokenEndpointAuthMethod::TlsClientAuth) {
-        flowPtr_ = FlowPtr(new TlsClientAuthFlow(params));
-    } else {
-        flowPtr_ = FlowPtr(new ClientCredentialFlow(params));
+    std::string tokenEndpointAuthMethodName = params["tokenEndpointAuthMethod"];
+    if (tokenEndpointAuthMethodName.empty()) {
+        tokenEndpointAuthMethodName = "client_secret_post";
+    }
+    const auto tokenEndpointAuthMethod = parseTokenEndpointAuthMethod(tokenEndpointAuthMethodName);
+    switch (tokenEndpointAuthMethod) {
+        case OAuth2TokenEndpointAuthMethod::TlsClientAuth:
+            flowPtr_ = FlowPtr(new TlsClientAuthFlow(params));
+            break;
+        case OAuth2TokenEndpointAuthMethod::ClientSecretPost:
+            flowPtr_ = FlowPtr(new ClientCredentialFlow(params));
+            break;
+        case OAuth2TokenEndpointAuthMethod::Unknown:
+        default:
+            throw std::invalid_argument("Unknown tokenEndpointAuthMethod: " + tokenEndpointAuthMethodName);
     }
 }
 

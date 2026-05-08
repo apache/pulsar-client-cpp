@@ -25,6 +25,7 @@
 #include <chrono>
 #include <future>
 #include <sstream>
+#include <stdexcept>
 #ifdef USE_ASIO
 #include <asio.hpp>
 #include <asio/ssl.hpp>
@@ -926,39 +927,6 @@ TEST(AuthPluginTest, testOauth2TlsClientAuthRequestBody) {
 }
 
 TEST(AuthPluginTest, testOauth2TlsClientAuthFailure) {
-    const int tokenServerPort = 58085;
-    const int wellKnownServerPort = 58086;
-    const std::string tokenBody = R"({"access_token":"mockToken","expires_in":3600,"token_type":"Bearer"})";
-    std::unique_ptr<testOauth2Tls::MockOauth2Server> tokenServer;
-    try {
-        tokenServer =
-            std::make_unique<testOauth2Tls::MockOauth2Server>(tokenBody, "application/json", tokenServerPort);
-    } catch (const std::exception& e) {
-        FAIL() << "Failed to bind local mock token server: " << e.what();
-    }
-
-    std::promise<bool> tokenPromise;
-    auto tokenFuture = tokenPromise.get_future();
-    std::thread tokenThread(
-        [&tokenServer, &tokenPromise]() { tokenPromise.set_value(tokenServer->mockServe()); });
-
-    std::ostringstream wellKnownBody;
-    wellKnownBody << R"({"token_endpoint":"https://localhost:)" << tokenServerPort << R"(/oauth/token"})";
-    std::unique_ptr<testOauth2Tls::MockOauth2Server> wellKnownServer;
-    try {
-        wellKnownServer = std::make_unique<testOauth2Tls::MockOauth2Server>(
-            wellKnownBody.str(), "application/json", wellKnownServerPort, false);
-    } catch (const std::exception& e) {
-        tokenThread.join();
-        FAIL() << "Failed to bind local mock well-known server: " << e.what();
-    }
-
-    std::promise<bool> wellKnownPromise;
-    auto wellKnownFuture = wellKnownPromise.get_future();
-    std::thread wellKnownThread([&wellKnownServer, &wellKnownPromise]() {
-        wellKnownPromise.set_value(wellKnownServer->mockServe());
-    });
-
     ParamMap params;
     auto getAuthDataResult = [&]() -> Result {
         AuthenticationDataPtr data =
@@ -980,7 +948,7 @@ TEST(AuthPluginTest, testOauth2TlsClientAuthFailure) {
     ASSERT_EQ(getAuthDataResult(), ResultAuthenticationError);
 
     // No cert and key
-    params["issuer_url"] = "https://localhost:" + std::to_string(wellKnownServerPort);
+    params["issuer_url"] = "https://localhost:58086";
     params.erase("tls_cert_file");
     params.erase("tls_key_file");
     ASSERT_EQ(getAuthDataResult(), ResultAuthenticationError);
@@ -989,11 +957,19 @@ TEST(AuthPluginTest, testOauth2TlsClientAuthFailure) {
     params["tls_cert_file"] = TEST_CONF_DIR "/not-exist-cert.pem";
     params["tls_key_file"] = TEST_CONF_DIR "/not-exist-key.pem";
     ASSERT_EQ(getAuthDataResult(), ResultAuthenticationError);
+}
 
-    ASSERT_TRUE(wellKnownFuture.get());
-    ASSERT_TRUE(tokenFuture.get());
-    wellKnownThread.join();
-    tokenThread.join();
+TEST(AuthPluginTest, testOauth2UnknownTokenEndpointAuthMethod) {
+    std::string params = R"({
+        "type": "client_credentials",
+        "tokenEndpointAuthMethod": "client_secret_get",
+        "issuer_url": "https://dev-kt-aa9ne.us.auth0.com",
+        "client_id": "Xd23RHsUnvUlP7wchjNYOaIfazgeHd9x",
+        "client_secret": "rT7ps7WY8uhdVuBTKWZkttwLdQotmdEliaM5rLfmgNibvqziZ-g07ZH52N_poGAb",
+        "audience": "https://dev-kt-aa9ne.us.auth0.com/api/v2/"})";
+
+    LOG_INFO("PARAMS: " << params);
+    ASSERT_THROW(AuthOauth2::create(params), std::invalid_argument);
 }
 
 TEST(AuthPluginTest, testInvalidPlugin) {
