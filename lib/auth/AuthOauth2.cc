@@ -20,6 +20,7 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <cstdint>
 #include <sstream>
 #include <stdexcept>
 
@@ -33,7 +34,7 @@ namespace pulsar {
 
 const std::string TlsClientAuthFlow::DEFAULT_CLIENT_ID = "pulsar-client";
 namespace {
-enum class OAuth2TokenEndpointAuthMethod
+enum class OAuth2TokenEndpointAuthMethod : std::uint8_t
 {
     ClientSecretPost,
     TlsClientAuth,
