@@ -20,7 +20,6 @@
 #define LIB_MESSAGECRYPTO_H_
 
 #include <openssl/bio.h>
-#include <openssl/engine.h>
 #include <openssl/evp.h>
 #include <openssl/rand.h>
 #include <openssl/rsa.h>
