@@ -24,6 +24,7 @@
 #include <boost/algorithm/string.hpp>
 #include <chrono>
 #include <future>
+#include <mutex>
 #include <sstream>
 #include <stdexcept>
 #ifdef USE_ASIO
@@ -542,6 +543,8 @@ TEST(AuthPluginTest, testAuthFactoryAthenz) {
 }
 
 namespace testOauth2Tls {
+static const auto mockServerTimeout = std::chrono::seconds(10);
+
 class MockOauth2Server {
    public:
     MockOauth2Server(const std::string& responseBody, const std::string& responseContentType, int listenPort,
@@ -563,23 +566,57 @@ class MockOauth2Server {
     const std::string& request() const { return request_; }
 
     bool mockServe() {
-        ASIO::ip::tcp::socket socket(io_);
-        acceptor_.accept(socket);
         ASIO_ERROR error;
-        ASIO::ssl::stream<ASIO::ip::tcp::socket&> sslStream(socket, sslCtx_);
-        sslStream.handshake(ASIO::ssl::stream_base::server, error);
-        if (error) return false;
-        if (!readRequest(sslStream)) return false;
+        auto socket = std::make_shared<ASIO::ip::tcp::socket>(io_);
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            activeSocket_ = socket;
+        }
 
-        const std::string response = "HTTP/1.1 200 OK\nContent-Type: " + responseContentType_ +
-                                     "\nContent-Length: " + std::to_string(responseBody_.size()) +
-                                     "\nConnection: close\n\n" + responseBody_;
+        acceptor_.accept(*socket, error);
+        if (error) {
+            clearActiveSocket();
+            return false;
+        }
+
+        ASIO::ssl::stream<ASIO::ip::tcp::socket&> sslStream(*socket, sslCtx_);
+        sslStream.handshake(ASIO::ssl::stream_base::server, error);
+        if (error || !readRequest(sslStream)) {
+            clearActiveSocket();
+            return false;
+        }
+
+        const std::string response = "HTTP/1.1 200 OK\r\nContent-Type: " + responseContentType_ +
+                                     "\r\nContent-Length: " + std::to_string(responseBody_.size()) +
+                                     "\r\nConnection: close\r\n\r\n" + responseBody_;
         ASIO::write(sslStream, ASIO::buffer(response.data(), response.size()), error);
+        clearActiveSocket();
         if (error) return false;
         return true;
     }
 
+    void stop() {
+        ASIO_ERROR error;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            if (acceptor_.is_open()) {
+                acceptor_.close(error);
+            }
+            if (activeSocket_ && activeSocket_->is_open()) {
+                activeSocket_->cancel(error);
+                activeSocket_->shutdown(ASIO::ip::tcp::socket::shutdown_both, error);
+                activeSocket_->close(error);
+            }
+        }
+        io_.stop();
+    }
+
    private:
+    void clearActiveSocket() {
+        std::lock_guard<std::mutex> lock(mutex_);
+        activeSocket_.reset();
+    }
+
     bool readRequest(ASIO::ssl::stream<ASIO::ip::tcp::socket&>& sslStream) {
         SocketStream<ASIO::ssl::stream<ASIO::ip::tcp::socket&>> stream(sslStream);
         request_.clear();
@@ -615,7 +652,29 @@ class MockOauth2Server {
     ASIO::io_context io_;
     ASIO::ip::tcp::acceptor acceptor_;
     ASIO::ssl::context sslCtx_;
+    std::shared_ptr<ASIO::ip::tcp::socket> activeSocket_;
+    std::mutex mutex_;
 };
+
+static bool awaitMockServeResult(std::future<bool>& future, MockOauth2Server& server, std::thread& thread,
+                                 const char* serverName) {
+    if (future.wait_for(mockServerTimeout) != std::future_status::ready) {
+        server.stop();
+        if (thread.joinable()) {
+            thread.join();
+        }
+        ADD_FAILURE() << serverName << " did not complete within "
+                      << std::chrono::duration_cast<std::chrono::seconds>(mockServerTimeout).count()
+                      << " seconds";
+        return false;
+    }
+
+    const bool result = future.get();
+    if (thread.joinable()) {
+        thread.join();
+    }
+    return result;
+}
 
 }  // namespace testOauth2Tls
 
@@ -821,13 +880,13 @@ TEST(AuthPluginTest, testOauth2TlsClientAuth) {
     ASSERT_TRUE(data->hasDataFromCommand());
     ASSERT_EQ(data->getCommandData(), "mockToken");
 
-    ASSERT_TRUE(wellKnownFuture.get());
-    ASSERT_TRUE(tokenFuture.get());
+    ASSERT_TRUE(testOauth2Tls::awaitMockServeResult(wellKnownFuture, *wellKnownServer, wellKnownThread,
+                                                    "Well-known mock server"));
+    ASSERT_TRUE(
+        testOauth2Tls::awaitMockServeResult(tokenFuture, *tokenServer, tokenThread, "Token mock server"));
     ASSERT_NE(wellKnownServer->request().find("GET /.well-known/openid-configuration "), std::string::npos);
     ASSERT_NE(tokenServer->request().find("POST /oauth/token "), std::string::npos);
     ASSERT_NE(tokenServer->request().find("grant_type=client_credentials"), std::string::npos);
-    wellKnownThread.join();
-    tokenThread.join();
 }
 
 TEST(AuthPluginTest, testOauth2TlsClientAuthWrongCert) {
@@ -878,11 +937,11 @@ TEST(AuthPluginTest, testOauth2TlsClientAuthWrongCert) {
     AuthenticationPtr auth = AuthOauth2::create(params);
     ASSERT_EQ(auth->getAuthData(data), ResultAuthenticationError);
 
-    ASSERT_TRUE(wellKnownFuture.get());
-    ASSERT_FALSE(tokenFuture.get());
+    ASSERT_TRUE(testOauth2Tls::awaitMockServeResult(wellKnownFuture, *wellKnownServer, wellKnownThread,
+                                                    "Well-known mock server"));
+    ASSERT_FALSE(
+        testOauth2Tls::awaitMockServeResult(tokenFuture, *tokenServer, tokenThread, "Token mock server"));
     ASSERT_NE(wellKnownServer->request().find("GET /.well-known/openid-configuration "), std::string::npos);
-    wellKnownThread.join();
-    tokenThread.join();
 }
 
 TEST(AuthPluginTest, testOauth2TlsClientAuthRequestBody) {
@@ -950,6 +1009,11 @@ TEST(AuthPluginTest, testOauth2TlsClientAuthFailure) {
     // No cert and key
     params["issuer_url"] = "https://localhost:58086";
     params.erase("tls_cert_file");
+    params.erase("tls_key_file");
+    ASSERT_EQ(getAuthDataResult(), ResultAuthenticationError);
+
+    // Only cert
+    params["tls_cert_file"] = clientPublicKeyPath;
     params.erase("tls_key_file");
     ASSERT_EQ(getAuthDataResult(), ResultAuthenticationError);
 
