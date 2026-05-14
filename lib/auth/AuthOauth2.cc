@@ -243,21 +243,24 @@ static std::string getWellKnownUrl(const std::string& issuerUrl) {
 
 static std::unique_ptr<CurlWrapper::TlsContext> createTlsContext(const std::string& tlsTrustCertsFilePath,
                                                                  const std::string& tlsCertFilePath,
-                                                                 const std::string& tlsKeyFilePath,
-                                                                 OAuth2TokenEndpointAuthMethod authMethod) {
-    if (tlsTrustCertsFilePath.empty() && tlsCertFilePath.empty() && tlsKeyFilePath.empty()) {
+                                                                 const std::string& tlsKeyFilePath) {
+    const bool hasTrustCerts = !tlsTrustCertsFilePath.empty();
+    const bool hasClientCertPair = !tlsCertFilePath.empty() && !tlsKeyFilePath.empty();
+
+    if (!tlsCertFilePath.empty() != !tlsKeyFilePath.empty()) {
+        LOG_WARN("Ignore incomplete mTLS settings: both tls_cert_file and tls_key_file are required");
+    }
+    if (!hasTrustCerts && !hasClientCertPair) {
         return nullptr;
     }
 
     auto tlsContext = std::unique_ptr<CurlWrapper::TlsContext>(new CurlWrapper::TlsContext);
-    if (!tlsTrustCertsFilePath.empty()) {
+    if (hasTrustCerts) {
         tlsContext->trustCertsFilePath = tlsTrustCertsFilePath;
     }
-    if (!tlsCertFilePath.empty() && !tlsKeyFilePath.empty()) {
+    if (hasClientCertPair) {
         tlsContext->certPath = tlsCertFilePath;
         tlsContext->keyPath = tlsKeyFilePath;
-    } else if (authMethod == OAuth2TokenEndpointAuthMethod::TlsClientAuth) {
-        LOG_WARN("Ignore incomplete mTLS settings: both tls_cert_file and tls_key_file are required");
     }
     return tlsContext;
 }
@@ -310,8 +313,7 @@ static std::string fetchTokenEndpoint(const std::string& issuerUrl,
     return "";
 }
 
-static Oauth2TokenResultPtr fetchOauth2Token(const std::string& issuerUrl, const std::string& tokenEndpoint,
-                                             const ParamMap& params,
+static Oauth2TokenResultPtr fetchOauth2Token(const std::string& tokenEndpoint, const ParamMap& params,
                                              const CurlWrapper::TlsContext* tlsContext,
                                              OAuth2TokenEndpointAuthMethod authMethod) {
     Oauth2TokenResultPtr resultPtr = Oauth2TokenResultPtr(new Oauth2TokenResult());
@@ -336,7 +338,7 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& issuerUrl, const
     auto result =
         curl.get(tokenEndpoint, "Content-Type: application/x-www-form-urlencoded", options, tlsContext);
     if (!result.error.empty()) {
-        LOG_ERROR("Failed to get the well-known configuration " << issuerUrl << ": " << result.error);
+        LOG_ERROR("Failed to fetch OAuth2 token from " << tokenEndpoint << ": " << result.error);
         return resultPtr;
     }
 
@@ -347,7 +349,7 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& issuerUrl, const
 
     switch (res) {
         case CURLE_OK:
-            LOG_DEBUG("Response received for issuerurl " << issuerUrl << " code " << responseCode);
+            LOG_DEBUG("Response received for token endpoint " << tokenEndpoint << " code " << responseCode);
             if (responseCode == 200) {
                 boost::property_tree::ptree root;
                 std::stringstream stream;
@@ -355,9 +357,8 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& issuerUrl, const
                 try {
                     boost::property_tree::read_json(stream, root);
                 } catch (boost::property_tree::json_parser_error& e) {
-                    LOG_ERROR("Failed to parse json of Oauth2 response: "
-                              << e.what() << "\nInput Json = " << responseData
-                              << " passedin: " << options.postFields);
+                    LOG_ERROR("Failed to parse json of Oauth2 response: " << e.what() << "\nInput Json = "
+                                                                          << responseData);
                     break;
                 }
 
@@ -374,13 +375,13 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& issuerUrl, const
                     LOG_ERROR("Response doesn't contain access_token, the response is: " << responseData);
                 }
             } else {
-                LOG_ERROR("Response failed for issuerurl " << issuerUrl << ". response Code " << responseCode
-                                                           << " passedin: " << options.postFields);
+                LOG_ERROR("Response failed for token endpoint " << tokenEndpoint << ". response Code "
+                                                                << responseCode);
             }
             break;
         default:
-            LOG_ERROR("Response failed for issuerurl " << issuerUrl << ". ErrorCode " << res << ": "
-                                                       << errorBuffer << " passedin: " << options.postFields);
+            LOG_ERROR("Response failed for token endpoint " << tokenEndpoint << ". ErrorCode " << res << ": "
+                                                            << errorBuffer);
             break;
     }
 
@@ -406,8 +407,7 @@ void ClientCredentialFlow::initialize() {
         return;
     }
 
-    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
-                                             OAuth2TokenEndpointAuthMethod::ClientSecretPost);
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_);
     this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get());
     if (!this->tokenEndPoint_.empty()) {
         LOG_DEBUG("Get token endpoint: " << this->tokenEndPoint_);
@@ -464,9 +464,8 @@ static std::string buildClientCredentialsBody(CurlWrapper& curl, const ParamMap&
 Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
     std::call_once(initializeOnce_, &ClientCredentialFlow::initialize, this);
     const auto params = generateParamMap();
-    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
-                                             OAuth2TokenEndpointAuthMethod::ClientSecretPost);
-    return fetchOauth2Token(issuerUrl_, tokenEndPoint_, params, tlsContext.get(),
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_);
+    return fetchOauth2Token(tokenEndPoint_, params, tlsContext.get(),
                             OAuth2TokenEndpointAuthMethod::ClientSecretPost);
 }
 
@@ -490,8 +489,7 @@ void TlsClientAuthFlow::initialize() {
         return;
     }
 
-    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
-                                             OAuth2TokenEndpointAuthMethod::TlsClientAuth);
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_);
     if (!tlsContext || tlsContext->certPath.empty() || tlsContext->keyPath.empty()) {
         LOG_ERROR("Failed to initialize TlsClientAuthFlow: tls_cert_file or tls_key_file is not set");
         return;
@@ -519,13 +517,12 @@ ParamMap TlsClientAuthFlow::generateParamMap() const {
 Oauth2TokenResultPtr TlsClientAuthFlow::authenticate() {
     std::call_once(initializeOnce_, &TlsClientAuthFlow::initialize, this);
     const auto params = generateParamMap();
-    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_,
-                                             OAuth2TokenEndpointAuthMethod::TlsClientAuth);
+    const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_);
     if (!tlsContext || tlsContext->certPath.empty() || tlsContext->keyPath.empty()) {
         Oauth2TokenResultPtr resultPtr = Oauth2TokenResultPtr(new Oauth2TokenResult());
         return resultPtr;
     }
-    return fetchOauth2Token(issuerUrl_, tokenEndPoint_, params, tlsContext.get(),
+    return fetchOauth2Token(tokenEndPoint_, params, tlsContext.get(),
                             OAuth2TokenEndpointAuthMethod::TlsClientAuth);
 }
 
