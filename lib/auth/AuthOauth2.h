@@ -71,6 +71,36 @@ class ClientCredentialFlow : public Oauth2Flow {
     const KeyFile keyFile_;
     const std::string audience_;
     const std::string scope_;
+    const std::string tlsCertFilePath_;
+    const std::string tlsKeyFilePath_;
+    std::string tlsTrustCertsFilePath_;
+    std::once_flag initializeOnce_;
+};
+
+class TlsClientAuthFlow : public Oauth2Flow {
+   public:
+    static const std::string DEFAULT_CLIENT_ID;
+
+    TlsClientAuthFlow(ParamMap& params);
+    void initialize();
+    Oauth2TokenResultPtr authenticate();
+    void close();
+
+    ParamMap generateParamMap() const;
+    std::string getTokenEndPoint() const;
+
+    void setTlsTrustCertsFilePath(const std::string& tlsTrustCertsFilePath) {
+        tlsTrustCertsFilePath_ = tlsTrustCertsFilePath;
+    }
+
+   private:
+    std::string tokenEndPoint_;
+    const std::string issuerUrl_;
+    const std::string clientId_;
+    const std::string audience_;
+    const std::string scope_;
+    const std::string tlsCertFilePath_;
+    const std::string tlsKeyFilePath_;
     std::string tlsTrustCertsFilePath_;
     std::once_flag initializeOnce_;
 };
