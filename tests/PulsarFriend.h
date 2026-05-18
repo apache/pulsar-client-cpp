@@ -102,6 +102,11 @@ class PulsarFriend {
         return *consumerImpl;
     }
 
+    static Result consumerHandleCreateConsumer(Consumer consumer, const ClientConnectionPtr& cnx,
+                                               Result result) {
+        return getConsumerImpl(consumer).handleCreateConsumer(cnx, result);
+    }
+
     static std::shared_ptr<ConsumerImpl> getConsumerImplPtr(Consumer consumer) {
         return std::static_pointer_cast<ConsumerImpl>(consumer.impl_);
     }
