@@ -371,8 +371,9 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
         }
 
         if (consumerCreatedPromise_.isComplete()) {
-            // Consumer had already been initially created, we need to retry connecting in any case
+            // Clear the connection set before SUBSCRIBE so the next reconnect is not skipped.
             LOG_WARN(getName() << "Failed to reconnect consumer: " << strResult(result));
+            resetCnx();
             handleResult = ResultRetryable;
         } else {
             // Consumer was not yet created, retry to connect to broker if it's possible

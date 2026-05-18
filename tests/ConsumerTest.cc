@@ -1596,4 +1596,40 @@ TEST(ConsumerTest, testCloseAfterSeek) {
     anotherClient.close();
 }
 
+TEST(ConsumerTest, testIsConnectedFalsePositiveAfterSubscribeRejectedOnReconnect) {
+    // A reconnect SUBSCRIBE failure happens after the initial subscribe has already completed.
+    const std::string topic =
+        "persistent://public/default/test-false-positive-" + std::to_string(time(nullptr));
+    Client client(lookupUrl);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
+    ASSERT_TRUE(consumer.isConnected()) << "Precondition: consumer should be connected";
+
+    auto& consumerImpl = PulsarFriend::getConsumerImpl(consumer);
+
+    // Capture the current live connection.
+    auto cnx = consumerImpl.getCnx().lock();
+    ASSERT_TRUE(cnx != nullptr) << "Precondition: cnx should be non-null";
+    LOG_INFO("Step 1 passed: consumer subscribed, cnx=" << cnx);
+
+    // Simulate the broker rejecting the SUBSCRIBE command during reconnect.
+    Result handleResult = PulsarFriend::consumerHandleCreateConsumer(consumer, cnx, ResultAuthorizationError);
+    LOG_INFO("Step 2: handleCreateConsumer returned " << handleResult);
+    EXPECT_EQ(ResultRetryable, handleResult)
+        << "handleCreateConsumer should return ResultRetryable for an already-created consumer";
+
+    // The failed SUBSCRIBE must clear the connection set before SUBSCRIBE.
+    auto cnxAfter = consumerImpl.getCnx().lock();
+    LOG_INFO("Step 3: cnx after handleCreateConsumer failure = " << cnxAfter);
+    LOG_INFO("Step 3: isConnected() = " << consumer.isConnected());
+
+    EXPECT_EQ(nullptr, cnxAfter)
+        << "After fix: connection_ must be cleared by resetCnx() so grabCnx() can retry";
+    EXPECT_FALSE(consumer.isConnected())
+        << "After fix: isConnected() must return false after SUBSCRIBE rejection";
+
+    consumer.close();
+    client.close();
+}
+
 }  // namespace pulsar
