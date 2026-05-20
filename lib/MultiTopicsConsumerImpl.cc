@@ -255,6 +255,10 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(
                                                       subscriptionMode_, startMessageId_);
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create ConsumerImpl for " << topicName->toString() << ": " << e.what());
+            {
+                Lock lock(mutex_);
+                lastErrorMessage_ = e.what();
+            }
             topicSubResultPromise->setFailed(ResultConnectError);
             return;
         }
@@ -276,6 +280,10 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(
                                                           subscriptionMode_, startMessageId_);
             } catch (const std::runtime_error& e) {
                 LOG_ERROR("Failed to create ConsumerImpl for " << topicPartitionName << ": " << e.what());
+                {
+                    Lock lock(mutex_);
+                    lastErrorMessage_ = e.what();
+                }
                 topicSubResultPromise->setFailed(ResultConnectError);
                 return;
             }
@@ -310,6 +318,11 @@ void MultiTopicsConsumerImpl::handleSingleConsumerCreated(
     assert(previous > 0);
 
     if (result != ResultOk) {
+        if (auto consumer = consumerImplBaseWeakPtr.lock()) {
+            auto lastErrorMessage = consumer->getLastErrorMessage();
+            Lock lock(mutex_);
+            lastErrorMessage_ = lastErrorMessage;
+        }
         topicSubResultPromise->setFailed(result);
         LOG_ERROR("Unable to create Consumer - " << consumerStr_ << " Error - " << result);
         return;
@@ -762,6 +775,11 @@ Future<Result, ConsumerImplBaseWeakPtr> MultiTopicsConsumerImpl::getConsumerCrea
 const std::string& MultiTopicsConsumerImpl::getSubscriptionName() const { return subscriptionName_; }
 
 const std::string& MultiTopicsConsumerImpl::getTopic() const { return topic(); }
+
+std::string MultiTopicsConsumerImpl::getLastErrorMessage() const {
+    Lock lock(mutex_);
+    return lastErrorMessage_;
+}
 
 const std::string& MultiTopicsConsumerImpl::getName() const { return consumerStr_; }
 

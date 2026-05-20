@@ -95,17 +95,29 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                              const CreateProducerCallback& callback, bool autoDownloadSchema = false);
 
+    void createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
+                               const CreateProducerCallbackV2& callback, bool autoDownloadSchema = false);
+
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
 
+    void subscribeAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                          const ConsumerConfiguration& conf, const SubscribeCallbackV2& callback);
+
     void subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
+
+    void subscribeAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
+                          const ConsumerConfiguration& conf, const SubscribeCallbackV2& callback);
 
     void subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
                                  const ConsumerConfiguration& conf, const SubscribeCallback& callback);
 
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, const ReaderCallback& callback);
+
+    void createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                             const ReaderConfiguration& conf, const ReaderCallbackV2& callback);
 
     void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
                               const TableViewCallback& callback);
@@ -176,21 +188,38 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                               const TopicNamePtr& topicName, const ProducerConfiguration& conf,
                               const CreateProducerCallback& callback);
 
+    void handleCreateProducerV2(Result result, const LookupDataResultPtr& partitionMetadata,
+                                const TopicNamePtr& topicName, const ProducerConfiguration& conf,
+                                const CreateProducerCallbackV2& callback);
+
     void handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
                          const TopicNamePtr& topicName, const std::string& consumerName,
                          ConsumerConfiguration conf, const SubscribeCallback& callback);
 
+    void handleSubscribeV2(Result result, const LookupDataResultPtr& partitionMetadata,
+                           const TopicNamePtr& topicName, const std::string& consumerName,
+                           ConsumerConfiguration conf, const SubscribeCallbackV2& callback);
+
     void handleReaderMetadataLookup(Result result, const LookupDataResultPtr& partitionMetadata,
                                     const TopicNamePtr& topicName, const MessageId& startMessageId,
                                     const ReaderConfiguration& conf, const ReaderCallback& callback);
+
+    void handleReaderMetadataLookupV2(Result result, const LookupDataResultPtr& partitionMetadata,
+                                      const TopicNamePtr& topicName, const MessageId& startMessageId,
+                                      const ReaderConfiguration& conf, const ReaderCallbackV2& callback);
 
     void handleGetPartitions(Result result, const LookupDataResultPtr& partitionMetadata,
                              const TopicNamePtr& topicName, const GetPartitionsCallback& callback);
 
     void handleProducerCreated(Result result, const ProducerImplBaseWeakPtr& producerWeakPtr,
                                const CreateProducerCallback& callback, const ProducerImplBasePtr& producer);
+    void handleProducerCreatedV2(Result result, const ProducerImplBaseWeakPtr& producerWeakPtr,
+                                 const CreateProducerCallbackV2& callback,
+                                 const ProducerImplBasePtr& producer);
     void handleConsumerCreated(Result result, const ConsumerImplBaseWeakPtr& consumerWeakPtr,
                                const SubscribeCallback& callback, const ConsumerImplBasePtr& consumer);
+    void handleConsumerCreatedV2(Result result, const ConsumerImplBaseWeakPtr& consumerWeakPtr,
+                                 const SubscribeCallbackV2& callback, const ConsumerImplBasePtr& consumer);
 
     typedef std::shared_ptr<int> SharedInt;
 

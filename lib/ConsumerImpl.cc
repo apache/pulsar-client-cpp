@@ -214,6 +214,11 @@ const std::string& ConsumerImpl::getSubscriptionName() const { return originalSu
 
 const std::string& ConsumerImpl::getTopic() const { return topic(); }
 
+std::string ConsumerImpl::getLastErrorMessage() const {
+    Lock lock(mutex_);
+    return lastErrorMessage_;
+}
+
 void ConsumerImpl::start() {
     HandlerBase::start();
     ackGroupingTrackerPtr_->start(get_shared_this_ptr());
@@ -263,7 +268,7 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     setFirstRequestIdAfterConnect(requestId);
     cnx->sendRequestWithId(cmd, requestId, "SUBSCRIBE")
         .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
-            Result handleResult = handleCreateConsumer(cnx, result);
+            Result handleResult = handleCreateConsumer(cnx, result, responseData);
             if (handleResult != ResultOk) {
                 promise.setFailed(handleResult);
                 return;
@@ -301,6 +306,11 @@ void ConsumerImpl::sendFlowPermitsToBroker(const ClientConnectionPtr& cnx, int n
 }
 
 Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result result) {
+    return handleCreateConsumer(cnx, result, ResponseData{});
+}
+
+Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result result,
+                                          const ResponseData& responseData) {
     Result handleResult = ResultOk;
 
     if (result == ResultOk) {
@@ -361,6 +371,10 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
         }
         consumerCreatedPromise_.setValue(get_shared_this_ptr());
     } else {
+        {
+            Lock lock(mutex_);
+            lastErrorMessage_ = responseData.errorMessage;
+        }
         if (result == ResultTimeout) {
             // Creating the consumer has timed out. We need to ensure the broker closes the consumer
             // in case it was indeed created, otherwise it might prevent new subscribe operation,

@@ -57,6 +57,11 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
         cancelTimer(timer_);
     }
 
+    void fail(Result result, const T& value) {
+        promise_.setFailed(result, value);
+        cancelTimer(timer_);
+    }
+
     void disableTimeout() { timeoutDisabled_.store(true, std::memory_order_release); }
 
     auto getFuture() const { return promise_.getFuture(); }

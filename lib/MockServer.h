@@ -36,6 +36,10 @@ namespace pulsar {
 class MockServer : public std::enable_shared_from_this<MockServer> {
    public:
     using RequestDelayType = std::unordered_map<std::string, long /* delay in milliseconds */>;
+    struct RequestError {
+        proto::ServerError error;
+        std::string message;
+    };
 
     MockServer(const ClientConnectionPtr& connection) : connection_(connection) {
         requestDelays_["CLOSE_CONSUMER"] = 1;
@@ -46,6 +50,11 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
         for (auto&& delay : delays) {
             requestDelays_[delay.first] = delay.second;
         }
+    }
+
+    void setRequestError(const std::string& request, proto::ServerError error, const std::string& message) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        requestErrors_[request] = RequestError{error, message};
     }
 
     bool sendRequest(const std::string& request, uint64_t requestId) {
@@ -75,9 +84,23 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
                              }
                          });
             }
+            bool shouldFail = false;
+            proto::ServerError error = proto::UnknownError;
+            std::string message;
+            if (auto errorIter = requestErrors_.find(request); errorIter != requestErrors_.end()) {
+                shouldFail = true;
+                error = errorIter->second.error;
+                message = errorIter->second.message;
+            }
             schedule(connection, request + std::to_string(requestId), iter->second,
-                     [connection, request, requestId] {
-                         if (request == "CONSUMER_STATS") {
+                     [connection, request, requestId, shouldFail, error, message] {
+                         if (shouldFail) {
+                             proto::CommandError response;
+                             response.set_request_id(requestId);
+                             response.set_error(error);
+                             response.set_message(message);
+                             connection->handleError(response);
+                         } else if (request == "CONSUMER_STATS") {
                              proto::CommandConsumerStatsResponse response;
                              response.set_request_id(requestId);
                              connection->handleConsumerStatsResponse(response);
@@ -132,6 +155,7 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
    private:
     mutable std::mutex mutex_;
     std::unordered_map<std::string, long> requestDelays_;
+    std::unordered_map<std::string, RequestError> requestErrors_;
     std::unordered_map<std::string, DeadlineTimerPtr> pendingTimers_;
     ClientConnectionWeakPtr connection_;
 

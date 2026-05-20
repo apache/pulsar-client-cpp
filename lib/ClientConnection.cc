@@ -1711,7 +1711,11 @@ void ClientConnection::handleError(const proto::CommandError& error) {
         pendingRequests_.erase(it);
         lock.unlock();
 
-        request->fail(result);
+        ResponseData data;
+        if (error.has_message()) {
+            data.errorMessage = error.message();
+        }
+        request->fail(result, data);
     } else {
         auto it = pendingGetLastMessageIdRequests_.find(error.request_id());
         if (it != pendingGetLastMessageIdRequests_.end()) {

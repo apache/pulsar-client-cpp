@@ -63,6 +63,31 @@ void Client::createProducerAsync(const std::string& topic, const CreateProducerC
     createProducerAsync(topic, ProducerConfiguration(), callback);
 }
 
+std::variant<Producer, Error> Client::createProducerV2(const std::string& topic) {
+    return createProducerV2(topic, ProducerConfiguration());
+}
+
+std::variant<Producer, Error> Client::createProducerV2(const std::string& topic,
+                                                       const ProducerConfiguration& conf) {
+    Promise<bool, std::variant<Producer, Error> > promise;
+    createProducerAsyncV2(topic, conf,
+                          [promise](std::variant<Producer, Error> result) { promise.setValue(result); });
+    Future<bool, std::variant<Producer, Error> > future = promise.getFuture();
+
+    std::variant<Producer, Error> result;
+    future.get(result);
+    return result;
+}
+
+void Client::createProducerAsyncV2(const std::string& topic, const CreateProducerCallbackV2& callback) {
+    createProducerAsyncV2(topic, ProducerConfiguration(), callback);
+}
+
+void Client::createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
+                                   const CreateProducerCallbackV2& callback) {
+    impl_->createProducerAsyncV2(topic, conf, callback);
+}
+
 void Client::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                                  const CreateProducerCallback& callback) {
     impl_->createProducerAsync(topic, conf, callback);
@@ -81,15 +106,44 @@ Result Client::subscribe(const std::string& topic, const std::string& subscripti
     return future.get(consumer);
 }
 
+std::variant<Consumer, Error> Client::subscribeV2(const std::string& topic,
+                                                  const std::string& subscriptionName) {
+    return subscribeV2(topic, subscriptionName, ConsumerConfiguration());
+}
+
+std::variant<Consumer, Error> Client::subscribeV2(const std::string& topic,
+                                                  const std::string& subscriptionName,
+                                                  const ConsumerConfiguration& conf) {
+    Promise<bool, std::variant<Consumer, Error> > promise;
+    subscribeAsyncV2(topic, subscriptionName, conf,
+                     [promise](std::variant<Consumer, Error> result) { promise.setValue(result); });
+    Future<bool, std::variant<Consumer, Error> > future = promise.getFuture();
+
+    std::variant<Consumer, Error> result;
+    future.get(result);
+    return result;
+}
+
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                             const SubscribeCallback& callback) {
     subscribeAsync(topic, subscriptionName, ConsumerConfiguration(), callback);
+}
+
+void Client::subscribeAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                              const SubscribeCallbackV2& callback) {
+    subscribeAsyncV2(topic, subscriptionName, ConsumerConfiguration(), callback);
 }
 
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                             const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     LOG_INFO("Subscribing on Topic :" << topic);
     impl_->subscribeAsync(topic, subscriptionName, conf, callback);
+}
+
+void Client::subscribeAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                              const ConsumerConfiguration& conf, const SubscribeCallbackV2& callback) {
+    LOG_INFO("Subscribing on Topic :" << topic);
+    impl_->subscribeAsyncV2(topic, subscriptionName, conf, callback);
 }
 
 Result Client::subscribe(const std::vector<std::string>& topics, const std::string& subscriptionName,
@@ -106,14 +160,42 @@ Result Client::subscribe(const std::vector<std::string>& topics, const std::stri
     return future.get(consumer);
 }
 
+std::variant<Consumer, Error> Client::subscribeV2(const std::vector<std::string>& topics,
+                                                  const std::string& subscriptionName) {
+    return subscribeV2(topics, subscriptionName, ConsumerConfiguration());
+}
+
+std::variant<Consumer, Error> Client::subscribeV2(const std::vector<std::string>& topics,
+                                                  const std::string& subscriptionName,
+                                                  const ConsumerConfiguration& conf) {
+    Promise<bool, std::variant<Consumer, Error> > promise;
+    subscribeAsyncV2(topics, subscriptionName, conf,
+                     [promise](std::variant<Consumer, Error> result) { promise.setValue(result); });
+    Future<bool, std::variant<Consumer, Error> > future = promise.getFuture();
+
+    std::variant<Consumer, Error> result;
+    future.get(result);
+    return result;
+}
+
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                             const SubscribeCallback& callback) {
     subscribeAsync(topics, subscriptionName, ConsumerConfiguration(), callback);
 }
 
+void Client::subscribeAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
+                              const SubscribeCallbackV2& callback) {
+    subscribeAsyncV2(topics, subscriptionName, ConsumerConfiguration(), callback);
+}
+
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                             const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
     impl_->subscribeAsync(topics, subscriptionName, conf, callback);
+}
+
+void Client::subscribeAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
+                              const ConsumerConfiguration& conf, const SubscribeCallbackV2& callback) {
+    impl_->subscribeAsyncV2(topics, subscriptionName, conf, callback);
 }
 
 Result Client::subscribeWithRegex(const std::string& regexPattern, const std::string& subscriptionName,
@@ -149,9 +231,26 @@ Result Client::createReader(const std::string& topic, const MessageId& startMess
     return future.get(reader);
 }
 
+std::variant<Reader, Error> Client::createReaderV2(const std::string& topic, const MessageId& startMessageId,
+                                                   const ReaderConfiguration& conf) {
+    Promise<bool, std::variant<Reader, Error> > promise;
+    createReaderAsyncV2(topic, startMessageId, conf,
+                        [promise](std::variant<Reader, Error> result) { promise.setValue(result); });
+    Future<bool, std::variant<Reader, Error> > future = promise.getFuture();
+
+    std::variant<Reader, Error> result;
+    future.get(result);
+    return result;
+}
+
 void Client::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                                const ReaderConfiguration& conf, const ReaderCallback& callback) {
     impl_->createReaderAsync(topic, startMessageId, conf, callback);
+}
+
+void Client::createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                                 const ReaderConfiguration& conf, const ReaderCallbackV2& callback) {
+    impl_->createReaderAsyncV2(topic, startMessageId, conf, callback);
 }
 
 Result Client::createTableView(const std::string& topic, const TableViewConfiguration& conf,

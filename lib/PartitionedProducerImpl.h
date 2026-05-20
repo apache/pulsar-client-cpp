@@ -78,6 +78,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     void internalShutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
+    std::string getLastErrorMessage() const override;
     Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
     void triggerFlush() override;
     void flushAsync(FlushCallback callback) override;
@@ -101,6 +102,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
 
     const TopicNamePtr topicName_;
     const std::string topic_;
+    std::string lastErrorMessage_;
 
     std::atomic_uint numProducersCreated_{0};
 

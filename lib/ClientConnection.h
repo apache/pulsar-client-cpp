@@ -113,9 +113,10 @@ class CommandSuccess;
 // Data returned on the request operation. Mostly used on create-producer command
 struct ResponseData {
     std::string producerName;
-    int64_t lastSequenceId;
+    int64_t lastSequenceId = -1L;
     std::string schemaVersion;
     optional<uint64_t> topicEpoch;
+    std::string errorMessage;
 };
 
 typedef std::shared_ptr<std::vector<std::string>> NamespaceTopicsPtr;

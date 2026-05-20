@@ -117,6 +117,10 @@ void ReaderImpl::start(const MessageId& startMessageId,
 
 const std::string& ReaderImpl::getTopic() const { return consumer_->getTopic(); }
 
+std::string ReaderImpl::getLastErrorMessage() const {
+    return consumer_ ? consumer_->getLastErrorMessage() : "";
+}
+
 Result ReaderImpl::readNext(Message& msg) {
     Result res = consumer_->receive(msg);
     acknowledgeIfNecessary(res, msg);

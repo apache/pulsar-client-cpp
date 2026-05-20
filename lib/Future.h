@@ -137,6 +137,8 @@ class Promise {
 
     bool setFailed(Result result) const { return state_->complete(result, {}); }
 
+    bool setFailed(Result result, const Type &value) const { return state_->complete(result, value); }
+
     bool setSuccess() const { return setValue({}); }
 
     bool isComplete() const { return state_->completed(); }

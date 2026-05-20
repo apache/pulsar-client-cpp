@@ -328,6 +328,68 @@ TEST(ClientTest, testTimedOutPendingRequestsAreErasedFromConnectionMaps) {
     executorProvider->close();
 }
 
+TEST(ClientTest, testRequestErrorMessageIsReturnedInResponseData) {
+    ClientConfiguration conf;
+
+    auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(lookupUrl));
+    ConnectionPool pool(serviceInfo, conf, executorProvider, "");
+    auto connection = std::make_shared<ClientConnection>(lookupUrl, lookupUrl, *serviceInfo.load(),
+                                                         executorProvider->get(), conf, "", pool, 0);
+    PulsarFriend::setServerProtocolVersion(*connection, 8);
+
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+
+    const std::string errorMessage = "bad token";
+    mockServer->setRequestDelay({{"PRODUCER", 1}});
+    mockServer->setRequestError("PRODUCER", proto::AuthenticationError, errorMessage);
+
+    auto future = connection->sendRequestWithId(Commands::newPing(), 0, "PRODUCER");
+
+    ResponseData responseData;
+    ASSERT_EQ(ResultAuthenticationError, future.get(responseData));
+    ASSERT_EQ(errorMessage, responseData.errorMessage);
+    ASSERT_EQ(0u, PulsarFriend::getPendingRequests(*connection));
+    ASSERT_EQ(0u, mockServer->close());
+
+    connection->close(ResultDisconnected).wait();
+    executorProvider->close();
+}
+
+TEST(ClientTest, testCreateProducerV2ReturnsError) {
+    Client client(lookupUrl);
+
+    auto result = client.createProducerV2("persistent://prop//unit/ns1/testCreateProducerV2ReturnsError");
+    auto error = std::get_if<Error>(&result);
+
+    ASSERT_NE(nullptr, error);
+    ASSERT_EQ(ResultInvalidTopicName, error->result);
+}
+
+TEST(ClientTest, testSubscribeV2ReturnsError) {
+    Client client(lookupUrl);
+
+    auto result = client.subscribeV2("persistent://prop//unit/ns1/testSubscribeV2ReturnsError", "sub");
+    auto error = std::get_if<Error>(&result);
+
+    ASSERT_NE(nullptr, error);
+    ASSERT_EQ(ResultInvalidTopicName, error->result);
+}
+
+TEST(ClientTest, testCreateReaderV2ReturnsError) {
+    Client client(lookupUrl);
+    ReaderConfiguration conf;
+
+    auto result = client.createReaderV2("persistent://prop//unit/ns1/testCreateReaderV2ReturnsError",
+                                        MessageId::earliest(), conf);
+    auto error = std::get_if<Error>(&result);
+
+    ASSERT_NE(nullptr, error);
+    ASSERT_EQ(ResultInvalidTopicName, error->result);
+}
+
 TEST(ClientTest, testGetNumberOfReferences) {
     Client client("pulsar://localhost:6650");
 
