@@ -50,8 +50,8 @@ class LookupService {
                       << ", physical address: " << lookupResult.physicalAddress;
         }
     };
-    using LookupResultFuture = Future<Result, LookupResult>;
-    using LookupResultPromise = Promise<Result, LookupResult>;
+    using LookupResultFuture = Future<Error, LookupResult>;
+    using LookupResultPromise = Promise<Error, LookupResult>;
 
     /**
      * Call broker lookup-api to get broker which serves namespace bundle that contains the given topic.
@@ -67,14 +67,14 @@ class LookupService {
      *
      * Gets Partition metadata
      */
-    virtual Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) = 0;
+    virtual Future<Error, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) = 0;
 
     /**
      * @param   namespace - namespace-name
      *
      * Returns all the topics name for a given namespace.
      */
-    virtual Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+    virtual Future<Error, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) = 0;
 
     /**
@@ -84,8 +84,8 @@ class LookupService {
      * @param version the schema version byte array, if it's empty, use the latest version
      * @return SchemaInfo
      */
-    virtual Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName,
-                                                 const std::string& version = "") = 0;
+    virtual Future<Error, SchemaInfo> getSchema(const TopicNamePtr& topicName,
+                                                const std::string& version = "") = 0;
 
     virtual ServiceNameResolver& getServiceNameResolver() = 0;
 

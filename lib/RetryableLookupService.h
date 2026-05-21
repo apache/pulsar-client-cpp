@@ -57,20 +57,20 @@ class RetryableLookupService : public LookupService {
                                  [this, topicName] { return lookupService_->getBroker(topicName); });
     }
 
-    Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
+    Future<Error, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
         return partitionLookupCache_->run(
             "get-partition-metadata-" + topicName->toString(),
             [this, topicName] { return lookupService_->getPartitionMetadataAsync(topicName); });
     }
 
-    Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
+    Future<Error, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override {
         return namespaceLookupCache_->run(
             "get-topics-of-namespace-" + nsName->toString() + "-" + std::to_string(mode),
             [this, nsName, mode] { return lookupService_->getTopicsOfNamespaceAsync(nsName, mode); });
     }
 
-    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override {
+    Future<Error, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override {
         return getSchemaCache_->run("get-schema" + topicName->toString(), [this, topicName, version] {
             return lookupService_->getSchema(topicName, version);
         });
@@ -82,20 +82,20 @@ class RetryableLookupService : public LookupService {
 
    private:
     const std::shared_ptr<LookupService> lookupService_;
-    RetryableOperationCachePtr<LookupResult> lookupCache_;
-    RetryableOperationCachePtr<LookupDataResultPtr> partitionLookupCache_;
-    RetryableOperationCachePtr<NamespaceTopicsPtr> namespaceLookupCache_;
-    RetryableOperationCachePtr<SchemaInfo> getSchemaCache_;
+    RetryableOperationCachePtr<LookupResult, Error> lookupCache_;
+    RetryableOperationCachePtr<LookupDataResultPtr, Error> partitionLookupCache_;
+    RetryableOperationCachePtr<NamespaceTopicsPtr, Error> namespaceLookupCache_;
+    RetryableOperationCachePtr<SchemaInfo, Error> getSchemaCache_;
 
     RetryableLookupService(std::shared_ptr<LookupService> lookupService, TimeDuration timeout,
                            ExecutorServiceProviderPtr executorProvider)
         : lookupService_(std::move(lookupService)),
-          lookupCache_(RetryableOperationCache<LookupResult>::create(executorProvider, timeout)),
+          lookupCache_(RetryableOperationCache<LookupResult, Error>::create(executorProvider, timeout)),
           partitionLookupCache_(
-              RetryableOperationCache<LookupDataResultPtr>::create(executorProvider, timeout)),
+              RetryableOperationCache<LookupDataResultPtr, Error>::create(executorProvider, timeout)),
           namespaceLookupCache_(
-              RetryableOperationCache<NamespaceTopicsPtr>::create(executorProvider, timeout)),
-          getSchemaCache_(RetryableOperationCache<SchemaInfo>::create(executorProvider, timeout)) {}
+              RetryableOperationCache<NamespaceTopicsPtr, Error>::create(executorProvider, timeout)),
+          getSchemaCache_(RetryableOperationCache<SchemaInfo, Error>::create(executorProvider, timeout)) {}
 };
 
 }  // namespace pulsar

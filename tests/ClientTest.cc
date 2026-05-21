@@ -28,6 +28,7 @@
 #include <sstream>
 #include <thread>
 #include <utility>
+#include <variant>
 
 #include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
@@ -326,6 +327,102 @@ TEST(ClientTest, testTimedOutPendingRequestsAreErasedFromConnectionMaps) {
     mockServer->close();
     connection->close(ResultDisconnected).wait();
     executorProvider->close();
+}
+
+TEST(ClientTest, testRequestErrorMessageIsReturnedInResponseData) {
+    ClientConfiguration conf;
+
+    auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(lookupUrl));
+    ConnectionPool pool(serviceInfo, conf, executorProvider, "");
+    auto connection = std::make_shared<ClientConnection>(lookupUrl, lookupUrl, *serviceInfo.load(),
+                                                         executorProvider->get(), conf, "", pool, 0);
+    PulsarFriend::setServerProtocolVersion(*connection, 8);
+
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+
+    const std::string errorMessage = "bad token";
+    mockServer->setRequestDelay({{"PRODUCER", 1}});
+    mockServer->setRequestError("PRODUCER", proto::AuthenticationError, errorMessage);
+
+    auto future = connection->sendRequestWithId(Commands::newPing(), 0, "PRODUCER");
+
+    ResponseData responseData;
+    ASSERT_EQ(ResultAuthenticationError, future.get(responseData));
+    ASSERT_EQ(errorMessage, responseData.errorMessage);
+    ASSERT_EQ(0u, PulsarFriend::getPendingRequests(*connection));
+    ASSERT_EQ(0u, mockServer->close());
+
+    connection->close(ResultDisconnected).wait();
+    executorProvider->close();
+}
+
+TEST(ClientTest, testPartitionMetadataErrorMessageIsReturnedInError) {
+    ClientConfiguration conf;
+
+    auto executorProvider = std::make_shared<ExecutorServiceProvider>(1);
+    AtomicSharedPtr<ServiceInfo> serviceInfo;
+    serviceInfo.store(std::make_shared<const ServiceInfo>(lookupUrl));
+    ConnectionPool pool(serviceInfo, conf, executorProvider, "");
+    auto connection = std::make_shared<ClientConnection>(lookupUrl, lookupUrl, *serviceInfo.load(),
+                                                         executorProvider->get(), conf, "", pool, 0);
+    PulsarFriend::setServerProtocolVersion(*connection, 8);
+
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+
+    const std::string errorMessage = "partition metadata auth failed";
+    mockServer->setRequestDelay({{"PARTITIONED_METADATA", 1}});
+    mockServer->setRequestError("PARTITIONED_METADATA", proto::AuthenticationError, errorMessage);
+
+    auto lookupPromise = std::make_shared<LookupDataResultPromise>();
+    auto lookupFuture = lookupPromise->getFuture();
+    connection->newPartitionedMetadataLookup("persistent://public/default/metadata-error", 0, lookupPromise);
+
+    LookupDataResultPtr lookupData;
+    Error error = lookupFuture.get(lookupData);
+    ASSERT_EQ(ResultAuthenticationError, error.result);
+    ASSERT_EQ(errorMessage, error.message);
+    ASSERT_EQ(0u, PulsarFriend::getPendingLookupRequests(*connection));
+    ASSERT_EQ(0u, PulsarFriend::getNumOfPendingLookupRequests(*connection));
+    ASSERT_EQ(0u, mockServer->close());
+
+    connection->close(ResultDisconnected).wait();
+    executorProvider->close();
+}
+
+TEST(ClientTest, testCreateProducerV2ReturnsError) {
+    Client client(lookupUrl);
+
+    auto result = client.createProducerV2("persistent://prop//unit/ns1/testCreateProducerV2ReturnsError");
+    auto error = std::get_if<Error>(&result);
+
+    ASSERT_NE(nullptr, error);
+    ASSERT_EQ(ResultInvalidTopicName, error->result);
+}
+
+TEST(ClientTest, testSubscribeV2ReturnsError) {
+    Client client(lookupUrl);
+
+    auto result = client.subscribeV2("persistent://prop//unit/ns1/testSubscribeV2ReturnsError", "sub");
+    auto error = std::get_if<Error>(&result);
+
+    ASSERT_NE(nullptr, error);
+    ASSERT_EQ(ResultInvalidTopicName, error->result);
+}
+
+TEST(ClientTest, testCreateReaderV2ReturnsError) {
+    Client client(lookupUrl);
+    ReaderConfiguration conf;
+
+    auto result = client.createReaderV2("persistent://prop//unit/ns1/testCreateReaderV2ReturnsError",
+                                        MessageId::earliest(), conf);
+    auto error = std::get_if<Error>(&result);
+
+    ASSERT_NE(nullptr, error);
+    ASSERT_EQ(ResultInvalidTopicName, error->result);
 }
 
 TEST(ClientTest, testGetNumberOfReferences) {
@@ -701,4 +798,47 @@ TEST(ClientTest, testNoRetry) {
         ASSERT_EQ(ResultAuthenticationError, result.result);
         ASSERT_TRUE(result.timeMs < 1000) << "consumer: " << result.timeMs << " ms";
     }
+}
+
+template <class... Ts>
+struct overloaded : Ts... {
+    using Ts::operator()...;
+};
+
+template <class... Ts>
+overloaded(Ts...) -> overloaded<Ts...>;
+
+TEST(ClientTest, testV2Creation) {
+    auto topic = "persistent://private/ns/client-test-v2-creation-" + std::to_string(time(nullptr));
+
+    Client clientWithoutAuth(lookupUrl);
+
+    std::visit(overloaded{
+                   [](const auto &) { FAIL() << "Producer creation should fail without auth"; },
+                   [](const Error &error) {
+                       ASSERT_EQ(ResultAuthorizationError, error.result);
+                       ASSERT_EQ("Client is not authorized to Get Partition Metadata", error.message);
+                   },
+               },
+               clientWithoutAuth.createProducerV2(topic));
+
+    std::visit(overloaded{
+                   [](const auto &) { FAIL() << "Producer creation should fail without auth"; },
+                   [](const Error &error) {
+                       ASSERT_EQ(ResultAuthorizationError, error.result);
+                       ASSERT_EQ("Client is not authorized to Get Partition Metadata", error.message);
+                   },
+               },
+               clientWithoutAuth.subscribeV2(topic, "sub"));
+
+    std::visit(overloaded{
+                   [](const auto &) { FAIL() << "Producer creation should fail without auth"; },
+                   [](const Error &error) {
+                       ASSERT_EQ(ResultAuthorizationError, error.result);
+                       ASSERT_EQ("Client is not authorized to Get Partition Metadata", error.message);
+                   },
+               },
+               clientWithoutAuth.createReaderV2(topic, MessageId::earliest(), {}));
+
+    clientWithoutAuth.close();
 }

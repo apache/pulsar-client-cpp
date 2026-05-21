@@ -87,6 +87,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     void internalShutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
+    std::string getLastErrorMessage() const override;
     Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
     void triggerFlush() override;
     void flushAsync(FlushCallback callback) override;
@@ -180,6 +181,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     std::string producerName_;
     bool userProvidedProducerName_;
     std::string producerStr_;
+    std::string lastErrorMessage_;
     uint64_t producerId_;
 
     std::unique_ptr<BatchMessageContainerBase> batchMessageContainer_;

@@ -30,8 +30,8 @@
 
 namespace pulsar {
 
-template <typename T>
-class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
+template <typename T, typename ResultType = Result>
+class PendingRequest : public std::enable_shared_from_this<PendingRequest<T, ResultType>> {
    public:
     PendingRequest(ASIO::steady_timer timer, std::function<void()> timeoutCallback)
         : timer_(std::move(timer)), timeoutCallback_(std::move(timeoutCallback)) {}
@@ -52,8 +52,13 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
         cancelTimer(timer_);
     }
 
-    void fail(Result result) {
+    void fail(ResultType result) {
         promise_.setFailed(result);
+        cancelTimer(timer_);
+    }
+
+    void fail(ResultType result, const T& value) {
+        promise_.setFailed(result, value);
         cancelTimer(timer_);
     }
 
@@ -65,12 +70,12 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
 
    private:
     ASIO::steady_timer timer_;
-    Promise<Result, T> promise_;
+    Promise<ResultType, T> promise_;
     std::function<void()> timeoutCallback_;
     std::atomic_bool timeoutDisabled_{false};
 };
 
-template <typename T>
-using PendingRequestPtr = std::shared_ptr<PendingRequest<T>>;
+template <typename T, typename ResultType = Result>
+using PendingRequestPtr = std::shared_ptr<PendingRequest<T, ResultType>>;
 
 }  // namespace pulsar

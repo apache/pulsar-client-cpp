@@ -127,6 +127,11 @@ const std::string& ProducerImpl::getTopic() const { return topic(); }
 
 const std::string& ProducerImpl::getProducerName() const { return producerName_; }
 
+std::string ProducerImpl::getLastErrorMessage() const {
+    Lock lock(mutex_);
+    return lastErrorMessage_;
+}
+
 int64_t ProducerImpl::getLastSequenceId() const { return lastSequenceIdPublished_; }
 
 const std::string& ProducerImpl::getSchemaVersion() const { return schemaVersion_; }
@@ -261,6 +266,7 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
 
     } else {
         // Producer creation failed
+        lastErrorMessage_ = responseData.errorMessage;
         if (result == ResultTimeout) {
             // Creating the producer has timed out. We need to ensure the broker closes the producer
             // in case it was indeed created, otherwise it might prevent new create producer operation,

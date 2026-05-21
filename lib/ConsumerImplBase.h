@@ -53,6 +53,7 @@ class ConsumerImplBase : public HandlerBase {
     virtual Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() = 0;
     virtual const std::string& getTopic() const = 0;
     virtual const std::string& getSubscriptionName() const = 0;
+    virtual std::string getLastErrorMessage() const = 0;
     virtual Result receive(Message& msg) = 0;
     virtual Result receive(Message& msg, int timeout) = 0;
     virtual void receiveAsync(const ReceiveCallback& callback) = 0;

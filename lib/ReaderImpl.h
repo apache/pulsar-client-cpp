@@ -66,6 +66,7 @@ class PULSAR_PUBLIC ReaderImpl : public std::enable_shared_from_this<ReaderImpl>
                const std::function<void(const ConsumerImplBaseWeakPtr&)>& callback);
 
     const std::string& getTopic() const;
+    std::string getLastErrorMessage() const;
 
     Result readNext(Message& msg);
     Result readNext(Message& msg, int timeoutMs);

@@ -67,6 +67,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() override;
     const std::string& getSubscriptionName() const override;
     const std::string& getTopic() const override;
+    std::string getLastErrorMessage() const override;
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(const ReceiveCallback& callback) override;
@@ -117,6 +118,7 @@ class MultiTopicsConsumerImpl : public ConsumerImplBase {
     TimeDuration partitionsUpdateInterval_;
     std::shared_ptr<std::atomic<int>> numberTopicPartitions_;
     std::atomic<Result> failedResult{ResultOk};
+    std::string lastErrorMessage_;
     Promise<Result, ConsumerImplBaseWeakPtr> multiTopicsConsumerCreatedPromise_;
     UnAckedMessageTrackerPtr unAckedMessageTrackerPtr_;
     const std::vector<std::string> topics_;

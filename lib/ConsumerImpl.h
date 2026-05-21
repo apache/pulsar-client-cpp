@@ -50,6 +50,7 @@ class ExecutorService;
 class ConsumerImpl;
 class MessageCrypto;
 class GetLastMessageIdResponse;
+struct ResponseData;
 typedef std::shared_ptr<MessageCrypto> MessageCryptoPtr;
 typedef std::shared_ptr<Backoff> BackoffPtr;
 typedef std::function<void(bool processSuccess)> ProcessDLQCallBack;
@@ -113,6 +114,7 @@ class ConsumerImpl : public ConsumerImplBase {
     Future<Result, ConsumerImplBaseWeakPtr> getConsumerCreatedFuture() override;
     const std::string& getSubscriptionName() const override;
     const std::string& getTopic() const override;
+    std::string getLastErrorMessage() const override;
     Result receive(Message& msg) override;
     Result receive(Message& msg, int timeout) override;
     void receiveAsync(const ReceiveCallback& callback) override;
@@ -174,6 +176,8 @@ class ConsumerImpl : public ConsumerImplBase {
     void notifyBatchPendingReceivedCallback(const BatchReceiveCallback& callback) override;
 
     Result handleCreateConsumer(const ClientConnectionPtr& cnx, Result result);
+    Result handleCreateConsumer(const ClientConnectionPtr& cnx, Result result,
+                                const ResponseData& responseData);
 
     void internalListener();
 
@@ -250,6 +254,7 @@ class ConsumerImpl : public ConsumerImplBase {
     const int receiverQueueRefillThreshold_;
     const uint64_t consumerId_;
     const std::string consumerStr_;
+    std::string lastErrorMessage_;
     int32_t partitionIndex_ = -1;
     Promise<Result, ConsumerImplBaseWeakPtr> consumerCreatedPromise_;
     std::atomic_bool messageListenerRunning_;

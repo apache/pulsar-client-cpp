@@ -36,11 +36,15 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 
 namespace pulsar {
 typedef std::function<void(Result, Producer)> CreateProducerCallback;
+typedef std::function<void(std::variant<Producer, Error>)> CreateProducerCallbackV2;
 typedef std::function<void(Result, Consumer)> SubscribeCallback;
+typedef std::function<void(std::variant<Consumer, Error>)> SubscribeCallbackV2;
 typedef std::function<void(Result, Reader)> ReaderCallback;
+typedef std::function<void(std::variant<Reader, Error>)> ReaderCallbackV2;
 typedef std::function<void(Result, TableView)> TableViewCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
@@ -108,7 +112,9 @@ class PULSAR_PUBLIC Client {
      * @return ResultOk if the producer has been successfully created
      * @return ResultError if there was an error
      */
-    Result createProducer(const std::string& topic, const ProducerConfiguration& conf, Producer& producer);
+    [[deprecated("use createProducerV2 instead")]] Result createProducer(const std::string& topic,
+                                                                         const ProducerConfiguration& conf,
+                                                                         Producer& producer);
 
     /**
      * Asynchronously create a producer with the default ProducerConfiguration for publishing on a specific
@@ -118,7 +124,18 @@ class PULSAR_PUBLIC Client {
      * @param callback the callback that is triggered when the producer is created successfully or not
      * @param callback Callback function that is invoked when the operation is completed
      */
-    void createProducerAsync(const std::string& topic, const CreateProducerCallback& callback);
+    [[deprecated("use createProducerAsyncV2 instead")]] void createProducerAsync(
+        const std::string& topic, const CreateProducerCallback& callback);
+
+    std::variant<Producer, Error> createProducerV2(const std::string& topic);
+
+    std::variant<Producer, Error> createProducerV2(const std::string& topic,
+                                                   const ProducerConfiguration& conf);
+
+    void createProducerAsyncV2(const std::string& topic, const CreateProducerCallbackV2& callback);
+
+    void createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
+                               const CreateProducerCallbackV2& callback);
 
     /**
      * Asynchronously create a producer with the customized ProducerConfiguration for publishing on a specific
@@ -151,6 +168,11 @@ class PULSAR_PUBLIC Client {
     Result subscribe(const std::string& topic, const std::string& subscriptionName,
                      const ConsumerConfiguration& conf, Consumer& consumer);
 
+    std::variant<Consumer, Error> subscribeV2(const std::string& topic, const std::string& subscriptionName);
+
+    std::variant<Consumer, Error> subscribeV2(const std::string& topic, const std::string& subscriptionName,
+                                              const ConsumerConfiguration& conf);
+
     /**
      * Asynchronously subscribe to a given topic and subscription combination with the default
      * ConsumerConfiguration
@@ -162,6 +184,9 @@ class PULSAR_PUBLIC Client {
      */
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const SubscribeCallback& callback);
+
+    void subscribeAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                          const SubscribeCallbackV2& callback);
 
     /**
      * Asynchronously subscribe to a given topic and subscription combination with the customized
@@ -175,6 +200,9 @@ class PULSAR_PUBLIC Client {
      */
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
+
+    void subscribeAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                          const ConsumerConfiguration& conf, const SubscribeCallbackV2& callback);
 
     /**
      * Subscribe to multiple topics under the same namespace.
@@ -197,6 +225,13 @@ class PULSAR_PUBLIC Client {
     Result subscribe(const std::vector<std::string>& topics, const std::string& subscriptionName,
                      const ConsumerConfiguration& conf, Consumer& consumer);
 
+    std::variant<Consumer, Error> subscribeV2(const std::vector<std::string>& topics,
+                                              const std::string& subscriptionName);
+
+    std::variant<Consumer, Error> subscribeV2(const std::vector<std::string>& topics,
+                                              const std::string& subscriptionName,
+                                              const ConsumerConfiguration& conf);
+
     /**
      * Asynchronously subscribe to a list of topics and subscription combination using the default
      ConsumerConfiguration
@@ -210,6 +245,9 @@ class PULSAR_PUBLIC Client {
     void subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                         const SubscribeCallback& callback);
 
+    void subscribeAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
+                          const SubscribeCallbackV2& callback);
+
     /**
      * Asynchronously subscribe to a list of topics and subscription combination using the customized
      * ConsumerConfiguration
@@ -222,6 +260,9 @@ class PULSAR_PUBLIC Client {
      */
     void subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
+
+    void subscribeAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
+                          const ConsumerConfiguration& conf, const SubscribeCallbackV2& callback);
 
     /**
      * Subscribe to multiple topics, which match given regexPattern, under the same namespace.
@@ -291,6 +332,9 @@ class PULSAR_PUBLIC Client {
     Result createReader(const std::string& topic, const MessageId& startMessageId,
                         const ReaderConfiguration& conf, Reader& reader);
 
+    std::variant<Reader, Error> createReaderV2(const std::string& topic, const MessageId& startMessageId,
+                                               const ReaderConfiguration& conf);
+
     /**
      * Asynchronously create a topic reader with the customized ReaderConfiguration for reading messages from
      * the specified topic.
@@ -319,6 +363,9 @@ class PULSAR_PUBLIC Client {
      */
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, const ReaderCallback& callback);
+
+    void createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                             const ReaderConfiguration& conf, const ReaderCallbackV2& callback);
 
     /**
      * Create a table view with given {@code TableViewConfiguration} for specified topic.

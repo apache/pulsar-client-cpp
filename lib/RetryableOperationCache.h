@@ -27,14 +27,14 @@
 
 namespace pulsar {
 
-template <typename T>
+template <typename T, typename ResultType = Result>
 class RetryableOperationCache;
 
-template <typename T>
-using RetryableOperationCachePtr = std::shared_ptr<RetryableOperationCache<T>>;
+template <typename T, typename ResultType = Result>
+using RetryableOperationCachePtr = std::shared_ptr<RetryableOperationCache<T, ResultType>>;
 
-template <typename T>
-class RetryableOperationCache : public std::enable_shared_from_this<RetryableOperationCache<T>> {
+template <typename T, typename ResultType>
+class RetryableOperationCache : public std::enable_shared_from_this<RetryableOperationCache<T, ResultType>> {
     friend class LookupServiceTest;
     friend class RetryableOperationCacheTest;
     struct PassKey {
@@ -44,7 +44,7 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
     RetryableOperationCache(ExecutorServiceProviderPtr executorProvider, TimeDuration timeout)
         : executorProvider_(executorProvider), timeout_(timeout) {}
 
-    using Self = RetryableOperationCache<T>;
+    using Self = RetryableOperationCache<T, ResultType>;
 
    public:
     template <typename... Args>
@@ -56,10 +56,10 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
         return std::make_shared<Self>(PassKey{}, std::forward<Args>(args)...);
     }
 
-    Future<Result, T> run(const std::string& key, std::function<Future<Result, T>()>&& func) {
+    Future<ResultType, T> run(const std::string& key, std::function<Future<ResultType, T>()>&& func) {
         std::unique_lock<std::mutex> lock{mutex_};
         if (closed_) {
-            Promise<Result, T> promise;
+            Promise<ResultType, T> promise;
             promise.setFailed(ResultAlreadyClosed);
             return promise.getFuture();
         }
@@ -70,18 +70,18 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
                 timer = executorProvider_->get()->createDeadlineTimer();
             } catch (const std::runtime_error& e) {
                 LOG_ERROR("Failed to retry lookup for " << key << ": " << e.what());
-                Promise<Result, T> promise;
+                Promise<ResultType, T> promise;
                 promise.setFailed(ResultConnectError);
                 return promise.getFuture();
             }
 
-            auto operation = RetryableOperation<T>::create(key, std::move(func), timeout_, timer);
+            auto operation = RetryableOperation<T, ResultType>::create(key, std::move(func), timeout_, timer);
             auto future = operation->run();
             operations_[key] = operation;
             lock.unlock();
 
             auto weakSelf = this->weak_from_this();
-            future.addListener([this, weakSelf, key, operation](Result, const T&) {
+            future.addListener([this, weakSelf, key, operation](ResultType, const T&) {
                 auto self = weakSelf.lock();
                 if (!self) {
                     return;
@@ -118,7 +118,7 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
     ExecutorServiceProviderPtr executorProvider_;
     const TimeDuration timeout_;
 
-    std::unordered_map<std::string, std::shared_ptr<RetryableOperation<T>>> operations_;
+    std::unordered_map<std::string, std::shared_ptr<RetryableOperation<T, ResultType>>> operations_;
     bool closed_{false};
     mutable std::mutex mutex_;
 

@@ -81,6 +81,11 @@ PartitionedProducerImpl::~PartitionedProducerImpl() { internalShutdown(); }
 // override
 const std::string& PartitionedProducerImpl::getTopic() const { return topic_; }
 
+std::string PartitionedProducerImpl::getLastErrorMessage() const {
+    Lock lock(producersMutex_);
+    return lastErrorMessage_;
+}
+
 unsigned int PartitionedProducerImpl::getNumPartitions() const {
     return static_cast<unsigned int>(topicMetadata_->getNumPartitions());
 }
@@ -163,6 +168,11 @@ void PartitionedProducerImpl::handleSinglePartitionProducerCreated(
 
     if (result != ResultOk) {
         LOG_ERROR("Unable to create Producer for partition - " << partitionIndex << " Error - " << result);
+        if (auto producer = producerWeakPtr.lock()) {
+            const auto lastErrorMessage = producer->getLastErrorMessage();
+            Lock lock(producersMutex_);
+            lastErrorMessage_ = lastErrorMessage;
+        }
         partitionedProducerCreatedPromise_.setFailed(result);
         state_ = Failed;
         if (++numProducersCreated_ == numPartitions) {
