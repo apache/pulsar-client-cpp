@@ -35,13 +35,13 @@
 
 namespace pulsar {
 
-template <typename T>
-class RetryableOperation : public std::enable_shared_from_this<RetryableOperation<T>> {
+template <typename T, typename ResultType = Result>
+class RetryableOperation : public std::enable_shared_from_this<RetryableOperation<T, ResultType>> {
     struct PassKey {
         explicit PassKey() {}
     };
 
-    RetryableOperation(const std::string& name, std::function<Future<Result, T>()>&& func,
+    RetryableOperation(const std::string& name, std::function<Future<ResultType, T>()>&& func,
                        TimeDuration timeout, DeadlineTimerPtr timer)
         : name_(name),
           func_(std::move(func)),
@@ -54,11 +54,11 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
     explicit RetryableOperation(PassKey, Args&&... args) : RetryableOperation(std::forward<Args>(args)...) {}
 
     template <typename... Args>
-    static std::shared_ptr<RetryableOperation<T>> create(Args&&... args) {
-        return std::make_shared<RetryableOperation<T>>(PassKey{}, std::forward<Args>(args)...);
+    static std::shared_ptr<RetryableOperation<T, ResultType>> create(Args&&... args) {
+        return std::make_shared<RetryableOperation<T, ResultType>>(PassKey{}, std::forward<Args>(args)...);
     }
 
-    Future<Result, T> run() {
+    Future<ResultType, T> run() {
         bool expected = false;
         if (!started_.compare_exchange_strong(expected, true)) {
             return promise_.getFuture();
@@ -73,10 +73,10 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
 
    private:
     const std::string name_;
-    std::function<Future<Result, T>()> func_;
+    std::function<Future<ResultType, T>()> func_;
     const TimeDuration timeout_;
     Backoff backoff_;
-    Promise<Result, T> promise_;
+    Promise<ResultType, T> promise_;
     std::atomic_bool started_{false};
     DeadlineTimerPtr timer_;
 
@@ -84,19 +84,19 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
 #ifdef __GNUC__
     __attribute__((visibility("hidden")))
 #endif
-    Future<Result, T>
+    Future<ResultType, T>
     runImpl(TimeDuration remainingTime) {
-        std::weak_ptr<RetryableOperation<T>> weakSelf{this->shared_from_this()};
-        func_().addListener([this, weakSelf, remainingTime](Result result, const T& value) {
+        std::weak_ptr<RetryableOperation<T, ResultType>> weakSelf{this->shared_from_this()};
+        func_().addListener([this, weakSelf, remainingTime](ResultType result, const T& value) {
             auto self = weakSelf.lock();
             if (!self) {
                 return;
             }
-            if (result == ResultOk) {
+            if (static_cast<Result>(result) == ResultOk) {
                 promise_.setValue(value);
                 return;
             }
-            if (!isResultRetryable(result)) {
+            if (!isResultRetryable(static_cast<Result>(result))) {
                 promise_.setFailed(result);
                 return;
             }

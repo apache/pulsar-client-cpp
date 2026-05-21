@@ -94,7 +94,27 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
             }
             schedule(connection, request + std::to_string(requestId), iter->second,
                      [connection, request, requestId, shouldFail, error, message] {
-                         if (shouldFail) {
+                         if (shouldFail && request == "PARTITIONED_METADATA") {
+                             proto::CommandPartitionedTopicMetadataResponse response;
+                             response.set_request_id(requestId);
+                             response.set_response(proto::CommandPartitionedTopicMetadataResponse::Failed);
+                             response.set_error(error);
+                             response.set_message(message);
+                             connection->handlePartitionedMetadataResponse(response);
+                         } else if (shouldFail && request == "LOOKUP") {
+                             proto::CommandLookupTopicResponse response;
+                             response.set_request_id(requestId);
+                             response.set_response(proto::CommandLookupTopicResponse::Failed);
+                             response.set_error(error);
+                             response.set_message(message);
+                             connection->handleLookupTopicRespose(response);
+                         } else if (shouldFail && request == "GET_SCHEMA") {
+                             proto::CommandGetSchemaResponse response;
+                             response.set_request_id(requestId);
+                             response.set_error_code(error);
+                             response.set_error_message(message);
+                             connection->handleGetSchemaResponse(response);
+                         } else if (shouldFail) {
                              proto::CommandError response;
                              response.set_request_id(requestId);
                              response.set_error(error);
@@ -110,6 +130,12 @@ class MockServer : public std::enable_shared_from_this<MockServer> {
                              response.set_response(proto::CommandLookupTopicResponse_LookupType_Connect);
                              response.set_brokerserviceurl("pulsar://localhost:6650");
                              connection->handleLookupTopicRespose(response);
+                         } else if (request == "PARTITIONED_METADATA") {
+                             proto::CommandPartitionedTopicMetadataResponse response;
+                             response.set_request_id(requestId);
+                             response.set_response(proto::CommandPartitionedTopicMetadataResponse::Success);
+                             response.set_partitions(0);
+                             connection->handlePartitionedMetadataResponse(response);
                          } else if (request == "GET_LAST_MESSAGE_ID") {
                              proto::CommandGetLastMessageIdResponse response;
                              response.set_request_id(requestId);

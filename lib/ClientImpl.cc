@@ -191,7 +191,7 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
                                      const CreateProducerCallback& callback, bool autoDownloadSchema) {
     createProducerAsyncV2(
         topic, conf,
-        [callback](std::variant<Producer, Error> result) {
+        [callback](std::variant<Producer, Error>&& result) {
             if (auto producer = std::get_if<Producer>(&result)) {
                 callback(ResultOk, *producer);
             } else {
@@ -223,9 +223,9 @@ void ClientImpl::createProducerAsyncV2(const std::string& topic, const ProducerC
     if (autoDownloadSchema) {
         auto self = shared_from_this();
         getSchema(topicName).addListener(
-            [self, topicName, callback](Result res, const SchemaInfo& topicSchema) {
+            [self, topicName, callback](const Error& res, const SchemaInfo& topicSchema) {
                 if (res != ResultOk) {
-                    callback(Error{res, ""});
+                    callback(Error{res.result, res.message});
                     return;
                 }
                 ProducerConfiguration conf;
@@ -241,7 +241,7 @@ void ClientImpl::createProducerAsyncV2(const std::string& topic, const ProducerC
     }
 }
 
-void ClientImpl::handleCreateProducerV2(Result result, const LookupDataResultPtr& partitionMetadata,
+void ClientImpl::handleCreateProducerV2(const Error& result, const LookupDataResultPtr& partitionMetadata,
                                         const TopicNamePtr& topicName, const ProducerConfiguration& conf,
                                         const CreateProducerCallbackV2& callback) {
     if (!result) {
@@ -268,7 +268,7 @@ void ClientImpl::handleCreateProducerV2(Result result, const LookupDataResultPtr
     } else {
         LOG_ERROR("Error Checking/Getting Partition Metadata while creating producer on "
                   << topicName->toString() << " -- " << result);
-        callback(Error{result, ""});
+        callback(Error{result.result, result.message});
     }
 }
 
@@ -312,7 +312,7 @@ void ClientImpl::handleProducerCreatedV2(Result result, const ProducerImplBaseWe
 
 void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                                    const ReaderConfiguration& conf, const ReaderCallback& callback) {
-    createReaderAsyncV2(topic, startMessageId, conf, [callback](std::variant<Reader, Error> result) {
+    createReaderAsyncV2(topic, startMessageId, conf, [callback](std::variant<Reader, Error>&& result) {
         if (auto reader = std::get_if<Reader>(&result)) {
             callback(ResultOk, *reader);
         } else {
@@ -370,14 +370,15 @@ void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewC
     });
 }
 
-void ClientImpl::handleReaderMetadataLookupV2(Result result, const LookupDataResultPtr& partitionMetadata,
+void ClientImpl::handleReaderMetadataLookupV2(const Error& result,
+                                              const LookupDataResultPtr& partitionMetadata,
                                               const TopicNamePtr& topicName, const MessageId& startMessageId,
                                               const ReaderConfiguration& conf,
                                               const ReaderCallbackV2& callback) {
     if (result != ResultOk) {
         LOG_ERROR("Error Checking/Getting Partition Metadata while creating readeron "
                   << topicName->toString() << " -- " << result);
-        callback(Error{result, ""});
+        callback(Error{result.result, result.message});
         return;
     }
 
@@ -502,7 +503,7 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
                                 const std::string& subscriptionName, const ConsumerConfiguration& conf,
                                 const SubscribeCallback& callback) {
     subscribeAsyncV2(originalTopics, subscriptionName, conf,
-                     [callback](std::variant<Consumer, Error> result) {
+                     [callback](std::variant<Consumer, Error>&& result) {
                          if (auto consumer = std::get_if<Consumer>(&result)) {
                              callback(ResultOk, *consumer);
                          } else {
@@ -556,7 +557,7 @@ void ClientImpl::subscribeAsyncV2(const std::vector<std::string>& originalTopics
 
 void ClientImpl::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                                 const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
-    subscribeAsyncV2(topic, subscriptionName, conf, [callback](std::variant<Consumer, Error> result) {
+    subscribeAsyncV2(topic, subscriptionName, conf, [callback](std::variant<Consumer, Error>&& result) {
         if (auto consumer = std::get_if<Consumer>(&result)) {
             callback(ResultOk, *consumer);
         } else {
@@ -592,7 +593,7 @@ void ClientImpl::subscribeAsyncV2(const std::string& topic, const std::string& s
                   std::placeholders::_2, topicName, subscriptionName, conf, callback));
 }
 
-void ClientImpl::handleSubscribeV2(Result result, const LookupDataResultPtr& partitionMetadata,
+void ClientImpl::handleSubscribeV2(const Error& result, const LookupDataResultPtr& partitionMetadata,
                                    const TopicNamePtr& topicName, const std::string& subscriptionName,
                                    ConsumerConfiguration conf, const SubscribeCallbackV2& callback) {
     if (result == ResultOk) {
@@ -632,7 +633,7 @@ void ClientImpl::handleSubscribeV2(Result result, const LookupDataResultPtr& par
     } else {
         LOG_ERROR("Error Checking/Getting Partition Metadata while Subscribing on " << topicName->toString()
                                                                                     << " -- " << result);
-        callback(Error{result, ""});
+        callback(Error{result.result, result.message});
     }
 }
 

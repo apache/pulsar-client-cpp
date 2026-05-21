@@ -70,7 +70,9 @@ std::variant<Producer, Error> Client::createProducerV2(const std::string& topic)
 std::variant<Producer, Error> Client::createProducerV2(const std::string& topic,
                                                        const ProducerConfiguration& conf) {
     Promise<bool, std::variant<Producer, Error> > promise;
-    createProducerAsyncV2(topic, conf, [promise](const auto& result) { promise.setValue(result); });
+    createProducerAsyncV2(topic, conf, [promise](std::variant<Producer, Error>&& result) {
+        promise.setValue(std::move(result));
+    });
     Future<bool, std::variant<Producer, Error> > future = promise.getFuture();
 
     std::variant<Producer, Error> result;
@@ -114,8 +116,9 @@ std::variant<Consumer, Error> Client::subscribeV2(const std::string& topic,
                                                   const std::string& subscriptionName,
                                                   const ConsumerConfiguration& conf) {
     Promise<bool, std::variant<Consumer, Error> > promise;
-    subscribeAsyncV2(topic, subscriptionName, conf,
-                     [promise](const auto& result) { promise.setValue(result); });
+    subscribeAsyncV2(topic, subscriptionName, conf, [promise](std::variant<Consumer, Error>&& result) {
+        promise.setValue(std::move(result));
+    });
     Future<bool, std::variant<Consumer, Error> > future = promise.getFuture();
 
     std::variant<Consumer, Error> result;
@@ -168,8 +171,9 @@ std::variant<Consumer, Error> Client::subscribeV2(const std::vector<std::string>
                                                   const std::string& subscriptionName,
                                                   const ConsumerConfiguration& conf) {
     Promise<bool, std::variant<Consumer, Error> > promise;
-    subscribeAsyncV2(topics, subscriptionName, conf,
-                     [promise](const auto& result) { promise.setValue(result); });
+    subscribeAsyncV2(topics, subscriptionName, conf, [promise](std::variant<Consumer, Error>&& result) {
+        promise.setValue(std::move(result));
+    });
     Future<bool, std::variant<Consumer, Error> > future = promise.getFuture();
 
     std::variant<Consumer, Error> result;
@@ -233,8 +237,9 @@ Result Client::createReader(const std::string& topic, const MessageId& startMess
 std::variant<Reader, Error> Client::createReaderV2(const std::string& topic, const MessageId& startMessageId,
                                                    const ReaderConfiguration& conf) {
     Promise<bool, std::variant<Reader, Error> > promise;
-    createReaderAsyncV2(topic, startMessageId, conf,
-                        [promise](const auto& result) { promise.setValue(result); });
+    createReaderAsyncV2(topic, startMessageId, conf, [promise](std::variant<Reader, Error>&& result) {
+        promise.setValue(std::move(result));
+    });
     Future<bool, std::variant<Reader, Error> > future = promise.getFuture();
 
     std::variant<Reader, Error> result;

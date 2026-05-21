@@ -209,12 +209,12 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     Future<Result, GetLastMessageIdResponse> newGetLastMessageId(uint64_t consumerId, uint64_t requestId);
 
-    Future<Result, NamespaceTopicsPtr> newGetTopicsOfNamespace(const std::string& nsName,
-                                                               CommandGetTopicsOfNamespace_Mode mode,
-                                                               uint64_t requestId);
+    Future<Error, NamespaceTopicsPtr> newGetTopicsOfNamespace(const std::string& nsName,
+                                                              CommandGetTopicsOfNamespace_Mode mode,
+                                                              uint64_t requestId);
 
-    Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
-                                            uint64_t requestId);
+    Future<Error, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
+                                           uint64_t requestId);
 
     void attachMockServer(const std::shared_ptr<MockServer>& mockServer) {
         mockServer_ = mockServer;
@@ -339,14 +339,14 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     const std::chrono::milliseconds connectTimeout_;
     const DeadlineTimerPtr connectTimer_;
 
-    template <typename T>
-    using RequestMap = std::unordered_map<uint64_t, PendingRequestPtr<T>>;
+    template <typename T, typename ResultType = Result>
+    using RequestMap = std::unordered_map<uint64_t, PendingRequestPtr<T, ResultType>>;
 
     RequestMap<ResponseData> pendingRequests_;
-    RequestMap<LookupDataResultPtr> pendingLookupRequests_;
+    RequestMap<LookupDataResultPtr, Error> pendingLookupRequests_;
     RequestMap<GetLastMessageIdResponse> pendingGetLastMessageIdRequests_;
-    RequestMap<NamespaceTopicsPtr> pendingGetNamespaceTopicsRequests_;
-    RequestMap<SchemaInfo> pendingGetSchemaRequests_;
+    RequestMap<NamespaceTopicsPtr, Error> pendingGetNamespaceTopicsRequests_;
+    RequestMap<SchemaInfo, Error> pendingGetSchemaRequests_;
 
     typedef std::unordered_map<long, ProducerImplWeakPtr> ProducersMap;
     ProducersMap producers_;
@@ -361,9 +361,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::unique_lock<std::mutex> Lock;
 
     // Note: this method must be called when holding `mutex_`
-    template <typename T, typename OnTimeout>
-    auto insertRequest(RequestMap<T>& pendingRequests, uint64_t requestId, OnTimeout onTimeout) {
-        auto request = std::make_shared<PendingRequest<T>>(
+    template <typename T, typename ResultType, typename OnTimeout>
+    auto insertRequest(RequestMap<T, ResultType>& pendingRequests, uint64_t requestId, OnTimeout onTimeout) {
+        auto request = std::make_shared<PendingRequest<T, ResultType>>(
             executor_->createTimer(operationsTimeout_),
             [this, self{shared_from_this()}, requestId, onTimeout{std::move(onTimeout)},
              &pendingRequests]() mutable {

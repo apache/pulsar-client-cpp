@@ -93,7 +93,7 @@ auto HTTPLookupService::getBroker(const TopicName &topicName) -> LookupResultFut
     return promise.getFuture();
 }
 
-Future<Result, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync(
+Future<Error, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync(
     const TopicNamePtr &topicName) {
     LookupPromise promise;
     std::stringstream completeUrlStream;
@@ -116,7 +116,7 @@ Future<Result, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync
     return promise.getFuture();
 }
 
-Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
+Future<Error, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     const NamespaceNamePtr &nsName, CommandGetTopicsOfNamespace_Mode mode) {
     NamespaceTopicsPromise promise;
     std::stringstream completeUrlStream;
@@ -148,9 +148,9 @@ Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     return promise.getFuture();
 }
 
-Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topicName,
-                                                        const std::string &version) {
-    Promise<Result, SchemaInfo> promise;
+Future<Error, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topicName,
+                                                       const std::string &version) {
+    Promise<Error, SchemaInfo> promise;
     std::stringstream completeUrlStream;
 
     const auto &url = serviceNameResolver_.resolveHost();
@@ -178,7 +178,7 @@ void HTTPLookupService::handleNamespaceTopicsHTTPRequest(const NamespaceTopicsPr
     Result result = sendHTTPRequest(completeUrl, responseData);
 
     if (result != ResultOk) {
-        promise.setFailed(result);
+        promise.setFailed(Error{result, responseData});
     } else {
         promise.setValue(parseNamespaceTopicsData(responseData));
     }
@@ -356,7 +356,7 @@ void HTTPLookupService::handleLookupHTTPRequest(const LookupPromise &promise, co
     Result result = sendHTTPRequest(completeUrl, responseData);
 
     if (result != ResultOk) {
-        promise.setFailed(result);
+        promise.setFailed(Error{result, responseData});
     } else {
         promise.setValue((requestType == PartitionMetaData) ? parsePartitionData(responseData)
                                                             : parseLookupData(responseData));
@@ -370,9 +370,9 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(const GetSchemaPromise &promi
     Result result = sendHTTPRequest(completeUrl, responseData, responseCode);
 
     if (responseCode == 404) {
-        promise.setFailed(ResultTopicNotFound);
+        promise.setFailed(Error{ResultTopicNotFound, responseData});
     } else if (result != ResultOk) {
-        promise.setFailed(result);
+        promise.setFailed(Error{result, responseData});
     } else {
         ptree::ptree root;
         std::stringstream stream(responseData);

@@ -1048,7 +1048,7 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
                 self->numOfPendingLookupRequest_--;
             }
         });
-    request->getFuture().addListener([promise](Result result, const LookupDataResultPtr& lookupDataResult) {
+    request->getFuture().addListener([promise](Error result, const LookupDataResultPtr& lookupDataResult) {
         if (result == ResultOk) {
             promise->setValue(lookupDataResult);
         } else {
@@ -1413,13 +1413,13 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
     return request->getFuture();
 }
 
-Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
+Future<Error, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
     const std::string& nsName, CommandGetTopicsOfNamespace_Mode mode, uint64_t requestId) {
     Lock lock(mutex_);
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        Promise<Result, NamespaceTopicsPtr> promise;
+        Promise<Error, NamespaceTopicsPtr> promise;
         promise.setFailed(ResultNotConnected);
         return promise.getFuture();
     }
@@ -1437,14 +1437,14 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
     return request->getFuture();
 }
 
-Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
-                                                          const std::string& version, uint64_t requestId) {
+Future<Error, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
+                                                         const std::string& version, uint64_t requestId) {
     Lock lock(mutex_);
 
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        Promise<Result, SchemaInfo> promise;
+        Promise<Error, SchemaInfo> promise;
         promise.setFailed(ResultNotConnected);
         return promise.getFuture();
     }
@@ -1556,7 +1556,8 @@ void ClientConnection::handlePartitionedMetadataResponse(
                                       << " msg: " << partitionMetadataResponse.message());
                 checkServerError(partitionMetadataResponse.error(), partitionMetadataResponse.message());
                 request->fail(
-                    getResult(partitionMetadataResponse.error(), partitionMetadataResponse.message()));
+                    Error{getResult(partitionMetadataResponse.error(), partitionMetadataResponse.message()),
+                          partitionMetadataResponse.message()});
             } else {
                 LOG_ERROR(cnxString() << "Failed partition-metadata lookup req_id: "
                                       << partitionMetadataResponse.request_id() << " with empty response: ");
@@ -1628,7 +1629,8 @@ void ClientConnection::handleLookupTopicRespose(
                                       << " error: " << lookupTopicResponse.error()
                                       << " msg: " << lookupTopicResponse.message());
                 checkServerError(lookupTopicResponse.error(), lookupTopicResponse.message());
-                request->fail(getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
+                request->fail(Error{getResult(lookupTopicResponse.error(), lookupTopicResponse.message()),
+                                    lookupTopicResponse.message()});
             } else {
                 LOG_ERROR(cnxString() << "Failed lookup req_id: " << lookupTopicResponse.request_id()
                                       << " with empty response: ");
@@ -1699,6 +1701,7 @@ void ClientConnection::handleProducerSuccess(const proto::CommandProducerSuccess
 
 void ClientConnection::handleError(const proto::CommandError& error) {
     Result result = getResult(error.error(), error.message());
+    Error errorResult{result, error.has_message() ? error.message() : ""};
     LOG_WARN(cnxString() << "Received error response from server: " << result
                          << (error.has_message() ? (" (" + error.message() + ")") : "")
                          << " -- req_id: " << error.request_id());
@@ -1716,27 +1719,51 @@ void ClientConnection::handleError(const proto::CommandError& error) {
             data.errorMessage = error.message();
         }
         request->fail(result, data);
-    } else {
-        auto it = pendingGetLastMessageIdRequests_.find(error.request_id());
-        if (it != pendingGetLastMessageIdRequests_.end()) {
-            auto request = std::move(it->second);
-            pendingGetLastMessageIdRequests_.erase(it);
-            lock.unlock();
-
-            request->fail(result);
-        } else {
-            auto it = pendingGetNamespaceTopicsRequests_.find(error.request_id());
-            if (it != pendingGetNamespaceTopicsRequests_.end()) {
-                auto request = std::move(it->second);
-                pendingGetNamespaceTopicsRequests_.erase(it);
-                lock.unlock();
-
-                request->fail(result);
-            } else {
-                lock.unlock();
-            }
-        }
+        return;
     }
+
+    auto lookupIt = pendingLookupRequests_.find(error.request_id());
+    if (lookupIt != pendingLookupRequests_.end()) {
+        auto request = std::move(lookupIt->second);
+        pendingLookupRequests_.erase(lookupIt);
+        numOfPendingLookupRequest_--;
+        lock.unlock();
+
+        request->fail(errorResult);
+        return;
+    }
+
+    auto lastMessageIdIt = pendingGetLastMessageIdRequests_.find(error.request_id());
+    if (lastMessageIdIt != pendingGetLastMessageIdRequests_.end()) {
+        auto request = std::move(lastMessageIdIt->second);
+        pendingGetLastMessageIdRequests_.erase(lastMessageIdIt);
+        lock.unlock();
+
+        request->fail(result);
+        return;
+    }
+
+    auto topicsIt = pendingGetNamespaceTopicsRequests_.find(error.request_id());
+    if (topicsIt != pendingGetNamespaceTopicsRequests_.end()) {
+        auto request = std::move(topicsIt->second);
+        pendingGetNamespaceTopicsRequests_.erase(topicsIt);
+        lock.unlock();
+
+        request->fail(errorResult);
+        return;
+    }
+
+    auto schemaIt = pendingGetSchemaRequests_.find(error.request_id());
+    if (schemaIt != pendingGetSchemaRequests_.end()) {
+        auto request = std::move(schemaIt->second);
+        pendingGetSchemaRequests_.erase(schemaIt);
+        lock.unlock();
+
+        request->fail(errorResult);
+        return;
+    }
+
+    lock.unlock();
 }
 
 std::string ClientConnection::getMigratedBrokerServiceUrl(
@@ -1959,7 +1986,7 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
                                              : "")
                                      << " -- req_id: " << response.request_id());
             }
-            request->fail(result);
+            request->fail(Error{result, response.has_error_message() ? response.error_message() : ""});
             return;
         }
 

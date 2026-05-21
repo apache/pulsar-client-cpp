@@ -37,7 +37,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
     -> LookupResultFuture {
     LOG_DEBUG("find broker from " << address << ", authoritative: " << authoritative << ", topic: " << topic
                                   << ", redirect count: " << redirectCount);
-    auto promise = std::make_shared<Promise<Result, LookupResult>>();
+    auto promise = std::make_shared<Promise<Error, LookupResult>>();
     if (maxLookupRedirects_ > 0 && redirectCount > maxLookupRedirects_) {
         LOG_ERROR("Too many lookup request redirects on topic " << topic << ", configured limit is "
                                                                 << maxLookupRedirects_);
@@ -62,7 +62,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
         auto lookupPromise = std::make_shared<LookupDataResultPromise>();
         cnx->newTopicLookup(topic, authoritative, listenerName_, newRequestId(), lookupPromise);
         lookupPromise->getFuture().addListener([this, cnx, promise, topic, address, redirectCount](
-                                                   Result result, const LookupDataResultPtr& data) {
+                                                   Error result, const LookupDataResultPtr& data) {
             if (result != ResultOk || !data) {
                 LOG_ERROR("Lookup failed for " << topic << ", result " << result);
                 promise->setFailed(result);
@@ -74,7 +74,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
             if (data->isRedirect()) {
                 LOG_DEBUG("Lookup request is for " << topic << " redirected to " << responseBrokerAddress);
                 findBroker(responseBrokerAddress, data->isAuthoritative(), topic, redirectCount + 1)
-                    .addListener([promise](Result result, const LookupResult& value) {
+                    .addListener([promise](Error result, const LookupResult& value) {
                         if (result == ResultOk) {
                             promise->setValue(value);
                         } else {
@@ -100,7 +100,7 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
  * @param    topicName topic to get number of partitions.
  *
  */
-Future<Result, LookupDataResultPtr> BinaryProtoLookupService::getPartitionMetadataAsync(
+Future<Error, LookupDataResultPtr> BinaryProtoLookupService::getPartitionMetadataAsync(
     const TopicNamePtr& topicName) {
     LookupDataResultPromisePtr promise = std::make_shared<LookupDataResultPromise>();
     if (!topicName) {
@@ -135,7 +135,7 @@ void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::str
                                                      std::placeholders::_2, clientCnx, promise));
 }
 
-void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& topicName, Result result,
+void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& topicName, Error result,
                                                              const LookupDataResultPtr& data,
                                                              const ClientConnectionWeakPtr& clientCnx,
                                                              const LookupDataResultPromisePtr& promise) {
@@ -154,9 +154,9 @@ uint64_t BinaryProtoLookupService::newRequestId() {
     return ++requestIdGenerator_;
 }
 
-Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespaceAsync(
+Future<Error, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespaceAsync(
     const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) {
-    NamespaceTopicsPromisePtr promise = std::make_shared<Promise<Result, NamespaceTopicsPtr>>();
+    NamespaceTopicsPromisePtr promise = std::make_shared<Promise<Error, NamespaceTopicsPtr>>();
     if (!nsName) {
         promise->setFailed(ResultInvalidTopicName);
         return promise->getFuture();
@@ -168,9 +168,9 @@ Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespac
     return promise->getFuture();
 }
 
-Future<Result, SchemaInfo> BinaryProtoLookupService::getSchema(const TopicNamePtr& topicName,
-                                                               const std::string& version) {
-    GetSchemaPromisePtr promise = std::make_shared<Promise<Result, SchemaInfo>>();
+Future<Error, SchemaInfo> BinaryProtoLookupService::getSchema(const TopicNamePtr& topicName,
+                                                              const std::string& version) {
+    GetSchemaPromisePtr promise = std::make_shared<Promise<Error, SchemaInfo>>();
 
     if (!topicName) {
         promise->setFailed(ResultInvalidTopicName);
@@ -197,7 +197,7 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName
                                                   << " version: " << version);
 
     conn->newGetSchema(topicName, version, requestId)
-        .addListener([promise](Result result, const SchemaInfo& schemaInfo) {
+        .addListener([promise](Error result, const SchemaInfo& schemaInfo) {
             if (result != ResultOk) {
                 promise->setFailed(result);
                 return;
@@ -228,11 +228,10 @@ void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string
                                std::placeholders::_1, std::placeholders::_2, promise));
 }
 
-void BinaryProtoLookupService::getTopicsOfNamespaceListener(Result result,
-                                                            const NamespaceTopicsPtr& topicsPtr,
+void BinaryProtoLookupService::getTopicsOfNamespaceListener(Error result, const NamespaceTopicsPtr& topicsPtr,
                                                             const NamespaceTopicsPromisePtr& promise) {
     if (result != ResultOk) {
-        promise->setFailed(ResultLookupError);
+        promise->setFailed(Error{ResultLookupError, result.message});
         return;
     }
 

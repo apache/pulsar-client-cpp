@@ -59,8 +59,8 @@ class LookupServiceTest : public ::testing::TestWithParam<std::string> {
     }
     void TearDown() override { client_.close(); }
 
-    template <typename T>
-    static bool isEmpty(const RetryableOperationCache<T>& cache) {
+    template <typename T, typename ResultType>
+    static bool isEmpty(const RetryableOperationCache<T, ResultType>& cache) {
         std::lock_guard<std::mutex> lock{cache.mutex_};
         return cache.operations_.empty();
     }
@@ -91,7 +91,7 @@ TEST(LookupServiceTest, basicLookup) {
 
     TopicNamePtr topicName = TopicName::get("topic");
 
-    Future<Result, LookupDataResultPtr> partitionFuture = lookupService.getPartitionMetadataAsync(topicName);
+    Future<Error, LookupDataResultPtr> partitionFuture = lookupService.getPartitionMetadataAsync(topicName);
     LookupDataResultPtr lookupData;
     partitionFuture.get(lookupData);
     ASSERT_TRUE(lookupData != NULL);
@@ -275,7 +275,7 @@ TEST_P(LookupServiceTest, basicGetNamespaceTopics) {
     auto lookupServicePtr = PulsarFriend::getClientImplPtr(client_);
     auto verifyGetTopics = [&](CommandGetTopicsOfNamespace_Mode mode,
                                const std::set<std::string>& expectedTopics) {
-        Future<Result, NamespaceTopicsPtr> getTopicsFuture =
+        Future<Error, NamespaceTopicsPtr> getTopicsFuture =
             lookupServicePtr->getTopicsOfNamespaceAsync(nsName, mode);
         NamespaceTopicsPtr topicsData;
         result = getTopicsFuture.get(topicsData);
@@ -510,12 +510,12 @@ class MockLookupService : public BinaryProtoLookupService {
    public:
     using BinaryProtoLookupService::BinaryProtoLookupService;
 
-    Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
+    Future<Error, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
         bool expected = true;
         if (firstTime_.compare_exchange_strong(expected, false)) {
             // Trigger the retry
             LOG_INFO("Fail the lookup for " << topicName->toString() << " intentionally");
-            Promise<Result, LookupDataResultPtr> promise;
+            Promise<Error, LookupDataResultPtr> promise;
             promise.setFailed(ResultRetryable);
             return promise.getFuture();
         }
