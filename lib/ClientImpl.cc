@@ -28,6 +28,7 @@
 #include <random>
 #include <shared_mutex>
 #include <sstream>
+#include <variant>
 
 #include "BinaryProtoLookupService.h"
 #include "ClientConfigurationImpl.h"
@@ -188,49 +189,54 @@ LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) 
 }
 
 void ClientImpl::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
-                                     const CreateProducerCallback& callback, bool autoDownloadSchema) {
+                                     CreateProducerV2Callback callback, bool autoDownloadSchema) {
     if (conf.isChunkingEnabled() && conf.getBatchingEnabled()) {
-        throw std::invalid_argument("Batching and chunking of messages can't be enabled together");
+        callback(
+            Error{ResultInvalidConfiguration, "Batching and chunking of messages can't be enabled together"});
+        return;
     }
+
     TopicNamePtr topicName;
     {
         std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
-            callback(ResultAlreadyClosed, Producer());
+            callback(Error{ResultAlreadyClosed, ""});
             return;
         } else if (!(topicName = TopicName::get(topic))) {
             lock.unlock();
-            callback(ResultInvalidTopicName, Producer());
+            // TODO: return an error in TopicName
+            callback(Error{ResultInvalidTopicName, ""});
             return;
         }
     }
 
     if (autoDownloadSchema) {
-        auto self = shared_from_this();
-        getSchema(topicName).addListener(
-            [self, topicName, callback](Result res, const SchemaInfo& topicSchema) {
-                if (res != ResultOk) {
-                    callback(res, Producer());
-                    return;
-                }
-                ProducerConfiguration conf;
-                conf.setSchema(topicSchema);
-                self->getPartitionMetadataAsync(topicName).addListener(
-                    std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
-                              std::placeholders::_2, topicName, conf, callback));
-            });
+        getSchema(topicName).addListener([self{shared_from_this()}, topicName, callback{std::move(callback)}](
+                                             const Error& error, const SchemaInfo& topicSchema) mutable {
+            if (error.result != ResultOk) {
+                callback(error);
+                return;
+            }
+            ProducerConfiguration conf;
+            conf.setSchema(topicSchema);
+            self->getPartitionMetadataAsync(topicName).addListener(
+                std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
+                          std::placeholders::_2, topicName, conf, callback));
+        });
     } else {
         getPartitionMetadataAsync(topicName).addListener(
-            std::bind(&ClientImpl::handleCreateProducer, shared_from_this(), std::placeholders::_1,
-                      std::placeholders::_2, topicName, conf, callback));
+            [this, conf, topicName, callback{std::move(callback)}](
+                const Error& error, const LookupDataResultPtr& partitionMetadata) {
+                handleCreateProducer(error, partitionMetadata, topicName, conf, callback);
+            });
     }
 }
 
-void ClientImpl::handleCreateProducer(Result result, const LookupDataResultPtr& partitionMetadata,
+void ClientImpl::handleCreateProducer(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                       const TopicNamePtr& topicName, const ProducerConfiguration& conf,
-                                      const CreateProducerCallback& callback) {
-    if (!result) {
+                                      CreateProducerV2Callback callback) {
+    if (!error.result) {
         ProducerImplBasePtr producer;
 
         auto interceptors = std::make_shared<ProducerInterceptors>(conf.getInterceptors());
@@ -244,36 +250,39 @@ void ClientImpl::handleCreateProducer(Result result, const LookupDataResultPtr& 
             }
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create producer: " << e.what());
-            callback(ResultConnectError, {});
+            callback(error);
             return;
         }
         producer->getProducerCreatedFuture().addListener(
-            std::bind(&ClientImpl::handleProducerCreated, shared_from_this(), std::placeholders::_1,
-                      std::placeholders::_2, callback, producer));
+            [this, self{shared_from_this()}, callback{std::move(callback)}, producer](
+                const Error& error, const ProducerImplBaseWeakPtr& producerBaseWeakPtr) {
+                handleProducerCreated(error, producerBaseWeakPtr, callback, producer);
+            });
         producer->start();
     } else {
         LOG_ERROR("Error Checking/Getting Partition Metadata while creating producer on "
-                  << topicName->toString() << " -- " << result);
-        callback(result, Producer());
+                  << topicName->toString() << " -- " << error.result);
+        callback(error);
     }
 }
 
-void ClientImpl::handleProducerCreated(Result result, const ProducerImplBaseWeakPtr& producerBaseWeakPtr,
-                                       const CreateProducerCallback& callback,
+void ClientImpl::handleProducerCreated(const Error& error, const ProducerImplBaseWeakPtr& producerBaseWeakPtr,
+                                       const CreateProducerV2Callback& callback,
                                        const ProducerImplBasePtr& producer) {
-    if (result == ResultOk) {
+    if (error.result == ResultOk) {
         auto address = producer.get();
         auto existingProducer = producers_.putIfAbsent(address, producer);
         if (existingProducer) {
             auto producer = existingProducer.value().lock();
             LOG_ERROR("Unexpected existing producer at the same address: "
                       << address << ", producer: " << (producer ? producer->getProducerName() : "(null)"));
-            callback(ResultUnknownError, {});
+            callback(Error{ResultUnknownError,
+                           "Unexpected existing producer for name " + producer->getProducerName()});
             return;
         }
-        callback(result, Producer(producer));
+        callback(Producer(producer));
     } else {
-        callback(result, {});
+        callback(error);
     }
 }
 
@@ -293,10 +302,11 @@ void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& st
         }
     }
 
-    MessageId msgId(startMessageId);
-    getPartitionMetadataAsync(topicName).addListener(
-        std::bind(&ClientImpl::handleReaderMetadataLookup, shared_from_this(), std::placeholders::_1,
-                  std::placeholders::_2, topicName, msgId, conf, callback));
+    getPartitionMetadataAsync(topicName).addListener([this, self{shared_from_this()}, topicName,
+                                                      startMessageId, conf,
+                                                      callback](const auto& error, const auto& metadata) {
+        handleReaderMetadataLookup(error.result, metadata, topicName, startMessageId, conf, callback);
+    });
 }
 
 void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
@@ -507,9 +517,11 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
         }
     }
 
-    getPartitionMetadataAsync(topicName).addListener(
-        std::bind(&ClientImpl::handleSubscribe, shared_from_this(), std::placeholders::_1,
-                  std::placeholders::_2, topicName, subscriptionName, conf, callback));
+    getPartitionMetadataAsync(topicName).addListener([this, self{shared_from_this()}, topicName,
+                                                      subscriptionName, conf,
+                                                      callback](const auto& error, const auto& metadata) {
+        handleSubscribe(error.result, metadata, topicName, subscriptionName, conf, callback);
+    });
 }
 
 void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
@@ -604,8 +616,8 @@ GetConnectionFuture ClientImpl::getConnection(const std::string& redirectedClust
             useProxy_ = data.proxyThroughServiceUrl;
             lookupCount_++;
             pool_.getConnectionAsync(data.logicalAddress, data.physicalAddress, key)
-                .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
-                    if (result == ResultOk) {
+                .addListener([promise](const auto& error, const ClientConnectionWeakPtr& weakCnx) {
+                    if (error.result == ResultOk) {
                         auto cnx = weakCnx.lock();
                         if (cnx) {
                             promise.setValue(cnx);
@@ -613,7 +625,7 @@ GetConnectionFuture ClientImpl::getConnection(const std::string& redirectedClust
                             promise.setFailed(ResultConnectError);
                         }
                     } else {
-                        promise.setFailed(result);
+                        promise.setFailed(error.result);
                     }
                 });
         });
@@ -635,8 +647,8 @@ GetConnectionFuture ClientImpl::connect(const std::string& redirectedClusterURI,
     const auto& physicalAddress = getPhysicalAddress(redirectedClusterURI, logicalAddress);
     Promise<Result, ClientConnectionPtr> promise;
     pool_.getConnectionAsync(logicalAddress, physicalAddress, key)
-        .addListener([promise](Result result, const ClientConnectionWeakPtr& weakCnx) {
-            if (result == ResultOk) {
+        .addListener([promise](const auto& error, const ClientConnectionWeakPtr& weakCnx) {
+            if (error.result == ResultOk) {
                 auto cnx = weakCnx.lock();
                 if (cnx) {
                     promise.setValue(cnx);
@@ -644,7 +656,7 @@ GetConnectionFuture ClientImpl::connect(const std::string& redirectedClusterURI,
                     promise.setFailed(ResultConnectError);
                 }
             } else {
-                promise.setFailed(result);
+                promise.setFailed(error.result);
             }
         });
     return promise.getFuture();
@@ -685,9 +697,10 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetP
             return;
         }
     }
-    getPartitionMetadataAsync(topicName).addListener(std::bind(&ClientImpl::handleGetPartitions,
-                                                               shared_from_this(), std::placeholders::_1,
-                                                               std::placeholders::_2, topicName, callback));
+    getPartitionMetadataAsync(topicName).addListener(
+        [this, self{shared_from_this()}, topicName, callback](const auto& error, const auto& metadata) {
+            handleGetPartitions(error.result, metadata, topicName, callback);
+        });
 }
 
 void ClientImpl::closeAsync(const CloseCallback& callback) {

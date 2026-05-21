@@ -25,6 +25,7 @@
 #include <pulsar/defines.h>
 
 #include <atomic>
+#include <cstddef>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -82,16 +83,16 @@ class PULSAR_PUBLIC ConnectionPool {
      * @param keySuffix the key suffix to choose which connection on the same broker
      * @return a future that will produce the ClientCnx object
      */
-    Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
-                                                               const std::string& physicalAddress,
-                                                               size_t keySuffix);
+    Future<Error, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
+                                                              const std::string& physicalAddress,
+                                                              size_t keySuffix);
 
-    Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
-                                                               const std::string& physicalAddress) {
+    Future<Error, ClientConnectionWeakPtr> getConnectionAsync(const std::string& logicalAddress,
+                                                              const std::string& physicalAddress) {
         return getConnectionAsync(logicalAddress, physicalAddress, generateRandomIndex());
     }
 
-    Future<Result, ClientConnectionWeakPtr> getConnectionAsync(const std::string& address) {
+    Future<Error, ClientConnectionWeakPtr> getConnectionAsync(const std::string& address) {
         return getConnectionAsync(address, address);
     }
 

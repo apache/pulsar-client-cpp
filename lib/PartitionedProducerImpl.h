@@ -78,12 +78,12 @@ class PartitionedProducerImpl : public ProducerImplBase,
     void internalShutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
-    Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
+    Future<Error, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
     void triggerFlush() override;
     void flushAsync(FlushCallback callback) override;
     bool isConnected() const override;
     uint64_t getNumberOfConnectedProducer() override;
-    void handleSinglePartitionProducerCreated(Result result,
+    void handleSinglePartitionProducerCreated(const Error& error,
                                               const ProducerImplBaseWeakPtr& producerBaseWeakPtr,
                                               const unsigned int partitionIndex);
     void createLazyPartitionProducer(const unsigned int partitionIndex);
@@ -121,7 +121,7 @@ class PartitionedProducerImpl : public ProducerImplBase,
     std::atomic<State> state_{Pending};
 
     // only set this promise to value, when producers on all partitions are created.
-    Promise<Result, ProducerImplBaseWeakPtr> partitionedProducerCreatedPromise_;
+    Promise<Error, ProducerImplBaseWeakPtr> partitionedProducerCreatedPromise_;
 
     std::unique_ptr<TopicMetadata> topicMetadata_;
 

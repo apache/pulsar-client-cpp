@@ -22,6 +22,8 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <sstream>
+#include <stdexcept>
 
 #include "CurlWrapper.h"
 #include "ExecutorService.h"
@@ -79,7 +81,7 @@ auto HTTPLookupService::getBroker(const TopicName &topicName) -> LookupResultFut
     auto self = shared_from_this();
     executorProvider_->get()->postWork([this, self, promise, completeUrl] {
         std::string responseData;
-        Result result = sendHTTPRequest(completeUrl, responseData);
+        Result result = sendHTTPRequest(completeUrl, responseData).result;
 
         if (result != ResultOk) {
             promise.setFailed(result);
@@ -93,7 +95,7 @@ auto HTTPLookupService::getBroker(const TopicName &topicName) -> LookupResultFut
     return promise.getFuture();
 }
 
-Future<Result, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync(
+Future<Error, LookupDataResultPtr> HTTPLookupService::getPartitionMetadataAsync(
     const TopicNamePtr &topicName) {
     LookupPromise promise;
     std::stringstream completeUrlStream;
@@ -148,9 +150,9 @@ Future<Result, NamespaceTopicsPtr> HTTPLookupService::getTopicsOfNamespaceAsync(
     return promise.getFuture();
 }
 
-Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topicName,
-                                                        const std::string &version) {
-    Promise<Result, SchemaInfo> promise;
+Future<Error, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topicName,
+                                                       const std::string &version) {
+    Promise<Error, SchemaInfo> promise;
     std::stringstream completeUrlStream;
 
     const auto &url = serviceNameResolver_.resolveHost();
@@ -166,7 +168,6 @@ Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topi
     if (!version.empty()) {
         completeUrlStream << "/" << fromBigEndianBytes(version);
     }
-
     executorProvider_->get()->postWork(std::bind(&HTTPLookupService::handleGetSchemaHTTPRequest,
                                                  shared_from_this(), promise, completeUrlStream.str()));
     return promise.getFuture();
@@ -175,7 +176,7 @@ Future<Result, SchemaInfo> HTTPLookupService::getSchema(const TopicNamePtr &topi
 void HTTPLookupService::handleNamespaceTopicsHTTPRequest(const NamespaceTopicsPromise &promise,
                                                          const std::string &completeUrl) {
     std::string responseData;
-    Result result = sendHTTPRequest(completeUrl, responseData);
+    Result result = sendHTTPRequest(completeUrl, responseData).result;
 
     if (result != ResultOk) {
         promise.setFailed(result);
@@ -184,25 +185,27 @@ void HTTPLookupService::handleNamespaceTopicsHTTPRequest(const NamespaceTopicsPr
     }
 }
 
-Result HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData) {
+Error HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData) {
     long responseCode = -1;
     return sendHTTPRequest(completeUrl, responseData, responseCode);
 }
 
-Result HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData,
-                                          long &responseCode) {
-    // Authorization data
+Error HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData,
+                                           long &responseCode) {
     AuthenticationDataPtr authDataContent;
     Result authResult = authenticationPtr_->getAuthData(authDataContent);
     if (authResult != ResultOk) {
-        LOG_ERROR("Failed to getAuthData: " << authResult);
-        return authResult;
+        std::ostringstream message;
+        message << "Failed to getAuthData: " << authResult;
+        LOG_ERROR(message.str());
+        return Error{authResult, message.str()};
     }
 
     CurlWrapper curl;
     if (!curl.init()) {
-        LOG_ERROR("Unable to curl_easy_init for url " << completeUrl);
-        return ResultLookupError;
+        const std::string message = "Unable to curl_easy_init for url " + completeUrl;
+        LOG_ERROR(message);
+        return Error{ResultLookupError, message};
     }
 
     std::unique_ptr<CurlWrapper::TlsContext> tlsContext;
@@ -226,41 +229,39 @@ Result HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::s
     options.userAgent = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
     options.maxLookupRedirects = maxLookupRedirects_;
     auto result = curl.get(completeUrl, authDataContent->getHttpHeaders(), options, tlsContext.get());
-    const auto &error = result.error;
-    if (!error.empty()) {
-        LOG_ERROR(completeUrl << " failed: " << error);
-        return ResultConnectError;
-    }
 
     responseData = result.responseData;
     responseCode = result.responseCode;
-    auto res = result.code;
+
+    const auto res = result.code;
     if (res == CURLE_OK) {
         LOG_INFO("Response received for url " << completeUrl << " responseCode " << responseCode);
-    } else if (res == CURLE_TOO_MANY_REDIRECTS) {
-        LOG_ERROR("Response received for url " << completeUrl << ": " << curl_easy_strerror(res)
-                                               << ", curl error: " << result.serverError
-                                               << ", redirect URL: " << result.redirectUrl);
-    } else {
-        LOG_ERROR("Response failed for url " << completeUrl << ": " << curl_easy_strerror(res)
-                                             << ", curl error: " << result.serverError);
+        return Error{};
     }
 
+    std::ostringstream message;
+    if (res == CURLE_TOO_MANY_REDIRECTS) {
+        message << "Response received for url " << completeUrl << ": " << curl_easy_strerror(res)
+                << ", curl error: " << result.serverError << ", redirect URL: " << result.redirectUrl;
+    } else {
+        message << "Response failed for url " << completeUrl << ": " << curl_easy_strerror(res)
+                << ", curl error: " << result.serverError;
+    }
+    LOG_ERROR(message.str());
+
     switch (res) {
-        case CURLE_OK:
-            return ResultOk;
         case CURLE_COULDNT_CONNECT:
-            return ResultRetryable;
+            return Error{ResultRetryable, message.str()};
         case CURLE_COULDNT_RESOLVE_PROXY:
         case CURLE_COULDNT_RESOLVE_HOST:
         case CURLE_HTTP_RETURNED_ERROR:
-            return ResultConnectError;
+            return Error{ResultConnectError, message.str()};
         case CURLE_READ_ERROR:
-            return ResultReadError;
+            return Error{ResultReadError, message.str()};
         case CURLE_OPERATION_TIMEDOUT:
-            return ResultTimeout;
+            return Error{ResultTimeout, message.str()};
         default:
-            return ResultLookupError;
+            return Error{ResultLookupError, message.str()};
     }
 }
 
@@ -353,10 +354,10 @@ NamespaceTopicsPtr HTTPLookupService::parseNamespaceTopicsData(const std::string
 void HTTPLookupService::handleLookupHTTPRequest(const LookupPromise &promise, const std::string &completeUrl,
                                                 RequestType requestType) {
     std::string responseData;
-    Result result = sendHTTPRequest(completeUrl, responseData);
+    Error error = sendHTTPRequest(completeUrl, responseData);
 
-    if (result != ResultOk) {
-        promise.setFailed(result);
+    if (error.result != ResultOk) {
+        promise.setFailed(std::move(error));
     } else {
         promise.setValue((requestType == PartitionMetaData) ? parsePartitionData(responseData)
                                                             : parseLookupData(responseData));
@@ -367,12 +368,12 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(const GetSchemaPromise &promi
                                                    const std::string &completeUrl) {
     std::string responseData;
     long responseCode = -1;
-    Result result = sendHTTPRequest(completeUrl, responseData, responseCode);
+    Error error = sendHTTPRequest(completeUrl, responseData, responseCode);
 
     if (responseCode == 404) {
-        promise.setFailed(ResultTopicNotFound);
-    } else if (result != ResultOk) {
-        promise.setFailed(result);
+        promise.setFailed(Error{ResultTopicNotFound, ""});
+    } else if (error.result != ResultOk) {
+        promise.setFailed(std::move(error));
     } else {
         ptree::ptree root;
         std::stringstream stream(responseData);
@@ -381,20 +382,24 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(const GetSchemaPromise &promi
         } catch (ptree::json_parser_error &e) {
             LOG_ERROR("Failed to parse json of Partition Metadata: " << e.what()
                                                                      << "\nInput Json = " << responseData);
-            promise.setFailed(ResultInvalidMessage);
+            promise.setFailed(Error{ResultInvalidMessage,
+                                    "Failed to parse json of Partition Metadata: " + std::string(e.what()) +
+                                        "\nInput Json = " + responseData});
             return;
         }
         const std::string defaultNotFoundString = "Not found";
         auto schemaTypeStr = root.get<std::string>("type", defaultNotFoundString);
         if (schemaTypeStr == defaultNotFoundString) {
             LOG_ERROR("malformed json! - type not present" << responseData);
-            promise.setFailed(ResultInvalidMessage);
+            promise.setFailed(
+                Error{ResultInvalidMessage, "malformed json! - type not present" + responseData});
             return;
         }
         auto schemaData = root.get<std::string>("data", defaultNotFoundString);
         if (schemaData == defaultNotFoundString) {
             LOG_ERROR("malformed json! - data not present" << responseData);
-            promise.setFailed(ResultInvalidMessage);
+            promise.setFailed(
+                Error{ResultInvalidMessage, "malformed json! - data not present" + responseData});
             return;
         }
 
@@ -407,7 +412,9 @@ void HTTPLookupService::handleGetSchemaHTTPRequest(const GetSchemaPromise &promi
             } catch (ptree::json_parser_error &e) {
                 LOG_ERROR("Failed to parse json of Partition Metadata: " << e.what()
                                                                          << "\nInput Json = " << schemaData);
-                promise.setFailed(ResultInvalidMessage);
+                promise.setFailed(Error{ResultInvalidMessage, "Failed to parse json of Partition Metadata: " +
+                                                                  std::string(e.what()) +
+                                                                  "\nInput Json = " + schemaData});
                 return;
             }
             const auto keyData = toJson(kvRoot.get_child("key"));

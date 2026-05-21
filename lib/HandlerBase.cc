@@ -123,16 +123,15 @@ void HandlerBase::grabCnx(const optional<std::string>& assignedBrokerUrl) {
     auto before = high_resolution_clock::now();
     cnxFuture.addListener([this, self, before](Result result, const ClientConnectionPtr& cnx) {
         if (result == ResultOk) {
-            connectionOpened(cnx).addListener([this, self, before](Result result, bool) {
-                // Do not use bool, only Result.
+            connectionOpened(cnx).addListener([this, self, before](const Error& error, bool) {
                 reconnectionPending_ = false;
-                if (result == ResultOk) {
+                if (error.result == ResultOk) {
                     connectionTimeMs_ =
                         duration_cast<milliseconds>(high_resolution_clock::now() - before).count();
                     // Prevent the creationTimer_ from cancelling the timer_ in future
                     cancelTimer(*creationTimer_);
                     LOG_INFO("Finished connecting to broker after " << connectionTimeMs_ << " ms")
-                } else if (isResultRetryable(result)) {
+                } else if (isResultRetryable(error.result)) {
                     scheduleReconnection();
                 }
             });

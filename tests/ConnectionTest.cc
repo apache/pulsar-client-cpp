@@ -24,7 +24,7 @@ using namespace pulsar;
 
 class MockClientConnection {
    public:
-    MOCK_METHOD(void, close, (Result));
+    MOCK_METHOD(void, close, (Error));
 
     void checkServerError(ServerError error, const std::string& message) {
         ::pulsar::adaptor::checkServerError(*this, error, message);
@@ -41,7 +41,7 @@ static const std::vector<std::string> retryableErrorMessages{
 
 TEST(ConnectionTest, testCheckServerError) {
     MockClientConnection conn;
-    EXPECT_CALL(conn, close(ResultDisconnected)).Times(0);
+    EXPECT_CALL(conn, close(::testing::_)).Times(0);
     for (auto&& msg : retryableErrorMessages) {
         conn.checkServerError(pulsar::proto::ServiceNotReady, msg);
     }

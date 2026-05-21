@@ -86,9 +86,8 @@ class ConsumerImplBase : public HandlerBase {
 
    protected:
     // overrided methods from HandlerBase
-    Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override {
-        // Do not use bool, only Result.
-        Promise<Result, bool> promise;
+    Future<Error, bool> connectionOpened(const ClientConnectionPtr& cnx) override {
+        Promise<Error, bool> promise;
         promise.setSuccess();
         return promise.getFuture();
     }

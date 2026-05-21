@@ -65,7 +65,18 @@ void Client::createProducerAsync(const std::string& topic, const CreateProducerC
 
 void Client::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                                  const CreateProducerCallback& callback) {
-    impl_->createProducerAsync(topic, conf, callback);
+    impl_->createProducerAsync(topic, conf, [callback](const auto& v) {
+        if (const auto* error = std::get_if<Error>(&v)) {
+            callback(error->result, Producer());
+        } else {
+            callback(ResultOk, std::get<Producer>(v));
+        }
+    });
+}
+
+void Client::createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
+                                   CreateProducerV2Callback callback) {
+    impl_->createProducerAsync(topic, conf, std::move(callback));
 }
 
 Result Client::subscribe(const std::string& topic, const std::string& subscriptionName, Consumer& consumer) {
@@ -199,7 +210,9 @@ uint64_t Client::getNumberOfConsumers() { return impl_->getNumberOfConsumers(); 
 void Client::getSchemaInfoAsync(const std::string& topic, int64_t version,
                                 std::function<void(Result, const SchemaInfo&)> callback) {
     impl_->getSchema(TopicName::get(topic), (version >= 0) ? toBigEndianBytes(version) : "")
-        .addListener(std::move(callback));
+        .addListener([callback{std::move(callback)}](const Error& error, const SchemaInfo& schemaInfo) {
+            callback(error.result, schemaInfo);
+        });
 }
 
 ServiceInfo Client::getServiceInfo() const { return impl_->getServiceInfo(); }

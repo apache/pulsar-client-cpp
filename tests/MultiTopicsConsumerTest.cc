@@ -167,7 +167,7 @@ TEST(MultiTopicsConsumerTest, testGetConsumerStatsFail) {
         return PulsarFriend::getPendingConsumerStatsRequests(*connection) == expectedRequests;
     }));
 
-    connection->close(ResultDisconnected);
+    connection->close(Error{ResultDisconnected, ""});
     ASSERT_EQ(ResultDisconnected, future.get());
 
     mockServer->close();

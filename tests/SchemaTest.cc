@@ -172,10 +172,18 @@ TEST(SchemaTest, testAutoDownloadSchema) {
 
     auto clientImplPtr = PulsarFriend::getClientImplPtr(client);
 
-    Promise<Result, Producer> promise;
-    clientImplPtr->createProducerAsync(topic, producerConfiguration, WaitForCallbackValue<Producer>(promise),
-                                       true);
-    ASSERT_EQ(ResultOk, promise.getFuture().get(producer));
+    Promise<Error, Producer> promise;
+    clientImplPtr->createProducerAsync(
+        topic, producerConfiguration,
+        [promise](const auto& v) {
+            if (const auto* error = std::get_if<Error>(&v)) {
+                promise.setFailed(*error);
+            } else {
+                promise.setValue(std::get<Producer>(v));
+            }
+        },
+        true);
+    ASSERT_EQ(ResultOk, promise.getFuture().get(producer).result);
 
     Message msg = MessageBuilder().setContent("content").build();
     ASSERT_EQ(ResultOk, producer.send(msg));

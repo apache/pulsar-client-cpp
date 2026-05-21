@@ -27,13 +27,13 @@
 
 namespace pulsar {
 
-using IntFuture = Future<Result, int>;
+using IntFuture = Future<Error, int>;
 
 static int wait(IntFuture future) {
     int value;
-    auto result = future.get(value);
-    if (result != ResultOk) {
-        throw std::runtime_error(strResult(result));
+    auto error = future.get(value);
+    if (error.result != ResultOk) {
+        throw std::runtime_error(strResult(error.result));
     }
     return value;
 }
@@ -50,9 +50,9 @@ class CountdownFunc {
         : result_(rhs.result_), totalRetryCount_(rhs.totalRetryCount_), current_(rhs.current_.load()) {}
 
     IntFuture operator()() {
-        Promise<Result, int> promise;
+        Promise<Error, int> promise;
         if (++current_ < totalRetryCount_) {
-            promise.setFailed(ResultRetryable);
+            promise.setFailed({ResultRetryable, ""});
         } else {
             promise.setValue(result_);
         }
@@ -141,7 +141,7 @@ TEST_F(RetryableOperationCacheTest, testClose) {
     for (auto&& future : futures_) {
         int value;
         // All cancelled futures complete with ResultDisconnected and the default int value
-        ASSERT_EQ(ResultDisconnected, future.get(value));
+        ASSERT_EQ(ResultDisconnected, future.get(value).result);
         ASSERT_EQ(value, 0);
     }
     ASSERT_EQ(getSize(*cache), 0);

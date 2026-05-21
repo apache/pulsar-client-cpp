@@ -43,7 +43,7 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
                 return;
             }
             timeoutCallback_();
-            promise_.setFailed(ResultTimeout);
+            promise_.setFailed(Error{ResultTimeout, ""});
         });
     }
 
@@ -52,8 +52,8 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
         cancelTimer(timer_);
     }
 
-    void fail(Result result) {
-        promise_.setFailed(result);
+    void fail(const Error& error) {
+        promise_.setFailed(error);
         cancelTimer(timer_);
     }
 
@@ -65,7 +65,7 @@ class PendingRequest : public std::enable_shared_from_this<PendingRequest<T>> {
 
    private:
     ASIO::steady_timer timer_;
-    Promise<Result, T> promise_;
+    Promise<Error, T> promise_;
     std::function<void()> timeoutCallback_;
     std::atomic_bool timeoutDisabled_{false};
 };

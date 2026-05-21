@@ -303,11 +303,11 @@ TEST(ClientTest, testTimedOutPendingRequestsAreErasedFromConnectionMaps) {
         "persistent://public/default/testTimedOutPendingRequests-" + suffix, "", requestIdGenerator++);
 
     ResponseData responseData;
-    ASSERT_EQ(ResultTimeout, pingFuture.get(responseData));
+    ASSERT_EQ(ResultTimeout, pingFuture.get(responseData).result);
     ASSERT_EQ(0u, PulsarFriend::getPendingRequests(*connection));
 
     LookupDataResultPtr lookupData;
-    ASSERT_EQ(ResultTimeout, lookupFuture.get(lookupData));
+    ASSERT_EQ(ResultTimeout, lookupFuture.get(lookupData).result);
     ASSERT_EQ(0u, PulsarFriend::getPendingLookupRequests(*connection));
     ASSERT_EQ(0u, PulsarFriend::getNumOfPendingLookupRequests(*connection));
 
@@ -320,11 +320,11 @@ TEST(ClientTest, testTimedOutPendingRequestsAreErasedFromConnectionMaps) {
     ASSERT_EQ(0u, PulsarFriend::getPendingGetTopicsOfNamespaceRequests(*connection));
 
     SchemaInfo schemaInfo;
-    ASSERT_EQ(ResultTimeout, getSchemaFuture.get(schemaInfo));
+    ASSERT_EQ(ResultTimeout, getSchemaFuture.get(schemaInfo).result);
     ASSERT_EQ(0u, PulsarFriend::getPendingGetSchemaRequests(*connection));
 
     mockServer->close();
-    connection->close(ResultDisconnected).wait();
+    connection->close(Error{ResultDisconnected, ""}).wait();
     executorProvider->close();
 }
 

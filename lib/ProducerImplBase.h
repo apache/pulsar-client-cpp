@@ -44,7 +44,7 @@ class ProducerImplBase {
     virtual bool isClosed() = 0;
     virtual void shutdown() = 0;
     virtual const std::string& getTopic() const = 0;
-    virtual Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() = 0;
+    virtual Future<Error, ProducerImplBaseWeakPtr> getProducerCreatedFuture() = 0;
     virtual void triggerFlush() = 0;
     virtual void flushAsync(FlushCallback callback) = 0;
     virtual bool isConnected() const = 0;

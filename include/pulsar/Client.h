@@ -36,6 +36,7 @@
 
 #include <memory>
 #include <string>
+#include <variant>
 
 namespace pulsar {
 typedef std::function<void(Result, Producer)> CreateProducerCallback;
@@ -44,6 +45,8 @@ typedef std::function<void(Result, Reader)> ReaderCallback;
 typedef std::function<void(Result, TableView)> TableViewCallback;
 typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitionsCallback;
 typedef std::function<void(Result)> CloseCallback;
+
+using CreateProducerV2Callback = std::function<void(std::variant<Error, Producer>)>;
 
 class ClientImpl;
 class PulsarFriend;
@@ -108,7 +111,9 @@ class PULSAR_PUBLIC Client {
      * @return ResultOk if the producer has been successfully created
      * @return ResultError if there was an error
      */
-    Result createProducer(const std::string& topic, const ProducerConfiguration& conf, Producer& producer);
+    [[deprecated("use createProducerAsyncV2")]] Result createProducer(const std::string& topic,
+                                                                      const ProducerConfiguration& conf,
+                                                                      Producer& producer);
 
     /**
      * Asynchronously create a producer with the default ProducerConfiguration for publishing on a specific
@@ -118,7 +123,8 @@ class PULSAR_PUBLIC Client {
      * @param callback the callback that is triggered when the producer is created successfully or not
      * @param callback Callback function that is invoked when the operation is completed
      */
-    void createProducerAsync(const std::string& topic, const CreateProducerCallback& callback);
+    [[deprecated("use createProducerAsyncV2")]] void createProducerAsync(
+        const std::string& topic, const CreateProducerCallback& callback);
 
     /**
      * Asynchronously create a producer with the customized ProducerConfiguration for publishing on a specific
@@ -127,8 +133,11 @@ class PULSAR_PUBLIC Client {
      * @param topic the name of the topic where to produce
      * @param conf the customized ProducerConfiguration
      */
-    void createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
-                             const CreateProducerCallback& callback);
+    [[deprecated("use createProducerAsyncV2")]] void createProducerAsync(
+        const std::string& topic, const ProducerConfiguration& conf, const CreateProducerCallback& callback);
+
+    void createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
+                               CreateProducerV2Callback callback);
 
     /**
      * Subscribe to a given topic and subscription combination with the default ConsumerConfiguration

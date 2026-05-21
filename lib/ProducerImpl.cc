@@ -135,13 +135,12 @@ void ProducerImpl::beforeConnectionChange(ClientConnection& connection) {
     connection.removeProducer(producerId_);
 }
 
-Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
-    // Do not use bool, only Result.
-    Promise<Result, bool> promise;
+Future<Error, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
+    Promise<Error, bool> promise;
 
     if (state_ == Closed) {
         LOG_DEBUG(getName() << "connectionOpened : Producer is already closed");
-        promise.setFailed(ResultAlreadyClosed);
+        promise.setFailed(Error{ResultAlreadyClosed, ""});
         return promise.getFuture();
     }
 
@@ -162,12 +161,12 @@ Future<Result, bool> ProducerImpl::connectionOpened(const ClientConnectionPtr& c
     auto self = shared_from_this();
     setFirstRequestIdAfterConnect(requestId);
     cnx->sendRequestWithId(cmd, requestId, "PRODUCER")
-        .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
-            Result handleResult = handleCreateProducer(cnx, result, responseData);
-            if (handleResult == ResultOk) {
+        .addListener([this, self, cnx, promise](const Error& error, const ResponseData& responseData) {
+            auto handledError = handleCreateProducer(cnx, error, responseData);
+            if (handledError.result == ResultOk) {
                 promise.setSuccess();
             } else {
-                promise.setFailed(handleResult);
+                promise.setFailed(handledError);
             }
         });
 
@@ -182,22 +181,23 @@ void ProducerImpl::connectionFailed(Result result) {
         // if producers are lazy, then they should always try to restart
         // so don't change the state and allow reconnections
         return;
-    } else if (!isResultRetryable(result) && producerCreatedPromise_.setFailed(result)) {
+    } else if (!isResultRetryable(result) && producerCreatedPromise_.setFailed(Error{result, ""})) {
         state_ = Failed;
     }
 }
 
-Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
-                                          const ResponseData& responseData) {
+Error ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, const Error& error,
+                                         const ResponseData& responseData) {
     Result handleResult = ResultOk;
 
     Lock lock(mutex_);
 
-    LOG_DEBUG(getName() << "ProducerImpl::handleCreateProducer res: " << strResult(result));
+    LOG_DEBUG(getName() << "ProducerImpl::handleCreateProducer res: " << error);
 
     // make sure we're still in the Pending/Ready state, closeAsync could have been invoked
     // while waiting for this response if using lazy producers
     const auto state = state_.load();
+    const auto result = error.result;
     if (state != Ready && state != Pending) {
         LOG_DEBUG("Producer created response received but producer already closed");
         failPendingMessages(ResultAlreadyClosed, false);
@@ -211,9 +211,9 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
         }
         if (!producerCreatedPromise_.isComplete()) {
             lock.unlock();
-            producerCreatedPromise_.setFailed(ResultAlreadyClosed);
+            producerCreatedPromise_.setFailed(Error{ResultAlreadyClosed, ""});
         }
-        return ResultAlreadyClosed;
+        return Error{ResultAlreadyClosed, ""};
     }
 
     if (result == ResultOk) {
@@ -281,7 +281,7 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
                 client->cleanupProducer(this);
             }
             lock.unlock();
-            producerCreatedPromise_.setFailed(result);
+            producerCreatedPromise_.setFailed(error);
             handleResult = result;
         } else if (producerCreatedPromise_.isComplete() || retryOnCreationError_) {
             if (result == ResultProducerBlockedQuotaExceededException) {
@@ -292,24 +292,25 @@ Result ProducerImpl::handleCreateProducer(const ClientConnectionPtr& cnx, Result
             }
 
             // Producer had already been initially created, we need to retry connecting in any case
-            LOG_WARN(getName() << "Failed to reconnect producer: " << strResult(result));
+            LOG_WARN(getName() << "Failed to reconnect producer: " << error);
             handleResult = ResultRetryable;
         } else {
             // Producer was not yet created, retry to connect to broker if it's possible
             handleResult = convertToTimeoutIfNecessary(result, creationTimestamp_);
+            Error convertedError{handleResult, error.message};
             if (isResultRetryable(handleResult)) {
-                LOG_WARN(getName() << "Temporary error in creating producer: " << strResult(handleResult));
+                LOG_WARN(getName() << "Temporary error in creating producer: " << convertedError);
             } else {
-                LOG_ERROR(getName() << "Failed to create producer: " << strResult(handleResult));
+                LOG_ERROR(getName() << "Failed to create producer: " << error);
                 failPendingMessages(handleResult, false);
                 state_ = Failed;
                 lock.unlock();
-                producerCreatedPromise_.setFailed(handleResult);
+                producerCreatedPromise_.setFailed(convertedError);
             }
         }
     }
 
-    return handleResult;
+    return handleResult == error.result ? error : Error{handleResult, error.message};
 }
 
 auto ProducerImpl::getPendingCallbacksWhenFailed() -> decltype(pendingMessagesQueue_) {
@@ -825,10 +826,10 @@ void ProducerImpl::closeAsync(CloseCallback originalCallback) {
     int requestId = client->newRequestId();
     auto self = shared_from_this();
     cnx->sendRequestWithId(Commands::newCloseProducer(producerId_, requestId), requestId, "CLOSE_PRODUCER")
-        .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
+        .addListener([self, callback](const Error& error, const ResponseData&) { callback(error.result); });
 }
 
-Future<Result, ProducerImplBaseWeakPtr> ProducerImpl::getProducerCreatedFuture() {
+Future<Error, ProducerImplBaseWeakPtr> ProducerImpl::getProducerCreatedFuture() {
     return producerCreatedPromise_.getFuture();
 }
 
@@ -1022,7 +1023,7 @@ void ProducerImpl::internalShutdown() {
         client->cleanupProducer(this);
     }
     cancelTimers();
-    producerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    producerCreatedPromise_.setFailed(Error{ResultAlreadyClosed, ""});
     state_ = Closed;
 }
 

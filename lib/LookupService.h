@@ -50,6 +50,7 @@ class LookupService {
                       << ", physical address: " << lookupResult.physicalAddress;
         }
     };
+    // TODO: change it to Error
     using LookupResultFuture = Future<Result, LookupResult>;
     using LookupResultPromise = Promise<Result, LookupResult>;
 
@@ -67,7 +68,7 @@ class LookupService {
      *
      * Gets Partition metadata
      */
-    virtual Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) = 0;
+    virtual Future<Error, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) = 0;
 
     /**
      * @param   namespace - namespace-name
@@ -84,8 +85,8 @@ class LookupService {
      * @param version the schema version byte array, if it's empty, use the latest version
      * @return SchemaInfo
      */
-    virtual Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName,
-                                                 const std::string& version = "") = 0;
+    virtual Future<Error, SchemaInfo> getSchema(const TopicNamePtr& topicName,
+                                                const std::string& version = "") = 0;
 
     virtual ServiceNameResolver& getServiceNameResolver() = 0;
 

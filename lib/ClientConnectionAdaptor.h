@@ -45,13 +45,13 @@ inline void checkServerError(Connection& connection, ServerError error, const st
                 message.find("KeeperException") == std::string::npos &&
                 message.find("is being unloaded") == std::string::npos &&
                 message.find("the broker do not have test listener") == std::string::npos) {
-                connection.close(ResultDisconnected);
+                connection.close(Error{ResultDisconnected, message});
             }
             break;
         case proto::ServerError::TooManyRequests:
             // TODO: Implement maxNumberOfRejectedRequestPerConnection like
             // https://github.com/apache/pulsar/pull/274
-            connection.close(ResultDisconnected);
+            connection.close(Error{ResultDisconnected, ""});
             break;
         default:
             break;
