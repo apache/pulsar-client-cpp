@@ -184,25 +184,13 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     friend class PulsarFriend;
 
    private:
-    void handleCreateProducer(Result result, const LookupDataResultPtr& partitionMetadata,
-                              const TopicNamePtr& topicName, const ProducerConfiguration& conf,
-                              const CreateProducerCallback& callback);
-
     void handleCreateProducerV2(Result result, const LookupDataResultPtr& partitionMetadata,
                                 const TopicNamePtr& topicName, const ProducerConfiguration& conf,
                                 const CreateProducerCallbackV2& callback);
 
-    void handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
-                         const TopicNamePtr& topicName, const std::string& consumerName,
-                         ConsumerConfiguration conf, const SubscribeCallback& callback);
-
     void handleSubscribeV2(Result result, const LookupDataResultPtr& partitionMetadata,
                            const TopicNamePtr& topicName, const std::string& consumerName,
                            ConsumerConfiguration conf, const SubscribeCallbackV2& callback);
-
-    void handleReaderMetadataLookup(Result result, const LookupDataResultPtr& partitionMetadata,
-                                    const TopicNamePtr& topicName, const MessageId& startMessageId,
-                                    const ReaderConfiguration& conf, const ReaderCallback& callback);
 
     void handleReaderMetadataLookupV2(Result result, const LookupDataResultPtr& partitionMetadata,
                                       const TopicNamePtr& topicName, const MessageId& startMessageId,

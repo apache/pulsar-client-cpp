@@ -241,37 +241,6 @@ void ClientImpl::createProducerAsyncV2(const std::string& topic, const ProducerC
     }
 }
 
-void ClientImpl::handleCreateProducer(Result result, const LookupDataResultPtr& partitionMetadata,
-                                      const TopicNamePtr& topicName, const ProducerConfiguration& conf,
-                                      const CreateProducerCallback& callback) {
-    if (!result) {
-        ProducerImplBasePtr producer;
-
-        auto interceptors = std::make_shared<ProducerInterceptors>(conf.getInterceptors());
-
-        try {
-            if (partitionMetadata->getPartitions() > 0) {
-                producer = std::make_shared<PartitionedProducerImpl>(
-                    shared_from_this(), topicName, partitionMetadata->getPartitions(), conf, interceptors);
-            } else {
-                producer = std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors);
-            }
-        } catch (const std::runtime_error& e) {
-            LOG_ERROR("Failed to create producer: " << e.what());
-            callback(ResultConnectError, {});
-            return;
-        }
-        producer->getProducerCreatedFuture().addListener(
-            std::bind(&ClientImpl::handleProducerCreated, shared_from_this(), std::placeholders::_1,
-                      std::placeholders::_2, callback, producer));
-        producer->start();
-    } else {
-        LOG_ERROR("Error Checking/Getting Partition Metadata while creating producer on "
-                  << topicName->toString() << " -- " << result);
-        callback(result, Producer());
-    }
-}
-
 void ClientImpl::handleCreateProducerV2(Result result, const LookupDataResultPtr& partitionMetadata,
                                         const TopicNamePtr& topicName, const ProducerConfiguration& conf,
                                         const CreateProducerCallbackV2& callback) {
@@ -397,44 +366,6 @@ void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewC
             callback(result, TableView{tableViewImplPtr});
         } else {
             callback(result, {});
-        }
-    });
-}
-
-void ClientImpl::handleReaderMetadataLookup(Result result, const LookupDataResultPtr& partitionMetadata,
-                                            const TopicNamePtr& topicName, const MessageId& startMessageId,
-                                            const ReaderConfiguration& conf, const ReaderCallback& callback) {
-    if (result != ResultOk) {
-        LOG_ERROR("Error Checking/Getting Partition Metadata while creating readeron "
-                  << topicName->toString() << " -- " << result);
-        callback(result, Reader());
-        return;
-    }
-
-    ReaderImplPtr reader;
-    try {
-        reader.reset(new ReaderImpl(shared_from_this(), topicName->toString(),
-                                    partitionMetadata->getPartitions(), conf,
-                                    getListenerExecutorProvider()->get(), callback));
-    } catch (const std::runtime_error& e) {
-        LOG_ERROR("Failed to create reader: " << e.what());
-        callback(ResultConnectError, {});
-        return;
-    }
-    ConsumerImplBasePtr consumer = reader->getConsumer();
-    auto self = shared_from_this();
-    reader->start(startMessageId, [this, self](const ConsumerImplBaseWeakPtr& weakConsumerPtr) {
-        auto consumer = weakConsumerPtr.lock();
-        if (consumer) {
-            auto address = consumer.get();
-            auto existingConsumer = consumers_.putIfAbsent(address, consumer);
-            if (existingConsumer) {
-                consumer = existingConsumer.value().lock();
-                LOG_ERROR("Unexpected existing consumer at the same address: "
-                          << address << ", consumer: " << (consumer ? consumer->getName() : "(null)"));
-            }
-        } else {
-            LOG_ERROR("Unexpected case: the consumer is somehow expired");
         }
     });
 }
@@ -659,50 +590,6 @@ void ClientImpl::subscribeAsyncV2(const std::string& topic, const std::string& s
     getPartitionMetadataAsync(topicName).addListener(
         std::bind(&ClientImpl::handleSubscribeV2, shared_from_this(), std::placeholders::_1,
                   std::placeholders::_2, topicName, subscriptionName, conf, callback));
-}
-
-void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
-                                 const TopicNamePtr& topicName, const std::string& subscriptionName,
-                                 ConsumerConfiguration conf, const SubscribeCallback& callback) {
-    if (result == ResultOk) {
-        // generate random name if not supplied by the customer.
-        if (conf.getConsumerName().empty()) {
-            conf.setConsumerName(generateRandomName());
-        }
-        ConsumerImplBasePtr consumer;
-        auto interceptors = std::make_shared<ConsumerInterceptors>(conf.getInterceptors());
-
-        try {
-            if (partitionMetadata->getPartitions() > 0) {
-                if (conf.getReceiverQueueSize() == 0) {
-                    LOG_ERROR("Can't use partitioned topic if the queue size is 0.");
-                    callback(ResultInvalidConfiguration, Consumer());
-                    return;
-                }
-                consumer = std::make_shared<MultiTopicsConsumerImpl>(shared_from_this(), topicName,
-                                                                     partitionMetadata->getPartitions(),
-                                                                     subscriptionName, conf, interceptors);
-            } else {
-                auto consumerImpl = std::make_shared<ConsumerImpl>(shared_from_this(), topicName->toString(),
-                                                                   subscriptionName, conf,
-                                                                   topicName->isPersistent(), interceptors);
-                consumerImpl->setPartitionIndex(topicName->getPartitionIndex());
-                consumer = consumerImpl;
-            }
-        } catch (const std::runtime_error& e) {
-            LOG_ERROR("Failed to create consumer: " << e.what());
-            callback(ResultConnectError, {});
-            return;
-        }
-        consumer->getConsumerCreatedFuture().addListener(
-            std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
-                      std::placeholders::_2, callback, consumer));
-        consumer->start();
-    } else {
-        LOG_ERROR("Error Checking/Getting Partition Metadata while Subscribing on " << topicName->toString()
-                                                                                    << " -- " << result);
-        callback(result, Consumer());
-    }
 }
 
 void ClientImpl::handleSubscribeV2(Result result, const LookupDataResultPtr& partitionMetadata,
