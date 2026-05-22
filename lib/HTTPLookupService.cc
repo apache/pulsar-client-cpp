@@ -191,7 +191,7 @@ Error HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::st
 }
 
 Error HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::string &responseData,
-                                           long &responseCode) {
+                                         long &responseCode) {
     AuthenticationDataPtr authDataContent;
     Result authResult = authenticationPtr_->getAuthData(authDataContent);
     if (authResult != ResultOk) {
