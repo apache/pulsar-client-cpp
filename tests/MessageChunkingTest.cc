@@ -28,6 +28,7 @@
 #include "WaitUtils.h"
 #include "lib/ChunkMessageIdImpl.h"
 #include "lib/LogUtils.h"
+#include "tests/VariantHelper.h"
 
 DECLARE_LOG_OBJECT()
 
@@ -105,11 +106,13 @@ TEST_F(MessageChunkingTest, testInvalidConfig) {
     Producer producer;
     ASSERT_EQ(ResultInvalidConfiguration, client.createProducer("xxx", conf, producer));
 
-    auto variant = client.createProducerV2("xxx", conf);
-    const auto* error = std::get_if<Error>(&variant);
-    ASSERT_TRUE(error != nullptr);
-    ASSERT_EQ(ResultInvalidConfiguration, error->result);
-    ASSERT_EQ("Batching and chunking of messages can't be enabled together", error->message);
+    std::visit(overloaded{[](Error&& error) {
+                              ASSERT_EQ(ResultInvalidConfiguration, error.result);
+                              ASSERT_EQ("Batching and chunking of messages can't be enabled together",
+                                        error.message);
+                          },
+                          [](auto&&) { FAIL(); }},
+               client.createProducerV2("xxx", conf));
 
     client.close();
 }
