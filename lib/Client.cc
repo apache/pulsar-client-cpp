@@ -19,6 +19,7 @@
 #include <pulsar/Client.h>
 #include <pulsar/ServiceInfoProvider.h>
 
+#include <future>
 #include <iostream>
 #include <memory>
 #include <utility>
@@ -77,6 +78,19 @@ void Client::createProducerAsync(const std::string& topic, const ProducerConfigu
 void Client::createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
                                    CreateProducerV2Callback callback) {
     impl_->createProducerAsync(topic, conf, std::move(callback));
+}
+
+std::variant<Error, Producer> Client::createProducerV2(const std::string& topic,
+                                                       const ProducerConfiguration& conf) {
+    std::promise<std::variant<Error, Producer>> promise;
+    createProducerAsyncV2(topic, conf, [&promise](const auto& v) mutable {
+        if (const auto* error = std::get_if<Error>(&v)) {
+            promise.set_value(*error);
+        } else {
+            promise.set_value(std::get<Producer>(v));
+        }
+    });
+    return promise.get_future().get();
 }
 
 Result Client::subscribe(const std::string& topic, const std::string& subscriptionName, Consumer& consumer) {
@@ -180,9 +194,9 @@ void Client::createTableViewAsync(const std::string& topic, const TableViewConfi
 }
 
 Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::string>& partitions) {
-    Promise<Result, std::vector<std::string> > promise;
-    getPartitionsForTopicAsync(topic, WaitForCallbackValue<std::vector<std::string> >(promise));
-    Future<Result, std::vector<std::string> > future = promise.getFuture();
+    Promise<Result, std::vector<std::string>> promise;
+    getPartitionsForTopicAsync(topic, WaitForCallbackValue<std::vector<std::string>>(promise));
+    Future<Result, std::vector<std::string>> future = promise.getFuture();
 
     return future.get(partitions);
 }

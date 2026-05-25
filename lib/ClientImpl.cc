@@ -250,7 +250,7 @@ void ClientImpl::handleCreateProducer(const Error& error, const LookupDataResult
             }
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create producer: " << e.what());
-            callback(error);
+            callback(Error{ResultConnectError, e.what()});
             return;
         }
         producer->getProducerCreatedFuture().addListener(
@@ -274,10 +274,10 @@ void ClientImpl::handleProducerCreated(const Error& error, const ProducerImplBas
         auto existingProducer = producers_.putIfAbsent(address, producer);
         if (existingProducer) {
             auto producer = existingProducer.value().lock();
-            LOG_ERROR("Unexpected existing producer at the same address: "
-                      << address << ", producer: " << (producer ? producer->getProducerName() : "(null)"));
-            callback(Error{ResultUnknownError,
-                           "Unexpected existing producer for name " + producer->getProducerName()});
+            const auto name = producer ? producer->getProducerName() : "(null)";
+            LOG_ERROR("Unexpected existing producer at the same address: " << address
+                                                                           << ", producer: " << name);
+            callback(Error{ResultUnknownError, "Unexpected existing producer for name " + name});
             return;
         }
         callback(Producer(producer));
@@ -781,8 +781,8 @@ void ClientImpl::handleClose(Result result, const SharedInt& numberOfOpenHandler
         }
 
         LOG_DEBUG("Shutting down producers and consumers for client");
-        // handleClose() is called in ExecutorService's event loop, while shutdown() tried to wait the event
-        // loop exits. So here we use another thread to call shutdown().
+        // handleClose() is called in ExecutorService's event loop, while shutdown() tried to wait the
+        // event loop exits. So here we use another thread to call shutdown().
         auto self = shared_from_this();
         std::thread shutdownTask{[this, self, callback] {
             shutdown();
@@ -830,9 +830,9 @@ void ClientImpl::shutdown() {
     }
     LOG_DEBUG("ConnectionPool is closed");
 
-    // 500ms as the timeout is long enough because ExecutorService::close calls io_service::stop() internally
-    // and waits until io_service::run() in another thread returns, which should be as soon as possible after
-    // stop() is called.
+    // 500ms as the timeout is long enough because ExecutorService::close calls io_service::stop()
+    // internally and waits until io_service::run() in another thread returns, which should be as soon as
+    // possible after stop() is called.
     TimeoutProcessor<std::chrono::milliseconds> timeoutProcessor{500};
 
     timeoutProcessor.tik();

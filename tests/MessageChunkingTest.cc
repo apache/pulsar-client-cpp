@@ -22,6 +22,7 @@
 
 #include <ctime>
 #include <random>
+#include <variant>
 
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
@@ -102,7 +103,14 @@ TEST_F(MessageChunkingTest, testInvalidConfig) {
     conf.setBatchingEnabled(true);
     conf.setChunkingEnabled(true);
     Producer producer;
-    ASSERT_THROW(client.createProducer("xxx", conf, producer), std::invalid_argument);
+    ASSERT_EQ(ResultInvalidConfiguration, client.createProducer("xxx", conf, producer));
+
+    auto variant = client.createProducerV2("xxx", conf);
+    const auto* error = std::get_if<Error>(&variant);
+    ASSERT_TRUE(error != nullptr);
+    ASSERT_EQ(ResultInvalidConfiguration, error->result);
+    ASSERT_EQ("Batching and chunking of messages can't be enabled together", error->message);
+
     client.close();
 }
 

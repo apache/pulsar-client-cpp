@@ -111,9 +111,9 @@ class PULSAR_PUBLIC Client {
      * @return ResultOk if the producer has been successfully created
      * @return ResultError if there was an error
      */
-    [[deprecated("use createProducerAsyncV2")]] Result createProducer(const std::string& topic,
-                                                                      const ProducerConfiguration& conf,
-                                                                      Producer& producer);
+    [[deprecated("use createProducerV2")]] Result createProducer(const std::string& topic,
+                                                                 const ProducerConfiguration& conf,
+                                                                 Producer& producer);
 
     /**
      * Asynchronously create a producer with the default ProducerConfiguration for publishing on a specific
@@ -138,6 +138,9 @@ class PULSAR_PUBLIC Client {
 
     void createProducerAsyncV2(const std::string& topic, const ProducerConfiguration& conf,
                                CreateProducerV2Callback callback);
+
+    std::variant<Error, Producer> createProducerV2(const std::string& topic,
+                                                   const ProducerConfiguration& conf);
 
     /**
      * Subscribe to a given topic and subscription combination with the default ConsumerConfiguration
