@@ -65,15 +65,16 @@ TEST(TypedMessageTest, testReceive) {
             ASSERT_EQ(ResultOk, consumer.receive(msg, 3000, intDecoder));
         } else {
             Latch latch{1};
-            consumer.receiveAsync(
+            std::function<void(Result result, const TypedMessage<int>&)> callback =
                 [&latch, &msg, &msgMutex](Result result, const TypedMessage<int>& receivedMsg) {
                     ASSERT_EQ(ResultOk, result);
                     {
                         std::lock_guard<std::mutex> lock{msgMutex};
-                        msg = TypedMessage<int>{receivedMsg, intDecoder};
+                        msg = receivedMsg;
                     }
                     latch.countdown();
-                });
+                };
+            consumer.receiveAsync<int>(callback, intDecoder);
             ASSERT_TRUE(latch.wait(std::chrono::seconds(1)));
         }
 
