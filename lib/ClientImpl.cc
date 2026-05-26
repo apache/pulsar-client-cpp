@@ -191,9 +191,7 @@ LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) 
 void ClientImpl::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                                      CreateProducerV2Callback callback, bool autoDownloadSchema) {
     if (conf.isChunkingEnabled() && conf.getBatchingEnabled()) {
-        callback(
-            Error{ResultInvalidConfiguration, "Batching and chunking of messages can't be enabled together"});
-        return;
+        throw std::invalid_argument("Batching and chunking of messages can't be enabled together");
     }
 
     TopicNamePtr topicName;
