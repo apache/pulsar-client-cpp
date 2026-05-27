@@ -26,7 +26,9 @@
 #include <fstream>
 #include <streambuf>
 #include <string>
+#include <variant>
 
+#include "VariantHelper.h"
 #include "lib/Future.h"
 #include "lib/LogUtils.h"
 #include "lib/Utils.h"
@@ -184,6 +186,13 @@ TEST(AuthPluginToken, testNoAuth) {
     Result result = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultAuthorizationError, result);
 
+    std::visit(overloaded{[](Error&& error) {
+                              ASSERT_EQ(ResultAuthorizationError, error.result);
+                              ASSERT_EQ("Client is not authorized to Get Partition Metadata", error.message);
+                          },
+                          [](auto&&) { FAIL(); }},
+               client.createProducerV2(topicName, {}));
+
     Consumer consumer;
     result = client.subscribe(topicName, subName, consumer);
     ASSERT_EQ(ResultAuthorizationError, result);
@@ -200,6 +209,14 @@ TEST(AuthPluginToken, testNoAuthWithHttp) {
     Result result = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultConnectError, result);
 
+    std::visit(overloaded{[](Error&& error) {
+                              ASSERT_EQ(ResultConnectError, error.result);
+                              ASSERT_TRUE(error.message.find("The requested URL returned error: 401") !=
+                                          std::string::npos);
+                          },
+                          [](auto&&) { FAIL(); }},
+               client.createProducerV2(topicName, {}));
+
     Consumer consumer;
     result = client.subscribe(topicName, subName, consumer);
     ASSERT_EQ(ResultConnectError, result);
@@ -212,5 +229,16 @@ TEST(AuthPluginToken, testTokenSupplierException) {
     Client client(serviceUrl, config);
     Producer producer;
     ASSERT_EQ(ResultAuthenticationError, client.createProducer("topic", producer));
+
+    std::visit(
+        overloaded{[](Error&& error) {
+                       ASSERT_EQ(ResultAuthenticationError, error.result);
+                       ASSERT_TRUE(error.message.find("failed to generate token") != std::string::npos);
+                   },
+                   [](auto&&) { FAIL(); }},
+        client.createProducerV2("topic", {}));
+
     ASSERT_EQ(ResultOk, client.close());
+
+    client.close();
 }

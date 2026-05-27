@@ -143,7 +143,7 @@ void PartitionedProducerImpl::start() {
 }
 
 void PartitionedProducerImpl::handleSinglePartitionProducerCreated(
-    Result result, const ProducerImplBaseWeakPtr& producerWeakPtr, unsigned int partitionIndex) {
+    const Error& error, const ProducerImplBaseWeakPtr& producerWeakPtr, unsigned int partitionIndex) {
     // to indicate, we are doing cleanup using closeAsync after producer create
     // has failed and the invocation of closeAsync is not from client
     const auto numPartitions = getNumPartitionsWithLock();
@@ -161,9 +161,10 @@ void PartitionedProducerImpl::handleSinglePartitionProducerCreated(
         return;
     }
 
-    if (result != ResultOk) {
-        LOG_ERROR("Unable to create Producer for partition - " << partitionIndex << " Error - " << result);
-        partitionedProducerCreatedPromise_.setFailed(result);
+    if (error.result != ResultOk) {
+        LOG_ERROR("Unable to create Producer for partition - " << partitionIndex << " Error - "
+                                                               << error.result);
+        partitionedProducerCreatedPromise_.setFailed(error);
         state_ = Failed;
         if (++numProducersCreated_ == numPartitions) {
             closeAsync(nullptr);
@@ -231,11 +232,11 @@ void PartitionedProducerImpl::sendAsync(const Message& msg, SendCallback callbac
     } else {
         // Wrapping the callback into a lambda has overhead, so we check if the producer is ready first
         producer->getProducerCreatedFuture().addListener(
-            [msg, callback](Result result, const ProducerImplBaseWeakPtr& weakProducer) {
-                if (result == ResultOk) {
+            [msg, callback](const Error& error, const ProducerImplBaseWeakPtr& weakProducer) {
+                if (error.result == ResultOk) {
                     weakProducer.lock()->sendAsync(msg, callback);
                 } else if (callback) {
-                    callback(result, {});
+                    callback(error.result, {});
                 }
             });
     }
@@ -251,7 +252,7 @@ void PartitionedProducerImpl::internalShutdown() {
     if (client) {
         client->cleanupProducer(this);
     }
-    partitionedProducerCreatedPromise_.setFailed(ResultAlreadyClosed);
+    partitionedProducerCreatedPromise_.setFailed(Error{ResultAlreadyClosed, ""});
     state_ = Closed;
 }
 
@@ -353,14 +354,14 @@ void PartitionedProducerImpl::handleSinglePartitionProducerClose(Result result, 
         // is set second time here, first time it was successful. So check
         // if there's any adverse effect of setting it again. It should not
         // be but must check. MUSTCHECK changeme
-        partitionedProducerCreatedPromise_.setFailed(ResultUnknownError);
+        partitionedProducerCreatedPromise_.setFailed(Error{ResultUnknownError, ""});
         callback(result);
         return;
     }
 }
 
 // override
-Future<Result, ProducerImplBaseWeakPtr> PartitionedProducerImpl::getProducerCreatedFuture() {
+Future<Error, ProducerImplBaseWeakPtr> PartitionedProducerImpl::getProducerCreatedFuture() {
     return partitionedProducerCreatedPromise_.getFuture();
 }
 
@@ -436,10 +437,10 @@ void PartitionedProducerImpl::getPartitionMetadata() {
         return;
     }
     client->getPartitionMetadataAsync(topicName_)
-        .addListener([weakSelf](Result result, const LookupDataResultPtr& lookupDataResult) {
+        .addListener([weakSelf](const auto& error, const LookupDataResultPtr& lookupDataResult) {
             auto self = weakSelf.lock();
             if (self) {
-                self->handleGetPartitions(result, lookupDataResult);
+                self->handleGetPartitions(error.result, lookupDataResult);
             }
         });
 }

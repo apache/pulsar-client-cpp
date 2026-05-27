@@ -93,7 +93,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
      * that exists for the topic.
      */
     void createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
-                             const CreateProducerCallback& callback, bool autoDownloadSchema = false);
+                             CreateProducerV2Callback callback, bool autoDownloadSchema = false);
 
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
@@ -161,7 +161,6 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
         std::shared_lock lock(mutex_);
         return lookupServicePtr_->getTopicsOfNamespaceAsync(nsName, mode);
     }
-
     auto getSchema(const TopicNamePtr& topicName, const std::string& version = "") {
         std::shared_lock lock(mutex_);
         return lookupServicePtr_->getSchema(topicName, version);
@@ -172,9 +171,9 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     friend class PulsarFriend;
 
    private:
-    void handleCreateProducer(Result result, const LookupDataResultPtr& partitionMetadata,
+    void handleCreateProducer(const Error& error, const LookupDataResultPtr& partitionMetadata,
                               const TopicNamePtr& topicName, const ProducerConfiguration& conf,
-                              const CreateProducerCallback& callback);
+                              CreateProducerV2Callback callback);
 
     void handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
                          const TopicNamePtr& topicName, const std::string& consumerName,
@@ -187,8 +186,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void handleGetPartitions(Result result, const LookupDataResultPtr& partitionMetadata,
                              const TopicNamePtr& topicName, const GetPartitionsCallback& callback);
 
-    void handleProducerCreated(Result result, const ProducerImplBaseWeakPtr& producerWeakPtr,
-                               const CreateProducerCallback& callback, const ProducerImplBasePtr& producer);
+    void handleProducerCreated(const Error& error, const ProducerImplBaseWeakPtr& producerWeakPtr,
+                               const CreateProducerV2Callback& callback, const ProducerImplBasePtr& producer);
     void handleConsumerCreated(Result result, const ConsumerImplBaseWeakPtr& consumerWeakPtr,
                                const SubscribeCallback& callback, const ConsumerImplBasePtr& consumer);
 

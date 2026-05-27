@@ -29,7 +29,7 @@
 namespace pulsar {
 class LookupDataResult;
 typedef std::shared_ptr<LookupDataResult> LookupDataResultPtr;
-typedef Promise<Result, LookupDataResultPtr> LookupDataResultPromise;
+typedef Promise<Error, LookupDataResultPtr> LookupDataResultPromise;
 typedef std::shared_ptr<LookupDataResultPromise> LookupDataResultPromisePtr;
 
 class LookupDataResult {

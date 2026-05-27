@@ -41,7 +41,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
         explicit PassKey() {}
     };
 
-    RetryableOperation(const std::string& name, std::function<Future<Result, T>()>&& func,
+    RetryableOperation(const std::string& name, std::function<Future<Error, T>()>&& func,
                        TimeDuration timeout, DeadlineTimerPtr timer)
         : name_(name),
           func_(std::move(func)),
@@ -58,7 +58,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
         return std::make_shared<RetryableOperation<T>>(PassKey{}, std::forward<Args>(args)...);
     }
 
-    Future<Result, T> run() {
+    Future<Error, T> run() {
         bool expected = false;
         if (!started_.compare_exchange_strong(expected, true)) {
             return promise_.getFuture();
@@ -67,16 +67,16 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
     }
 
     void cancel() {
-        promise_.setFailed(ResultDisconnected);
+        promise_.setFailed({ResultDisconnected, ""});
         cancelTimer(*timer_);
     }
 
    private:
     const std::string name_;
-    std::function<Future<Result, T>()> func_;
+    std::function<Future<Error, T>()> func_;
     const TimeDuration timeout_;
     Backoff backoff_;
-    Promise<Result, T> promise_;
+    Promise<Error, T> promise_;
     std::atomic_bool started_{false};
     DeadlineTimerPtr timer_;
 
@@ -84,24 +84,24 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
 #ifdef __GNUC__
     __attribute__((visibility("hidden")))
 #endif
-    Future<Result, T>
+    Future<Error, T>
     runImpl(TimeDuration remainingTime) {
         std::weak_ptr<RetryableOperation<T>> weakSelf{this->shared_from_this()};
-        func_().addListener([this, weakSelf, remainingTime](Result result, const T& value) {
+        func_().addListener([this, weakSelf, remainingTime](const Error& error, const T& value) {
             auto self = weakSelf.lock();
             if (!self) {
                 return;
             }
-            if (result == ResultOk) {
+            if (error.result == ResultOk) {
                 promise_.setValue(value);
                 return;
             }
-            if (!isResultRetryable(result)) {
-                promise_.setFailed(result);
+            if (!isResultRetryable(error.result)) {
+                promise_.setFailed(error);
                 return;
             }
             if (toMillis(remainingTime) <= 0) {
-                promise_.setFailed(ResultTimeout);
+                promise_.setFailed({ResultTimeout, ""});
                 return;
             }
 
@@ -119,7 +119,7 @@ class RetryableOperation : public std::enable_shared_from_this<RetryableOperatio
                 if (ec) {
                     if (ec == ASIO::error::operation_aborted) {
                         LOG_DEBUG("Timer for " << name_ << " is cancelled");
-                        promise_.setFailed(ResultTimeout);
+                        promise_.setFailed({ResultTimeout, ""});
                     } else {
                         LOG_WARN("Timer for " << name_ << " failed: " << ec.message());
                     }

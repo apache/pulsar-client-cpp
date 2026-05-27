@@ -53,11 +53,12 @@ class RetryableLookupService : public LookupService {
     }
 
     LookupResultFuture getBroker(const TopicName& topicName) override {
-        return lookupCache_->run("get-broker-" + topicName.toString(),
-                                 [this, topicName] { return lookupService_->getBroker(topicName); });
+        return toResultFuture(lookupCache_->run("get-broker-" + topicName.toString(), [this, topicName] {
+            return toErrorFuture(lookupService_->getBroker(topicName));
+        }));
     }
 
-    Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
+    Future<Error, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
         return partitionLookupCache_->run(
             "get-partition-metadata-" + topicName->toString(),
             [this, topicName] { return lookupService_->getPartitionMetadataAsync(topicName); });
@@ -65,13 +66,15 @@ class RetryableLookupService : public LookupService {
 
     Future<Result, NamespaceTopicsPtr> getTopicsOfNamespaceAsync(
         const NamespaceNamePtr& nsName, CommandGetTopicsOfNamespace_Mode mode) override {
-        return namespaceLookupCache_->run(
+        return toResultFuture(namespaceLookupCache_->run(
             "get-topics-of-namespace-" + nsName->toString() + "-" + std::to_string(mode),
-            [this, nsName, mode] { return lookupService_->getTopicsOfNamespaceAsync(nsName, mode); });
+            [this, nsName, mode] {
+                return toErrorFuture(lookupService_->getTopicsOfNamespaceAsync(nsName, mode));
+            }));
     }
 
-    Future<Result, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override {
-        return getSchemaCache_->run("get-schema" + topicName->toString(), [this, topicName, version] {
+    Future<Error, SchemaInfo> getSchema(const TopicNamePtr& topicName, const std::string& version) override {
+        return getSchemaCache_->run(getSchemaCacheKey(topicName, version), [this, topicName, version] {
             return lookupService_->getSchema(topicName, version);
         });
     }
@@ -81,6 +84,36 @@ class RetryableLookupService : public LookupService {
     }
 
    private:
+    template <typename T>
+    static Future<Error, T> toErrorFuture(Future<Result, T> future) {
+        Promise<Error, T> promise;
+        future.addListener([promise](Result result, const T& value) {
+            if (result == ResultOk) {
+                promise.setValue(value);
+            } else {
+                promise.setFailed({result, ""});
+            }
+        });
+        return promise.getFuture();
+    }
+
+    template <typename T>
+    static Future<Result, T> toResultFuture(Future<Error, T> future) {
+        Promise<Result, T> promise;
+        future.addListener([promise](const Error& error, const T& value) {
+            if (error.result == ResultOk) {
+                promise.setValue(value);
+            } else {
+                promise.setFailed(error.result);
+            }
+        });
+        return promise.getFuture();
+    }
+
+    static std::string getSchemaCacheKey(const TopicNamePtr& topicName, const std::string& version) {
+        return "get-schema-" + topicName->toString() + "-" + version;
+    }
+
     const std::shared_ptr<LookupService> lookupService_;
     RetryableOperationCachePtr<LookupResult> lookupCache_;
     RetryableOperationCachePtr<LookupDataResultPtr> partitionLookupCache_;

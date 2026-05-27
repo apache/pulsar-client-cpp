@@ -56,11 +56,11 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
         return std::make_shared<Self>(PassKey{}, std::forward<Args>(args)...);
     }
 
-    Future<Result, T> run(const std::string& key, std::function<Future<Result, T>()>&& func) {
+    Future<Error, T> run(const std::string& key, std::function<Future<Error, T>()>&& func) {
         std::unique_lock<std::mutex> lock{mutex_};
         if (closed_) {
-            Promise<Result, T> promise;
-            promise.setFailed(ResultAlreadyClosed);
+            Promise<Error, T> promise;
+            promise.setFailed({ResultAlreadyClosed, ""});
             return promise.getFuture();
         }
         auto it = operations_.find(key);
@@ -70,8 +70,8 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
                 timer = executorProvider_->get()->createDeadlineTimer();
             } catch (const std::runtime_error& e) {
                 LOG_ERROR("Failed to retry lookup for " << key << ": " << e.what());
-                Promise<Result, T> promise;
-                promise.setFailed(ResultConnectError);
+                Promise<Error, T> promise;
+                promise.setFailed({ResultConnectError, e.what()});
                 return promise.getFuture();
             }
 
@@ -81,7 +81,7 @@ class RetryableOperationCache : public std::enable_shared_from_this<RetryableOpe
             lock.unlock();
 
             auto weakSelf = this->weak_from_this();
-            future.addListener([this, weakSelf, key, operation](Result, const T&) {
+            future.addListener([this, weakSelf, key, operation](const Error&, const T&) {
                 auto self = weakSelf.lock();
                 if (!self) {
                     return;

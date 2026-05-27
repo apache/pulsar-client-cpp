@@ -93,7 +93,7 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
      * @return ResultError if there was a failure. ResultRetryable if reconnection is needed.
      * @return Do not use bool, only Result.
      */
-    virtual Future<Result, bool> connectionOpened(const ClientConnectionPtr& connection) = 0;
+    virtual Future<Error, bool> connectionOpened(const ClientConnectionPtr& connection) = 0;
 
     virtual void connectionFailed(Result result) = 0;
 

@@ -47,10 +47,10 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
 
     // NOTE: we can use move capture for topic since C++14
     cnxPool_.getConnectionAsync(address).addListener([this, promise, topic, address, authoritative,
-                                                      redirectCount](Result result,
+                                                      redirectCount](const auto& error,
                                                                      const ClientConnectionWeakPtr& weakCnx) {
-        if (result != ResultOk) {
-            promise->setFailed(result);
+        if (error.result != ResultOk) {
+            promise->setFailed(error.result);
             return;
         }
         auto cnx = weakCnx.lock();
@@ -62,10 +62,10 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
         auto lookupPromise = std::make_shared<LookupDataResultPromise>();
         cnx->newTopicLookup(topic, authoritative, listenerName_, newRequestId(), lookupPromise);
         lookupPromise->getFuture().addListener([this, cnx, promise, topic, address, redirectCount](
-                                                   Result result, const LookupDataResultPtr& data) {
-            if (result != ResultOk || !data) {
-                LOG_ERROR("Lookup failed for " << topic << ", result " << result);
-                promise->setFailed(result);
+                                                   const Error& error, const LookupDataResultPtr& data) {
+            if (error.result != ResultOk || !data) {
+                LOG_ERROR("Lookup failed for " << topic << ", result " << error);
+                promise->setFailed(error.result);
                 return;
             }
 
@@ -96,15 +96,11 @@ auto BinaryProtoLookupService::findBroker(const std::string& address, bool autho
     return promise->getFuture();
 }
 
-/*
- * @param    topicName topic to get number of partitions.
- *
- */
-Future<Result, LookupDataResultPtr> BinaryProtoLookupService::getPartitionMetadataAsync(
+Future<Error, LookupDataResultPtr> BinaryProtoLookupService::getPartitionMetadataAsync(
     const TopicNamePtr& topicName) {
     LookupDataResultPromisePtr promise = std::make_shared<LookupDataResultPromise>();
     if (!topicName) {
-        promise->setFailed(ResultInvalidTopicName);
+        promise->setFailed(Error{ResultInvalidTopicName, ""});
         return promise->getFuture();
     }
     std::string lookupName = topicName->toString();
@@ -115,16 +111,17 @@ Future<Result, LookupDataResultPtr> BinaryProtoLookupService::getPartitionMetada
     return promise->getFuture();
 }
 
-void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::string& topicName, Result result,
+void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::string& topicName,
+                                                                  const Error& error,
                                                                   const ClientConnectionWeakPtr& clientCnx,
                                                                   const LookupDataResultPromisePtr& promise) {
-    if (result != ResultOk) {
-        promise->setFailed(result);
+    if (error.result != ResultOk) {
+        promise->setFailed(error);
         return;
     }
     auto conn = clientCnx.lock();
     if (!conn) {
-        promise->setFailed(ResultConnectError);
+        promise->setFailed(Error{ResultConnectError, ""});
         return;
     }
     LookupDataResultPromisePtr lookupPromise = std::make_shared<LookupDataResultPromise>();
@@ -135,7 +132,7 @@ void BinaryProtoLookupService::sendPartitionMetadataLookupRequest(const std::str
                                                      std::placeholders::_2, clientCnx, promise));
 }
 
-void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& topicName, Result result,
+void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& topicName, const Error& error,
                                                              const LookupDataResultPtr& data,
                                                              const ClientConnectionWeakPtr& clientCnx,
                                                              const LookupDataResultPromisePtr& promise) {
@@ -144,8 +141,8 @@ void BinaryProtoLookupService::handlePartitionMetadataLookup(const std::string& 
                                                           << data->getBrokerUrl());
         promise->setValue(data);
     } else {
-        LOG_DEBUG("PartitionMetadataLookup failed for " << topicName << ", result " << result);
-        promise->setFailed(result);
+        LOG_DEBUG("PartitionMetadataLookup failed for " << topicName << ", result " << error);
+        promise->setFailed(error);
     }
 }
 
@@ -168,26 +165,28 @@ Future<Result, NamespaceTopicsPtr> BinaryProtoLookupService::getTopicsOfNamespac
     return promise->getFuture();
 }
 
-Future<Result, SchemaInfo> BinaryProtoLookupService::getSchema(const TopicNamePtr& topicName,
-                                                               const std::string& version) {
-    GetSchemaPromisePtr promise = std::make_shared<Promise<Result, SchemaInfo>>();
-
+Future<Error, SchemaInfo> BinaryProtoLookupService::getSchema(const TopicNamePtr& topicName,
+                                                              const std::string& version) {
+    GetSchemaPromisePtr promise = std::make_shared<Promise<Error, SchemaInfo>>();
     if (!topicName) {
-        promise->setFailed(ResultInvalidTopicName);
+        promise->setFailed(Error{ResultInvalidTopicName, ""});
         return promise->getFuture();
     }
-    cnxPool_.getConnectionAsync(serviceNameResolver_.resolveHost())
+
+    const auto topic = topicName->toString();
+    const auto address = serviceNameResolver_.resolveHost();
+    cnxPool_.getConnectionAsync(address, address)
         .addListener(std::bind(&BinaryProtoLookupService::sendGetSchemaRequest, this, topicName->toString(),
                                version, std::placeholders::_1, std::placeholders::_2, promise));
-
     return promise->getFuture();
 }
 
 void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName, const std::string& version,
-                                                    Result result, const ClientConnectionWeakPtr& clientCnx,
+                                                    const Error& error,
+                                                    const ClientConnectionWeakPtr& clientCnx,
                                                     const GetSchemaPromisePtr& promise) {
-    if (result != ResultOk) {
-        promise->setFailed(result);
+    if (error.result != ResultOk) {
+        promise->setFailed(error);
         return;
     }
 
@@ -195,11 +194,10 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName
     uint64_t requestId = newRequestId();
     LOG_DEBUG("sendGetSchemaRequest. requestId: " << requestId << " topicName: " << topicName
                                                   << " version: " << version);
-
     conn->newGetSchema(topicName, version, requestId)
-        .addListener([promise](Result result, const SchemaInfo& schemaInfo) {
-            if (result != ResultOk) {
-                promise->setFailed(result);
+        .addListener([promise](const auto& error, const SchemaInfo& schemaInfo) {
+            if (error.result != ResultOk) {
+                promise->setFailed(error);
                 return;
             }
             promise->setValue(schemaInfo);
@@ -208,11 +206,11 @@ void BinaryProtoLookupService::sendGetSchemaRequest(const std::string& topicName
 
 void BinaryProtoLookupService::sendGetTopicsOfNamespaceRequest(const std::string& nsName,
                                                                CommandGetTopicsOfNamespace_Mode mode,
-                                                               Result result,
+                                                               const Error& error,
                                                                const ClientConnectionWeakPtr& clientCnx,
                                                                const NamespaceTopicsPromisePtr& promise) {
-    if (result != ResultOk) {
-        promise->setFailed(result);
+    if (error.result != ResultOk) {
+        promise->setFailed(error.result);
         return;
     }
 

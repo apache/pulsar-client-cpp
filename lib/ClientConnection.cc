@@ -209,8 +209,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
     LOG_INFO(cnxString() << "Create ClientConnection, timeout="
                          << clientConfiguration.getConnectionTimeout());
     if (!authentication_) {
-        LOG_ERROR("Invalid authentication plugin");
-        throw ResultAuthenticationError;
+        throw Error{ResultAuthenticationError, "Invalid authentication plugin"};
         return;
     }
 
@@ -248,7 +247,7 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
                     ctx.load_verify_file(trustCertFilePath);
                 } else {
                     LOG_ERROR(trustCertFilePath << ": No such trustCertFile");
-                    throw ResultAuthenticationError;
+                    throw Error{ResultAuthenticationError, trustCertFilePath + ": No such trustCertFile"};
                 }
             } else {
                 ctx.set_default_verify_paths();
@@ -265,11 +264,11 @@ ClientConnection::ClientConnection(const std::string& logicalAddress, const std:
             tlsPrivateKey = authData->getTlsPrivateKey();
             if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
-                throw ResultAuthenticationError;
+                throw Error{ResultAuthenticationError, tlsCertificates + ": No such tlsCertificates"};
             }
             if (!file_exists(tlsCertificates)) {
                 LOG_ERROR(tlsCertificates << ": No such tlsCertificates");
-                throw ResultAuthenticationError;
+                throw Error{ResultAuthenticationError, tlsCertificates + ": No such tlsCertificates"};
             }
             ctx.use_private_key_file(tlsPrivateKey, ASIO::ssl::context::pem);
             ctx.use_certificate_chain_file(tlsCertificates);
@@ -304,7 +303,7 @@ ClientConnection::~ClientConnection() {
 void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdConnected) {
     if (!cmdConnected.has_server_version()) {
         LOG_ERROR(cnxString() << "Server version is not set");
-        close();
+        close(Error{ResultConnectError, cnxString() + "Server version is not set"});
         return;
     }
 
@@ -414,7 +413,7 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
             std::atomic_store(&cnxStringPtr_, std::make_shared<std::string>(cnxStringStream.str()));
         } catch (const ASIO_SYSTEM_ERROR& e) {
             LOG_ERROR("Failed to get endpoint: " << e.what());
-            close(ResultRetryable);
+            close(Error{ResultRetryable, ""});
             return;
         }
         if (logicalAddress_ == physicalAddress_) {
@@ -470,7 +469,7 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
                 Url service_url;
                 if (!Url::parse(physicalAddress_, service_url)) {
                     LOG_ERROR(cnxString() << "Invalid Url, unable to parse: " << err << " " << err.message());
-                    close();
+                    close(Error{ResultConnectError, "Invalid Url, unable to parse: " + err.message()});
                     return;
                 }
             }
@@ -492,9 +491,9 @@ void ClientConnection::handleTcpConnected(const ASIO_ERROR& err, const tcp::endp
             cancelTimer(*connectTimer_);
         }
         if (err == ASIO::error::operation_aborted) {
-            close();
+            close(Error{ResultConnectError, "Connection attempt was canceled"});
         } else {
-            close(ResultRetryable);
+            close(Error{ResultRetryable, ""});
         }
     }
 }
@@ -503,10 +502,10 @@ void ClientConnection::handleHandshake(const ASIO_ERROR& err) {
     if (err) {
         if (err.value() == ASIO::ssl::error::stream_truncated) {
             LOG_WARN(cnxString() << "Handshake failed: " << err.message());
-            close(ResultRetryable);
+            close(Error{ResultRetryable, ""});
         } else {
             LOG_ERROR(cnxString() << "Handshake failed: " << err.message());
-            close();
+            close(Error{ResultConnectError, "Handshake failed: " + err.message()});
         }
         return;
     }
@@ -515,16 +514,17 @@ void ClientConnection::handleHandshake(const ASIO_ERROR& err) {
     Result result = ResultOk;
     SharedBuffer buffer;
     try {
+        // TODO: pass error instead of result
         buffer = Commands::newConnect(authentication_, logicalAddress_, connectingThroughProxy,
                                       clientVersion_, result);
     } catch (const std::exception& e) {
         LOG_ERROR(cnxString() << "Failed to create Connect command: " << e.what());
-        close(ResultAuthenticationError);
+        close(Error{ResultAuthenticationError, "Failed to create Connect command: " + std::string(e.what())});
         return;
     }
     if (result != ResultOk) {
         LOG_ERROR(cnxString() << "Failed to establish connection: " << result);
-        close(result);
+        close(Error{result, ""});
         return;
     }
     // Send CONNECT command to broker
@@ -541,7 +541,7 @@ void ClientConnection::handleSentPulsarConnect(const ASIO_ERROR& err, const Shar
     }
     if (err) {
         LOG_ERROR(cnxString() << "Failed to establish connection: " << err.message());
-        close();
+        close(Error{ResultConnectError, "Failed to establish connection: " + err.message()});
         return;
     }
 
@@ -555,7 +555,7 @@ void ClientConnection::handleSentAuthResponse(const ASIO_ERROR& err, const Share
     }
     if (err) {
         LOG_WARN(cnxString() << "Failed to send auth response: " << err.message());
-        close();
+        close(Error{ResultRetryable, "Failed to send auth response: " + err.message()});
         return;
     }
 }
@@ -576,14 +576,15 @@ void ClientConnection::tcpConnectAsync() {
     std::string hostUrl = isSniProxy_ ? proxyServiceUrl_ : physicalAddress_;
     if (!Url::parse(hostUrl, service_url)) {
         LOG_ERROR(cnxString() << "Invalid Url, unable to parse: " << err << " " << err.message());
-        close();
+        close(Error{ResultConnectError, "Invalid Url, unable to parse: " + err.message()});
         return;
     }
 
     if (service_url.protocol() != "pulsar" && service_url.protocol() != "pulsar+ssl") {
         LOG_ERROR(cnxString() << "Invalid Url protocol '" << service_url.protocol()
                               << "'. Valid values are 'pulsar' and 'pulsar+ssl'");
-        close();
+        close(Error{ResultConnectError, "Invalid Url protocol '" + service_url.protocol() +
+                                            "'. Valid values are 'pulsar' and 'pulsar+ssl'"});
         return;
     }
 
@@ -598,7 +599,7 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
     if (err) {
         std::string hostUrl = isSniProxy_ ? cnxString() : proxyServiceUrl_;
         LOG_ERROR(hostUrl << "Resolve error: " << err << " : " << err.message());
-        close();
+        close(Error{ResultConnectError, hostUrl + " Resolve error: " + err.message()});
         return;
     }
 
@@ -625,7 +626,8 @@ void ClientConnection::handleResolve(ASIO_ERROR err, const tcp::resolver::result
             LOG_ERROR(cnxString() << "Connection to " << results << " was not established in "
                                   << connectTimeout_.count() << " ms");
             lock.unlock();
-            close();
+            close(Error{ResultConnectError, "Connection was not established in " +
+                                                std::to_string(connectTimeout_.count()) + " ms"});
         }  // else: the connection is closed or already established
     });
 
@@ -660,7 +662,7 @@ void ClientConnection::handleRead(const ASIO_ERROR& err, size_t bytesTransferred
         } else {
             LOG_ERROR(cnxString() << "Read operation failed: " << err.message());
         }
-        close(ResultDisconnected);
+        close(Error{ResultDisconnected, ""});
     } else if (bytesTransferred < minReadSize) {
         // Read the remaining part, use a slice of buffer to write on the next
         // region
@@ -711,7 +713,7 @@ void ClientConnection::processIncomingBuffer() {
         proto::BaseCommand incomingCmd;
         if (!incomingCmd.ParseFromArray(incomingBuffer_.data(), cmdSize)) {
             LOG_ERROR(cnxString() << "Error parsing protocol buffer command");
-            close(ResultDisconnected);
+            close(Error{ResultDisconnected, ""});
             return;
         }
 
@@ -735,7 +737,7 @@ void ClientConnection::processIncomingBuffer() {
                               << ", message ledger id " << incomingCmd.message().message_id().ledgerid()
                               << ", entry id " << incomingCmd.message().message_id().entryid()
                               << "] Error parsing broker entry metadata");
-                    close(ResultDisconnected);
+                    close(Error{ResultDisconnected, ""});
                     return;
                 }
                 incomingBuffer_.setReaderIndex(readerIndex + 2 + 4 + brokerEntryMetadataSize);
@@ -753,7 +755,7 @@ void ClientConnection::processIncomingBuffer() {
                           << ", message ledger id " << incomingCmd.message().message_id().ledgerid()  //
                           << ", entry id " << incomingCmd.message().message_id().entryid()
                           << "] Error parsing message metadata");
-                close(ResultDisconnected);
+                close(Error{ResultDisconnected, ""});
                 return;
             }
 
@@ -886,7 +888,8 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
             // Handle Pulsar Connected
             if (incomingCmd.type() != BaseCommand::CONNECTED) {
                 // Wrong cmd
-                close();
+                close(Error{ResultDisconnected, cnxString() + "Expected CONNECTED command but received " +
+                                                    Commands::messageType(incomingCmd.type())});
             } else {
                 handlePulsarConnected(incomingCmd.connected());
             }
@@ -987,7 +990,7 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
 
                 default:
                     LOG_WARN(cnxString() << "Received invalid message from server");
-                    close(ResultDisconnected);
+                    close(Error{ResultDisconnected, cnxString() + "Received invalid message from server"});
                     break;
             }
         }
@@ -1032,11 +1035,11 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
     Lock lock(mutex_);
     if (isClosed()) {
         lock.unlock();
-        promise->setFailed(ResultNotConnected);
+        promise->setFailed(Error{ResultNotConnected, ""});
         return;
     } else if (numOfPendingLookupRequest_ >= maxPendingLookupRequest_) {
         lock.unlock();
-        promise->setFailed(ResultTooManyLookupRequestException);
+        promise->setFailed(Error{ResultTooManyLookupRequestException, ""});
         return;
     }
 
@@ -1048,13 +1051,14 @@ void ClientConnection::newLookup(const SharedBuffer& cmd, uint64_t requestId, co
                 self->numOfPendingLookupRequest_--;
             }
         });
-    request->getFuture().addListener([promise](Result result, const LookupDataResultPtr& lookupDataResult) {
-        if (result == ResultOk) {
-            promise->setValue(lookupDataResult);
-        } else {
-            promise->setFailed(result);
-        }
-    });
+    request->getFuture().addListener(
+        [promise](const auto& error, const LookupDataResultPtr& lookupDataResult) {
+            if (error.result == ResultOk) {
+                promise->setValue(lookupDataResult);
+            } else {
+                promise->setFailed(error);
+            }
+        });
 
     numOfPendingLookupRequest_++;
     lock.unlock();
@@ -1112,7 +1116,7 @@ void ClientConnection::handleSend(const ASIO_ERROR& err, const SharedBuffer&) {
     }
     if (err) {
         LOG_WARN(cnxString() << "Could not send message on connection: " << err << " " << err.message());
-        close(ResultDisconnected);
+        close(Error{ResultDisconnected, ""});
     } else {
         sendPendingCommands();
     }
@@ -1124,7 +1128,7 @@ void ClientConnection::handleSendPair(const ASIO_ERROR& err) {
     }
     if (err) {
         LOG_WARN(cnxString() << "Could not send pair message on connection: " << err << " " << err.message());
-        close(ResultDisconnected);
+        close(Error{ResultDisconnected, ""});
     } else {
         sendPendingCommands();
     }
@@ -1164,16 +1168,16 @@ void ClientConnection::sendPendingCommands() {
     }
 }
 
-Future<Result, ResponseData> ClientConnection::sendRequestWithId(const SharedBuffer& cmd, int requestId,
-                                                                 const char* requestType) {
+Future<Error, ResponseData> ClientConnection::sendRequestWithId(const SharedBuffer& cmd, int requestId,
+                                                                const char* requestType) {
     Lock lock(mutex_);
 
     if (isClosed()) {
         lock.unlock();
         LOG_DEBUG(cnxString() << "Fail " << requestType << "(req_id: " << requestId
                               << ") to a closed connection");
-        Promise<Result, ResponseData> promise;
-        promise.setFailed(ResultNotConnected);
+        Promise<Error, ResponseData> promise;
+        promise.setFailed(Error{ResultNotConnected, ""});
         return promise.getFuture();
     }
 
@@ -1206,7 +1210,7 @@ void ClientConnection::handleKeepAliveTimeout(const ASIO_ERROR& ec) {
 
     if (havePendingPingRequest_) {
         LOG_WARN(cnxString() << "Forcing connection to close after keep-alive timeout");
-        close(ResultDisconnected);
+        close(Error{ResultDisconnected, ""});
     } else {
         // Send keep alive probe to peer
         LOG_DEBUG(cnxString() << "Sending ping message");
@@ -1234,10 +1238,10 @@ void ClientConnection::handleConsumerStatsTimeout(const ASIO_ERROR& ec,
     startConsumerStatsTimer(consumerStatsRequests);
 }
 
-const std::future<void>& ClientConnection::close(Result result, bool switchCluster) {
+const std::future<void>& ClientConnection::close(Error&& error, bool switchCluster) {
     Lock lock(mutex_);
     if (closeFuture_) {
-        connectPromise_.setFailed(result);
+        connectPromise_.setFailed(std::move(error));
         return *closeFuture_;
     }
     auto promise = std::make_shared<std::promise<void>>();
@@ -1279,6 +1283,7 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
     cancelTimer(*connectTimer_);
     lock.unlock();
     int refCount = weak_from_this().use_count();
+    auto result = error.result;
     if (result != ResultAlreadyClosed /* closed by the pool */ && !isResultRetryable(result)) {
         LOG_ERROR(cnxString() << "Connection closed with " << result << " (refCnt: " << refCount << ")");
     } else {
@@ -1327,36 +1332,32 @@ const std::future<void>& ClientConnection::close(Result result, bool switchClust
     }
     self.reset();
 
-    connectPromise_.setFailed(result);
+    connectPromise_.setFailed(error);
 
     // Fail all pending requests after releasing the lock.
     for (auto& kv : pendingRequests) {
-        kv.second->fail(result);
+        kv.second->fail(error);
     }
     for (auto& kv : pendingLookupRequests) {
-        kv.second->fail(result);
+        kv.second->fail(error);
     }
     for (auto& kv : pendingConsumerStatsMap) {
         LOG_ERROR(cnxString() << " Closing Client Connection, please try again later");
         kv.second.setFailed(result);
     }
     for (auto& kv : pendingGetLastMessageIdRequests) {
-        kv.second->fail(result);
+        kv.second->fail(error);
     }
     for (auto& kv : pendingGetNamespaceTopicsRequests) {
-        kv.second->fail(result);
+        kv.second->fail(error);
     }
     for (auto& kv : pendingGetSchemaRequests) {
-        kv.second->fail(result);
+        kv.second->fail(error);
     }
     return *closeFuture_;
 }
 
 bool ClientConnection::isClosed() const { return state_ == Disconnected; }
-
-Future<Result, ClientConnectionWeakPtr> ClientConnection::getConnectFuture() {
-    return connectPromise_.getFuture();
-}
 
 void ClientConnection::registerProducer(int producerId, const ProducerImplPtr& producer) {
     Lock lock(mutex_);
@@ -1405,12 +1406,21 @@ Future<Result, GetLastMessageIdResponse> ClientConnection::newGetLastMessageId(u
         });
     lock.unlock();
 
+    // TODO: return Error instead
+    Promise<Result, GetLastMessageIdResponse> promise;
+    request->getFuture().addListener([promise](const auto& error, const auto& response) {
+        if (error.result == ResultOk) {
+            promise.setValue(response);
+        } else {
+            promise.setFailed(error.result);
+        }
+    });
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("GET_LAST_MESSAGE_ID", requestId)) {
-        return request->getFuture();
+        return promise.getFuture();
     }
     sendCommand(Commands::newGetLastMessageId(consumerId, requestId));
-    return request->getFuture();
+    return promise.getFuture();
 }
 
 Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
@@ -1429,23 +1439,34 @@ Future<Result, NamespaceTopicsPtr> ClientConnection::newGetTopicsOfNamespace(
             LOG_WARN(cnxString << "GetTopicsOfNamespace request timeout to broker, req_id: " << requestId);
         });
     lock.unlock();
+
+    // TODO: return Error instead
+    Promise<Result, NamespaceTopicsPtr> promise;
+    request->getFuture().addListener([promise](const auto& error, const auto& response) {
+        if (error.result == ResultOk) {
+            promise.setValue(response);
+        } else {
+            promise.setFailed(error.result);
+        }
+    });
+
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("GET_TOPICS_OF_NAMESPACE", requestId)) {
-        return request->getFuture();
+        return promise.getFuture();
     }
     sendCommand(Commands::newGetTopicsOfNamespace(nsName, mode, requestId));
-    return request->getFuture();
+    return promise.getFuture();
 }
 
-Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
-                                                          const std::string& version, uint64_t requestId) {
+Future<Error, SchemaInfo> ClientConnection::newGetSchema(const std::string& topicName,
+                                                         const std::string& version, uint64_t requestId) {
     Lock lock(mutex_);
 
     if (isClosed()) {
         lock.unlock();
         LOG_ERROR(cnxString() << "Client is not connected to the broker");
-        Promise<Result, SchemaInfo> promise;
-        promise.setFailed(ResultNotConnected);
+        Promise<Error, SchemaInfo> promise;
+        promise.setFailed(Error{ResultNotConnected, ""});
         return promise.getFuture();
     }
 
@@ -1453,14 +1474,15 @@ Future<Result, SchemaInfo> ClientConnection::newGetSchema(const std::string& top
         insertRequest(pendingGetSchemaRequests_, requestId, [cnxString = cnxString(), requestId]() {
             LOG_WARN(cnxString << "GetSchema request timeout to broker, req_id: " << requestId);
         });
+    auto future = request->getFuture();
     lock.unlock();
 
     if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
         mockServer_->sendRequest("GET_SCHEMA", requestId)) {
-        return request->getFuture();
+        return future;
     }
     sendCommand(Commands::newGetSchema(topicName, version, requestId));
-    return request->getFuture();
+    return future;
 }
 
 void ClientConnection::checkServerError(ServerError error, const std::string& message) {
@@ -1486,7 +1508,7 @@ void ClientConnection::handleSendReceipt(const proto::CommandSendReceipt& sendRe
             if (!producer->ackReceived(sequenceId, messageId)) {
                 // If the producer fails to process the ack, we need to close the connection
                 // to give it a chance to recover from there
-                close(ResultDisconnected);
+                close(Error{ResultDisconnected, ""});
             }
         }
     } else {
@@ -1510,12 +1532,12 @@ void ClientConnection::handleSendError(const proto::CommandSendError& error) {
                 if (!producer->removeCorruptMessage(sequenceId)) {
                     // If the producer fails to remove corrupt msg, we need to close the
                     // connection to give it a chance to recover from there
-                    close(ResultDisconnected);
+                    close(Error{ResultDisconnected, ""});
                 }
             }
         }
     } else {
-        close(ResultDisconnected);
+        close(Error{ResultDisconnected, ""});
     }
 }
 
@@ -1554,13 +1576,16 @@ void ClientConnection::handlePartitionedMetadataResponse(
                                       << partitionMetadataResponse.request_id()
                                       << " error: " << partitionMetadataResponse.error()
                                       << " msg: " << partitionMetadataResponse.message());
-                checkServerError(partitionMetadataResponse.error(), partitionMetadataResponse.message());
-                request->fail(
-                    getResult(partitionMetadataResponse.error(), partitionMetadataResponse.message()));
+                auto msg = partitionMetadataResponse.message();
+                checkServerError(partitionMetadataResponse.error(), msg);
+                auto result = getResult(partitionMetadataResponse.error(), msg);
+                request->fail(Error{result, std::move(msg)});
             } else {
                 LOG_ERROR(cnxString() << "Failed partition-metadata lookup req_id: "
                                       << partitionMetadataResponse.request_id() << " with empty response: ");
-                request->fail(ResultConnectError);
+                request->fail(
+                    Error{ResultConnectError, "Empty response from broker for request " +
+                                                  std::to_string(partitionMetadataResponse.request_id())});
             }
         } else {
             LookupDataResultPtr lookupResultPtr = std::make_shared<LookupDataResult>();
@@ -1627,12 +1652,16 @@ void ClientConnection::handleLookupTopicRespose(
                 LOG_ERROR(cnxString() << "Failed lookup req_id: " << lookupTopicResponse.request_id()
                                       << " error: " << lookupTopicResponse.error()
                                       << " msg: " << lookupTopicResponse.message());
-                checkServerError(lookupTopicResponse.error(), lookupTopicResponse.message());
-                request->fail(getResult(lookupTopicResponse.error(), lookupTopicResponse.message()));
+                auto msg = lookupTopicResponse.message();
+                checkServerError(lookupTopicResponse.error(), msg);
+                auto result = getResult(lookupTopicResponse.error(), lookupTopicResponse.message());
+                request->fail(Error{result, std::move(msg)});
             } else {
                 LOG_ERROR(cnxString() << "Failed lookup req_id: " << lookupTopicResponse.request_id()
                                       << " with empty response: ");
-                request->fail(ResultConnectError);
+                request->fail(
+                    Error{ResultConnectError, "Empty response from broker for request " +
+                                                  std::to_string(lookupTopicResponse.request_id())});
             }
         } else {
             LOG_DEBUG(cnxString() << "Received lookup response from server. req_id: "
@@ -1702,6 +1731,7 @@ void ClientConnection::handleError(const proto::CommandError& error) {
     LOG_WARN(cnxString() << "Received error response from server: " << result
                          << (error.has_message() ? (" (" + error.message() + ")") : "")
                          << " -- req_id: " << error.request_id());
+    Error requestError{result, error.message()};
 
     Lock lock(mutex_);
 
@@ -1711,7 +1741,7 @@ void ClientConnection::handleError(const proto::CommandError& error) {
         pendingRequests_.erase(it);
         lock.unlock();
 
-        request->fail(result);
+        request->fail(requestError);
     } else {
         auto it = pendingGetLastMessageIdRequests_.find(error.request_id());
         if (it != pendingGetLastMessageIdRequests_.end()) {
@@ -1719,7 +1749,7 @@ void ClientConnection::handleError(const proto::CommandError& error) {
             pendingGetLastMessageIdRequests_.erase(it);
             lock.unlock();
 
-            request->fail(result);
+            request->fail(requestError);
         } else {
             auto it = pendingGetNamespaceTopicsRequests_.find(error.request_id());
             if (it != pendingGetNamespaceTopicsRequests_.end()) {
@@ -1727,7 +1757,7 @@ void ClientConnection::handleError(const proto::CommandError& error) {
                 pendingGetNamespaceTopicsRequests_.erase(it);
                 lock.unlock();
 
-                request->fail(result);
+                request->fail(requestError);
             } else {
                 lock.unlock();
             }
@@ -1857,10 +1887,11 @@ void ClientConnection::handleAuthChallenge() {
     LOG_DEBUG(cnxString() << "Received auth challenge from broker");
 
     Result result;
+    // TODO: use Error instead
     SharedBuffer buffer = Commands::newAuthResponse(authentication_, result);
     if (result != ResultOk) {
         LOG_ERROR(cnxString() << "Failed to send auth response: " << result);
-        close(result);
+        close(Error{result, "Failed to auth response"});
         return;
     }
     auto self = shared_from_this();
@@ -1955,7 +1986,7 @@ void ClientConnection::handleGetSchemaResponse(const proto::CommandGetSchemaResp
                                              : "")
                                      << " -- req_id: " << response.request_id());
             }
-            request->fail(result);
+            request->fail(Error{result, response.error_message()});
             return;
         }
 
@@ -1992,7 +2023,7 @@ void ClientConnection::handleAckResponse(const proto::CommandAckResponse& respon
     lock.unlock();
 
     if (response.has_error()) {
-        request->fail(getResult(response.error(), ""));
+        request->fail(Error{getResult(response.error(), ""), response.message()});
     } else {
         request->complete({});
     }
@@ -2003,7 +2034,7 @@ void ClientConnection::unsafeRemovePendingRequest(long requestId) {
     if (it != pendingRequests_.end()) {
         auto request = std::move(it->second);
         pendingRequests_.erase(it);
-        request->fail(ResultDisconnected);
+        request->fail(Error{ResultDisconnected, ""});
     }
 }
 

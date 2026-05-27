@@ -163,11 +163,11 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * @param result all pending futures will complete with this result
      * @param switchCluster whether the close is triggered by cluster switching
      */
-    const std::future<void>& close(Result result = ResultConnectError, bool switchCluster = false);
+    const std::future<void>& close(Error&& error = Error{ResultConnectError, ""}, bool switchCluster = false);
 
     bool isClosed() const;
 
-    Future<Result, ClientConnectionWeakPtr> getConnectFuture();
+    auto getConnectFuture() const { return connectPromise_.getFuture(); }
 
     Future<Result, ClientConnectionWeakPtr> getCloseFuture();
 
@@ -191,8 +191,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      * Send a request with a specific Id over the connection. The future will be
      * triggered when the response for this request is received
      */
-    Future<Result, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId,
-                                                   const char* requestType);
+    Future<Error, ResponseData> sendRequestWithId(const SharedBuffer& cmd, int requestId,
+                                                  const char* requestType);
 
     const std::string& brokerAddress() const;
 
@@ -212,8 +212,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
                                                                CommandGetTopicsOfNamespace_Mode mode,
                                                                uint64_t requestId);
 
-    Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
-                                            uint64_t requestId);
+    Future<Error, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
+                                           uint64_t requestId);
 
     void attachMockServer(const std::shared_ptr<MockServer>& mockServer) {
         mockServer_ = mockServer;
@@ -334,7 +334,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     SharedBuffer incomingBuffer_;
 
-    Promise<Result, ClientConnectionWeakPtr> connectPromise_;
+    Promise<Error, ClientConnectionWeakPtr> connectPromise_;
+
     const std::chrono::milliseconds connectTimeout_;
     const DeadlineTimerPtr connectTimer_;
 

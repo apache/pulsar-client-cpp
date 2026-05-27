@@ -87,7 +87,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     void internalShutdown();
     bool isClosed() override;
     const std::string& getTopic() const override;
-    Future<Result, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
+    Future<Error, ProducerImplBaseWeakPtr> getProducerCreatedFuture() override;
     void triggerFlush() override;
     void flushAsync(FlushCallback callback) override;
     bool isConnected() const override;
@@ -133,15 +133,15 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
 
     // overrided methods from HandlerBase
     void beforeConnectionChange(ClientConnection& connection) override;
-    Future<Result, bool> connectionOpened(const ClientConnectionPtr& connection) override;
+    Future<Error, bool> connectionOpened(const ClientConnectionPtr& connection) override;
     void connectionFailed(Result result) override;
     const std::string& getName() const override { return producerStr_; }
 
    private:
     void printStats();
 
-    Result handleCreateProducer(const ClientConnectionPtr& cnx, Result result,
-                                const ResponseData& responseData);
+    Error handleCreateProducer(const ClientConnectionPtr& cnx, const Error& error,
+                               const ResponseData& responseData);
 
     void resendMessages(const ClientConnectionPtr& cnx);
 
@@ -195,7 +195,7 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     using DurationType = TimeDuration;
     void asyncWaitSendTimeout(DurationType expiryTime);
 
-    Promise<Result, ProducerImplBaseWeakPtr> producerCreatedPromise_;
+    Promise<Error, ProducerImplBaseWeakPtr> producerCreatedPromise_;
 
     struct PendingCallbacks;
     decltype(pendingMessagesQueue_) getPendingCallbacksWhenFailed();

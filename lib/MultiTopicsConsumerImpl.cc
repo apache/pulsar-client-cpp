@@ -188,11 +188,11 @@ Future<Result, Consumer> MultiTopicsConsumerImpl::subscribeOneTopicAsync(const s
             return topicPromise->getFuture();
         }
         client->getPartitionMetadataAsync(topicName).addListener(
-            [this, topicName, topicPromise](Result result, const LookupDataResultPtr& lookupDataResult) {
-                if (result != ResultOk) {
+            [this, topicName, topicPromise](const auto& error, const LookupDataResultPtr& lookupDataResult) {
+                if (error.result != ResultOk) {
                     LOG_ERROR("Error Checking/Getting Partition Metadata while MultiTopics Subscribing- "
-                              << consumerStr_ << " result: " << result)
-                    topicPromise->setFailed(result);
+                              << consumerStr_ << " result: " << error)
+                    topicPromise->setFailed(error.result);
                     return;
                 }
                 subscribeTopicPartitions(lookupDataResult->getPartitions(), topicName, subscriptionName_,
@@ -1010,11 +1010,12 @@ void MultiTopicsConsumerImpl::topicPartitionUpdate() {
             return;
         }
         client->getPartitionMetadataAsync(topicName).addListener(
-            [this, weakSelf, topicName, currentNumPartitions](Result result,
+            [this, weakSelf, topicName, currentNumPartitions](const auto& error,
                                                               const LookupDataResultPtr& lookupDataResult) {
                 auto self = weakSelf.lock();
                 if (self) {
-                    this->handleGetPartitions(topicName, result, lookupDataResult, currentNumPartitions);
+                    this->handleGetPartitions(topicName, error.result, lookupDataResult,
+                                              currentNumPartitions);
                 }
             });
     }

@@ -24,6 +24,7 @@
 #include <chrono>
 #include <future>
 #include <memory>
+#include <variant>
 
 #include "lib/ClientImpl.h"
 
@@ -46,9 +47,13 @@ class MockClientImpl : public ClientImpl {
         using namespace std::chrono;
         auto start = high_resolution_clock::now();
         auto promise = createPromise();
-        createProducerAsync(topic, {}, [&start, promise](Result result, Producer) {
+        createProducerAsync(topic, {}, [&start, promise](const auto& v) {
             auto timeMs = duration_cast<milliseconds>(high_resolution_clock::now() - start).count();
-            promise->set_value({result, timeMs});
+            if (const auto* error = std::get_if<Error>(&v)) {
+                promise->set_value({error->result, timeMs});
+            } else {
+                promise->set_value({ResultOk, timeMs});
+            }
         });
         return wait(promise);
     }

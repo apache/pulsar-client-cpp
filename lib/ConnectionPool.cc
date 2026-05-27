@@ -59,7 +59,7 @@ bool ConnectionPool::close() {
         auto& cnx = kv.second;
         if (cnx) {
             // Close with a fatal error to not let client retry
-            auto& future = cnx->close(ResultAlreadyClosed);
+            auto& future = cnx->close(Error{ResultAlreadyClosed, ""});
             using namespace std::chrono_literals;
             if (auto status = future.wait_for(5s); status != std::future_status::ready) {
                 LOG_WARN("Connection close timed out for " << cnx.get()->cnxString());
@@ -86,7 +86,7 @@ bool ConnectionPool::close() {
 
 void ConnectionPool::closeAllConnectionsForNewCluster() {
     for (auto&& kv : releaseConnections()) {
-        kv.second->close(ResultDisconnected, true);
+        kv.second->close(Error{ResultDisconnected, ""}, true);
     }
 }
 
@@ -97,12 +97,12 @@ static const std::string getKey(const std::string& logicalAddress, const std::st
     return ss.str();
 }
 
-Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const std::string& logicalAddress,
-                                                                           const std::string& physicalAddress,
-                                                                           size_t keySuffix) {
+Future<Error, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const std::string& logicalAddress,
+                                                                          const std::string& physicalAddress,
+                                                                          size_t keySuffix) {
     if (closed_) {
-        Promise<Result, ClientConnectionWeakPtr> promise;
-        promise.setFailed(ResultAlreadyClosed);
+        Promise<Error, ClientConnectionWeakPtr> promise;
+        promise.setFailed(Error{ResultAlreadyClosed, ""});
         return promise.getFuture();
     }
 
@@ -133,21 +133,21 @@ Future<Result, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const
         cnx.reset(new ClientConnection(logicalAddress, physicalAddress, *serviceInfo_.load(),
                                        executorProvider_->get(keySuffix), clientConfiguration_,
                                        clientVersion_, *this, keySuffix));
-    } catch (Result result) {
-        Promise<Result, ClientConnectionWeakPtr> promise;
-        promise.setFailed(result);
+    } catch (Error error) {
+        Promise<Error, ClientConnectionWeakPtr> promise;
+        promise.setFailed(std::move(error));
         return promise.getFuture();
     } catch (const std::runtime_error& e) {
         lock.unlock();
         LOG_ERROR("Failed to create connection: " << e.what())
-        Promise<Result, ClientConnectionWeakPtr> promise;
-        promise.setFailed(ResultConnectError);
+        Promise<Error, ClientConnectionWeakPtr> promise;
+        promise.setFailed(Error{ResultConnectError, e.what()});
         return promise.getFuture();
     }
 
     LOG_INFO("Created connection for " << key);
 
-    Future<Result, ClientConnectionWeakPtr> future = cnx->getConnectFuture();
+    auto future = cnx->getConnectFuture();
     pool_.insert(std::make_pair(key, cnx));
 
     lock.unlock();

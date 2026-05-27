@@ -91,7 +91,7 @@ TEST(LookupServiceTest, basicLookup) {
 
     TopicNamePtr topicName = TopicName::get("topic");
 
-    Future<Result, LookupDataResultPtr> partitionFuture = lookupService.getPartitionMetadataAsync(topicName);
+    Future<Error, LookupDataResultPtr> partitionFuture = lookupService.getPartitionMetadataAsync(topicName);
     LookupDataResultPtr lookupData;
     partitionFuture.get(lookupData);
     ASSERT_TRUE(lookupData != NULL);
@@ -129,9 +129,9 @@ static void testMultiAddresses(LookupService& lookupService) {
     results.clear();
     for (int i = 0; i < numRequests; i++) {
         LookupDataResultPtr data;
-        const auto result = lookupService.getPartitionMetadataAsync(TopicName::get("topic")).get(data);
-        LOG_INFO("getPartitionMetadataAsync [" << i << "] " << result);
-        results.emplace_back(result);
+        const auto error = lookupService.getPartitionMetadataAsync(TopicName::get("topic")).get(data);
+        LOG_INFO("getPartitionMetadataAsync [" << i << "] " << error.result);
+        results.emplace_back(error.result);
     }
     verifySuccessCount();
 
@@ -186,7 +186,7 @@ TEST(LookupServiceTest, testRetry) {
     PulsarFriend::setServiceUrlIndex(serviceNameResolver, 0);
     auto future2 = lookupService->getPartitionMetadataAsync(topicNamePtr);
     LookupDataResultPtr lookupDataResultPtr;
-    ASSERT_EQ(ResultOk, future2.get(lookupDataResultPtr));
+    ASSERT_EQ(ResultOk, future2.get(lookupDataResultPtr).result);
     LOG_INFO("getPartitionMetadataAsync returns " << lookupDataResultPtr->getPartitions() << " partitions");
 
     PulsarFriend::setServiceUrlIndex(serviceNameResolver, 0);
@@ -234,7 +234,7 @@ TEST(LookupServiceTest, testTimeout) {
     beforeMethod();
     auto future2 = lookupService->getPartitionMetadataAsync(topicNamePtr);
     LookupDataResultPtr lookupDataResultPtr;
-    ASSERT_EQ(ResultTimeout, future2.get(lookupDataResultPtr));
+    ASSERT_EQ(ResultTimeout, future2.get(lookupDataResultPtr).result);
     afterMethod("getPartitionMetadataAsync");
 
     beforeMethod();
@@ -307,7 +307,7 @@ TEST_P(LookupServiceTest, testGetSchema) {
 
     SchemaInfo schemaInfo;
     auto future = PulsarFriend::getClientImplPtr(client_)->getSchema(TopicName::get(topic));
-    ASSERT_EQ(ResultOk, future.get(schemaInfo));
+    ASSERT_EQ(ResultOk, future.get(schemaInfo).result);
     ASSERT_EQ(jsonSchema, schemaInfo.getSchema());
     ASSERT_EQ(SchemaType::JSON, schemaInfo.getSchemaType());
     ASSERT_EQ(properties, schemaInfo.getProperties());
@@ -322,7 +322,7 @@ TEST_P(LookupServiceTest, testGetSchemaNotFound) {
 
     SchemaInfo schemaInfo;
     auto future = PulsarFriend::getClientImplPtr(client_)->getSchema(TopicName::get(topic));
-    ASSERT_EQ(ResultTopicNotFound, future.get(schemaInfo));
+    ASSERT_EQ(ResultTopicNotFound, future.get(schemaInfo).result);
 }
 
 TEST_P(LookupServiceTest, testGetKeyValueSchema) {
@@ -344,7 +344,7 @@ TEST_P(LookupServiceTest, testGetKeyValueSchema) {
 
     SchemaInfo schemaInfo;
     auto future = PulsarFriend::getClientImplPtr(client_)->getSchema(TopicName::get(topic));
-    ASSERT_EQ(ResultOk, future.get(schemaInfo));
+    ASSERT_EQ(ResultOk, future.get(schemaInfo).result);
     ASSERT_EQ(keyValueSchema.getSchema(), schemaInfo.getSchema());
     ASSERT_EQ(SchemaType::KEY_VALUE, schemaInfo.getSchemaType());
     ASSERT_FALSE(schemaInfo.getProperties().empty());
@@ -510,13 +510,13 @@ class MockLookupService : public BinaryProtoLookupService {
    public:
     using BinaryProtoLookupService::BinaryProtoLookupService;
 
-    Future<Result, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
+    Future<Error, LookupDataResultPtr> getPartitionMetadataAsync(const TopicNamePtr& topicName) override {
         bool expected = true;
         if (firstTime_.compare_exchange_strong(expected, false)) {
             // Trigger the retry
             LOG_INFO("Fail the lookup for " << topicName->toString() << " intentionally");
-            Promise<Result, LookupDataResultPtr> promise;
-            promise.setFailed(ResultRetryable);
+            Promise<Error, LookupDataResultPtr> promise;
+            promise.setFailed(Error{ResultRetryable, ""});
             return promise.getFuture();
         }
         return BinaryProtoLookupService::getPartitionMetadataAsync(topicName);
@@ -564,7 +564,7 @@ TEST(LookupServiceTest, testRetryAfterDestroyed) {
     lookupService->close();
     Result result = ResultOk;
     lookupService->getPartitionMetadataAsync(TopicName::get("lookup-service-test-retry-after-destroyed"))
-        .addListener([&result](Result innerResult, const LookupDataResultPtr&) { result = innerResult; });
+        .addListener([&result](const auto& error, const LookupDataResultPtr&) { result = error.result; });
     EXPECT_EQ(ResultAlreadyClosed, result);
     pool.close();
     executorProvider->close();

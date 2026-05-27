@@ -166,7 +166,7 @@ class ConsumerImpl : public ConsumerImplBase {
 
    protected:
     // overrided methods from HandlerBase
-    Future<Result, bool> connectionOpened(const ClientConnectionPtr& cnx) override;
+    Future<Error, bool> connectionOpened(const ClientConnectionPtr& cnx) override;
     void connectionFailed(Result result) override;
 
     // impl methods from ConsumerImpl base

@@ -23,6 +23,8 @@
 
 #include <cstdint>
 #include <iosfwd>
+#include <ostream>
+#include <string>
 
 namespace pulsar {
 
@@ -101,6 +103,20 @@ enum Result : int8_t
 PULSAR_PUBLIC const char* strResult(Result result);
 
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, pulsar::Result result);
+
+struct PULSAR_PUBLIC Error {
+    Result result;
+    std::string message;
+};
+
+inline std::ostream& operator<<(std::ostream& os, const Error& error) {
+    os << error.result;
+    if (!error.message.empty()) {
+        os << " " << error.message;
+    }
+    return os;
+}
+
 }  // namespace pulsar
 
 #endif /* ERROR_HPP_ */

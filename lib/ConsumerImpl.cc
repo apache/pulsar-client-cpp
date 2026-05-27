@@ -225,13 +225,12 @@ void ConsumerImpl::onNegativeAcksSend(const std::set<MessageId>& messageIds) {
     interceptors_->onNegativeAcksSend(Consumer(shared_from_this()), messageIds);
 }
 
-Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
-    // Do not use bool, only Result.
-    Promise<Result, bool> promise;
+Future<Error, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& cnx) {
+    Promise<Error, bool> promise;
 
     if (state_ == Closed) {
         LOG_DEBUG(getName() << "connectionOpened : Consumer is already closed");
-        promise.setFailed(ResultAlreadyClosed);
+        promise.setFailed(Error{ResultAlreadyClosed, ""});
         return promise.getFuture();
     }
 
@@ -262,10 +261,10 @@ Future<Result, bool> ConsumerImpl::connectionOpened(const ClientConnectionPtr& c
     auto self = get_shared_this_ptr();
     setFirstRequestIdAfterConnect(requestId);
     cnx->sendRequestWithId(cmd, requestId, "SUBSCRIBE")
-        .addListener([this, self, cnx, promise](Result result, const ResponseData& responseData) {
-            Result handleResult = handleCreateConsumer(cnx, result);
+        .addListener([this, self, cnx, promise](const Error& error, const ResponseData& responseData) {
+            Result handleResult = handleCreateConsumer(cnx, error.result);
             if (handleResult != ResultOk) {
-                promise.setFailed(handleResult);
+                promise.setFailed(Error{handleResult, ""});
                 return;
             }
             promise.setSuccess();
@@ -314,11 +313,11 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                     auto name = getName();
                     cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId,
                                            "CLOSE_CONSUMER")
-                        .addListener([name](Result result, const ResponseData&) {
-                            if (result == ResultOk) {
+                        .addListener([name](const Error& error, const ResponseData&) {
+                            if (error.result == ResultOk) {
                                 LOG_INFO(name << "Closed consumer successfully after subscribe completed");
                             } else {
-                                LOG_WARN(name << "Failed to close consumer: " << strResult(result));
+                                LOG_WARN(name << "Failed to close consumer: " << strResult(error.result));
                             }
                         });
                 } else {
@@ -328,7 +327,7 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
                     LOG_WARN(getName()
                              << "Client already closed when subscribe completed, close the connection "
                              << cnx->cnxString());
-                    cnx->close(ResultNotConnected);
+                    cnx->close(Error{ResultNotConnected, ""});
                 }
                 return ResultAlreadyClosed;
             }
@@ -423,7 +422,8 @@ void ConsumerImpl::unsubscribeAsync(const ResultCallback& originalCallback) {
         SharedBuffer cmd = Commands::newUnsubscribe(consumerId_, requestId);
         auto self = get_shared_this_ptr();
         cnx->sendRequestWithId(cmd, requestId, "UNSUBSCRIBE")
-            .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
+            .addListener(
+                [self, callback](const Error& error, const ResponseData&) { callback(error.result); });
     } else {
         Result result = ResultNotConnected;
         lock.unlock();
@@ -1420,7 +1420,7 @@ void ConsumerImpl::closeAsync(const ResultCallback& originalCallback) {
     auto requestId = newRequestId();
     auto self = get_shared_this_ptr();
     cnx->sendRequestWithId(Commands::newCloseConsumer(consumerId_, requestId), requestId, "CLOSE_CONSUMER")
-        .addListener([self, callback](Result result, const ResponseData&) { callback(result); });
+        .addListener([self, callback](const Error& error, const ResponseData&) { callback(error.result); });
 }
 
 const std::string& ConsumerImpl::getName() const { return consumerStr_; }
@@ -1828,12 +1828,13 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
     auto weakSelf = weak_from_this();
 
     cnx->sendRequestWithId(seek, requestId, "SEEK")
-        .addListener([this, weakSelf, previousLastSeekArg](Result result, const ResponseData& responseData) {
+        .addListener([this, weakSelf, previousLastSeekArg](const Error& error,
+                                                           const ResponseData& responseData) {
             auto self = weakSelf.lock();
             if (!self) {
                 return;
             }
-            if (result == ResultOk) {
+            if (error.result == ResultOk) {
                 LockGuard lock(mutex_);
                 if (getCnx().expired() || reconnectionPending_) {
                     // Reconnection path: delay the seek callback until connectionOpened. clearReceiveQueue()
@@ -1859,12 +1860,12 @@ void ConsumerImpl::seekAsyncInternal(long requestId, const SharedBuffer& seek, c
                     seekStatus_ = SeekStatus::NOT_STARTED;
                 }  // else: complete the seek future after connection is established
             } else {
-                LOG_ERROR(getName() << "Failed to seek: " << result);
+                LOG_ERROR(getName() << "Failed to seek: " << error.result);
                 LockGuard lock{mutex_};
                 seekStatus_ = SeekStatus::NOT_STARTED;
                 lastSeekArg_ = previousLastSeekArg;
                 executor_->postWork([self, callback{std::exchange(seekCallback_, std::nullopt).value()},
-                                     result]() { callback(result); });
+                                     result{error.result}]() { callback(result); });
             }
         });
 }
@@ -1912,13 +1913,13 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const Proces
             if (client) {
                 auto self = get_shared_this_ptr();
                 client->createProducerAsync(
-                    deadLetterPolicy_.getDeadLetterTopic(), producerConfiguration,
-                    [self](Result res, const Producer& producer) {
-                        if (res == ResultOk) {
-                            self->deadLetterProducer_->setValue(producer);
+                    deadLetterPolicy_.getDeadLetterTopic(), producerConfiguration, [self](const auto& v) {
+                        if (const auto* producer = std::get_if<Producer>(&v)) {
+                            self->deadLetterProducer_->setValue(*producer);
                         } else {
                             LOG_ERROR("Dead letter producer create exception with topic: "
-                                      << self->deadLetterPolicy_.getDeadLetterTopic() << " ex: " << res);
+                                      << self->deadLetterPolicy_.getDeadLetterTopic()
+                                      << " ex: " << std::get<Error>(v).result);
                             self->deadLetterProducer_.reset();
                         }
                     });
@@ -2003,9 +2004,9 @@ void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const MessageI
         cnx->sendRequestWithId(
                Commands::newAck(consumerId_, msgId.ledgerId(), msgId.entryId(), ackSet, ackType, requestId),
                requestId, "ACK")
-            .addListener([callback](Result result, const ResponseData&) {
+            .addListener([callback](const Error& error, const ResponseData&) {
                 if (callback) {
-                    callback(result);
+                    callback(error.result);
                 }
             });
     } else {
@@ -2034,9 +2035,9 @@ void ConsumerImpl::doImmediateAck(const ClientConnectionPtr& cnx, const std::set
             auto requestId = newRequestId();
             cnx->sendRequestWithId(Commands::newMultiMessageAck(consumerId_, ackMsgIds, requestId), requestId,
                                    "ACK")
-                .addListener([callback](Result result, const ResponseData&) {
+                .addListener([callback](const Error& error, const ResponseData&) {
                     if (callback) {
-                        callback(result);
+                        callback(error.result);
                     }
                 });
         } else {
