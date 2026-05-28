@@ -62,6 +62,20 @@ DECLARE_LOG_OBJECT()
 
 namespace pulsar {
 
+namespace {
+
+template <typename T>
+void invokeLegacyCallback(const std::function<void(Result, T)>& callback,
+                          const std::variant<Error, T>& value) {
+    if (const auto* error = std::get_if<Error>(&value)) {
+        callback(error->result, T());
+    } else {
+        callback(ResultOk, std::get<T>(value));
+    }
+}
+
+}  // namespace
+
 static const char hexDigits[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                                  '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
 static std::uniform_int_distribution<> hexDigitsDist(0, sizeof(hexDigits) - 1);
@@ -286,72 +300,93 @@ void ClientImpl::handleProducerCreated(const Error& error, const ProducerImplBas
 
 void ClientImpl::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                                    const ReaderConfiguration& conf, const ReaderCallback& callback) {
+    createReaderAsyncV2(topic, startMessageId, conf,
+                        [callback](const auto& value) { invokeLegacyCallback<Reader>(callback, value); });
+}
+
+void ClientImpl::createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                                     const ReaderConfiguration& conf, ReaderV2Callback callback) {
     TopicNamePtr topicName;
     {
         std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
-            callback(ResultAlreadyClosed, Reader());
+            callback(Error{ResultAlreadyClosed, ""});
             return;
         } else if (!(topicName = TopicName::get(topic))) {
             lock.unlock();
-            callback(ResultInvalidTopicName, Reader());
+            callback(Error{ResultInvalidTopicName, ""});
             return;
         }
     }
 
-    getPartitionMetadataAsync(topicName).addListener([this, self{shared_from_this()}, topicName,
-                                                      startMessageId, conf,
-                                                      callback](const auto& error, const auto& metadata) {
-        handleReaderMetadataLookup(error.result, metadata, topicName, startMessageId, conf, callback);
-    });
+    getPartitionMetadataAsync(topicName).addListener(
+        [this, self{shared_from_this()}, topicName, startMessageId, conf, callback{std::move(callback)}](
+            const auto& error, const auto& metadata) {
+            handleReaderMetadataLookup(error, metadata, topicName, startMessageId, conf, callback);
+        });
 }
 
 void ClientImpl::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
                                       const TableViewCallback& callback) {
+    createTableViewAsyncV2(
+        topic, conf, [callback](const auto& value) { invokeLegacyCallback<TableView>(callback, value); });
+}
+
+void ClientImpl::createTableViewAsyncV2(const std::string& topic, const TableViewConfiguration& conf,
+                                        TableViewV2Callback callback) {
     TopicNamePtr topicName;
     {
         std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
-            callback(ResultAlreadyClosed, TableView());
+            callback(Error{ResultAlreadyClosed, ""});
             return;
         } else if (!(topicName = TopicName::get(topic))) {
             lock.unlock();
-            callback(ResultInvalidTopicName, TableView());
+            callback(Error{ResultInvalidTopicName, ""});
             return;
         }
     }
 
     TableViewImplPtr tableViewPtr =
         std::make_shared<TableViewImpl>(shared_from_this(), topicName->toString(), conf);
-    tableViewPtr->start().addListener([callback](Result result, const TableViewImplPtr& tableViewImplPtr) {
-        if (result == ResultOk) {
-            callback(result, TableView{tableViewImplPtr});
-        } else {
-            callback(result, {});
-        }
-    });
+    tableViewPtr->start().addListener(
+        [callback{std::move(callback)}](const Error& error, const TableViewImplPtr& tableViewImplPtr) {
+            if (error.result == ResultOk) {
+                callback(TableView{tableViewImplPtr});
+            } else {
+                callback(error);
+            }
+        });
 }
 
-void ClientImpl::handleReaderMetadataLookup(Result result, const LookupDataResultPtr& partitionMetadata,
+void ClientImpl::handleReaderMetadataLookup(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                             const TopicNamePtr& topicName, const MessageId& startMessageId,
-                                            const ReaderConfiguration& conf, const ReaderCallback& callback) {
-    if (result != ResultOk) {
+                                            const ReaderConfiguration& conf,
+                                            const ReaderV2Callback& callback) {
+    if (error.result != ResultOk) {
         LOG_ERROR("Error Checking/Getting Partition Metadata while creating readeron "
-                  << topicName->toString() << " -- " << result);
-        callback(result, Reader());
+                  << topicName->toString() << " -- " << error.result);
+        callback(error);
         return;
     }
 
     ReaderImplPtr reader;
     try {
+        ReaderCallback readerCreatedCallback = [callback](Result result, const Reader& reader) {
+            if (result == ResultOk) {
+                callback(reader);
+            } else {
+                callback(Error{result, ""});
+            }
+        };
         reader.reset(new ReaderImpl(shared_from_this(), topicName->toString(),
                                     partitionMetadata->getPartitions(), conf,
-                                    getListenerExecutorProvider()->get(), callback));
+                                    getListenerExecutorProvider()->get(), readerCreatedCallback));
     } catch (const std::runtime_error& e) {
         LOG_ERROR("Failed to create reader: " << e.what());
-        callback(ResultConnectError, {});
+        callback(Error{ResultConnectError, e.what()});
         return;
     }
     ConsumerImplBasePtr consumer = reader->getConsumer();
@@ -375,18 +410,34 @@ void ClientImpl::handleReaderMetadataLookup(Result result, const LookupDataResul
 void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
                                          const ConsumerConfiguration& conf,
                                          const SubscribeCallback& callback) {
+    subscribeAsyncV2(TopicRegex{regexPattern}, subscriptionName, conf,
+                     [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
+}
+
+void ClientImpl::subscribeAsyncV2(const SubscribeTopics& topics, const std::string& subscriptionName,
+                                  const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
+    std::visit(
+        [this, &subscriptionName, &conf, callback{std::move(callback)}](const auto& topicSpec) mutable {
+            subscribeToTopicsAsyncV2(topicSpec, subscriptionName, conf, std::move(callback));
+        },
+        topics);
+}
+
+void ClientImpl::subscribeToTopicsAsyncV2(const TopicRegex& topicRegex, const std::string& subscriptionName,
+                                          const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
+    const auto regexPattern = topicRegex.pattern;
     TopicNamePtr topicNamePtr = TopicName::get(regexPattern);
 
     std::shared_lock lock(mutex_);
     if (state_ != Open) {
         lock.unlock();
-        callback(ResultAlreadyClosed, Consumer());
+        callback(Error{ResultAlreadyClosed, ""});
         return;
     } else {
         lock.unlock();
         if (!topicNamePtr) {
             LOG_ERROR("Topic pattern not valid: " << regexPattern);
-            callback(ResultInvalidTopicName, Consumer());
+            callback(Error{ResultInvalidTopicName, ""});
             return;
         }
     }
@@ -411,14 +462,16 @@ void ClientImpl::subscribeWithRegexAsync(const std::string& regexPattern, const 
             break;
         default:
             LOG_ERROR("RegexSubscriptionMode not valid: " << regexSubscriptionMode);
-            callback(ResultInvalidConfiguration, Consumer());
+            callback(Error{ResultInvalidConfiguration, ""});
             return;
     }
 
     getTopicsOfNamespaceAsync(topicNamePtr->getNamespaceName(), mode)
-        .addListener(std::bind(&ClientImpl::createPatternMultiTopicsConsumer, shared_from_this(),
-                               std::placeholders::_1, std::placeholders::_2, regexPattern, mode,
-                               subscriptionName, conf, callback));
+        .addListener([self{shared_from_this()}, regexPattern, mode, subscriptionName, conf,
+                      callback{std::move(callback)}](Result result, const NamespaceTopicsPtr& topics) {
+            self->createPatternMultiTopicsConsumer(result, topics, regexPattern, mode, subscriptionName, conf,
+                                                   callback);
+        });
 }
 
 void ClientImpl::createPatternMultiTopicsConsumer(Result result, const NamespaceTopicsPtr& topics,
@@ -426,7 +479,7 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
                                                   CommandGetTopicsOfNamespace_Mode mode,
                                                   const std::string& subscriptionName,
                                                   const ConsumerConfiguration& conf,
-                                                  const SubscribeCallback& callback) {
+                                                  SubscribeV2Callback callback) {
     if (result == ResultOk) {
         ConsumerImplBasePtr consumer;
 
@@ -441,18 +494,27 @@ void ClientImpl::createPatternMultiTopicsConsumer(Result result, const Namespace
             shared_from_this(), regexPattern, mode, *matchTopics, subscriptionName, conf, interceptors);
 
         consumer->getConsumerCreatedFuture().addListener(
-            std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
-                      std::placeholders::_2, callback, consumer));
+            [self{shared_from_this()}, callback{std::move(callback)}, consumer](
+                Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr) {
+                self->handleConsumerCreated(result, consumerImplBaseWeakPtr, callback, consumer);
+            });
         consumer->start();
     } else {
         LOG_ERROR("Error Getting topicsOfNameSpace while createPatternMultiTopicsConsumer:  " << result);
-        callback(result, Consumer());
+        callback(Error{result, ""});
     }
 }
 
 void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
                                 const std::string& subscriptionName, const ConsumerConfiguration& conf,
                                 const SubscribeCallback& callback) {
+    subscribeAsyncV2(originalTopics, subscriptionName, conf,
+                     [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
+}
+
+void ClientImpl::subscribeToTopicsAsyncV2(const std::vector<std::string>& originalTopics,
+                                          const std::string& subscriptionName,
+                                          const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
     TopicNamePtr topicNamePtr;
 
     // Remove duplicates from the list of topics
@@ -464,12 +526,12 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
     std::shared_lock lock(mutex_);
     if (state_ != Open) {
         lock.unlock();
-        callback(ResultAlreadyClosed, Consumer());
+        callback(Error{ResultAlreadyClosed, ""});
         return;
     } else {
         if (!topics.empty() && !(topicNamePtr = MultiTopicsConsumerImpl::topicNamesValid(topics))) {
             lock.unlock();
-            callback(ResultInvalidTopicName, Consumer());
+            callback(Error{ResultInvalidTopicName, ""});
             return;
         }
     }
@@ -487,45 +549,54 @@ void ClientImpl::subscribeAsync(const std::vector<std::string>& originalTopics,
     ConsumerImplBasePtr consumer = std::make_shared<MultiTopicsConsumerImpl>(
         shared_from_this(), topics, subscriptionName, topicNamePtr, conf, interceptors);
 
-    consumer->getConsumerCreatedFuture().addListener(std::bind(&ClientImpl::handleConsumerCreated,
-                                                               shared_from_this(), std::placeholders::_1,
-                                                               std::placeholders::_2, callback, consumer));
+    consumer->getConsumerCreatedFuture().addListener(
+        [self{shared_from_this()}, callback{std::move(callback)}, consumer](
+            Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr) {
+            self->handleConsumerCreated(result, consumerImplBaseWeakPtr, callback, consumer);
+        });
     consumer->start();
 }
 
 void ClientImpl::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                                 const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
+    subscribeAsyncV2(topic, subscriptionName, conf,
+                     [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
+}
+
+void ClientImpl::subscribeToTopicsAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                                          const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
+    LOG_INFO("Subscribing on Topic :" << topic);
     TopicNamePtr topicName;
     {
         std::shared_lock lock(mutex_);
         if (state_ != Open) {
             lock.unlock();
-            callback(ResultAlreadyClosed, Consumer());
+            callback(Error{ResultAlreadyClosed, ""});
             return;
         } else if (!(topicName = TopicName::get(topic))) {
             lock.unlock();
-            callback(ResultInvalidTopicName, Consumer());
+            callback(Error{ResultInvalidTopicName, ""});
             return;
         } else if (conf.isReadCompacted() && (topicName->getDomain().compare("persistent") != 0 ||
                                               (conf.getConsumerType() != ConsumerExclusive &&
                                                conf.getConsumerType() != ConsumerFailover))) {
             lock.unlock();
-            callback(ResultInvalidConfiguration, Consumer());
+            callback(Error{ResultInvalidConfiguration, ""});
             return;
         }
     }
 
-    getPartitionMetadataAsync(topicName).addListener([this, self{shared_from_this()}, topicName,
-                                                      subscriptionName, conf,
-                                                      callback](const auto& error, const auto& metadata) {
-        handleSubscribe(error.result, metadata, topicName, subscriptionName, conf, callback);
-    });
+    getPartitionMetadataAsync(topicName).addListener(
+        [this, self{shared_from_this()}, topicName, subscriptionName, conf, callback{std::move(callback)}](
+            const auto& error, const auto& metadata) {
+            handleSubscribe(error, metadata, topicName, subscriptionName, conf, callback);
+        });
 }
 
-void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
+void ClientImpl::handleSubscribe(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                  const TopicNamePtr& topicName, const std::string& subscriptionName,
-                                 ConsumerConfiguration conf, const SubscribeCallback& callback) {
-    if (result == ResultOk) {
+                                 ConsumerConfiguration conf, SubscribeV2Callback callback) {
+    if (error.result == ResultOk) {
         // generate random name if not supplied by the customer.
         if (conf.getConsumerName().empty()) {
             conf.setConsumerName(generateRandomName());
@@ -537,7 +608,7 @@ void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& parti
             if (partitionMetadata->getPartitions() > 0) {
                 if (conf.getReceiverQueueSize() == 0) {
                     LOG_ERROR("Can't use partitioned topic if the queue size is 0.");
-                    callback(ResultInvalidConfiguration, Consumer());
+                    callback(Error{ResultInvalidConfiguration, ""});
                     return;
                 }
                 consumer = std::make_shared<MultiTopicsConsumerImpl>(shared_from_this(), topicName,
@@ -552,22 +623,24 @@ void ClientImpl::handleSubscribe(Result result, const LookupDataResultPtr& parti
             }
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create consumer: " << e.what());
-            callback(ResultConnectError, {});
+            callback(Error{ResultConnectError, e.what()});
             return;
         }
         consumer->getConsumerCreatedFuture().addListener(
-            std::bind(&ClientImpl::handleConsumerCreated, shared_from_this(), std::placeholders::_1,
-                      std::placeholders::_2, callback, consumer));
+            [self{shared_from_this()}, callback{std::move(callback)}, consumer](
+                Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr) {
+                self->handleConsumerCreated(result, consumerImplBaseWeakPtr, callback, consumer);
+            });
         consumer->start();
     } else {
-        LOG_ERROR("Error Checking/Getting Partition Metadata while Subscribing on " << topicName->toString()
-                                                                                    << " -- " << result);
-        callback(result, Consumer());
+        LOG_ERROR("Error Checking/Getting Partition Metadata while Subscribing on "
+                  << topicName->toString() << " -- " << error.result);
+        callback(error);
     }
 }
 
 void ClientImpl::handleConsumerCreated(Result result, const ConsumerImplBaseWeakPtr& consumerImplBaseWeakPtr,
-                                       const SubscribeCallback& callback,
+                                       const SubscribeV2Callback& callback,
                                        const ConsumerImplBasePtr& consumer) {
     if (result == ResultOk) {
         auto address = consumer.get();
@@ -576,18 +649,18 @@ void ClientImpl::handleConsumerCreated(Result result, const ConsumerImplBaseWeak
             auto consumer = existingConsumer.value().lock();
             LOG_ERROR("Unexpected existing consumer at the same address: "
                       << address << ", consumer: " << (consumer ? consumer->getName() : "(null)"));
-            callback(ResultUnknownError, {});
+            callback(Error{ResultUnknownError, ""});
             return;
         }
-        callback(result, Consumer(consumer));
+        callback(Consumer(consumer));
     } else {
         // In order to be compatible with the current broker error code confusion.
         // https://github.com/apache/pulsar/blob/cd2aa550d0fe4e72b5ff88c4f6c1c2795b3ff2cd/pulsar-broker/src/main/java/org/apache/pulsar/broker/service/BrokerServiceException.java#L240-L241
         if (result == ResultProducerBusy) {
             LOG_ERROR("Failed to create consumer: SubscriptionName cannot be empty.");
-            callback(ResultInvalidConfiguration, {});
+            callback(Error{ResultInvalidConfiguration, "SubscriptionName cannot be empty."});
         } else {
-            callback(result, {});
+            callback(Error{result, ""});
         }
     }
 }

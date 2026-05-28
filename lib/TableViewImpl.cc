@@ -32,23 +32,23 @@ TableViewImpl::TableViewImpl(const ClientImplPtr& client, const std::string& top
                              const TableViewConfiguration& conf)
     : client_(client), topic_(topic), conf_(conf) {}
 
-Future<Result, TableViewImplPtr> TableViewImpl::start() {
-    Promise<Result, TableViewImplPtr> promise;
+Future<Error, TableViewImplPtr> TableViewImpl::start() {
+    Promise<Error, TableViewImplPtr> promise;
     ReaderConfiguration readerConfiguration;
     readerConfiguration.setSchema(conf_.schemaInfo);
     readerConfiguration.setReadCompacted(true);
     readerConfiguration.setInternalSubscriptionName(conf_.subscriptionName);
 
     TableViewImplPtr self = shared_from_this();
-    ReaderCallback readerCallback = [self, promise](Result res, const Reader& reader) {
-        if (res == ResultOk) {
-            self->reader_ = reader.impl_;
+    ReaderV2Callback readerCallback = [self, promise](const std::variant<Error, Reader>& result) {
+        if (const auto* reader = std::get_if<Reader>(&result)) {
+            self->reader_ = reader->impl_;
             self->readAllExistingMessages(promise, TimeUtils::currentTimeMillis(), 0);
         } else {
-            promise.setFailed(res);
+            promise.setFailed(std::get<Error>(result));
         }
     };
-    client_->createReaderAsync(topic_, MessageId::earliest(), readerConfiguration, readerCallback);
+    client_->createReaderAsyncV2(topic_, MessageId::earliest(), readerConfiguration, readerCallback);
     return promise.getFuture();
 }
 
@@ -118,14 +118,14 @@ void TableViewImpl::handleMessage(const Message& msg) {
     }
 }
 
-void TableViewImpl::readAllExistingMessages(const Promise<Result, TableViewImplPtr>& promise, long startTime,
+void TableViewImpl::readAllExistingMessages(const Promise<Error, TableViewImplPtr>& promise, long startTime,
                                             long messagesRead) {
     auto weakSelf = weak_from_this();
     reader_->hasMessageAvailableAsync(
         [weakSelf, promise, startTime, messagesRead](Result result, bool hasMessage) {
             auto self = weakSelf.lock();
             if (!self || result != ResultOk) {
-                promise.setFailed(result);
+                promise.setFailed(Error{result, ""});
                 return;
             }
             if (hasMessage) {
@@ -135,7 +135,7 @@ void TableViewImpl::readAllExistingMessages(const Promise<Result, TableViewImplP
                     [weakSelf, promise, startTime, messagesRead, topic](Result res, const Message& msg) {
                         auto self = weakSelf.lock();
                         if (!self || res != ResultOk) {
-                            promise.setFailed(res);
+                            promise.setFailed(Error{res, ""});
                             LOG_ERROR("Start table view failed, reader msg for "
                                       << topic << " error: " << strResult(res));
                         } else {

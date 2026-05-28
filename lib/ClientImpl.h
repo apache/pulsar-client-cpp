@@ -98,6 +98,9 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
 
+    void subscribeAsyncV2(const SubscribeTopics& topics, const std::string& subscriptionName,
+                          const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+
     void subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
 
@@ -107,8 +110,14 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, const ReaderCallback& callback);
 
+    void createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                             const ReaderConfiguration& conf, ReaderV2Callback callback);
+
     void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
                               const TableViewCallback& callback);
+
+    void createTableViewAsyncV2(const std::string& topic, const TableViewConfiguration& conf,
+                                TableViewV2Callback callback);
 
     void getPartitionsForTopicAsync(const std::string& topic, const GetPartitionsCallback& callback);
 
@@ -175,13 +184,22 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                               const TopicNamePtr& topicName, const ProducerConfiguration& conf,
                               CreateProducerV2Callback callback);
 
-    void handleSubscribe(Result result, const LookupDataResultPtr& partitionMetadata,
+    void handleSubscribe(const Error& error, const LookupDataResultPtr& partitionMetadata,
                          const TopicNamePtr& topicName, const std::string& consumerName,
-                         ConsumerConfiguration conf, const SubscribeCallback& callback);
+                         ConsumerConfiguration conf, SubscribeV2Callback callback);
 
-    void handleReaderMetadataLookup(Result result, const LookupDataResultPtr& partitionMetadata,
+    void subscribeToTopicsAsyncV2(const std::string& topic, const std::string& subscriptionName,
+                                  const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+
+    void subscribeToTopicsAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
+                                  const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+
+    void subscribeToTopicsAsyncV2(const TopicRegex& topicRegex, const std::string& subscriptionName,
+                                  const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+
+    void handleReaderMetadataLookup(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                     const TopicNamePtr& topicName, const MessageId& startMessageId,
-                                    const ReaderConfiguration& conf, const ReaderCallback& callback);
+                                    const ReaderConfiguration& conf, const ReaderV2Callback& callback);
 
     void handleGetPartitions(Result result, const LookupDataResultPtr& partitionMetadata,
                              const TopicNamePtr& topicName, const GetPartitionsCallback& callback);
@@ -189,7 +207,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void handleProducerCreated(const Error& error, const ProducerImplBaseWeakPtr& producerWeakPtr,
                                const CreateProducerV2Callback& callback, const ProducerImplBasePtr& producer);
     void handleConsumerCreated(Result result, const ConsumerImplBaseWeakPtr& consumerWeakPtr,
-                               const SubscribeCallback& callback, const ConsumerImplBasePtr& consumer);
+                               const SubscribeV2Callback& callback, const ConsumerImplBasePtr& consumer);
 
     typedef std::shared_ptr<int> SharedInt;
 
@@ -199,7 +217,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                           const std::string& regexPattern,
                                           CommandGetTopicsOfNamespace_Mode mode,
                                           const std::string& consumerName, const ConsumerConfiguration& conf,
-                                          const SubscribeCallback& callback);
+                                          SubscribeV2Callback callback);
 
     const std::string& getPhysicalAddress(const std::string& redirectedClusterURI,
                                           const std::string& logicalAddress);

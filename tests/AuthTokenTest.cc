@@ -54,6 +54,15 @@ std::string getToken() {
     return str;
 }
 
+template <typename T>
+void assertV2Error(const std::variant<Error, T>& result, Result expectedResult,
+                   const std::string& expectedMessage) {
+    const auto* error = std::get_if<Error>(&result);
+    ASSERT_NE(nullptr, error);
+    EXPECT_EQ(expectedResult, error->result);
+    EXPECT_EQ(expectedMessage, error->message);
+}
+
 TEST(AuthPluginToken, testToken) {
     ClientConfiguration config = ClientConfiguration();
     std::string token = getToken();
@@ -181,17 +190,17 @@ TEST(AuthPluginToken, testNoAuth) {
 
     std::string topicName = "persistent://private/auth/test-token";
     std::string subName = "subscription-name";
+    const std::string expectedErrorMessage = "Client is not authorized to Get Partition Metadata";
 
     Producer producer;
     Result result = client.createProducer(topicName, producer);
     ASSERT_EQ(ResultAuthorizationError, result);
 
-    std::visit(overloaded{[](Error&& error) {
-                              ASSERT_EQ(ResultAuthorizationError, error.result);
-                              ASSERT_EQ("Client is not authorized to Get Partition Metadata", error.message);
-                          },
-                          [](auto&&) { FAIL(); }},
-               client.createProducerV2(topicName, {}));
+    assertV2Error(client.createProducerV2(topicName, {}), ResultAuthorizationError, expectedErrorMessage);
+    assertV2Error(client.subscribeV2(topicName, subName, {}), ResultAuthorizationError, expectedErrorMessage);
+    assertV2Error(client.createReaderV2(topicName, MessageId::earliest(), {}), ResultAuthorizationError,
+                  expectedErrorMessage);
+    assertV2Error(client.createTableViewV2(topicName, {}), ResultAuthorizationError, expectedErrorMessage);
 
     Consumer consumer;
     result = client.subscribe(topicName, subName, consumer);

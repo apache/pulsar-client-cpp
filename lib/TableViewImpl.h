@@ -45,7 +45,7 @@ class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
 
     ~TableViewImpl(){};
 
-    Future<Result, TableViewImplPtr> start();
+    Future<Error, TableViewImplPtr> start();
 
     bool retrieveValue(const std::string& key, std::string& value);
 
@@ -77,7 +77,7 @@ class TableViewImpl : public std::enable_shared_from_this<TableViewImpl> {
     SynchronizedHashMap<std::string, std::string> data_;
 
     void handleMessage(const Message& msg);
-    void readAllExistingMessages(const Promise<Result, TableViewImplPtr>& promise, long startTime,
+    void readAllExistingMessages(const Promise<Error, TableViewImplPtr>& promise, long startTime,
                                  long messagesRead);
     void readTailMessage();
 };
