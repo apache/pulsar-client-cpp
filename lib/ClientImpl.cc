@@ -363,7 +363,8 @@ void ClientImpl::createTableViewAsyncV2(const std::string& topic, const TableVie
 
 void ClientImpl::handleReaderMetadataLookup(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                             const TopicNamePtr& topicName, const MessageId& startMessageId,
-                                            const ReaderConfiguration& conf, ReaderV2Callback callback) {
+                                            const ReaderConfiguration& conf,
+                                            const ReaderV2Callback& callback) {
     if (error.result != ResultOk) {
         LOG_ERROR("Error Checking/Getting Partition Metadata while creating readeron "
                   << topicName->toString() << " -- " << error.result);

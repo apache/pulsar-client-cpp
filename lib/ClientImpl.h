@@ -199,7 +199,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
 
     void handleReaderMetadataLookup(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                     const TopicNamePtr& topicName, const MessageId& startMessageId,
-                                    const ReaderConfiguration& conf, ReaderV2Callback callback);
+                                    const ReaderConfiguration& conf, const ReaderV2Callback& callback);
 
     void handleGetPartitions(Result result, const LookupDataResultPtr& partitionMetadata,
                              const TopicNamePtr& topicName, const GetPartitionsCallback& callback);
