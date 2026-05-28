@@ -66,6 +66,14 @@ if(CCACHE_PROGRAM)
 endif(CCACHE_PROGRAM)
 
 MESSAGE(STATUS "ARCHITECTURE: ${CMAKE_SYSTEM_PROCESSOR}")
+set(PULSAR_TARGET_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}")
+if (APPLE AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES PULSAR_OSX_ARCH_COUNT)
+    if (PULSAR_OSX_ARCH_COUNT EQUAL 1)
+        set(PULSAR_TARGET_PROCESSOR "${CMAKE_OSX_ARCHITECTURES}")
+    endif ()
+endif ()
+MESSAGE(STATUS "TARGET_ARCHITECTURE: ${PULSAR_TARGET_PROCESSOR}")
 
 option(BUILD_DYNAMIC_LIB "Build dynamic lib" ON)
 MESSAGE(STATUS "BUILD_DYNAMIC_LIB:  " ${BUILD_DYNAMIC_LIB})
@@ -99,7 +107,7 @@ else() # GCC or Clang are mostly compatible:
     add_compile_options(-Wall -Wformat-security -Wvla -Werror) 
     # Turn off certain warnings that are too much pain for too little gain:
     add_compile_options(-Wno-sign-compare -Wno-deprecated-declarations -Wno-error=cpp)
-    if (CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    if (PULSAR_TARGET_PROCESSOR STREQUAL "x86_64")
         add_compile_options(-msse4.2 -mpclmul)
     endif()
     # Options unique to Clang or GCC:
