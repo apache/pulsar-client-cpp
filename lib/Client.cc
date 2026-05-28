@@ -26,14 +26,34 @@
 
 #include "ClientImpl.h"
 #include "Int64SerDes.h"
-#include "LogUtils.h"
 #include "LookupService.h"
 #include "TopicName.h"
 #include "Utils.h"
 
-DECLARE_LOG_OBJECT()
-
 namespace pulsar {
+
+namespace {
+
+template <typename T>
+void setPromiseValue(std::promise<std::variant<Error, T>>& promise, const std::variant<Error, T>& value) {
+    if (const auto* error = std::get_if<Error>(&value)) {
+        promise.set_value(*error);
+    } else {
+        promise.set_value(std::get<T>(value));
+    }
+}
+
+template <typename T>
+void invokeLegacyCallback(const std::function<void(Result, T)>& callback,
+                          const std::variant<Error, T>& value) {
+    if (const auto* error = std::get_if<Error>(&value)) {
+        callback(error->result, T());
+    } else {
+        callback(ResultOk, std::get<T>(value));
+    }
+}
+
+}  // namespace
 
 Client::Client(const std::shared_ptr<ClientImpl>& impl) : impl_(impl) { impl_->initialize(); }
 
@@ -83,13 +103,8 @@ void Client::createProducerAsyncV2(const std::string& topic, const ProducerConfi
 std::variant<Error, Producer> Client::createProducerV2(const std::string& topic,
                                                        const ProducerConfiguration& conf) {
     std::promise<std::variant<Error, Producer>> promise;
-    createProducerAsyncV2(topic, conf, [&promise](const auto& v) mutable {
-        if (const auto* error = std::get_if<Error>(&v)) {
-            promise.set_value(*error);
-        } else {
-            promise.set_value(std::get<Producer>(v));
-        }
-    });
+    createProducerAsyncV2(topic, conf,
+                          [&promise](const auto& v) mutable { setPromiseValue<Producer>(promise, v); });
     return promise.get_future().get();
 }
 
@@ -113,8 +128,22 @@ void Client::subscribeAsync(const std::string& topic, const std::string& subscri
 
 void Client::subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                             const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
-    LOG_INFO("Subscribing on Topic :" << topic);
-    impl_->subscribeAsync(topic, subscriptionName, conf, callback);
+    subscribeAsyncV2(topic, subscriptionName, conf,
+                     [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
+}
+
+void Client::subscribeAsyncV2(const SubscribeTopics& topics, const std::string& subscriptionName,
+                              const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
+    impl_->subscribeAsyncV2(topics, subscriptionName, conf, std::move(callback));
+}
+
+std::variant<Error, Consumer> Client::subscribeV2(const SubscribeTopics& topics,
+                                                  const std::string& subscriptionName,
+                                                  const ConsumerConfiguration& conf) {
+    std::promise<std::variant<Error, Consumer>> promise;
+    subscribeAsyncV2(topics, subscriptionName, conf,
+                     [&promise](const auto& v) mutable { setPromiseValue<Consumer>(promise, v); });
+    return promise.get_future().get();
 }
 
 Result Client::subscribe(const std::vector<std::string>& topics, const std::string& subscriptionName,
@@ -138,7 +167,8 @@ void Client::subscribeAsync(const std::vector<std::string>& topics, const std::s
 
 void Client::subscribeAsync(const std::vector<std::string>& topics, const std::string& subscriptionName,
                             const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
-    impl_->subscribeAsync(topics, subscriptionName, conf, callback);
+    subscribeAsyncV2(topics, subscriptionName, conf,
+                     [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
 }
 
 Result Client::subscribeWithRegex(const std::string& regexPattern, const std::string& subscriptionName,
@@ -162,7 +192,8 @@ void Client::subscribeWithRegexAsync(const std::string& regexPattern, const std:
 
 void Client::subscribeWithRegexAsync(const std::string& regexPattern, const std::string& subscriptionName,
                                      const ConsumerConfiguration& conf, const SubscribeCallback& callback) {
-    impl_->subscribeWithRegexAsync(regexPattern, subscriptionName, conf, callback);
+    subscribeAsyncV2(TopicRegex{regexPattern}, subscriptionName, conf,
+                     [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
 }
 
 Result Client::createReader(const std::string& topic, const MessageId& startMessageId,
@@ -176,7 +207,21 @@ Result Client::createReader(const std::string& topic, const MessageId& startMess
 
 void Client::createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                                const ReaderConfiguration& conf, const ReaderCallback& callback) {
-    impl_->createReaderAsync(topic, startMessageId, conf, callback);
+    createReaderAsyncV2(topic, startMessageId, conf,
+                        [callback](const auto& value) { invokeLegacyCallback<Reader>(callback, value); });
+}
+
+void Client::createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                                 const ReaderConfiguration& conf, ReaderV2Callback callback) {
+    impl_->createReaderAsyncV2(topic, startMessageId, conf, std::move(callback));
+}
+
+std::variant<Error, Reader> Client::createReaderV2(const std::string& topic, const MessageId& startMessageId,
+                                                   const ReaderConfiguration& conf) {
+    std::promise<std::variant<Error, Reader>> promise;
+    createReaderAsyncV2(topic, startMessageId, conf,
+                        [&promise](const auto& v) mutable { setPromiseValue<Reader>(promise, v); });
+    return promise.get_future().get();
 }
 
 Result Client::createTableView(const std::string& topic, const TableViewConfiguration& conf,
@@ -190,7 +235,21 @@ Result Client::createTableView(const std::string& topic, const TableViewConfigur
 
 void Client::createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
                                   const TableViewCallback& callback) {
-    impl_->createTableViewAsync(topic, conf, callback);
+    createTableViewAsyncV2(
+        topic, conf, [callback](const auto& value) { invokeLegacyCallback<TableView>(callback, value); });
+}
+
+void Client::createTableViewAsyncV2(const std::string& topic, const TableViewConfiguration& conf,
+                                    TableViewV2Callback callback) {
+    impl_->createTableViewAsyncV2(topic, conf, std::move(callback));
+}
+
+std::variant<Error, TableView> Client::createTableViewV2(const std::string& topic,
+                                                         const TableViewConfiguration& conf) {
+    std::promise<std::variant<Error, TableView>> promise;
+    createTableViewAsyncV2(topic, conf,
+                           [&promise](const auto& v) mutable { setPromiseValue<TableView>(promise, v); });
+    return promise.get_future().get();
 }
 
 Result Client::getPartitionsForTopic(const std::string& topic, std::vector<std::string>& partitions) {

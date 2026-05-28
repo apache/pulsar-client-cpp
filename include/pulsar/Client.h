@@ -36,7 +36,9 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 #include <variant>
+#include <vector>
 
 namespace pulsar {
 typedef std::function<void(Result, Producer)> CreateProducerCallback;
@@ -47,6 +49,21 @@ typedef std::function<void(Result, const std::vector<std::string>&)> GetPartitio
 typedef std::function<void(Result)> CloseCallback;
 
 using CreateProducerV2Callback = std::function<void(std::variant<Error, Producer>)>;
+using CreateConsumerV2Callback = std::function<void(std::variant<Error, Consumer>)>;
+using SubscribeV2Callback = CreateConsumerV2Callback;
+using ReaderV2Callback = std::function<void(std::variant<Error, Reader>)>;
+using TableViewV2Callback = std::function<void(std::variant<Error, TableView>)>;
+
+/**
+ * Use TopicRegex with subscribeV2/subscribeAsyncV2 to distinguish a regex pattern from a single topic name.
+ */
+struct TopicRegex {
+    explicit TopicRegex(std::string pattern) : pattern(std::move(pattern)) {}
+
+    std::string pattern;
+};
+
+using SubscribeTopics = std::variant<std::string, std::vector<std::string>, TopicRegex>;
 
 class ClientImpl;
 class PulsarFriend;
@@ -187,6 +204,13 @@ class PULSAR_PUBLIC Client {
      */
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
+
+    void subscribeAsyncV2(const SubscribeTopics& topics, const std::string& subscriptionName,
+                          const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+
+    std::variant<Error, Consumer> subscribeV2(const SubscribeTopics& topics,
+                                              const std::string& subscriptionName,
+                                              const ConsumerConfiguration& conf);
 
     /**
      * Subscribe to multiple topics under the same namespace.
@@ -332,6 +356,12 @@ class PULSAR_PUBLIC Client {
     void createReaderAsync(const std::string& topic, const MessageId& startMessageId,
                            const ReaderConfiguration& conf, const ReaderCallback& callback);
 
+    void createReaderAsyncV2(const std::string& topic, const MessageId& startMessageId,
+                             const ReaderConfiguration& conf, ReaderV2Callback callback);
+
+    std::variant<Error, Reader> createReaderV2(const std::string& topic, const MessageId& startMessageId,
+                                               const ReaderConfiguration& conf);
+
     /**
      * Create a table view with given {@code TableViewConfiguration} for specified topic.
      *
@@ -361,6 +391,12 @@ class PULSAR_PUBLIC Client {
      */
     void createTableViewAsync(const std::string& topic, const TableViewConfiguration& conf,
                               const TableViewCallback& callBack);
+
+    void createTableViewAsyncV2(const std::string& topic, const TableViewConfiguration& conf,
+                                TableViewV2Callback callback);
+
+    std::variant<Error, TableView> createTableViewV2(const std::string& topic,
+                                                     const TableViewConfiguration& conf);
 
     /**
      * Get the list of partitions for a given topic.
