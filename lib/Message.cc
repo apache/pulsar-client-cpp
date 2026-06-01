@@ -239,6 +239,13 @@ const std::string& Message::getProducerName() const noexcept {
     return impl_->metadata.producer_name();
 }
 
+std::optional<const std::string*> Message::getReplicatedFrom() const {
+    if (!impl_ || !impl_->metadata.has_replicated_from()) {
+        return std::nullopt;
+    }
+    return &impl_->metadata.replicated_from();
+}
+
 std::optional<const EncryptionContext*> Message::getEncryptionContext() const {
     if (!impl_ || !impl_->encryptionContext_.has_value()) {
         return std::nullopt;

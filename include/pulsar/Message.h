@@ -221,6 +221,14 @@ class PULSAR_PUBLIC Message {
     const std::string& getProducerName() const noexcept;
 
     /**
+     * Get the source cluster from which the message was replicated.
+     *
+     * @return the optional pointer to the source cluster name if the message was replicated, the pointer is
+     * valid as the Message instance is alive
+     */
+    std::optional<const std::string*> getReplicatedFrom() const;
+
+    /**
      * @return the optional encryption context that is present when the message is encrypted, the pointer is
      * valid as the Message instance is alive
      */

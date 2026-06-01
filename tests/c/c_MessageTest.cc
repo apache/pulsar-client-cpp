@@ -20,6 +20,8 @@
 #include <lib/c/c_structs.h>
 #include <pulsar/c/message.h>
 
+#include "../PulsarFriend.h"
+
 TEST(c_MessageTest, MessageCopy) {
     pulsar_message_t *from = pulsar_message_create();
     pulsar_message_set_content(from, "hello", 5);
@@ -31,4 +33,18 @@ TEST(c_MessageTest, MessageCopy) {
 
     pulsar_message_free(from);
     pulsar_message_free(to);
+}
+
+TEST(c_MessageTest, ReplicationMetadataAccessors) {
+    pulsar_message_t *message = pulsar_message_create();
+    pulsar_message_set_content(message, "hello", 5);
+    message->message = message->builder.build();
+
+    ASSERT_EQ(nullptr, pulsar_message_get_replicated_from(message));
+
+    PulsarFriend::getMessageMetadata(message->message).set_replicated_from("us-west1");
+
+    ASSERT_STREQ("us-west1", pulsar_message_get_replicated_from(message));
+
+    pulsar_message_free(message);
 }
