@@ -151,4 +151,9 @@ const char *pulsar_message_get_producer_name(pulsar_message_t *message) {
     return message->message.getProducerName().c_str();
 }
 
+const char *pulsar_message_get_replicated_from(pulsar_message_t *message) {
+    const auto replicatedFrom = message->message.getReplicatedFrom();
+    return replicatedFrom ? replicatedFrom.value()->c_str() : nullptr;
+}
+
 int pulsar_message_has_null_value(pulsar_message_t *message) { return message->message.hasNullValue(); }

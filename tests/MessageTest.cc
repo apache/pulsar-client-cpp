@@ -22,6 +22,7 @@
 
 #include <string>
 
+#include "PulsarFriend.h"
 #include "lib/MessageImpl.h"
 
 using namespace pulsar;
@@ -152,6 +153,17 @@ TEST(MessageTest, testMessageImplKeyValuePayloadCovert) {
 TEST(MessageTest, testGetTopicNameOnProducerMessage) {
     auto msg = MessageBuilder().setContent("test").build();
     ASSERT_TRUE(msg.getTopicName().empty());
+}
+
+TEST(MessageTest, testReplicationMetadataAccessors) {
+    auto msg = MessageBuilder().setContent("test").build();
+    ASSERT_FALSE(msg.getReplicatedFrom().has_value());
+
+    PulsarFriend::getMessageMetadata(msg).set_replicated_from("us-west1");
+
+    const auto replicatedFrom = msg.getReplicatedFrom();
+    ASSERT_TRUE(replicatedFrom.has_value());
+    ASSERT_EQ(*replicatedFrom.value(), "us-west1");
 }
 
 TEST(MessageTest, testNullValueMessage) {

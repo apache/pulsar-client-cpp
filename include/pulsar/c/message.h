@@ -231,6 +231,15 @@ PULSAR_PUBLIC void pulsar_message_set_schema_version(pulsar_message_t *message, 
 PULSAR_PUBLIC const char *pulsar_message_get_producer_name(pulsar_message_t *message);
 
 /**
+ * Get the source cluster from which the message was replicated.
+ *
+ * The pointer points to internal storage owned by the message wrapper, so the caller should not free it.
+ *
+ * @return the source cluster name, or NULL if the message is not replicated
+ */
+PULSAR_PUBLIC const char *pulsar_message_get_replicated_from(pulsar_message_t *message);
+
+/**
  * Check if the message has a null value.
  *
  * Messages with null values are used as tombstones on compacted topics
