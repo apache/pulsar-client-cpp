@@ -31,7 +31,7 @@ jobs:
 
   package-linux:
     name: Build ${{matrix.pkg.name}} ${{matrix.cpu.platform}}
-    runs-on: ubuntu-22.04
+    runs-on: ${{matrix.cpu.runner}}
     timeout-minutes: 500
 
     strategy:
@@ -42,15 +42,20 @@ jobs:
           - { name: 'Deb', type: 'deb', path: 'pkg/deb/BUILD/DEB' }
           - { name: 'Alpine', type: 'apk', path: 'pkg/apk/build' }
         cpu:
-          - { arch: 'x86_64', platform: 'x86_64' }
-          - { arch: 'aarch64', platform: 'arm64' }
+          - { arch: 'x86_64', platform: 'x86_64', runner: 'ubuntu-22.04' }
+          - { arch: 'aarch64', platform: 'arm64', runner: 'ubuntu-22.04-arm' }
 
     steps:
       - name: checkout
         uses: actions/checkout@v3
 
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: vcpkg-linux-${{matrix.pkg.type}}-${{matrix.cpu.platform}}-${{hashFiles('vcpkg.json')}}
+          restore-keys: |
+            vcpkg-linux-${{matrix.pkg.type}}-${{matrix.cpu.platform}}-
 
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
@@ -65,8 +70,8 @@ jobs:
           tags: build:latest
           platforms: linux/${{matrix.cpu.platform}}
           build-args: PLATFORM=${{matrix.cpu.arch}}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{matrix.pkg.type}}-${{matrix.cpu.platform}}
+          cache-to: type=gha,mode=max,scope=${{matrix.pkg.type}}-${{matrix.cpu.platform}}
 
       - name: Build packages
         run: pkg/${{matrix.pkg.type}}/docker-build-${{matrix.pkg.type}}-${{matrix.cpu.platform}}.sh build:latest
@@ -210,6 +215,14 @@ jobs:
         with:
           fetch-depth: 0
           submodules: recursive
+
+      - name: Restore vcpkg binary cache
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/vcpkg/archives
+          key: vcpkg-macos-${{ matrix.arch }}-${{ hashFiles('vcpkg.json') }}
+          restore-keys: |
+            vcpkg-macos-${{ matrix.arch }}-
 
       - name: Install dependencies
         run: |
