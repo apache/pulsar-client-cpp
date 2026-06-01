@@ -873,6 +873,9 @@ void ProducerImpl::handleSendTimeout(const ASIO_ERROR& err) {
     }
 
     lock.unlock();
+    if (pendingMessages.empty()) {
+        return;
+    }
     auto cnx = getCnx().lock();
     if (cnx) {
         LOG_WARN(getName() << "Send timeout due to queueing delay, connection: " << cnx->cnxString()
