@@ -584,6 +584,11 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
             LOG_ERROR("Received an uncached chunk (uuid: " << uuid << " chunkId: " << chunkId
                                                            << ", messageId: " << messageId << ")");
         }
+        // If this is the last chunk, its permit was not returned at the entry of processMessageChunk,
+        // so we need to return it here to avoid permit leak.
+        if (chunkId == metadata.num_chunks_from_msg() - 1) {
+            increaseAvailablePermits(cnx);
+        }
         lock.unlock();
         return {};
     }
@@ -616,6 +621,7 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
             LOG_WARN("Received a duplicated chunk message (uuid: "
                      << uuid << " chunkId: " << chunkId << ", lastChunkedMessageId: " << lastChunkedMessageId
                      << ", messageId: " << messageId << ")");
+            lock.unlock();
             if (isCorruptedChunk) {
                 LOG_INFO("Acking corrupted duplicated chunk to avoid ack hole, uuid: "
                          << uuid << ", messageId: " << messageId);
@@ -626,7 +632,6 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                     }
                 });
             }
-            lock.unlock();
             return {};
         }
         // chunkId > lastChunkedMessageId + 1, the chunked message is corrupted.
@@ -634,6 +639,11 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                  << uuid << " chunkId: " << chunkId << ", lastChunkedMessageId: " << lastChunkedMessageId
                  << ", messageId: " << messageId << ")");
         chunkedMessageCache_.remove(uuid);
+        // If this is the last chunk, its permit was not returned at the entry of processMessageChunk,
+        // so we need to return it here to avoid permit leak.
+        if (chunkId == metadata.num_chunks_from_msg() - 1) {
+            increaseAvailablePermits(cnx);
+        }
         lock.unlock();
         if (expireTimeOfIncompleteChunkedMessageMs_ > 0 &&
             TimeUtils::currentTimeMillis() >
@@ -663,6 +673,7 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                                                     << ", sequenceId: " << metadata.sequence_id());
     auto wholePayload = chunkedMsgCtx.getBuffer();
     chunkedMessageCache_.remove(uuid);
+    lock.unlock();
     if (uncompressMessageIfNeeded(cnx, messageIdData, metadata, wholePayload, false)) {
         return wholePayload;
     } else {
