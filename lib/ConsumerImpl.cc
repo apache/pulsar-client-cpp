@@ -1490,7 +1490,16 @@ std::pair<MessageId, bool> ConsumerImpl::prepareCumulativeAck(const MessageId& m
 
 void ConsumerImpl::negativeAcknowledge(const MessageId& messageId) {
     unAckedMessageTrackerPtr_->remove(messageId);
-    negativeAcksTracker_->add(messageId);
+    // If it's a ChunkMessageId, expand all chunk entries and nack them individually,
+    // so that the broker can redeliver all chunks
+    if (auto chunkMessageId =
+            std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(messageId))) {
+        for (const auto& chunkId : chunkMessageId->getChunkedMessageIds()) {
+            negativeAcksTracker_->add(chunkId);
+        }
+    } else {
+        negativeAcksTracker_->add(messageId);
+    }
 }
 
 void ConsumerImpl::disconnectConsumer() { disconnectConsumer(std::nullopt); }
@@ -1651,7 +1660,19 @@ void ConsumerImpl::redeliverMessages(const std::set<MessageId>& messageIds) {
     ClientConnectionPtr cnx = getCnx().lock();
     if (cnx) {
         if (cnx->getServerProtocolVersion() >= proto::v2) {
-            cnx->sendCommand(Commands::newRedeliverUnacknowledgedMessages(consumerId_, messageIds));
+            // Expand ChunkMessageIds into all chunk entries to ensure the broker
+            // can redeliver all chunks
+            std::set<MessageId> expandedMsgIds;
+            for (const auto& msgId : messageIds) {
+                if (auto chunkMsgId =
+                        std::dynamic_pointer_cast<ChunkMessageIdImpl>(Commands::getMessageIdImpl(msgId))) {
+                    const auto& chunkIds = chunkMsgId->getChunkedMessageIds();
+                    expandedMsgIds.insert(chunkIds.begin(), chunkIds.end());
+                } else {
+                    expandedMsgIds.insert(msgId);
+                }
+            }
+            cnx->sendCommand(Commands::newRedeliverUnacknowledgedMessages(consumerId_, expandedMsgIds));
             LOG_DEBUG("Sending RedeliverUnacknowledgedMessages command for Consumer - " << getConsumerId());
         }
     } else {
@@ -2037,6 +2058,7 @@ void ConsumerImpl::processPossibleToDLQ(const MessageId& messageId, const Proces
             producerConfiguration.setSchema(config_.getSchema());
             producerConfiguration.setBlockIfQueueFull(false);
             producerConfiguration.setBatchingEnabled(false);
+            producerConfiguration.setChunkingEnabled(true);
             producerConfiguration.impl_->initialSubscriptionName =
                 deadLetterPolicy_.getInitialSubscriptionName();
             ClientImplPtr client = client_.lock();
