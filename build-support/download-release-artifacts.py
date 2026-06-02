@@ -47,7 +47,7 @@ with requests.get(workflow_run_url, headers=headers) as response:
     for artifact in data['artifacts']:
         name = artifact['name']
         # Skip debug artifact
-        if name.endswith("-Debug"):
+        if name.endswith("-Debug") or name.find("dockerbuild") >= 0:
             continue
         dest_dir = os.path.join(dest_path, name)
         if name.find("windows") >= 0 and os.path.exists(dest_dir + ".tar.gz"):

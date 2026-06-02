@@ -24,7 +24,9 @@ ROOT_DIR=$(git rev-parse --show-toplevel)
 
 IMAGE_NAME=${1:-apachepulsar/pulsar-build:centos-7-2.11-arm64}
 
+mkdir -p $HOME/.cache/vcpkg/archives
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
+        -v $HOME/.cache/vcpkg/archives:/root/.cache/vcpkg/archives \
         --env PLATFORM=aarch64 \
         $IMAGE_NAME \
         /pulsar-client-cpp/pkg/rpm/build-rpm.sh

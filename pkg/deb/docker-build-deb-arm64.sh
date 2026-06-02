@@ -24,7 +24,9 @@ ROOT_DIR=$(git rev-parse --show-toplevel)
 
 IMAGE_NAME=${1:-apachepulsar/pulsar-build:debian-9-2.11-arm64}
 
+mkdir -p $HOME/.cache/vcpkg/archives
 docker run -v $ROOT_DIR:/pulsar-client-cpp \
+        -v $HOME/.cache/vcpkg/archives:/root/.cache/vcpkg/archives \
         --env PLATFORM=arm64 \
         $IMAGE_NAME \
         /pulsar-client-cpp/pkg/deb/build-deb.sh \
