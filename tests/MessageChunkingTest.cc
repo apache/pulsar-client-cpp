@@ -105,7 +105,8 @@ static void sendSingleChunk(Producer& producer, const std::string& uuid, int chu
     metadata.set_chunk_id(chunkId);
     metadata.set_uuid(uuid);
     metadata.set_total_chunk_msg_size(100);
-    producer.send(msg);
+    MessageId messageId;
+    ASSERT_EQ(ResultOk, producer.send(msg, messageId));
 }
 
 TEST_F(MessageChunkingTest, testInvalidConfig) {
