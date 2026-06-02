@@ -338,8 +338,8 @@ TEST_P(MessageChunkingTest, testResendChunkMessagesWithoutAckHole) {
     if (toString(GetParam()) != "None") {
         return;
     }
-    const std::string topic = "MessageChunkingTest-testResendChunkMessagesWithoutAckHole-" +
-                              std::to_string(time(nullptr));
+    const std::string topic =
+        "MessageChunkingTest-testResendChunkMessagesWithoutAckHole-" + std::to_string(time(nullptr));
     Consumer consumer;
     ConsumerConfiguration consumerConf;
     consumerConf.setMaxPendingChunkedMessage(10);
@@ -379,8 +379,7 @@ TEST_P(MessageChunkingTest, testResendChunkMessages) {
     if (toString(GetParam()) != "None") {
         return;
     }
-    const std::string topic =
-        "MessageChunkingTest-testResendChunkMessages-" + std::to_string(time(nullptr));
+    const std::string topic = "MessageChunkingTest-testResendChunkMessages-" + std::to_string(time(nullptr));
     Consumer consumer;
     ConsumerConfiguration consumerConf;
     consumerConf.setMaxPendingChunkedMessage(10);

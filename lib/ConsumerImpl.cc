@@ -627,17 +627,17 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                          << uuid << ", messageId: " << messageId);
                 acknowledgeAsync(messageId, [uuid, messageId](Result result) {
                     if (result != ResultOk) {
-                        LOG_WARN("Failed to acknowledge duplicated chunk, uuid: "
-                                 << uuid << ", messageId: " << messageId);
+                        LOG_WARN("Failed to acknowledge duplicated chunk, uuid: " << uuid << ", messageId: "
+                                                                                  << messageId);
                     }
                 });
             }
             return {};
         }
         // chunkId > lastChunkedMessageId + 1, the chunked message is corrupted.
-        LOG_WARN("Received unexpected chunk (uuid: "
-                 << uuid << " chunkId: " << chunkId << ", lastChunkedMessageId: " << lastChunkedMessageId
-                 << ", messageId: " << messageId << ")");
+        LOG_WARN("Received unexpected chunk (uuid: " << uuid << " chunkId: " << chunkId
+                                                     << ", lastChunkedMessageId: " << lastChunkedMessageId
+                                                     << ", messageId: " << messageId << ")");
         chunkedMessageCache_.remove(uuid);
         // If this is the last chunk, its permit was not returned at the entry of processMessageChunk,
         // so we need to return it here to avoid permit leak.
@@ -648,8 +648,8 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
         if (expireTimeOfIncompleteChunkedMessageMs_ > 0 &&
             TimeUtils::currentTimeMillis() >
                 static_cast<long>(metadata.publish_time()) + expireTimeOfIncompleteChunkedMessageMs_) {
-            LOG_INFO("Acking corrupted gap chunk to avoid ack hole, uuid: "
-                     << uuid << ", messageId: " << messageId);
+            LOG_INFO("Acking corrupted gap chunk to avoid ack hole, uuid: " << uuid
+                                                                            << ", messageId: " << messageId);
             acknowledgeAsync(messageId, [uuid, messageId](Result result) {
                 if (result != ResultOk) {
                     LOG_WARN("Failed to acknowledge gap chunk, uuid: " << uuid
