@@ -61,7 +61,8 @@ HTTPLookupService::HTTPLookupService(const ServiceInfo &serviceInfo,
       tlsTrustCertsFilePath_(serviceInfo.tlsTrustCertsFilePath().value_or("")),
       isUseTls_(serviceInfo.useTls()),
       tlsAllowInsecure_(clientConfiguration.isTlsAllowInsecureConnection()),
-      tlsValidateHostname_(clientConfiguration.isValidateHostName()) {}
+      tlsValidateHostname_(clientConfiguration.isValidateHostName()),
+      httpLookupAuthAllowRedirect_(clientConfiguration.isHttpLookupAuthAllowRedirect()) {}
 
 auto HTTPLookupService::getBroker(const TopicName &topicName) -> LookupResultFuture {
     LookupResultPromise promise;
@@ -228,6 +229,7 @@ Error HTTPLookupService::sendHTTPRequest(const std::string &completeUrl, std::st
     options.timeoutInSeconds = lookupTimeoutInSeconds_;
     options.userAgent = std::string("Pulsar-CPP-v") + PULSAR_VERSION_STR;
     options.maxLookupRedirects = maxLookupRedirects_;
+    options.authAllowRedirect = httpLookupAuthAllowRedirect_;
     auto result = curl.get(completeUrl, authDataContent->getHttpHeaders(), options, tlsContext.get());
 
     responseData = result.responseData;
