@@ -17,30 +17,10 @@
  * under the License.
  */
 
-#pragma once
+#include <gtest/gtest.h>
+#include <pulsar/c/version.h>
 
-#include <pulsar/Version.h>
-#include <pulsar/defines.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * Get the Pulsar C++ client library version string at runtime.
- *
- * The returned string is owned by the library and must not be freed.
- */
-PULSAR_PUBLIC const char *pulsar_version_str(void);
-
-/**
- * Get the Pulsar C++ client library version as a numeric value at runtime.
- *
- * The value uses the same format as the PULSAR_VERSION macro:
- * major * 1000000 + minor * 1000 + patch.
- */
-PULSAR_PUBLIC int pulsar_version(void);
-
-#ifdef __cplusplus
+TEST(CVersionTest, testRuntimeVersion) {
+    ASSERT_STREQ(PULSAR_VERSION_STR, pulsar_version_str());
+    ASSERT_EQ(PULSAR_VERSION, pulsar_version());
 }
-#endif
