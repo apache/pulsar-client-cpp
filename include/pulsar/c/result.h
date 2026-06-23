@@ -92,6 +92,7 @@ typedef enum
 
     pulsar_result_MemoryBufferIsFull,  /// Client-wide memory limit has been reached
     pulsar_result_Interrupted,         /// Interrupted while waiting to dequeue
+    pulsar_result_Disconnected,        /// Client connection has been disconnected
 } pulsar_result;
 
 // Return string representation of result code
