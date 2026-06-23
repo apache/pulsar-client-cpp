@@ -55,7 +55,8 @@ class Message {
      * @param core the raw received message (payload and metadata).
      * @param schema the schema used to decode the payload in `value()`.
      */
-    Message(detail::MessageCore core, Schema<T> schema) : core_(std::move(core)), schema_(std::move(schema)) {}
+    Message(detail::MessageCore core, Schema<T> schema)
+        : core_(std::move(core)), schema_(std::move(schema)) {}
 
     /**
      * Decode the payload through `Schema<T>` and return the typed value.

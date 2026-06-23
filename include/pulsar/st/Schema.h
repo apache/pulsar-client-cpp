@@ -67,9 +67,12 @@ using Bytes = std::vector<char>;
  */
 template <typename S, typename T>
 concept SerDeFor = requires(const S& serde, const T& value, const char* data, std::size_t size) {
-    { serde.info() } -> std::convertible_to<SchemaInfo>;
-    { serde.encode(value) } -> std::convertible_to<std::string>;
-    { serde.decode(data, size) } -> std::convertible_to<T>;
+    { serde.info() }
+    ->std::convertible_to<SchemaInfo>;
+    { serde.encode(value) }
+    ->std::convertible_to<std::string>;
+    { serde.decode(data, size) }
+    ->std::convertible_to<T>;
 };
 
 /**
@@ -126,8 +129,9 @@ class Schema {
      * @param serde the SerDe to adopt; taken by value and stored.
      */
     template <typename SerDe>
-        requires(!std::is_same_v<std::decay_t<SerDe>, Schema> && SerDeFor<std::decay_t<SerDe>, T>)
-    Schema(SerDe serde) : self_(std::make_shared<Model<std::decay_t<SerDe>>>(std::move(serde))) {}
+    requires(!std::is_same_v<std::decay_t<SerDe>, Schema> && SerDeFor<std::decay_t<SerDe>, T>)
+        Schema(SerDe serde)
+        : self_(std::make_shared<Model<std::decay_t<SerDe>>>(std::move(serde))) {}
 
     /**
      * @brief Returns the schema description sent to the broker for compatibility.

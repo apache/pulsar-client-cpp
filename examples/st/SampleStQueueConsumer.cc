@@ -56,7 +56,7 @@ int main() {
 
         const bool processed = !msg->value().empty();
         if (processed) {
-            consumer.acknowledge(msg->id());          // fire-and-forget; never blocks or errors
+            consumer.acknowledge(msg->id());  // fire-and-forget; never blocks or errors
         } else {
             consumer.negativeAcknowledge(msg->id());  // schedule redelivery
         }

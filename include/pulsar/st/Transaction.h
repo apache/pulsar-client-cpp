@@ -43,7 +43,8 @@ class QueueConsumerCore;
  * terminal states `Committed`, `Aborted`, `Error`, or `TimedOut`. Query the
  * current state with `Transaction::state()`.
  */
-enum class TransactionState {
+enum class TransactionState
+{
     Open,        ///< Active: messages and acks may still be enlisted; not yet committed or aborted.
     Committing,  ///< Transient: a `commit()`/`commitAsync()` is in progress but not yet durable.
     Aborting,    ///< Transient: an `abort()`/`abortAsync()` is in progress but not yet finalized.

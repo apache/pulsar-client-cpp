@@ -19,8 +19,6 @@
 #pragma once
 
 #include <pulsar/defines.h>
-#include <pulsar/st/detail/ClientCore.h>
-#include <pulsar/st/detail/ProducerCore.h>
 #include <pulsar/st/Error.h>
 #include <pulsar/st/Expected.h>
 #include <pulsar/st/Future.h>
@@ -28,6 +26,8 @@
 #include <pulsar/st/MessageId.h>
 #include <pulsar/st/Schema.h>
 #include <pulsar/st/Transaction.h>
+#include <pulsar/st/detail/ClientCore.h>
+#include <pulsar/st/detail/ProducerCore.h>
 
 #include <chrono>
 #include <cstdint>
@@ -45,7 +45,8 @@ namespace pulsar::st {
  * and controls how the broker arbitrates between multiple producers on the same
  * topic.
  */
-enum class ProducerAccessMode {
+enum class ProducerAccessMode
+{
     /** Multiple producers may publish to the topic concurrently. The default. */
     Shared,
     /** Only one producer may be active at a time; another producer requesting
@@ -106,9 +107,9 @@ struct OutgoingMessage {
     std::string key;
     /** Per-message user metadata. Empty by default. */
     Properties properties;
-    int64_t eventTimeMs = 0;    ///< Application event time, epoch ms; 0 = unset.
-    int64_t sequenceId = -1;    ///< Explicit sequence id; -1 = auto-assign.
-    int64_t deliverAtMs = 0;    ///< Absolute delivery time, epoch ms; 0 = deliver immediately.
+    int64_t eventTimeMs = 0;  ///< Application event time, epoch ms; 0 = unset.
+    int64_t sequenceId = -1;  ///< Explicit sequence id; -1 = auto-assign.
+    int64_t deliverAtMs = 0;  ///< Absolute delivery time, epoch ms; 0 = deliver immediately.
     /** Target clusters for geo-replication; empty applies the topic's default. */
     std::vector<std::string> replicationClusters;
     std::optional<Transaction> transaction;  ///< Enlisting transaction; unset = non-transactional.
@@ -350,7 +351,8 @@ class Producer {
    private:
     template <typename U>
     friend class ProducerBuilder;
-    Producer(detail::ProducerCore core, Schema<T> schema) : core_(std::move(core)), schema_(std::move(schema)) {}
+    Producer(detail::ProducerCore core, Schema<T> schema)
+        : core_(std::move(core)), schema_(std::move(schema)) {}
 
     detail::ProducerCore core_;
     Schema<T> schema_;
@@ -460,9 +462,8 @@ class ProducerBuilder {
         Schema<T> schema = schema_;
         ProducerConfig config = config_;
         config.schema = schema.info();
-        return client_.createProducerAsync(std::move(config)).thenApply([schema](const detail::ProducerCore& core) {
-            return Producer<T>(core, schema);
-        });
+        return client_.createProducerAsync(std::move(config))
+            .thenApply([schema](const detail::ProducerCore& core) { return Producer<T>(core, schema); });
     }
 
    private:

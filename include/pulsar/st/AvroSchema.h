@@ -20,10 +20,9 @@
 
 #include <pulsar/st/Schema.h>
 
+#include <cstddef>
 #include <rfl.hpp>
 #include <rfl/avro.hpp>
-
-#include <cstddef>
 #include <string>
 
 // avroSchema<T>() is the Avro counterpart of jsonSchema<T>(): reflect-cpp derives

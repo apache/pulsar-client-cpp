@@ -216,8 +216,7 @@ class [[nodiscard]] Expected {
     template <typename F>
     auto transform(F&& f) const& {
         using U = std::remove_cv_t<std::remove_reference_t<std::invoke_result_t<F, const T&>>>;
-        return has_value() ? Expected<U>(std::forward<F>(f)(std::get<0>(storage_)))
-                           : Expected<U>(error());
+        return has_value() ? Expected<U>(std::forward<F>(f)(std::get<0>(storage_))) : Expected<U>(error());
     }
 
     /**

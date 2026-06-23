@@ -21,7 +21,6 @@
 #include <pulsar/Authentication.h>
 #include <pulsar/defines.h>
 #include <pulsar/st/CheckpointConsumer.h>
-#include <pulsar/st/detail/ClientCore.h>
 #include <pulsar/st/Expected.h>
 #include <pulsar/st/Future.h>
 #include <pulsar/st/Policies.h>
@@ -30,6 +29,7 @@
 #include <pulsar/st/Schema.h>
 #include <pulsar/st/StreamConsumer.h>
 #include <pulsar/st/Transaction.h>
+#include <pulsar/st/detail/ClientCore.h>
 
 #include <chrono>
 #include <cstdint>

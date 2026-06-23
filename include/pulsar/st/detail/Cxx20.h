@@ -22,5 +22,6 @@
 // client remains C++17 — only this new API requires C++20 (for concepts,
 // coroutine-awaitable Future<T>, `using enum`, reflection-based schemas, etc.).
 #if (defined(_MSVC_LANG) ? _MSVC_LANG : __cplusplus) < 202002L
-#error "pulsar::st (scalable topics) requires C++20. Build this translation unit with -std=c++20 (or /std:c++20)."
+#error \
+    "pulsar::st (scalable topics) requires C++20. Build this translation unit with -std=c++20 (or /std:c++20)."
 #endif

@@ -19,8 +19,6 @@
 #pragma once
 
 #include <pulsar/defines.h>
-#include <pulsar/st/detail/ClientCore.h>
-#include <pulsar/st/detail/QueueConsumerCore.h>
 #include <pulsar/st/Consumer.h>
 #include <pulsar/st/Expected.h>
 #include <pulsar/st/Future.h>
@@ -28,6 +26,8 @@
 #include <pulsar/st/MessageId.h>
 #include <pulsar/st/Schema.h>
 #include <pulsar/st/Transaction.h>
+#include <pulsar/st/detail/ClientCore.h>
+#include <pulsar/st/detail/QueueConsumerCore.h>
 
 #include <chrono>
 #include <cstdint>
@@ -37,7 +37,6 @@
 #include <vector>
 
 namespace pulsar::st {
-
 
 /**
  * Plain-old-data configuration accumulated by `QueueConsumerBuilder<T>`.
@@ -82,9 +81,6 @@ struct QueueConsumerConfig {
     /// from the `Schema<T>` it was constructed with.
     SchemaInfo schema;
 };
-
-
-
 
 template <typename T>
 class QueueConsumerBuilder;
@@ -356,7 +352,8 @@ class QueueConsumerBuilder {
         QueueConsumerConfig config = config_;
         config.schema = schema.info();
         return client_.subscribeQueueAsync(std::move(config))
-            .thenApply([schema](const detail::QueueConsumerCore& core) { return QueueConsumer<T>(core, schema); });
+            .thenApply(
+                [schema](const detail::QueueConsumerCore& core) { return QueueConsumer<T>(core, schema); });
     }
 
    private:

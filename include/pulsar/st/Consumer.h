@@ -38,7 +38,8 @@ namespace pulsar::st {
  * created. It is ignored once the subscription exists and has a durable cursor:
  * an already-established subscription always resumes from its stored position.
  */
-enum class SubscriptionInitialPosition {
+enum class SubscriptionInitialPosition
+{
     Earliest,  ///< Start from the oldest available message on the topic.
     Latest     ///< Start from the newest message, skipping anything published before subscribing.
 };
@@ -51,9 +52,11 @@ enum class SubscriptionInitialPosition {
  * optional and fall back to the client default when unset.
  */
 struct AckPolicy {
-    /** Time window over which acknowledgments are batched before being sent, in milliseconds; 0 acks immediately. Unset uses the client default. */
+    /** Time window over which acknowledgments are batched before being sent, in milliseconds; 0 acks
+     * immediately. Unset uses the client default. */
     std::optional<std::chrono::milliseconds> groupTime;
-    /** Delay before a negatively-acknowledged message is redelivered, in milliseconds. QueueConsumer only. Unset uses the client default. */
+    /** Delay before a negatively-acknowledged message is redelivered, in milliseconds. QueueConsumer only.
+     * Unset uses the client default. */
     std::optional<std::chrono::milliseconds> negativeAckRedeliveryDelay;
 };
 
@@ -66,11 +69,13 @@ struct AckPolicy {
  * to a positive value.
  */
 struct DeadLetterPolicy {
-    /** Maximum number of redeliveries before a message is routed to the dead-letter topic. Defaults to 0, which disables dead-lettering. */
+    /** Maximum number of redeliveries before a message is routed to the dead-letter topic. Defaults to 0,
+     * which disables dead-lettering. */
     int maxRedeliverCount = 0;
     /** Name of the dead-letter topic. Unset defaults to "&lt;topic&gt;-&lt;subscription&gt;-DLQ". */
     std::optional<std::string> deadLetterTopic;
-    /** If set, creates this subscription on the dead-letter topic up front so no messages are missed before a consumer attaches. Unset creates no initial subscription. */
+    /** If set, creates this subscription on the dead-letter topic up front so no messages are missed before a
+     * consumer attaches. Unset creates no initial subscription. */
     std::optional<std::string> initialSubscriptionName;
 };
 

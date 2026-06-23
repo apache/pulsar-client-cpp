@@ -38,7 +38,8 @@ namespace pulsar::st {
 using pulsar::Error;
 /** Re-export of `pulsar::Result`: the enumeration of machine-readable result codes. */
 using pulsar::Result;
-/** Re-export the `Result` enumerators into `pulsar::st` so they are usable unqualified (e.g. `ResultTimeout`). */
+/** Re-export the `Result` enumerators into `pulsar::st` so they are usable unqualified (e.g.
+ * `ResultTimeout`). */
 using enum pulsar::Result;
 
 /**

@@ -59,8 +59,11 @@ int main() {
     }
 
     // Asynchronous send: react on completion without blocking.
-    producer.newMessage().key("order-async").value("async-payload").sendAsync().addListener(
-        [](const Expected<MessageId>& result) {
+    producer.newMessage()
+        .key("order-async")
+        .value("async-payload")
+        .sendAsync()
+        .addListener([](const Expected<MessageId>& result) {
             if (result) {
                 std::cout << "async sent " << *result << "\n";
             } else {

@@ -20,12 +20,12 @@
 
 #include <pulsar/defines.h>
 #include <pulsar/st/Checkpoint.h>
-#include <pulsar/st/detail/ClientCore.h>
-#include <pulsar/st/detail/CheckpointConsumerCore.h>
 #include <pulsar/st/Expected.h>
 #include <pulsar/st/Future.h>
 #include <pulsar/st/Message.h>
 #include <pulsar/st/Schema.h>
+#include <pulsar/st/detail/CheckpointConsumerCore.h>
+#include <pulsar/st/detail/ClientCore.h>
 
 #include <chrono>
 #include <cstdint>
@@ -36,7 +36,6 @@
 
 namespace pulsar::st {
 
-
 /**
  * @brief Configuration accumulated by `CheckpointConsumerBuilder<T>`.
  *
@@ -46,15 +45,15 @@ namespace pulsar::st {
  */
 struct CheckpointConsumerConfig {
     std::string topic;  ///< Scalable topic to read. REQUIRED; no default.
-    Checkpoint startPosition = Checkpoint::latest();  ///< Position to start from. Default `Checkpoint::latest()`.
-    std::optional<std::string> consumerGroup;  ///< Consumer group to join. Unset (default) => ungrouped, reads every segment.
-    std::optional<std::string> consumerName;   ///< Human-readable consumer name. Unset (default) => auto-generated.
-    Properties properties;                     ///< Free-form key/value metadata attached to the consumer. Default empty.
-    SchemaInfo schema;                         ///< Schema descriptor; filled in from `Schema<T>` by the builder.
+    Checkpoint startPosition =
+        Checkpoint::latest();  ///< Position to start from. Default `Checkpoint::latest()`.
+    std::optional<std::string>
+        consumerGroup;  ///< Consumer group to join. Unset (default) => ungrouped, reads every segment.
+    std::optional<std::string>
+        consumerName;       ///< Human-readable consumer name. Unset (default) => auto-generated.
+    Properties properties;  ///< Free-form key/value metadata attached to the consumer. Default empty.
+    SchemaInfo schema;      ///< Schema descriptor; filled in from `Schema<T>` by the builder.
 };
-
-
-
 
 template <typename T>
 class CheckpointConsumerBuilder;

@@ -20,10 +20,9 @@
 
 #include <pulsar/st/Schema.h>
 
+#include <cstddef>
 #include <rfl.hpp>
 #include <rfl/json.hpp>
-
-#include <cstddef>
 #include <string>
 
 // jsonSchema<T>() derives BOTH the JSON SerDe and the declared schema from T's

@@ -19,8 +19,6 @@
 #pragma once
 
 #include <pulsar/defines.h>
-#include <pulsar/st/detail/ClientCore.h>
-#include <pulsar/st/detail/StreamConsumerCore.h>
 #include <pulsar/st/Consumer.h>
 #include <pulsar/st/Expected.h>
 #include <pulsar/st/Future.h>
@@ -28,6 +26,8 @@
 #include <pulsar/st/MessageId.h>
 #include <pulsar/st/Schema.h>
 #include <pulsar/st/Transaction.h>
+#include <pulsar/st/detail/ClientCore.h>
+#include <pulsar/st/detail/StreamConsumerCore.h>
 
 #include <chrono>
 #include <cstdint>
@@ -37,7 +37,6 @@
 #include <vector>
 
 namespace pulsar::st {
-
 
 /**
  * Plain-old-data configuration accumulated by `StreamConsumerBuilder<T>`.
@@ -88,9 +87,6 @@ struct StreamConsumerConfig {
     /// from the `Schema<T>` it was constructed with.
     SchemaInfo schema;
 };
-
-
-
 
 template <typename T>
 class StreamConsumerBuilder;
@@ -271,7 +267,6 @@ class StreamConsumerBuilder {
         return *this;
     }
 
-
     /**
      * Subscribe to all scalable topics in a namespace with live membership — topics
      * created or removed later are joined/dropped automatically (spec §7.1).
@@ -400,7 +395,8 @@ class StreamConsumerBuilder {
         StreamConsumerConfig config = config_;
         config.schema = schema.info();
         return client_.subscribeStreamAsync(std::move(config))
-            .thenApply([schema](const detail::StreamConsumerCore& core) { return StreamConsumer<T>(core, schema); });
+            .thenApply(
+                [schema](const detail::StreamConsumerCore& core) { return StreamConsumer<T>(core, schema); });
     }
 
    private:
