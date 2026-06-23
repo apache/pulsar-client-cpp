@@ -54,10 +54,10 @@ enum class SubscriptionInitialPosition
 struct AckPolicy {
     /** Time window over which acknowledgments are batched before being sent, in milliseconds; 0 acks
      * immediately. Unset uses the client default. */
-    std::optional<std::chrono::milliseconds> groupTime;
+    std::optional<std::chrono::milliseconds> groupTime = std::nullopt;
     /** Delay before a negatively-acknowledged message is redelivered, in milliseconds. QueueConsumer only.
      * Unset uses the client default. */
-    std::optional<std::chrono::milliseconds> negativeAckRedeliveryDelay;
+    std::optional<std::chrono::milliseconds> negativeAckRedeliveryDelay = std::nullopt;
 };
 
 /**
@@ -73,10 +73,10 @@ struct DeadLetterPolicy {
      * which disables dead-lettering. */
     int maxRedeliverCount = 0;
     /** Name of the dead-letter topic. Unset defaults to "&lt;topic&gt;-&lt;subscription&gt;-DLQ". */
-    std::optional<std::string> deadLetterTopic;
+    std::optional<std::string> deadLetterTopic = std::nullopt;
     /** If set, creates this subscription on the dead-letter topic up front so no messages are missed before a
      * consumer attaches. Unset creates no initial subscription. */
-    std::optional<std::string> initialSubscriptionName;
+    std::optional<std::string> initialSubscriptionName = std::nullopt;
 };
 
 }  // namespace pulsar::st

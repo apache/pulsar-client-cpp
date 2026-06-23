@@ -89,24 +89,24 @@ struct MemorySize {
  */
 struct ConnectionPolicy {
     /** Number of physical connections opened to each broker. Unset uses the client default. */
-    std::optional<int> connectionsPerBroker;
+    std::optional<int> connectionsPerBroker = std::nullopt;
     /** Maximum time to wait for a TCP/TLS connection to be established, in milliseconds. Unset uses the
      * client default. */
-    std::optional<std::chrono::milliseconds> connectionTimeout;
+    std::optional<std::chrono::milliseconds> connectionTimeout = std::nullopt;
     /** Maximum time to wait for a broker request (e.g. produce/consume control ops) to complete, in
      * milliseconds. Unset uses the client default. */
-    std::optional<std::chrono::milliseconds> operationTimeout;
+    std::optional<std::chrono::milliseconds> operationTimeout = std::nullopt;
     /** Interval between keep-alive pings sent on an idle connection, in seconds. Unset uses the client
      * default. */
-    std::optional<std::chrono::seconds> keepAliveInterval;
+    std::optional<std::chrono::seconds> keepAliveInterval = std::nullopt;
     /** Maximum number of concurrent topic-lookup requests in flight. Unset uses the client default. */
-    std::optional<int> maxLookupRequests;
+    std::optional<int> maxLookupRequests = std::nullopt;
     /** Maximum number of lookup redirects to follow before failing a lookup. Unset uses the client default.
      */
-    std::optional<int> maxLookupRedirects;
+    std::optional<int> maxLookupRedirects = std::nullopt;
     /** Time an idle pooled connection may stay open before being closed, in milliseconds. Unset uses the
      * client default. */
-    std::optional<std::chrono::milliseconds> maxConnectionIdleTime;
+    std::optional<std::chrono::milliseconds> maxConnectionIdleTime = std::nullopt;
 };
 
 /**
@@ -118,10 +118,10 @@ struct ConnectionPolicy {
  */
 struct BackoffPolicy {
     /** Delay before the first reconnection attempt, in milliseconds. Unset uses the client default. */
-    std::optional<std::chrono::milliseconds> initialBackoff;
+    std::optional<std::chrono::milliseconds> initialBackoff = std::nullopt;
     /** Upper bound on the backoff delay as it grows across retries, in milliseconds. Unset uses the client
      * default. */
-    std::optional<std::chrono::milliseconds> maxBackoff;
+    std::optional<std::chrono::milliseconds> maxBackoff = std::nullopt;
 };
 
 /**
@@ -136,13 +136,13 @@ struct TlsPolicy {
     bool enabled = false;
     /** Path to the PEM file of trusted CA certificates used to verify the broker. Unset uses the system trust
      * store. */
-    std::optional<std::string> trustCertsFilePath;
+    std::optional<std::string> trustCertsFilePath = std::nullopt;
     /** Path to the client certificate PEM file, for mutual TLS. Unset disables client-certificate
      * authentication. */
-    std::optional<std::string> certificateFilePath;
+    std::optional<std::string> certificateFilePath = std::nullopt;
     /** Path to the client private key PEM file, for mutual TLS. Unset disables client-certificate
      * authentication. */
-    std::optional<std::string> privateKeyFilePath;
+    std::optional<std::string> privateKeyFilePath = std::nullopt;
     /** Whether to accept the broker's certificate without validating it against the trust store. Defaults to
      * false (validation enforced). */
     bool allowInsecureConnection = false;
@@ -160,7 +160,7 @@ struct TlsPolicy {
 struct TransactionPolicy {
     /** Default lifetime of a transaction before it is automatically aborted, in milliseconds. Unset uses the
      * client default. */
-    std::optional<std::chrono::milliseconds> timeout;
+    std::optional<std::chrono::milliseconds> timeout = std::nullopt;
 };
 
 }  // namespace pulsar::st
