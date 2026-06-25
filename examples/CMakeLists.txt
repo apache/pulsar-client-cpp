@@ -105,3 +105,42 @@ target_link_libraries(SampleReaderCApi                 ${CLIENT_LIBS} pulsarShar
 target_link_libraries(SampleKeyValueSchemaConsumer     ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleKeyValueSchemaProducer     ${CLIENT_LIBS} pulsarShared)
 target_link_libraries(SampleCustomLoggerCApi           ${CLIENT_LIBS} pulsarShared)
+
+# --- Scalable topics (pulsar::st) examples ---------------------------------
+# These use the new typed scalable-topics API under include/pulsar/st. Its
+# implementation (lib/st) does not exist yet, so the examples are COMPILED here
+# for header/API verification but are NOT linked into executables (there are no
+# symbols to link against). Building this OBJECT library on every build keeps the
+# examples from bit-rotting while the API is reviewed.
+#
+# TODO(scalable-topics): once lib/st lands, replace this with one
+# add_executable + target_link_libraries(... pulsarShared) per file, exactly like
+# the samples above.
+# The core samples are header-only previews of the pulsar::st API and build with
+# no extra dependency.
+set(SAMPLE_ST_SOURCES
+    st/SampleStProducer.cc
+    st/SampleStStreamConsumer.cc
+    st/SampleStQueueConsumer.cc
+    st/SampleStCheckpointConsumer.cc
+)
+# reflect-cpp powers jsonSchema<T>() (reflection-based JSON SerDe + schema). It is
+# optional for this API-only PR: when the package is present the JSON sample is
+# added and linked against it; when absent, only that one sample is skipped. (The
+# reflectcpp vcpkg port does not yet ship an Avro backend, so it is not yet wired
+# into the manifest; it will be added with the lib/st implementation.)
+find_package(reflectcpp CONFIG QUIET)
+if (reflectcpp_FOUND)
+    list(APPEND SAMPLE_ST_SOURCES st/SampleStJsonSchema.cc)
+endif ()
+
+add_library(StExamples OBJECT ${SAMPLE_ST_SOURCES})
+# The scalable-topics (pulsar::st) API targets C++20; the rest of the client stays
+# C++17. Set the standard per-target so only this code requires C++20.
+set_target_properties(StExamples PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+# PRIVATE link gives the object sources pulsarShared's include directories; an
+# OBJECT library is not itself linked, so the missing lib/st symbols are fine.
+target_link_libraries(StExamples PRIVATE ${CLIENT_LIBS} pulsarShared)
+if (reflectcpp_FOUND)
+    target_link_libraries(StExamples PRIVATE reflectcpp::reflectcpp)
+endif ()
