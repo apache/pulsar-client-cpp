@@ -187,15 +187,22 @@ class PULSAR_PUBLIC ClientConfiguration {
     int getMaxBackoffIntervalMs() const;
 
     /**
-     * Configure a custom logger backend to route of Pulsar client library
+     * Configure a custom logger backend to route Pulsar client library logs
      * to a different logger implementation.
      *
      * By default, log messages are printed on standard output.
      *
      * When passed in, the configuration takes ownership of the loggerFactory object.
-     * The logger factory can only be set once per process. Any subsequent calls to
-     * set the logger factory will have no effect, though the logger factory object
-     * will be cleaned up.
+     * The logger factory is process-wide and is not scoped to a Client instance.
+     * It can only be set once per process. Any subsequent calls to set the logger
+     * factory will have no effect, though the logger factory object will be
+     * cleaned up.
+     *
+     * Applications and language bindings that use callback-based logger factories
+     * should set the logger before creating clients and ensure callback state
+     * outlives all Pulsar clients and background threads that can emit logs.
+     * Avoid using per-client callback objects that can be destroyed while another
+     * client in the same process is still running.
      */
     ClientConfiguration& setLogger(LoggerFactory* loggerFactory);
 
