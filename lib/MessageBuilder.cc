@@ -26,7 +26,6 @@
 #include "KeyValueImpl.h"
 #include "LogUtils.h"
 #include "MessageImpl.h"
-#include "ObjectPool.h"
 #include "PulsarApi.pb.h"
 #include "SharedBuffer.h"
 #include "TimeUtils.h"
@@ -37,9 +36,7 @@ using namespace pulsar;
 
 namespace pulsar {
 
-ObjectPool<MessageImpl, 100000> messagePool;
-
-std::shared_ptr<MessageImpl> MessageBuilder::createMessageImpl() { return messagePool.create(); }
+std::shared_ptr<MessageImpl> MessageBuilder::createMessageImpl() { return std::make_shared<MessageImpl>(); }
 
 MessageBuilder::MessageBuilder() { impl_ = createMessageImpl(); }
 

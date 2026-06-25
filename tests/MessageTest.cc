@@ -21,6 +21,8 @@
 #include <pulsar/MessageBuilder.h>
 
 #include <string>
+#include <thread>
+#include <vector>
 
 #include "PulsarFriend.h"
 #include "lib/MessageImpl.h"
@@ -101,6 +103,27 @@ TEST(MessageTest, testMessageBuilder) {
     {
         auto msg = MessageBuilder().setContent(std::move(value)).build();
         ASSERT_EQ(msg.getData(), originalAddress);
+    }
+}
+
+TEST(MessageTest, testMessageBuilderConcurrentBuild) {
+    const int threadCount = 8;
+    const int messagesPerThread = 10000;
+    std::vector<std::thread> threads;
+    threads.reserve(threadCount);
+
+    for (int i = 0; i < threadCount; i++) {
+        threads.emplace_back([i] {
+            for (int j = 0; j < messagesPerThread; j++) {
+                const std::string content = "message-" + std::to_string(i) + "-" + std::to_string(j);
+                auto msg = MessageBuilder().setContent(content).build();
+                ASSERT_EQ(content, msg.getDataAsString());
+            }
+        });
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
     }
 }
 
