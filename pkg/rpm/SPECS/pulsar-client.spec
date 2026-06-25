@@ -53,6 +53,10 @@ static library.
 %setup -q -n apache-pulsar-client-cpp-%{pom_version}
 
 %build
+# Build with GCC 12 from gcc-toolset-12 (installed in the build image) for C++20
+# support, while keeping the el8 ABI. Sets PATH/LD_LIBRARY_PATH to the toolset for
+# the cmake build below.
+source /opt/rh/gcc-toolset-12/enable
 git clone https://github.com/microsoft/vcpkg.git
 cmake -B build -DINTEGRATE_VCPKG=ON -DCMAKE_BUILD_TYPE=Release \
     -DBUILD_TESTS=OFF -DBUILD_DYNAMIC_LIB=ON -DBUILD_STATIC_LIB=ON
