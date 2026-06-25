@@ -53,6 +53,7 @@ struct ClientConfigurationImpl {
     std::string description;
     std::string proxyServiceUrl;
     ClientConfiguration::ProxyProtocol proxyProtocol;
+    bool httpLookupAuthAllowRedirect{false};
 
     std::unique_ptr<LoggerFactory> takeLogger() { return std::move(loggerFactory); }
 

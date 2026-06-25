@@ -231,4 +231,11 @@ ClientConfiguration& ClientConfiguration::setDescription(const std::string& desc
 
 const std::string& ClientConfiguration::getDescription() const noexcept { return impl_->description; }
 
+ClientConfiguration& ClientConfiguration::setHttpLookupAuthAllowRedirect(bool allow) {
+    impl_->httpLookupAuthAllowRedirect = allow;
+    return *this;
+}
+
+bool ClientConfiguration::isHttpLookupAuthAllowRedirect() const { return impl_->httpLookupAuthAllowRedirect; }
+
 }  // namespace pulsar
