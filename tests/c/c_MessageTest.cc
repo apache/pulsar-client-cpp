@@ -18,7 +18,9 @@
  */
 #include <gtest/gtest.h>
 #include <lib/c/c_structs.h>
+#include <pulsar/Result.h>
 #include <pulsar/c/message.h>
+#include <pulsar/c/result.h>
 
 #include "../PulsarFriend.h"
 
@@ -47,4 +49,9 @@ TEST(c_MessageTest, ReplicationMetadataAccessors) {
     ASSERT_STREQ("us-west1", pulsar_message_get_replicated_from(message));
 
     pulsar_message_free(message);
+}
+
+TEST(c_ResultTest, DisconnectedResultMatchesCppResult) {
+    ASSERT_EQ(static_cast<int>(pulsar::ResultDisconnected), static_cast<int>(pulsar_result_Disconnected));
+    ASSERT_STREQ("ResultDisconnected", pulsar_result_str(pulsar_result_Disconnected));
 }
