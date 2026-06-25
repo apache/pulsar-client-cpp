@@ -23,9 +23,14 @@ FROM rockylinux:8
 
 ARG PLATFORM
 
+# gcc-toolset-12 supplies GCC 12 for the C++20 scalable-topics code (concepts,
+# coroutines, `using enum`) while keeping the el8 / glibc 2.28 ABI, so the produced
+# RPM still runs on RHEL/Rocky/CentOS 8. It is enabled in the spec %build via
+# `source /opt/rh/gcc-toolset-12/enable`.
 RUN yum update -y && \
     yum install -y \
         gcc-c++ \
+        gcc-toolset-12 \
         make \
         rpm-build \
         which \
