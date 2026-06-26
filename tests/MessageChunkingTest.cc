@@ -96,6 +96,19 @@ class MessageChunkingTest : public ::testing::TestWithParam<CompressionType> {
 
 std::string MessageChunkingTest::largeMessage = createLargeMessage();
 
+// Helper function: send a single chunk message
+static void sendSingleChunk(Producer& producer, const std::string& uuid, int chunkId, int totalChunks) {
+    std::string content = "chunk-" + uuid + "-" + std::to_string(chunkId) + "|";
+    auto msg = MessageBuilder().setContent(content).build();
+    auto& metadata = PulsarFriend::getMessageMetadata(msg);
+    metadata.set_num_chunks_from_msg(totalChunks);
+    metadata.set_chunk_id(chunkId);
+    metadata.set_uuid(uuid);
+    metadata.set_total_chunk_msg_size(100);
+    MessageId messageId;
+    ASSERT_EQ(ResultOk, producer.send(msg, messageId));
+}
+
 TEST_F(MessageChunkingTest, testInvalidConfig) {
     Client client(lookupUrl);
     ProducerConfiguration conf;
@@ -182,13 +195,7 @@ TEST_P(MessageChunkingTest, testExpireIncompleteChunkMessage) {
     Producer producer;
     createProducer(topic, producer);
 
-    auto msg = MessageBuilder().setContent("test-data").build();
-    auto& metadata = PulsarFriend::getMessageMetadata(msg);
-    metadata.set_num_chunks_from_msg(2);
-    metadata.set_chunk_id(0);
-    metadata.set_total_chunk_msg_size(100);
-
-    producer.send(msg);
+    sendSingleChunk(producer, "expire-test", 0, 2);
 
     auto& chunkedMessageCache = PulsarFriend::getChunkedMessageCache(consumer);
 
@@ -220,32 +227,9 @@ TEST_P(MessageChunkingTest, testMaxPendingChunkMessages) {
     Producer producer;
     createProducer(topic, producer);
 
-    auto msg = MessageBuilder().setContent("chunk-0-0|").build();
-    auto& metadata = PulsarFriend::getMessageMetadata(msg);
-    metadata.set_num_chunks_from_msg(2);
-    metadata.set_chunk_id(0);
-    metadata.set_uuid("0");
-    metadata.set_total_chunk_msg_size(100);
-
-    producer.send(msg);
-
-    auto msg2 = MessageBuilder().setContent("chunk-1-0|").build();
-    auto& metadata2 = PulsarFriend::getMessageMetadata(msg2);
-    metadata2.set_num_chunks_from_msg(2);
-    metadata2.set_uuid("1");
-    metadata2.set_chunk_id(0);
-    metadata2.set_total_chunk_msg_size(100);
-
-    producer.send(msg2);
-
-    auto msg3 = MessageBuilder().setContent("chunk-1-1|").build();
-    auto& metadata3 = PulsarFriend::getMessageMetadata(msg3);
-    metadata3.set_num_chunks_from_msg(2);
-    metadata3.set_uuid("1");
-    metadata3.set_chunk_id(1);
-    metadata3.set_total_chunk_msg_size(100);
-
-    producer.send(msg3);
+    sendSingleChunk(producer, "0", 0, 2);
+    sendSingleChunk(producer, "1", 0, 2);
+    sendSingleChunk(producer, "1", 1, 2);
 
     Message receivedMsg;
     ASSERT_EQ(ResultOk, consumer.receive(receivedMsg, 3000));
@@ -262,14 +246,7 @@ TEST_P(MessageChunkingTest, testMaxPendingChunkMessages) {
     consumer.acknowledge(receivedMsg2);
 
     consumer.redeliverUnacknowledgedMessages();
-    auto msg4 = MessageBuilder().setContent("chunk-0-1|").build();
-    auto& metadata4 = PulsarFriend::getMessageMetadata(msg4);
-    metadata4.set_num_chunks_from_msg(2);
-    metadata4.set_uuid("0");
-    metadata4.set_chunk_id(1);
-    metadata4.set_total_chunk_msg_size(100);
-
-    producer.send(msg4);
+    sendSingleChunk(producer, "0", 1, 2);
 
     // This ensures that the message chunk-0-0 was acknowledged successfully. So we cannot receive it anymore.
     Message receivedMsg3;
@@ -354,6 +331,127 @@ TEST(ChunkMessageIdTest, testSetChunkMessageId) {
     ASSERT_EQ(firstChunkMsgId.ledgerId(), 1);
     ASSERT_EQ(firstChunkMsgId.entryId(), 2);
     ASSERT_EQ(firstChunkMsgId.partition(), 3);
+}
+
+// Aligned with Java testResendChunkMessagesWithoutAckHole
+TEST_P(MessageChunkingTest, testResendChunkMessagesWithoutAckHole) {
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic =
+        "MessageChunkingTest-testResendChunkMessagesWithoutAckHole-" + std::to_string(time(nullptr));
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setMaxPendingChunkedMessage(10);
+    consumerConf.setAutoAckOldestChunkedMessageOnQueueFull(true);
+    consumerConf.setBrokerConsumerStatsCacheTimeInMs(1000);
+    createConsumer(topic, consumer, consumerConf);
+    Producer producer;
+    createProducer(topic, producer);
+
+    // Send chunk sequence: uuid="0" chunkId=0 -> uuid="0" chunkId=0 (resend) -> uuid="0" chunkId=1
+    sendSingleChunk(producer, "0", 0, 2);
+    sendSingleChunk(producer, "0", 0, 2);  // Resend the first chunk
+    sendSingleChunk(producer, "0", 1, 2);
+
+    Message receivedMsg;
+    ASSERT_EQ(ResultOk, consumer.receive(receivedMsg, 5000));
+    ASSERT_EQ(receivedMsg.getDataAsString(), "chunk-0-0|chunk-0-1|");
+    consumer.acknowledge(receivedMsg);
+
+    // Verify no ack hole: backlog should be 0 after ack
+    BrokerConsumerStats consumerStats;
+    waitUntil(
+        std::chrono::seconds(10),
+        [&] {
+            return consumer.getBrokerConsumerStats(consumerStats) == ResultOk &&
+                   consumerStats.getMsgBacklog() == 0;
+        },
+        1000);
+    ASSERT_EQ(consumerStats.getMsgBacklog(), 0);
+
+    producer.close();
+    consumer.close();
+}
+
+// Aligned with Java testResendChunkMessages
+TEST_P(MessageChunkingTest, testResendChunkMessages) {
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic = "MessageChunkingTest-testResendChunkMessages-" + std::to_string(time(nullptr));
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setMaxPendingChunkedMessage(10);
+    consumerConf.setAutoAckOldestChunkedMessageOnQueueFull(true);
+    createConsumer(topic, consumer, consumerConf);
+    Producer producer;
+    createProducer(topic, producer);
+
+    // Send interleaved chunk sequence with multiple uuid resends
+    sendSingleChunk(producer, "0", 0, 2);
+    sendSingleChunk(producer, "0", 0, 2);  // Resend first chunk of uuid="0"
+    sendSingleChunk(producer, "1", 0, 3);  // Interleave uuid="1"
+    sendSingleChunk(producer, "1", 1, 3);
+    sendSingleChunk(producer, "1", 0, 3);  // Resend first chunk of uuid="1"
+    sendSingleChunk(producer, "0", 1, 2);  // Complete uuid="0"
+
+    Message receivedMsg;
+    ASSERT_EQ(ResultOk, consumer.receive(receivedMsg, 5000));
+    ASSERT_EQ(receivedMsg.getDataAsString(), "chunk-0-0|chunk-0-1|");
+    consumer.acknowledge(receivedMsg);
+
+    // Continue sending to complete uuid="1"
+    sendSingleChunk(producer, "1", 1, 3);
+    sendSingleChunk(producer, "1", 2, 3);
+
+    Message receivedMsg2;
+    ASSERT_EQ(ResultOk, consumer.receive(receivedMsg2, 5000));
+    ASSERT_EQ(receivedMsg2.getDataAsString(), "chunk-1-0|chunk-1-1|chunk-1-2|");
+    consumer.acknowledge(receivedMsg2);
+
+    producer.close();
+    consumer.close();
+}
+
+// Aligned with Go TestResendChunkWithAckHoleMessages
+TEST_P(MessageChunkingTest, testResendChunkWithAckHoleMessages) {
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic =
+        "MessageChunkingTest-testResendChunkWithAckHoleMessages-" + std::to_string(time(nullptr));
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setMaxPendingChunkedMessage(10);
+    consumerConf.setAutoAckOldestChunkedMessageOnQueueFull(true);
+    createConsumer(topic, consumer, consumerConf);
+    Producer producer;
+    createProducer(topic, producer);
+
+    // Scenario 1: middle chunk resend, verify message assembles correctly (duplicated chunks are filtered)
+    sendSingleChunk(producer, "0", 0, 4);
+    sendSingleChunk(producer, "0", 1, 4);
+    sendSingleChunk(producer, "0", 2, 4);
+    sendSingleChunk(producer, "0", 1, 4);  // Resend chunkId=1
+    sendSingleChunk(producer, "0", 2, 4);  // Resend chunkId=2
+    sendSingleChunk(producer, "0", 3, 4);  // Complete
+
+    Message receivedMsg;
+    ASSERT_EQ(ResultOk, consumer.receive(receivedMsg, 5000));
+    ASSERT_EQ(receivedMsg.getDataAsString(), "chunk-0-0|chunk-0-1|chunk-0-2|chunk-0-3|");
+    consumer.acknowledge(receivedMsg);
+
+    // Scenario 2: chunk gap (chunkId jump), verify consumer cannot receive message (context is cleaned up)
+    sendSingleChunk(producer, "1", 0, 4);
+    sendSingleChunk(producer, "1", 1, 4);
+    sendSingleChunk(producer, "1", 4, 4);  // Gap: skipped chunkId=2 and 3
+
+    Message receivedMsg2;
+    ASSERT_NE(ResultOk, consumer.receive(receivedMsg2, 3000));
+
+    producer.close();
+    consumer.close();
 }
 
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P
