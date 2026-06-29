@@ -19,7 +19,7 @@
 
 # Build pulsar client library in Centos with tools to
 
-FROM debian:11
+FROM debian:12
 
 ARG PLATFORM
 
