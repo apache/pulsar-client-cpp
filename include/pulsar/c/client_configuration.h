@@ -141,9 +141,25 @@ PULSAR_PUBLIC void pulsar_client_configuration_set_concurrent_lookup_request(
 PULSAR_PUBLIC int pulsar_client_configuration_get_concurrent_lookup_request(
     pulsar_client_configuration_t *conf);
 
+/**
+ * Configure a custom logger for Pulsar client library logs.
+ *
+ * The logger is process-wide and is not scoped to a pulsar_client_t instance.
+ * It can only be set once per process. Applications and language bindings
+ * should set the logger before creating clients and ensure the logger callback
+ * context outlives all Pulsar clients and background threads that can emit logs.
+ */
 PULSAR_PUBLIC void pulsar_client_configuration_set_logger(pulsar_client_configuration_t *conf,
                                                           pulsar_logger logger, void *ctx);
 
+/**
+ * Configure a custom logger for Pulsar client library logs.
+ *
+ * The logger is process-wide and is not scoped to a pulsar_client_t instance.
+ * It can only be set once per process. Applications and language bindings
+ * should set the logger before creating clients and ensure the logger callback
+ * context outlives all Pulsar clients and background threads that can emit logs.
+ */
 PULSAR_PUBLIC void pulsar_client_configuration_set_logger_t(pulsar_client_configuration_t *conf,
                                                             pulsar_logger_t logger);
 
@@ -201,6 +217,12 @@ PULSAR_PUBLIC void pulsar_client_configuration_set_keep_alive_interval_in_second
     pulsar_client_configuration_t *conf, unsigned int keepAliveIntervalInSeconds);
 
 PULSAR_PUBLIC unsigned int pulsar_client_configuration_get_keep_alive_interval_in_seconds(
+    pulsar_client_configuration_t *conf);
+
+PULSAR_PUBLIC void pulsar_client_configuration_set_http_lookup_auth_allow_redirect(
+    pulsar_client_configuration_t *conf, int httpLookupAuthAllowRedirect);
+
+PULSAR_PUBLIC int pulsar_client_configuration_is_http_lookup_auth_allow_redirect(
     pulsar_client_configuration_t *conf);
 
 #ifdef __cplusplus

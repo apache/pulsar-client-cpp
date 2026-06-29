@@ -27,6 +27,19 @@ For the supported Pulsar features, see [Client Feature Matrix](https://pulsar.ap
 
 For how to use APIs to publish and consume messages, see [examples](https://github.com/apache/pulsar-client-cpp/tree/main/examples).
 
+## Custom logger lifetime
+
+The C++ client supports one custom logger factory per process. A logger configured
+through `ClientConfiguration::setLogger` or the C API logger functions is shared
+by all clients in the same process and is not scoped to an individual client
+instance. Set the custom logger before creating clients, and do not expect
+different clients to have independent log handlers.
+
+If an application or language binding exposes logger callbacks, the callback and
+its context must remain valid until all Pulsar clients are closed and no
+background thread can emit client logs. Avoid tying the callback lifetime to a
+single client when multiple clients can exist in the process.
+
 ## Import the library into your project
 
 ### CMake with vcpkg integration

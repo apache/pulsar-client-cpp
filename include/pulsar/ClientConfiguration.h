@@ -187,15 +187,49 @@ class PULSAR_PUBLIC ClientConfiguration {
     int getMaxBackoffIntervalMs() const;
 
     /**
-     * Configure a custom logger backend to route of Pulsar client library
+     * Configure whether to send authentication credentials when following HTTP redirects
+     * to a different host during lookup requests.
+     *
+     * When enabled, the Authorization header will be forwarded on cross-origin redirects.
+     *
+     * HTTP lookup redirects typically occur when the broker receiving the lookup request
+     * is not the owner of the requested topic. In this case, the broker responds with
+     * an HTTP redirect (3xx) pointing to the correct owner broker. If authentication is
+     * enabled, the redirected request needs to carry the auth credentials to be accepted
+     * by the target broker.
+     *
+     * If this option is not enabled and the cluster has authentication enabled, the
+     * redirected request will not carry credentials, which may result in a 401
+     * Unauthorized error from the target broker.
+     *
+     * The default value is false.
+     *
+     * @param allow whether to allow sending auth credentials on redirects
+     */
+    ClientConfiguration& setHttpLookupAuthAllowRedirect(bool allow);
+
+    /**
+     * @return whether auth credentials are sent on HTTP redirects
+     */
+    bool isHttpLookupAuthAllowRedirect() const;
+
+    /**
+     * Configure a custom logger backend to route Pulsar client library logs
      * to a different logger implementation.
      *
      * By default, log messages are printed on standard output.
      *
      * When passed in, the configuration takes ownership of the loggerFactory object.
-     * The logger factory can only be set once per process. Any subsequent calls to
-     * set the logger factory will have no effect, though the logger factory object
-     * will be cleaned up.
+     * The logger factory is process-wide and is not scoped to a Client instance.
+     * It can only be set once per process. Any subsequent calls to set the logger
+     * factory will have no effect, though the logger factory object will be
+     * cleaned up.
+     *
+     * Applications and language bindings that use callback-based logger factories
+     * should set the logger before creating clients and ensure callback state
+     * outlives all Pulsar clients and background threads that can emit logs.
+     * Avoid using per-client callback objects that can be destroyed while another
+     * client in the same process is still running.
      */
     ClientConfiguration& setLogger(LoggerFactory* loggerFactory);
 

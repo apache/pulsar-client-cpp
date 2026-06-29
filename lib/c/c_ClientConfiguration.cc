@@ -204,3 +204,12 @@ unsigned int pulsar_client_configuration_get_keep_alive_interval_in_seconds(
     pulsar_client_configuration_t *conf) {
     return conf->conf.getKeepAliveIntervalInSeconds();
 }
+
+void pulsar_client_configuration_set_http_lookup_auth_allow_redirect(pulsar_client_configuration_t *conf,
+                                                                     int httpLookupAuthAllowRedirect) {
+    conf->conf.setHttpLookupAuthAllowRedirect(httpLookupAuthAllowRedirect);
+}
+
+int pulsar_client_configuration_is_http_lookup_auth_allow_redirect(pulsar_client_configuration_t *conf) {
+    return conf->conf.isHttpLookupAuthAllowRedirect();
+}

@@ -54,6 +54,7 @@ class CurlWrapper {
         std::string userAgent;
         int timeoutInSeconds{0};
         int maxLookupRedirects{-1};
+        bool authAllowRedirect{false};
     };
 
     struct TlsContext {
@@ -128,6 +129,9 @@ inline CurlWrapper::Result CurlWrapper::get(const std::string& url, const std::s
     // Redirects
     curl_easy_setopt(handle_, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(handle_, CURLOPT_MAXREDIRS, options.maxLookupRedirects);
+    if (options.authAllowRedirect) {
+        curl_easy_setopt(handle_, CURLOPT_UNRESTRICTED_AUTH, 1L);
+    }
 
     char errorBuffer[CURL_ERROR_SIZE] = "";
     curl_easy_setopt(handle_, CURLOPT_ERRORBUFFER, errorBuffer);
