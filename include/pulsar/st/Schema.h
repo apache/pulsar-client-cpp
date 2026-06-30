@@ -124,9 +124,10 @@ class Schema {
      * @brief Constructs the default schema for `T`.
      *
      * For a primitive `T` this installs the built-in codec: `Bytes` (the default),
-     * `std::string`, `std::int32_t`, `std::int64_t`, or `double`. Integers and
-     * `double` are encoded as fixed-width big-endian, matching the Pulsar wire
-     * format for primitive schemas.
+     * `BytesView`, `std::string`, `std::int8_t`, `std::int16_t`, `std::int32_t`,
+     * `std::int64_t`, `float`, or `double`. Integers and floating-point values are
+     * encoded as fixed-width big-endian, matching the Pulsar wire format for
+     * primitive schemas.
      *
      * For any other (non-primitive) `T` this installs an "unset" schema: it reports
      * `SchemaType::BYTES` to the broker, but its `encode` and `decode` return an
@@ -304,6 +305,49 @@ struct DoubleCodec {
         return v;
     }
 };
+struct FloatCodec {
+    SchemaInfo info() const { return SchemaInfo(SchemaType::FLOAT, "FLOAT", ""); }
+    Expected<void> encode(float v, std::vector<std::byte>& out) const {
+        std::uint32_t bits;
+        std::memcpy(&bits, &v, sizeof(bits));
+        out.clear();
+        encodeBigEndian(static_cast<std::int32_t>(bits), out);
+        return {};
+    }
+    Expected<float> decode(std::span<const std::byte> d) const {
+        if (d.size() < sizeof(float))
+            return unexpected(pulsar::ResultInvalidMessage, "FLOAT payload too short");
+        auto bits = static_cast<std::uint32_t>(decodeBigEndian<std::int32_t>(d));
+        float v;
+        std::memcpy(&v, &bits, sizeof(v));
+        return v;
+    }
+};
+struct Int8Codec {
+    SchemaInfo info() const { return SchemaInfo(SchemaType::INT8, "INT8", ""); }
+    Expected<void> encode(std::int8_t v, std::vector<std::byte>& out) const {
+        out.clear();
+        encodeBigEndian(v, out);
+        return {};
+    }
+    Expected<std::int8_t> decode(std::span<const std::byte> d) const {
+        if (d.empty()) return unexpected(pulsar::ResultInvalidMessage, "INT8 payload too short");
+        return decodeBigEndian<std::int8_t>(d);
+    }
+};
+struct Int16Codec {
+    SchemaInfo info() const { return SchemaInfo(SchemaType::INT16, "INT16", ""); }
+    Expected<void> encode(std::int16_t v, std::vector<std::byte>& out) const {
+        out.clear();
+        encodeBigEndian(v, out);
+        return {};
+    }
+    Expected<std::int16_t> decode(std::span<const std::byte> d) const {
+        if (d.size() < sizeof(std::int16_t))
+            return unexpected(pulsar::ResultInvalidMessage, "INT16 payload too short");
+        return decodeBigEndian<std::int16_t>(d);
+    }
+};
 template <typename T>
 struct UnsetCodec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::BYTES, "BYTES", ""); }
@@ -330,6 +374,12 @@ Schema<T>::Schema() {
         self_ = std::make_shared<Model<detail::Int64Codec>>(detail::Int64Codec{});
     } else if constexpr (std::is_same_v<T, double>) {
         self_ = std::make_shared<Model<detail::DoubleCodec>>(detail::DoubleCodec{});
+    } else if constexpr (std::is_same_v<T, float>) {
+        self_ = std::make_shared<Model<detail::FloatCodec>>(detail::FloatCodec{});
+    } else if constexpr (std::is_same_v<T, std::int8_t>) {
+        self_ = std::make_shared<Model<detail::Int8Codec>>(detail::Int8Codec{});
+    } else if constexpr (std::is_same_v<T, std::int16_t>) {
+        self_ = std::make_shared<Model<detail::Int16Codec>>(detail::Int16Codec{});
     } else if constexpr (std::is_same_v<T, BytesView>) {
         self_ = std::make_shared<Model<detail::SpanBytesCodec>>(detail::SpanBytesCodec{});
     } else {
