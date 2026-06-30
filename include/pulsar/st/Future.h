@@ -111,21 +111,31 @@ class Future {
      * returned Future. Only participates in overload resolution when `T` is not
      * `void`.
      *
-     * @tparam F a callable taking `const T&` and returning the mapped value.
+     * @tparam F a callable taking `const T&`; may be move-only, and may return
+     *         `void` (producing a `Future<void>` that completes once `f` runs).
      * @tparam U defaults to `T`; an implementation detail of the `void` constraint.
      * @param f the mapping function to apply to the value.
-     * @return a `Future` of `f`'s return type, completed with the mapped value on
-     *         success or the propagated error on failure.
+     * @return a `Future` of `f`'s return type, completed with the mapped value (or
+     *         with success when `f` returns `void`) on success, or the propagated
+     *         error on failure.
      */
     template <typename F, typename U = T, std::enable_if_t<!std::is_void_v<U>, int> = 0>
     Future<std::invoke_result_t<F, const U&>> thenApply(F f) const {
         using R = std::invoke_result_t<F, const U&>;
         detail::Promise<R> promise;
-        state_->addListener([promise, f = std::move(f)](const Expected<T>& result) {
-            if (result) {
-                promise.setValue(f(*result));
-            } else {
+        // Hold f in a shared_ptr so the copyable std::function listener can carry a
+        // move-only mapper; f is invoked at most once.
+        auto fp = std::make_shared<F>(std::move(f));
+        state_->addListener([promise, fp](const Expected<T>& result) {
+            if (!result) {
                 promise.setError(result.error());
+                return;
+            }
+            if constexpr (std::is_void_v<R>) {
+                (*fp)(*result);
+                promise.setSuccess();
+            } else {
+                promise.setValue((*fp)(*result));
             }
         });
         return promise.getFuture();
