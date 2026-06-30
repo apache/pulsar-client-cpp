@@ -169,7 +169,8 @@ class MessageBuilder {
             message_.payloadView = v;
             message_.usesView = true;
         } else {
-            if (auto r = schema_.encode(v, message_.payload); !r) encodeError_ = r.error();
+            auto r = schema_.encode(v, message_.payload);
+            encodeError_ = r ? std::nullopt : std::optional<Error>(r.error());
         }
         return *this;
     }
