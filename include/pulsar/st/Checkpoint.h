@@ -21,8 +21,10 @@
 #include <pulsar/defines.h>
 #include <pulsar/st/detail/Cxx20.h>
 
+#include <cstddef>
 #include <memory>
-#include <string>
+#include <span>
+#include <vector>
 
 namespace pulsar::st {
 
@@ -91,17 +93,17 @@ class PULSAR_PUBLIC Checkpoint {
      * The returned bytes are an opaque blob suitable for persisting in any state
      * backend; restore them later with `fromByteArray()`.
      *
-     * @return Byte string encoding the cross-segment position.
+     * @return a byte vector encoding the cross-segment position.
      */
-    std::string toByteArray() const;
+    std::vector<std::byte> toByteArray() const;
 
     /**
      * @brief Restore a `Checkpoint` previously produced by `toByteArray()`.
      *
-     * @param data Bytes returned by an earlier `toByteArray()` call.
+     * @param data bytes returned by an earlier `toByteArray()` call.
      * @return The reconstructed `Checkpoint`.
      */
-    static Checkpoint fromByteArray(const std::string& data);
+    static Checkpoint fromByteArray(std::span<const std::byte> data);
 
     /**
      * @brief Test whether this checkpoint holds a valid position.

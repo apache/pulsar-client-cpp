@@ -22,9 +22,11 @@
 #include <pulsar/st/detail/Cxx20.h>
 
 #include <compare>
+#include <cstddef>
 #include <iosfwd>
 #include <memory>
-#include <string>
+#include <span>
+#include <vector>
 
 namespace pulsar::st {
 
@@ -55,10 +57,10 @@ class PULSAR_PUBLIC MessageId {
     static const MessageId& latest();
 
     /** Serialize to a portable binary form for external storage. */
-    std::string toByteArray() const;
+    std::vector<std::byte> toByteArray() const;
 
     /** Restore a `MessageId` previously produced by `toByteArray()`. */
-    static MessageId fromByteArray(const std::string& data);
+    static MessageId fromByteArray(std::span<const std::byte> data);
 
     // Totally ordered within a topic; `<=>` and `==` synthesize <, <=, >, >=, !=.
     /**

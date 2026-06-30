@@ -22,8 +22,10 @@
 
 #include <pulsar/st/Client.h>
 
+#include <cstddef>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace pulsar::st;
 
@@ -60,7 +62,7 @@ int main() {
     // Atomic position snapshot across all segments. Store the bytes yourself
     // (Flink/Spark state backend, a file, etc.) — there is no broker-side cursor.
     Checkpoint checkpoint = consumer.checkpoint();
-    std::string persisted = checkpoint.toByteArray();
+    std::vector<std::byte> persisted = checkpoint.toByteArray();  // store these bytes yourself
     std::cout << "checkpoint is " << persisted.size() << " bytes\n";
 
     (void)consumer.close();
