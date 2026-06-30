@@ -21,9 +21,12 @@
 #include <pulsar/st/Schema.h>
 
 #include <cstddef>
+#include <exception>
 #include <rfl.hpp>
 #include <rfl/avro.hpp>
+#include <span>
 #include <string>
+#include <vector>
 
 // avroSchema<T>() is the Avro counterpart of jsonSchema<T>(): reflect-cpp derives
 // the SerDe and the Avro schema from T's fields — no per-type serializer. The
@@ -43,9 +46,19 @@ namespace detail {
 template <typename T>
 struct AvroSerDe {
     SchemaInfo info() const { return SchemaInfo(SchemaType::AVRO, "AVRO", rfl::avro::to_schema<T>()); }
-    std::string encode(const T& value) const { return rfl::avro::write(value); }
-    T decode(const char* data, std::size_t size) const {
-        return rfl::avro::read<T>(std::string(data, size)).value();
+    Expected<void> encode(const T& value, std::vector<std::byte>& out) const {
+        const std::string s = rfl::avro::write(value);
+        const auto* p = reinterpret_cast<const std::byte*>(s.data());
+        out.assign(p, p + s.size());
+        return {};
+    }
+    Expected<T> decode(std::span<const std::byte> data) const {
+        try {
+            return rfl::avro::read<T>(std::string(reinterpret_cast<const char*>(data.data()), data.size()))
+                .value();
+        } catch (const std::exception& e) {
+            return unexpected(pulsar::ResultInvalidMessage, e.what());
+        }
     }
 };
 }  // namespace detail
@@ -63,9 +76,8 @@ struct AvroSerDe {
  *
  * @tparam T the struct type to serialize as Avro; its fields must be reflectable
  *         by reflect-cpp.
- * @return a `Schema<T>` whose `encode`/`decode` use Avro.
- * @throws std::runtime_error (from reflect-cpp) at decode time if the input bytes
- *         are not a valid Avro encoding for `T`.
+ * @return a `Schema<T>` whose `encode`/`decode` use Avro. `decode` reports input
+ *         that is not a valid Avro encoding for `T` as an `Error` rather than throwing.
  */
 template <typename T>
 Schema<T> avroSchema() {

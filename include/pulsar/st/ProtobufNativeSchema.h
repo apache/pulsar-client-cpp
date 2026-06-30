@@ -24,8 +24,10 @@
 #include <pulsar/st/Schema.h>
 
 #include <cstddef>
+#include <span>
 #include <string>
 #include <type_traits>
+#include <vector>
 
 namespace pulsar::st {
 
@@ -38,11 +40,16 @@ struct ProtobufNativeSerDe {
     static_assert(std::is_base_of_v<google::protobuf::Message, T>,
                   "protobufNativeSchema<T> requires T to be a generated protobuf Message");
     SchemaInfo info() const { return pulsar::createProtobufNativeSchema(T::descriptor()); }
-    std::string encode(const T& value) const { return value.SerializeAsString(); }
-    T decode(const char* data, std::size_t size) const {
+    Expected<void> encode(const T& value, std::vector<std::byte>& out) const {
+        out.resize(value.ByteSizeLong());
+        if (!value.SerializeToArray(out.data(), static_cast<int>(out.size())))
+            return unexpected(pulsar::ResultInvalidMessage, "failed to serialize protobuf message");
+        return {};
+    }
+    Expected<T> decode(std::span<const std::byte> data) const {
         T message;
-        message.ParseFromArray(data, static_cast<int>(size));
-        return message;
+        if (message.ParseFromArray(data.data(), static_cast<int>(data.size()))) return message;
+        return unexpected(pulsar::ResultInvalidMessage, "failed to parse protobuf message");
     }
 };
 }  // namespace detail

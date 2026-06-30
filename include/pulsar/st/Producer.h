@@ -30,10 +30,13 @@
 #include <pulsar/st/detail/ProducerCore.h>
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace pulsar::st {
@@ -99,8 +102,14 @@ struct ProducerConfig {
  * its fluent setters and hands the result to the producer core for publishing.
  */
 struct OutgoingMessage {
-    /** Encoded message payload (the value serialized through `Schema<T>`). */
-    std::string payload;
+    /** Encoded message payload — the value serialized to bytes through `Schema<T>`.
+     *  Published unless `usesView` is set. */
+    std::vector<std::byte> payload;
+    /** Non-owning view of already-encoded bytes for zero-copy publishing
+     *  (`Schema<BytesView>`); the caller keeps them valid until the send completes. */
+    std::span<const std::byte> payloadView;
+    /** When true, publish `payloadView` directly without copying; otherwise `payload`. */
+    bool usesView = false;
     /** Whether a routing/ordering key is set. `false` (the default) means no key. */
     bool hasKey = false;
     /** Partition/ordering key; meaningful only when `hasKey` is true. */
@@ -145,11 +154,22 @@ class MessageBuilder {
      * Set the message value, encoding it to bytes through this producer's
      * `Schema<T>`.
      *
+     * For a zero-copy `Schema<BytesView>` producer the bytes are not copied — the
+     * view is published directly, so the caller must keep them valid until the send
+     * completes. A rare encoding failure (e.g. an unset schema) is not reported here,
+     * so the fluent chain stays unbroken; it surfaces from the terminal `send()` /
+     * `sendAsync()` instead.
+     *
      * @param v the typed value to publish.
      * @return `*this`, for chaining.
      */
     MessageBuilder& value(const T& v) {
-        message_.payload = schema_.encode(v);
+        if constexpr (std::is_same_v<T, BytesView>) {
+            message_.payloadView = v;
+            message_.usesView = true;
+        } else {
+            if (auto r = schema_.encode(v, message_.payload); !r) encodeError_ = r.error();
+        }
         return *this;
     }
     /**
@@ -246,7 +266,14 @@ class MessageBuilder {
      * @return a `Future<MessageId>` that completes with the assigned id on success
      *         or the failure. The future may be ignored for fire-and-forget sends.
      */
-    Future<MessageId> sendAsync() { return core_.sendAsync(std::move(message_)); }
+    Future<MessageId> sendAsync() {
+        if (encodeError_) {
+            detail::Promise<MessageId> promise;
+            promise.setError(*encodeError_);
+            return promise.getFuture();
+        }
+        return core_.sendAsync(std::move(message_));
+    }
 
    private:
     friend class Producer<T>;
@@ -260,6 +287,7 @@ class MessageBuilder {
     detail::ProducerCore core_;
     Schema<T> schema_;
     OutgoingMessage message_;
+    std::optional<Error> encodeError_;
 };
 
 /**

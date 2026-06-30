@@ -27,6 +27,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -61,12 +62,17 @@ class Message {
     /**
      * Decode the payload through `Schema<T>` and return the typed value.
      *
-     * Decoding happens on every call (the result is not cached). May throw if the
-     * payload bytes are malformed for the schema.
+     * Decoding happens on every call (the result is not cached). The SDK handles a
+     * payload that cannot be decoded internally — such a message is not delivered to
+     * the application — so this does not surface decode failures to the caller. The
+     * raw bytes remain available via `data()` / `size()`.
      *
      * @return the decoded value of type `T`.
      */
-    T value() const { return schema_.decode(core_.data(), core_.size()); }
+    T value() const {
+        const auto* bytes = reinterpret_cast<const std::byte*>(core_.data());
+        return schema_.decode(std::span<const std::byte>(bytes, core_.size())).value();
+    }
 
     /**
      * Pointer to the raw, undecoded payload bytes.
