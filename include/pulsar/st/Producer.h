@@ -180,8 +180,8 @@ class MessageBuilder {
      * @param v property value.
      * @return `*this`, for chaining.
      */
-    MessageBuilder& property(const std::string& k, const std::string& v) {
-        message_.properties[k] = v;
+    MessageBuilder& property(std::string k, std::string v) {
+        message_.properties.insert_or_assign(std::move(k), std::move(v));
         return *this;
     }
     /**
@@ -470,8 +470,8 @@ class ProducerBuilder {
      * @param v property value.
      * @return `*this`, for chaining.
      */
-    ProducerBuilder& property(const std::string& k, const std::string& v) {
-        config_.properties[k] = v;
+    ProducerBuilder& property(std::string k, std::string v) {
+        config_.properties.insert_or_assign(std::move(k), std::move(v));
         return *this;
     }
 

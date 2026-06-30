@@ -274,8 +274,8 @@ class CheckpointConsumerBuilder {
      * @param v Property value.
      * @return `*this`, for call chaining.
      */
-    CheckpointConsumerBuilder& property(const std::string& k, const std::string& v) {
-        config_.properties[k] = v;
+    CheckpointConsumerBuilder& property(std::string k, std::string v) {
+        config_.properties.insert_or_assign(std::move(k), std::move(v));
         return *this;
     }
 

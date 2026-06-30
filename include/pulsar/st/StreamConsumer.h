@@ -372,8 +372,8 @@ class StreamConsumerBuilder {
      * @param v property value.
      * @return `*this` for chaining.
      */
-    StreamConsumerBuilder& property(const std::string& k, const std::string& v) {
-        config_.properties[k] = v;
+    StreamConsumerBuilder& property(std::string k, std::string v) {
+        config_.properties.insert_or_assign(std::move(k), std::move(v));
         return *this;
     }
 
