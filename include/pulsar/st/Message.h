@@ -118,7 +118,7 @@ class Message {
      *
      * @return the timestamp at which the message was published.
      */
-    Timestamp publishTime() const { return Timestamp(std::chrono::milliseconds(core_.publishTimeMs())); }
+    Timestamp publishTime() const { return core_.publishTime(); }
 
     /**
      * The optional application-supplied event time.

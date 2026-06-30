@@ -59,7 +59,7 @@ class PULSAR_PUBLIC MessageCore {
     bool hasKey() const;
     std::string_view key() const;
     const Properties& properties() const;
-    int64_t publishTimeMs() const;
+    Timestamp publishTime() const;
     std::optional<Timestamp> eventTime() const;
     int64_t sequenceId() const;
     bool hasProducerName() const;
