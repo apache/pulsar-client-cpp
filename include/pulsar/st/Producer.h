@@ -111,10 +111,8 @@ struct OutgoingMessage {
     std::span<const std::byte> payloadView;
     /** When true, publish `payloadView` directly without copying; otherwise `payload`. */
     bool usesView = false;
-    /** Whether a routing key is set. `false` (the default) means no key. */
-    bool hasKey = false;
-    /** Partition/routing key; meaningful only when `hasKey` is true. */
-    std::string key;
+    /** Partition/routing key; unset (nullopt, the default) means no key. */
+    std::optional<std::string> key;
     /** Per-message user metadata. Empty by default. */
     Properties properties;
     std::optional<Timestamp> eventTime;  ///< Application event time; unset (nullopt) by default.
@@ -147,7 +145,6 @@ class MessageBuilder {
      * @return `*this`, for chaining.
      */
     MessageBuilder& key(std::string k) {
-        message_.hasKey = true;
         message_.key = std::move(k);
         return *this;
     }
