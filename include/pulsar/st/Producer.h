@@ -273,8 +273,16 @@ class MessageBuilder {
     /**
      * Publish the message asynchronously without blocking.
      *
+     * @warning With a zero-copy `Schema<BytesView>` producer the payload is not
+     *          copied, so the viewed bytes must stay valid until the send completes.
+     *          The returned future is the only signal for that — discarding it
+     *          (fire-and-forget) leaves no way to know when the bytes may be freed.
+     *          For a fire-and-forget send, either keep the future, or use a copying
+     *          `Schema<Bytes>` payload instead.
+     *
      * @return a `Future<MessageId>` that completes with the assigned id on success
-     *         or the failure. The future may be ignored for fire-and-forget sends.
+     *         or the failure. The future may be ignored for fire-and-forget sends
+     *         (but see the warning above for `BytesView` payloads).
      */
     Future<MessageId> sendAsync() {
         if (encodeError_) {
