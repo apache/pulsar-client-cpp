@@ -119,7 +119,7 @@ struct OutgoingMessage {
     Properties properties;
     std::optional<Timestamp> eventTime;  ///< Application event time; unset (nullopt) by default.
     int64_t sequenceId = -1;             ///< Explicit sequence id; -1 = auto-assign.
-    int64_t deliverAtMs = 0;             ///< Absolute delivery time, epoch ms; 0 = deliver immediately.
+    std::optional<Timestamp> deliverAt;  ///< Scheduled delivery time; unset = deliver immediately.
     /** Target clusters for geo-replication; empty applies the topic's default. */
     std::vector<std::string> replicationClusters;
     std::optional<Transaction> transaction;  ///< Enlisting transaction; unset = non-transactional.
@@ -221,26 +221,26 @@ class MessageBuilder {
      * Request delayed delivery: deliver the message after `delay` has elapsed from
      * now (spec §4 delayed delivery).
      *
-     * @param delay delay relative to the current time, in milliseconds. Computed
-     *          into an absolute delivery time. Mutually exclusive with
-     *          `deliverAt`; the last of the two called wins.
+     * @param delay delay relative to the current time. Computed into an absolute
+     *          delivery time. Mutually exclusive with `deliverAt`; the last of the
+     *          two called wins.
      * @return `*this`, for chaining.
      */
     MessageBuilder& deliverAfter(std::chrono::milliseconds delay) {
-        message_.deliverAtMs = toEpochMs(std::chrono::system_clock::now()) + delay.count();
+        message_.deliverAt = std::chrono::system_clock::now() + delay;
         return *this;
     }
     /**
      * Request delayed delivery at a specific wall-clock time (spec §4 delayed
      * delivery).
      *
-     * @param t absolute delivery time; stored as epoch milliseconds. A time in the
-     *          past delivers immediately. Mutually exclusive with `deliverAfter`;
-     *          the last of the two called wins.
+     * @param t the absolute delivery time. A time in the past delivers immediately.
+     *          Mutually exclusive with `deliverAfter`; the last of the two called
+     *          wins.
      * @return `*this`, for chaining.
      */
     MessageBuilder& deliverAt(Timestamp t) {
-        message_.deliverAtMs = toEpochMs(t);
+        message_.deliverAt = t;
         return *this;
     }
     /**
@@ -281,10 +281,6 @@ class MessageBuilder {
     friend class Producer<T>;
     MessageBuilder(detail::ProducerCore core, Schema<T> schema)
         : core_(std::move(core)), schema_(std::move(schema)) {}
-
-    static int64_t toEpochMs(Timestamp t) {
-        return std::chrono::duration_cast<std::chrono::milliseconds>(t.time_since_epoch()).count();
-    }
 
     detail::ProducerCore core_;
     Schema<T> schema_;
