@@ -52,10 +52,10 @@ enum class SubscriptionInitialPosition
  * optional and fall back to the client default when unset.
  */
 struct AckPolicy {
-    /** Time window over which acknowledgments are batched before being sent, in milliseconds; 0 acks
+    /** Time window over which acknowledgments are batched before being sent; 0 acks
      * immediately. Unset uses the client default. */
     std::optional<std::chrono::milliseconds> groupTime = std::nullopt;
-    /** Delay before a negatively-acknowledged message is redelivered, in milliseconds. QueueConsumer only.
+    /** Delay before a negatively-acknowledged message is redelivered. QueueConsumer only.
      * Unset uses the client default. */
     std::optional<std::chrono::milliseconds> negativeAckRedeliveryDelay = std::nullopt;
 };

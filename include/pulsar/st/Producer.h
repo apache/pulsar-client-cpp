@@ -101,6 +101,10 @@ struct ProducerConfig {
  * This is the encoded, schema-agnostic form of a message: the typed value has
  * already been serialized to `payload` bytes. The builder fills these fields from
  * its fluent setters and hands the result to the producer core for publishing.
+ *
+ * Invariant (maintained by `MessageBuilder`): when `usesView` is true the payload is
+ * read from `payloadView` (which must stay valid until the send completes); otherwise
+ * it is read from `payload`.
  */
 struct OutgoingMessage {
     /** Encoded message payload — the value serialized to bytes through `Schema<T>`.
@@ -115,12 +119,16 @@ struct OutgoingMessage {
     std::optional<std::string> key;
     /** Per-message user metadata. Empty by default. */
     Properties properties;
-    std::optional<Timestamp> eventTime;  ///< Application event time; unset (nullopt) by default.
-    std::optional<int64_t> sequenceId;   ///< Explicit sequence id; unset = auto-assign.
-    std::optional<Timestamp> deliverAt;  ///< Scheduled delivery time; unset = deliver immediately.
+    /** Application event time; unset (nullopt) by default. */
+    std::optional<Timestamp> eventTime;
+    /** Explicit sequence id; unset = auto-assign. */
+    std::optional<int64_t> sequenceId;
+    /** Scheduled delivery time; unset = deliver immediately. */
+    std::optional<Timestamp> deliverAt;
     /** Target clusters for geo-replication; empty applies the topic's default. */
     std::vector<std::string> replicationClusters;
-    std::optional<Transaction> transaction;  ///< Enlisting transaction; unset = non-transactional.
+    /** Enlisting transaction; unset = non-transactional. */
+    std::optional<Transaction> transaction;
 };
 
 template <typename T>
@@ -451,8 +459,7 @@ class ProducerBuilder {
      * Set the per-message send timeout: how long a send may stay unacknowledged
      * before failing.
      *
-     * @param d the timeout, in milliseconds. Optional; when unset the SDK default
-     *          applies.
+     * @param d the timeout. Optional; when unset the SDK default applies.
      * @return `*this`, for chaining.
      */
     ProducerBuilder& sendTimeout(std::chrono::milliseconds d) {

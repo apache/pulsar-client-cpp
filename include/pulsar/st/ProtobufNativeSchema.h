@@ -24,6 +24,7 @@
 #include <pulsar/st/Schema.h>
 
 #include <cstddef>
+#include <limits>
 #include <span>
 #include <string>
 #include <type_traits>
@@ -41,12 +42,17 @@ struct ProtobufNativeSerDe {
                   "protobufNativeSchema<T> requires T to be a generated protobuf Message");
     SchemaInfo info() const { return pulsar::createProtobufNativeSchema(T::descriptor()); }
     Expected<void> encode(const T& value, std::vector<std::byte>& out) const {
-        out.resize(value.ByteSizeLong());
-        if (!value.SerializeToArray(out.data(), static_cast<int>(out.size())))
+        const std::size_t size = value.ByteSizeLong();
+        if (size > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+            return unexpected(pulsar::ResultInvalidMessage, "protobuf message too large to serialize");
+        out.resize(size);
+        if (!value.SerializeToArray(out.data(), static_cast<int>(size)))
             return unexpected(pulsar::ResultInvalidMessage, "failed to serialize protobuf message");
         return {};
     }
     Expected<T> decode(std::span<const std::byte> data) const {
+        if (data.size() > static_cast<std::size_t>(std::numeric_limits<int>::max()))
+            return unexpected(pulsar::ResultInvalidMessage, "protobuf message too large to parse");
         T message;
         if (message.ParseFromArray(data.data(), static_cast<int>(data.size()))) return message;
         return unexpected(pulsar::ResultInvalidMessage, "failed to parse protobuf message");

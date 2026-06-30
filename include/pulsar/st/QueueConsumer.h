@@ -55,38 +55,38 @@ namespace pulsar::st {
  * connecting. Fields not selected by `useNamespace` are ignored.
  */
 struct QueueConsumerConfig {
-    /// Selects namespace mode over single-topic mode. When `false` (the default),
-    /// `topic` is used; when `true`, `namespaceName` (and `propertyFilters`) apply.
+    /** Selects namespace mode over single-topic mode. When `false` (the default),
+     *  `topic` is used; when `true`, `namespaceName` (and `propertyFilters`) apply. */
     bool useNamespace = false;
-    /// Fully-qualified topic name. Used only when `useNamespace == false`. Mutually
-    /// exclusive with `namespaceName`.
+    /** Fully-qualified topic name. Used only when `useNamespace == false`. Mutually
+     *  exclusive with `namespaceName`. */
     std::string topic;  // when !useNamespace
-    /// Namespace name (`tenant/namespace`). Used only when `useNamespace == true`.
-    /// Subscribes to all scalable topics in the namespace with live membership.
+    /** Namespace name (`tenant/namespace`). Used only when `useNamespace == true`.
+     *  Subscribes to all scalable topics in the namespace with live membership. */
     std::string namespaceName;  // when useNamespace
-    /// Namespace mode only: AND filters matched against topic properties to select
-    /// which topics in the namespace are included. Empty means no filtering (all
-    /// topics). Ignored in single-topic mode.
+    /** Namespace mode only: AND filters matched against topic properties to select
+     *  which topics in the namespace are included. Empty means no filtering (all
+     *  topics). Ignored in single-topic mode. */
     Properties propertyFilters;  // namespace mode: AND filters over topic properties
-    /// REQUIRED. Subscription name shared by all consumers of this subscription.
+    /** REQUIRED. Subscription name shared by all consumers of this subscription. */
     std::string subscriptionName;  // REQUIRED
-    /// Where the subscription starts when it is first created. Default
-    /// `SubscriptionInitialPosition::Latest` (skip the backlog). Has no effect once
-    /// the subscription already exists.
+    /** Where the subscription starts when it is first created. Default
+     *  `SubscriptionInitialPosition::Latest` (skip the backlog). Has no effect once
+     *  the subscription already exists. */
     SubscriptionInitialPosition initialPosition = SubscriptionInitialPosition::Latest;
-    /// Optional consumer name (useful for diagnostics and metrics). Default unset, in
-    /// which case the broker assigns one.
+    /** Optional consumer name (useful for diagnostics and metrics). Default unset, in
+     *  which case the broker assigns one. */
     std::optional<std::string> consumerName;
-    /// Acknowledgment tuning (e.g. the ack-grouping/batching window and negative-ack
-    /// redelivery delay). Default-constructed `AckPolicy` when unset.
+    /** Acknowledgment tuning (e.g. the ack-grouping/batching window and negative-ack
+     *  redelivery delay). Default-constructed `AckPolicy` when unset. */
     AckPolicy ackPolicy;
-    /// Optional dead-letter policy: route messages to a dead-letter topic after
-    /// repeated redelivery. Default unset (no dead-lettering).
+    /** Optional dead-letter policy: route messages to a dead-letter topic after
+     *  repeated redelivery. Default unset (no dead-lettering). */
     std::optional<DeadLetterPolicy> deadLetterPolicy;
-    /// Arbitrary client-side consumer properties (reported in topic stats). Default empty.
+    /** Arbitrary client-side consumer properties (reported in topic stats). Default empty. */
     Properties properties;
-    /// Schema descriptor for the value type `T`. Populated automatically by the builder
-    /// from the `Schema<T>` it was constructed with.
+    /** Schema descriptor for the value type `T`. Populated automatically by the builder
+     *  from the `Schema<T>` it was constructed with. */
     SchemaInfo schema;
 };
 

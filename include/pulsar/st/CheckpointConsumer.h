@@ -45,15 +45,18 @@ namespace pulsar::st {
  * not construct this directly.
  */
 struct CheckpointConsumerConfig {
-    std::string topic;  ///< Scalable topic to read. REQUIRED; no default.
-    Checkpoint startPosition =
-        Checkpoint::latest();  ///< Position to start from. Default `Checkpoint::latest()`.
-    std::optional<std::string>
-        consumerGroup;  ///< Consumer group to join. Unset (default) => ungrouped, reads every segment.
-    std::optional<std::string>
-        consumerName;       ///< Human-readable consumer name. Unset (default) => auto-generated.
-    Properties properties;  ///< Free-form key/value metadata attached to the consumer. Default empty.
-    SchemaInfo schema;      ///< Schema descriptor; filled in from `Schema<T>` by the builder.
+    /** Scalable topic to read. REQUIRED; no default. */
+    std::string topic;
+    /** Position to start from. Default `Checkpoint::latest()`. */
+    Checkpoint startPosition = Checkpoint::latest();
+    /** Consumer group to join. Unset (default) => ungrouped, reads every segment. */
+    std::optional<std::string> consumerGroup;
+    /** Human-readable consumer name. Unset (default) => auto-generated. */
+    std::optional<std::string> consumerName;
+    /** Free-form key/value metadata attached to the consumer. Default empty. */
+    Properties properties;
+    /** Schema descriptor; filled in from `Schema<T>` by the builder. */
+    SchemaInfo schema;
 };
 
 template <typename T>

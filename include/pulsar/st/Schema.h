@@ -24,6 +24,7 @@
 #include <pulsar/st/Error.h>
 #include <pulsar/st/Expected.h>
 
+#include <cassert>
 #include <concepts>
 #include <cstddef>
 #include <cstdint>
@@ -81,16 +82,15 @@ using BytesView = std::span<const std::byte>;
  * @tparam S the candidate SerDe type.
  * @tparam T the value type the SerDe handles.
  */
+// clang-format off
 template <typename S, typename T>
 concept SerDeFor = requires(const S& serde, const T& value, std::span<const std::byte> data,
                             std::vector<std::byte>& out) {
-    { serde.info() }
-    ->std::convertible_to<SchemaInfo>;
-    { serde.encode(value, out) }
-    ->std::convertible_to<Expected<void>>;
-    { serde.decode(data) }
-    ->std::convertible_to<Expected<T>>;
+    { serde.info() } -> std::convertible_to<SchemaInfo>;
+    { serde.encode(value, out) } -> std::convertible_to<Expected<void>>;
+    { serde.decode(data) } -> std::convertible_to<Expected<T>>;
 };
+// clang-format on
 
 /**
  * `Schema<T>` is the typed seam of the API: `Producer<T>`, `Consumer<T>` and
@@ -223,8 +223,9 @@ inline void encodeBigEndian(U value, std::vector<std::byte>& out) {
 template <typename U>
 inline U decodeBigEndian(std::span<const std::byte> data) {
     static_assert(std::is_integral_v<U>, "integral only");
+    assert(data.size() >= sizeof(U) && "callers validate the payload length before decoding");
     std::make_unsigned_t<U> u = 0;
-    for (std::size_t i = 0; i < sizeof(U) && i < data.size(); ++i) {
+    for (std::size_t i = 0; i < sizeof(U); ++i) {
         u = (u << 8) | std::to_integer<unsigned char>(data[i]);
     }
     return static_cast<U>(u);

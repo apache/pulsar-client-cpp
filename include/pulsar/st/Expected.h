@@ -139,8 +139,10 @@ class [[nodiscard]] Expected {
     /**
      * Unchecked access to the contained value.
      *
-     * Unlike `value()`, this never throws and performs no check. Behaviour is
-     * undefined if this holds an error; verify with `operator bool` first.
+     * Performs no check and is `noexcept`. It does not throw on an error; instead,
+     * because it reads the wrong `std::variant` alternative through a `noexcept`
+     * boundary, accessing the value when this holds an error terminates the program.
+     * Verify with `operator bool` first.
      *
      * @return a reference to the contained value (lvalue or rvalue per ref-qualifier).
      */
@@ -153,10 +155,10 @@ class [[nodiscard]] Expected {
     /**
      * Unchecked member access to the contained value.
      *
-     * Behaviour is undefined if this holds an error; verify with `operator bool`
-     * first.
+     * Returns `nullptr` if this holds an error (so `e->member` would then dereference
+     * a null pointer); verify with `operator bool` first.
      *
-     * @return a pointer to the contained value.
+     * @return a pointer to the contained value, or `nullptr` if this holds an error.
      */
     const T* operator->() const noexcept { return std::get_if<0>(&storage_); }
     /** @copydoc operator->() const */

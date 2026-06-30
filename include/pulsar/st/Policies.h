@@ -90,13 +90,13 @@ struct MemorySize {
 struct ConnectionPolicy {
     /** Number of physical connections opened to each broker. Unset uses the client default. */
     std::optional<int> connectionsPerBroker = std::nullopt;
-    /** Maximum time to wait for a TCP/TLS connection to be established, in milliseconds. Unset uses the
+    /** Maximum time to wait for a TCP/TLS connection to be established. Unset uses the
      * client default. */
     std::optional<std::chrono::milliseconds> connectionTimeout = std::nullopt;
-    /** Maximum time to wait for a broker request (e.g. produce/consume control ops) to complete, in
-     * milliseconds. Unset uses the client default. */
+    /** Maximum time to wait for a broker request (e.g. produce/consume control ops) to complete. Unset
+     * uses the client default. */
     std::optional<std::chrono::milliseconds> operationTimeout = std::nullopt;
-    /** Interval between keep-alive pings sent on an idle connection, in seconds. Unset uses the client
+    /** Interval between keep-alive pings sent on an idle connection. Unset uses the client
      * default. */
     std::optional<std::chrono::seconds> keepAliveInterval = std::nullopt;
     /** Maximum number of concurrent topic-lookup requests in flight. Unset uses the client default. */
@@ -104,7 +104,7 @@ struct ConnectionPolicy {
     /** Maximum number of lookup redirects to follow before failing a lookup. Unset uses the client default.
      */
     std::optional<int> maxLookupRedirects = std::nullopt;
-    /** Time an idle pooled connection may stay open before being closed, in milliseconds. Unset uses the
+    /** Time an idle pooled connection may stay open before being closed. Unset uses the
      * client default. */
     std::optional<std::chrono::milliseconds> maxConnectionIdleTime = std::nullopt;
     /** Advertised listener name for broker discovery (multi-listener deployments). Unset uses the
@@ -120,9 +120,9 @@ struct ConnectionPolicy {
  * applies its built-in default for that bound.
  */
 struct BackoffPolicy {
-    /** Delay before the first reconnection attempt, in milliseconds. Unset uses the client default. */
+    /** Delay before the first reconnection attempt. Unset uses the client default. */
     std::optional<std::chrono::milliseconds> initialBackoff = std::nullopt;
-    /** Upper bound on the backoff delay as it grows across retries, in milliseconds. Unset uses the client
+    /** Upper bound on the backoff delay as it grows across retries. Unset uses the client
      * default. */
     std::optional<std::chrono::milliseconds> maxBackoff = std::nullopt;
 };
@@ -161,7 +161,7 @@ struct TlsPolicy {
  * optional and the client supplies a built-in default when it is unset.
  */
 struct TransactionPolicy {
-    /** Default lifetime of a transaction before it is automatically aborted, in milliseconds. Unset uses the
+    /** Default lifetime of a transaction before it is automatically aborted. Unset uses the
      * client default. */
     std::optional<std::chrono::milliseconds> timeout = std::nullopt;
 };
