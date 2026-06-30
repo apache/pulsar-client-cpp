@@ -82,6 +82,12 @@ class CheckpointConsumer {
     /** @brief Construct an empty, unusable consumer (falsy under `operator bool`). */
     CheckpointConsumer() = default;
 
+    /** Copyable, movable handle; copies share the underlying consumer. */
+    CheckpointConsumer(const CheckpointConsumer&) = default;
+    CheckpointConsumer& operator=(const CheckpointConsumer&) = default;
+    CheckpointConsumer(CheckpointConsumer&&) = default;
+    CheckpointConsumer& operator=(CheckpointConsumer&&) = default;
+
     /**
      * @brief Block until the next message is available and return it.
      *

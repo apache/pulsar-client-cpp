@@ -110,6 +110,12 @@ class QueueConsumer {
      *  subscribed consumer is move-assigned into it. */
     QueueConsumer() = default;
 
+    /** Copyable, movable handle; copies share the underlying consumer. */
+    QueueConsumer(const QueueConsumer&) = default;
+    QueueConsumer& operator=(const QueueConsumer&) = default;
+    QueueConsumer(QueueConsumer&&) = default;
+    QueueConsumer& operator=(QueueConsumer&&) = default;
+
     /**
      * Block until the next message arrives and return it.
      *

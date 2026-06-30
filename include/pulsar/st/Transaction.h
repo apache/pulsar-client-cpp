@@ -80,6 +80,12 @@ class PULSAR_PUBLIC Transaction {
     /** @brief Construct an empty, unusable transaction (falsy under `operator bool`). */
     Transaction() = default;
 
+    /** Copyable, movable handle; copies share the underlying transaction. */
+    Transaction(const Transaction&) = default;
+    Transaction& operator=(const Transaction&) = default;
+    Transaction(Transaction&&) = default;
+    Transaction& operator=(Transaction&&) = default;
+
     /**
      * @brief Return the current lifecycle state of this transaction.
      *

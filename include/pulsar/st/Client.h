@@ -53,6 +53,12 @@ class PulsarClientBuilder;
  */
 class PULSAR_PUBLIC PulsarClient {
    public:
+    /** Copyable, movable handle; copies share the underlying client. */
+    PulsarClient(const PulsarClient&) = default;
+    PulsarClient& operator=(const PulsarClient&) = default;
+    PulsarClient(PulsarClient&&) = default;
+    PulsarClient& operator=(PulsarClient&&) = default;
+
     /**
      * Begin configuring a client.
      *

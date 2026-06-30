@@ -320,6 +320,12 @@ class Producer {
      *  live producer from `ProducerBuilder<T>`. */
     Producer() = default;
 
+    /** Copyable, movable handle; copies share the underlying producer. */
+    Producer(const Producer&) = default;
+    Producer& operator=(const Producer&) = default;
+    Producer(Producer&&) = default;
+    Producer& operator=(Producer&&) = default;
+
     /**
      * Begin building a single message with per-message options (key, properties,
      * event time, delayed delivery, transaction, ...).

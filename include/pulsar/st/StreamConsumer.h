@@ -116,6 +116,12 @@ class StreamConsumer {
      *  subscribed consumer is move-assigned into it. */
     StreamConsumer() = default;
 
+    /** Copyable, movable handle; copies share the underlying consumer. */
+    StreamConsumer(const StreamConsumer&) = default;
+    StreamConsumer& operator=(const StreamConsumer&) = default;
+    StreamConsumer(StreamConsumer&&) = default;
+    StreamConsumer& operator=(StreamConsumer&&) = default;
+
     /**
      * Block until the next message arrives and return it.
      *
