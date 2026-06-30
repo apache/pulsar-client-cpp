@@ -116,7 +116,7 @@ struct OutgoingMessage {
     /** Per-message user metadata. Empty by default. */
     Properties properties;
     std::optional<Timestamp> eventTime;  ///< Application event time; unset (nullopt) by default.
-    int64_t sequenceId = -1;             ///< Explicit sequence id; -1 = auto-assign.
+    std::optional<int64_t> sequenceId;   ///< Explicit sequence id; unset = auto-assign.
     std::optional<Timestamp> deliverAt;  ///< Scheduled delivery time; unset = deliver immediately.
     /** Target clusters for geo-replication; empty applies the topic's default. */
     std::vector<std::string> replicationClusters;
@@ -206,7 +206,7 @@ class MessageBuilder {
     /**
      * Set an explicit sequence id for this message, overriding auto-assignment.
      *
-     * @param s the sequence id. By default (-1) the producer assigns one
+     * @param s the sequence id. When left unset the producer assigns one
      *          automatically.
      * @return `*this`, for chaining.
      */
