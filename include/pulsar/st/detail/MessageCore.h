@@ -27,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 
@@ -53,8 +54,7 @@ class PULSAR_PUBLIC MessageCore {
    public:
     MessageCore() = default;
 
-    const char* data() const;
-    std::size_t size() const;
+    std::span<const std::byte> data() const;
     MessageId id() const;
     bool hasKey() const;
     std::string_view key() const;

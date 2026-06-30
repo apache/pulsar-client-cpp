@@ -66,28 +66,19 @@ class Message {
      * Decoding happens on every call (the result is not cached). The SDK handles a
      * payload that cannot be decoded internally — such a message is not delivered to
      * the application — so this does not surface decode failures to the caller. The
-     * raw bytes remain available via `data()` / `size()`.
+     * raw bytes remain available via `data()`.
      *
      * @return the decoded value of type `T`.
      */
-    T value() const {
-        const auto* bytes = reinterpret_cast<const std::byte*>(core_.data());
-        return schema_.decode(std::span<const std::byte>(bytes, core_.size())).value();
-    }
+    T value() const { return schema_.decode(core_.data()).value(); }
 
     /**
-     * Pointer to the raw, undecoded payload bytes.
+     * The raw, undecoded payload bytes.
      *
-     * @return a pointer to `size()` bytes of payload, valid for this message's lifetime.
+     * @return a view of the payload, valid while this message is alive; its `.size()`
+     *         gives the byte count.
      */
-    const char* data() const { return core_.data(); }
-
-    /**
-     * Size of the raw payload in bytes.
-     *
-     * @return the number of bytes pointed to by `data()`.
-     */
-    std::size_t size() const { return core_.size(); }
+    BytesView data() const { return core_.data(); }
 
     /**
      * The message's position within the topic.
