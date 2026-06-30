@@ -184,6 +184,12 @@ class [[nodiscard]] Expected {
         return has_value() ? std::get<0>(storage_) : static_cast<T>(std::forward<U>(fallback));
     }
 
+    /** Rvalue overload of `value_or()`: moves the contained value out on success. */
+    template <typename U>
+    T value_or(U&& fallback) && {
+        return has_value() ? std::get<0>(std::move(storage_)) : static_cast<T>(std::forward<U>(fallback));
+    }
+
     /**
      * Monadic chaining: invoke @p f on the value, or propagate the error.
      *
@@ -200,6 +206,13 @@ class [[nodiscard]] Expected {
     auto and_then(F&& f) const& {
         using R = std::remove_cv_t<std::remove_reference_t<std::invoke_result_t<F, const T&>>>;
         return has_value() ? std::forward<F>(f)(std::get<0>(storage_)) : R(error());
+    }
+
+    /** Rvalue overload of `and_then()`: invokes @p f with the moved-out value. */
+    template <typename F>
+    auto and_then(F&& f) && {
+        using R = std::remove_cv_t<std::remove_reference_t<std::invoke_result_t<F, T&&>>>;
+        return has_value() ? std::forward<F>(f)(std::get<0>(std::move(storage_))) : R(std::move(error()));
     }
 
     /**
@@ -219,6 +232,14 @@ class [[nodiscard]] Expected {
         return has_value() ? Expected<U>(std::forward<F>(f)(std::get<0>(storage_))) : Expected<U>(error());
     }
 
+    /** Rvalue overload of `transform()`: maps the moved-out value through @p f. */
+    template <typename F>
+    auto transform(F&& f) && {
+        using U = std::remove_cv_t<std::remove_reference_t<std::invoke_result_t<F, T&&>>>;
+        return has_value() ? Expected<U>(std::forward<F>(f)(std::get<0>(std::move(storage_))))
+                           : Expected<U>(std::move(error()));
+    }
+
     /**
      * Monadic error recovery: invoke @p f on the error, or pass the value through.
      *
@@ -233,6 +254,13 @@ class [[nodiscard]] Expected {
     template <typename F>
     Expected or_else(F&& f) const& {
         return has_value() ? *this : std::forward<F>(f)(error());
+    }
+
+    /** Rvalue overload of `or_else()`: passes the moved value through, or invokes @p f
+     *  with the moved-out error. */
+    template <typename F>
+    Expected or_else(F&& f) && {
+        return has_value() ? std::move(*this) : std::forward<F>(f)(std::move(error()));
     }
 
    private:
