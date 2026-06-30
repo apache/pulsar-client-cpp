@@ -48,7 +48,7 @@ class PULSAR_PUBLIC ProducerCore {
 
     Future<MessageId> sendAsync(OutgoingMessage message) const;
     std::string_view topic() const;
-    std::string_view name() const;
+    std::string_view producerName() const;
     int64_t lastSequenceId() const;
     Future<void> flushAsync() const;
     Future<void> closeAsync() const;

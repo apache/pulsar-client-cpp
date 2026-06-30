@@ -111,9 +111,9 @@ struct OutgoingMessage {
     std::span<const std::byte> payloadView;
     /** When true, publish `payloadView` directly without copying; otherwise `payload`. */
     bool usesView = false;
-    /** Whether a routing/ordering key is set. `false` (the default) means no key. */
+    /** Whether a routing key is set. `false` (the default) means no key. */
     bool hasKey = false;
-    /** Partition/ordering key; meaningful only when `hasKey` is true. */
+    /** Partition/routing key; meaningful only when `hasKey` is true. */
     std::string key;
     /** Per-message user metadata. Empty by default. */
     Properties properties;
@@ -141,7 +141,7 @@ template <typename T>
 class MessageBuilder {
    public:
     /**
-     * Set the message key, used for per-key ordering and key-affinity routing.
+     * Set the message key, used for partition routing and key affinity.
      *
      * @param k the key; taken by value and moved into the message.
      * @return `*this`, for chaining.
@@ -254,6 +254,17 @@ class MessageBuilder {
         message_.transaction = txn;
         return *this;
     }
+    /**
+     * Restrict geo-replication of this message to the given clusters.
+     *
+     * @param clusters the target clusters; taken by value and moved in. Empty (the
+     *          default) applies the topic's configured replication.
+     * @return `*this`, for chaining.
+     */
+    MessageBuilder& replicationClusters(std::vector<std::string> clusters) {
+        message_.replicationClusters = std::move(clusters);
+        return *this;
+    }
 
     /**
      * Publish the message and block until the broker acknowledges it.
@@ -335,7 +346,7 @@ class Producer {
     std::string_view topic() const { return core_.topic(); }
     /** @return a view of the producer's name (broker-assigned when none was configured), valid
      *  while the producer is alive. */
-    std::string_view name() const { return core_.name(); }
+    std::string_view producerName() const { return core_.producerName(); }
     /** @return the sequence id of the most recently published message, or -1 if
      *  none has been published yet. */
     int64_t lastSequenceId() const { return core_.lastSequenceId(); }
