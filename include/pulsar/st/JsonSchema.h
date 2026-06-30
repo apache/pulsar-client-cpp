@@ -44,10 +44,14 @@ template <typename T>
 struct JsonSerDe {
     SchemaInfo info() const { return SchemaInfo(SchemaType::JSON, "JSON", rfl::json::to_schema<T>()); }
     Expected<void> encode(const T& value, std::vector<std::byte>& out) const {
-        const std::string s = rfl::json::write(value);
-        const auto* p = reinterpret_cast<const std::byte*>(s.data());
-        out.assign(p, p + s.size());
-        return {};
+        try {
+            const std::string s = rfl::json::write(value);
+            const auto* p = reinterpret_cast<const std::byte*>(s.data());
+            out.assign(p, p + s.size());
+            return {};
+        } catch (const std::exception& e) {
+            return unexpected(pulsar::ResultInvalidMessage, e.what());
+        }
     }
     Expected<T> decode(std::span<const std::byte> data) const {
         try {
@@ -76,8 +80,10 @@ struct JsonSerDe {
  *
  * @tparam T the struct type to serialize as JSON; its fields must be reflectable
  *         by reflect-cpp.
- * @return a `Schema<T>` whose `encode`/`decode` use JSON. `decode` reports input
- *         that is not valid JSON for `T` as an `Error` rather than throwing.
+ * @return a `Schema<T>` whose `encode`/`decode` use JSON. Both report failures as
+ *         an `Error` (invalid JSON for `T` on `decode`, a serialization failure on
+ *         `encode`) rather than throwing. Note: `info()` (schema derivation) is not
+ *         on this non-throwing path and may propagate a reflect-cpp exception.
  */
 template <typename T>
 Schema<T> jsonSchema() {

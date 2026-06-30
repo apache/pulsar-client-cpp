@@ -47,10 +47,14 @@ template <typename T>
 struct AvroSerDe {
     SchemaInfo info() const { return SchemaInfo(SchemaType::AVRO, "AVRO", rfl::avro::to_schema<T>()); }
     Expected<void> encode(const T& value, std::vector<std::byte>& out) const {
-        const std::string s = rfl::avro::write(value);
-        const auto* p = reinterpret_cast<const std::byte*>(s.data());
-        out.assign(p, p + s.size());
-        return {};
+        try {
+            const std::string s = rfl::avro::write(value);
+            const auto* p = reinterpret_cast<const std::byte*>(s.data());
+            out.assign(p, p + s.size());
+            return {};
+        } catch (const std::exception& e) {
+            return unexpected(pulsar::ResultInvalidMessage, e.what());
+        }
     }
     Expected<T> decode(std::span<const std::byte> data) const {
         try {
@@ -76,8 +80,11 @@ struct AvroSerDe {
  *
  * @tparam T the struct type to serialize as Avro; its fields must be reflectable
  *         by reflect-cpp.
- * @return a `Schema<T>` whose `encode`/`decode` use Avro. `decode` reports input
- *         that is not a valid Avro encoding for `T` as an `Error` rather than throwing.
+ * @return a `Schema<T>` whose `encode`/`decode` use Avro. Both report failures as
+ *         an `Error` (input that is not a valid Avro encoding for `T` on `decode`, a
+ *         serialization failure on `encode`) rather than throwing. Note: `info()`
+ *         (schema derivation) is not on this non-throwing path and may propagate a
+ *         reflect-cpp exception.
  */
 template <typename T>
 Schema<T> avroSchema() {
