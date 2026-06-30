@@ -117,9 +117,9 @@ struct OutgoingMessage {
     std::string key;
     /** Per-message user metadata. Empty by default. */
     Properties properties;
-    int64_t eventTimeMs = 0;  ///< Application event time, epoch ms; 0 = unset.
-    int64_t sequenceId = -1;  ///< Explicit sequence id; -1 = auto-assign.
-    int64_t deliverAtMs = 0;  ///< Absolute delivery time, epoch ms; 0 = deliver immediately.
+    std::optional<Timestamp> eventTime;  ///< Application event time; unset (nullopt) by default.
+    int64_t sequenceId = -1;             ///< Explicit sequence id; -1 = auto-assign.
+    int64_t deliverAtMs = 0;             ///< Absolute delivery time, epoch ms; 0 = deliver immediately.
     /** Target clusters for geo-replication; empty applies the topic's default. */
     std::vector<std::string> replicationClusters;
     std::optional<Transaction> transaction;  ///< Enlisting transaction; unset = non-transactional.
@@ -198,12 +198,12 @@ class MessageBuilder {
     /**
      * Set the application-defined event time of the message.
      *
-     * @param t the event time as a wall-clock `Timestamp`; stored as epoch
-     *          milliseconds. Unset by default (event time absent).
+     * @param t the event time as a wall-clock `Timestamp`. Unset by default (no
+     *          event time is attached).
      * @return `*this`, for chaining.
      */
     MessageBuilder& eventTime(Timestamp t) {
-        message_.eventTimeMs = toEpochMs(t);
+        message_.eventTime = t;
         return *this;
     }
     /**

@@ -125,10 +125,7 @@ class Message {
      *
      * @return the event time, or `std::nullopt` if the producer did not set one.
      */
-    std::optional<Timestamp> eventTime() const {
-        auto ms = core_.eventTimeMs();
-        return ms != 0 ? std::optional<Timestamp>(Timestamp(std::chrono::milliseconds(ms))) : std::nullopt;
-    }
+    std::optional<Timestamp> eventTime() const { return core_.eventTime(); }
 
     /**
      * The producer-assigned sequence id of the message.

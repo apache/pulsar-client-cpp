@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -59,7 +60,7 @@ class PULSAR_PUBLIC MessageCore {
     std::string_view key() const;
     const Properties& properties() const;
     int64_t publishTimeMs() const;
-    int64_t eventTimeMs() const;  // 0 if unset
+    std::optional<Timestamp> eventTime() const;
     int64_t sequenceId() const;
     bool hasProducerName() const;
     std::string_view producerName() const;
