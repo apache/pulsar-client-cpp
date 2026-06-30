@@ -56,18 +56,15 @@ class PULSAR_PUBLIC MessageCore {
 
     std::span<const std::byte> data() const;
     MessageId id() const;
-    bool hasKey() const;
-    std::string_view key() const;
+    std::optional<std::string_view> key() const;
     const Properties& properties() const;
     Timestamp publishTime() const;
     std::optional<Timestamp> eventTime() const;
     int64_t sequenceId() const;
-    bool hasProducerName() const;
-    std::string_view producerName() const;
+    std::optional<std::string_view> producerName() const;
     std::string_view topic() const;
     int redeliveryCount() const;
-    bool hasReplicatedFrom() const;
-    std::string_view replicatedFrom() const;
+    std::optional<std::string_view> replicatedFrom() const;
 
     explicit operator bool() const { return static_cast<bool>(impl_); }
 

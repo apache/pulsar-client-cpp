@@ -93,9 +93,7 @@ class Message {
      * @return a view of the key (valid while this message is alive), or `std::nullopt`
      *         if the message has none.
      */
-    std::optional<std::string_view> key() const {
-        return core_.hasKey() ? std::optional<std::string_view>(core_.key()) : std::nullopt;
-    }
+    std::optional<std::string_view> key() const { return core_.key(); }
 
     /**
      * The application-defined string properties attached to the message.
@@ -131,9 +129,7 @@ class Message {
      * @return a view of the producer name (valid while this message is alive), or
      *         `std::nullopt` if not present.
      */
-    std::optional<std::string_view> producerName() const {
-        return core_.hasProducerName() ? std::optional<std::string_view>(core_.producerName()) : std::nullopt;
-    }
+    std::optional<std::string_view> producerName() const { return core_.producerName(); }
 
     /**
      * The resolved canonical topic the message was received from.
@@ -155,10 +151,7 @@ class Message {
      * @return a view of the originating cluster name (valid while this message is alive),
      *         or `std::nullopt` if the message was not replicated from another cluster.
      */
-    std::optional<std::string_view> replicatedFrom() const {
-        return core_.hasReplicatedFrom() ? std::optional<std::string_view>(core_.replicatedFrom())
-                                         : std::nullopt;
-    }
+    std::optional<std::string_view> replicatedFrom() const { return core_.replicatedFrom(); }
 
     /**
      * Whether this is a non-empty message.
