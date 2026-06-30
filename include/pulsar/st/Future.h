@@ -144,13 +144,18 @@ class Future {
     /**
      * Coroutine support: suspend the awaiting coroutine until completion.
      *
-     * Registers a listener that resumes @p handle when the operation completes. Part
-     * of the C++20 awaitable interface; not called directly.
+     * Atomically registers a continuation that resumes @p handle on completion, or —
+     * if the result is already available — returns `false` so the coroutine resumes
+     * immediately rather than being resumed from inside `await_suspend` (which could
+     * run and destroy this awaiter before it returns). Part of the C++20 awaitable
+     * interface; not called directly.
      *
      * @param handle the suspended coroutine to resume on completion.
+     * @return `true` to stay suspended (resumed later on the completing thread),
+     *         `false` to resume immediately because the result is already available.
      */
-    void await_suspend(std::coroutine_handle<> handle) {
-        state_->addListener([handle](const Expected<T>&) { handle.resume(); });
+    bool await_suspend(std::coroutine_handle<> handle) {
+        return state_->addListenerOrReady([handle](const Expected<T>&) { handle.resume(); });
     }
 
     /**

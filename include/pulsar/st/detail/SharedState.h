@@ -66,6 +66,21 @@ class SharedState {
         }
     }
 
+    // For a coroutine awaiter. Atomically: if the result is not yet available,
+    // register @p listener to run on completion and return true (the awaiting
+    // coroutine stays suspended); if it is already available, register nothing and
+    // return false (the coroutine resumes immediately). Unlike addListener(), it
+    // never runs @p listener synchronously, so a coroutine is never resumed from
+    // inside its own await_suspend.
+    bool addListenerOrReady(Listener listener) {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (result_.has_value()) {
+            return false;
+        }
+        listeners_.push_back(std::move(listener));
+        return true;
+    }
+
     Expected<T> get() {
         std::unique_lock<std::mutex> lock(mutex_);
         cond_.wait(lock, [this] { return result_.has_value(); });
