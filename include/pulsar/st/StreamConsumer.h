@@ -74,7 +74,8 @@ struct StreamConsumerConfig {
     /// which case the broker assigns one.
     std::optional<std::string> consumerName;
     /// Acknowledgment tuning (e.g. the ack-grouping/batching window). Default-constructed
-    /// `AckPolicy` when unset.
+    /// `AckPolicy` when unset. Note: `AckPolicy::negativeAckRedeliveryDelay` is ignored here —
+    /// a StreamConsumer acknowledges cumulatively and has no negative-ack/redelivery path.
     AckPolicy ackPolicy;
     /// When set to `true`, read from the topic's compacted view (latest value per key)
     /// instead of the full log. Default unset (broker default, i.e. uncompacted).
@@ -342,6 +343,10 @@ class StreamConsumerBuilder {
 
     /**
      * Tune acknowledgment behavior (e.g. the ack-grouping/batching window).
+     *
+     * @note `AckPolicy::negativeAckRedeliveryDelay` does not apply to a StreamConsumer
+     *       (it acknowledges cumulatively, with no negative-ack/redelivery path) and is
+     *       silently ignored.
      *
      * @param policy the ack policy. Default-constructed `AckPolicy` when unset.
      * @return `*this` for chaining.
