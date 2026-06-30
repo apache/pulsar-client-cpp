@@ -194,8 +194,22 @@ namespace detail {
  */
 template <typename T>
 class Promise {
+    // Shared by every copy of a Promise. When the last copy is destroyed its
+    // destructor fails the future if nothing ever completed it, so an abandoned
+    // producer surfaces as an error instead of a get()/listener blocking forever.
+    // complete() is idempotent, so this is a no-op once the promise was fulfilled.
+    struct Guard {
+        explicit Guard(std::shared_ptr<SharedState<T>> s) : state(std::move(s)) {}
+        Guard(const Guard&) = delete;
+        Guard& operator=(const Guard&) = delete;
+        ~Guard() {
+            state->complete(Expected<T>(Error{ResultUnknownError, "promise abandoned before completion"}));
+        }
+        std::shared_ptr<SharedState<T>> state;
+    };
+
    public:
-    Promise() : state_(std::make_shared<SharedState<T>>()) {}
+    Promise() : state_(std::make_shared<SharedState<T>>()), guard_(std::make_shared<Guard>(state_)) {}
 
     Future<T> getFuture() const { return Future<T>(state_); }
 
@@ -214,6 +228,7 @@ class Promise {
 
    private:
     std::shared_ptr<SharedState<T>> state_;
+    std::shared_ptr<Guard> guard_;
 };
 
 }  // namespace detail
