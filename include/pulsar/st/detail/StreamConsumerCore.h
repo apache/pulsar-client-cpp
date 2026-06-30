@@ -23,7 +23,7 @@
 #include <pulsar/st/MessageId.h>
 #include <pulsar/st/detail/MessageCore.h>
 
-#include <cstdint>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -48,8 +48,9 @@ class PULSAR_PUBLIC StreamConsumerCore {
     StreamConsumerCore() = default;
 
     Future<MessageCore> receiveAsync() const;
-    Future<MessageCore> receiveAsync(int64_t timeoutMs) const;
-    Future<std::vector<MessageCore>> receiveMultiAsync(int maxMessages, int64_t timeoutMs) const;
+    Future<MessageCore> receiveAsync(std::chrono::milliseconds timeout) const;
+    Future<std::vector<MessageCore>> receiveMultiAsync(int maxMessages,
+                                                       std::chrono::milliseconds timeout) const;
     void acknowledgeCumulative(const MessageId& id) const;
     void acknowledgeCumulative(const MessageId& id, const Transaction& txn) const;
     Future<void> closeAsync() const;

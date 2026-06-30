@@ -23,7 +23,7 @@
 #include <pulsar/st/MessageId.h>
 #include <pulsar/st/detail/MessageCore.h>
 
-#include <cstdint>
+#include <chrono>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -47,7 +47,7 @@ class PULSAR_PUBLIC QueueConsumerCore {
     QueueConsumerCore() = default;
 
     Future<MessageCore> receiveAsync() const;
-    Future<MessageCore> receiveAsync(int64_t timeoutMs) const;
+    Future<MessageCore> receiveAsync(std::chrono::milliseconds timeout) const;
     void acknowledge(const MessageId& id) const;
     void acknowledge(const MessageId& id, const Transaction& txn) const;
     void negativeAcknowledge(const MessageId& id) const;

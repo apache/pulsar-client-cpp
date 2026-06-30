@@ -133,7 +133,7 @@ class QueueConsumer {
      *         failure.
      */
     Expected<Message<T>> receive(std::chrono::milliseconds timeout) {
-        return toTyped(core_.receiveAsync(timeout.count()).get());
+        return toTyped(core_.receiveAsync(timeout).get());
     }
     /**
      * Request the next message without blocking.

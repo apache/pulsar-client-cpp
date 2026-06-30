@@ -103,7 +103,7 @@ class CheckpointConsumer {
      *         close/disconnect.
      */
     Expected<Message<T>> receive(std::chrono::milliseconds timeout) {
-        return toTyped(core_.receiveAsync(timeout.count()).get());
+        return toTyped(core_.receiveAsync(timeout).get());
     }
 
     /**
@@ -134,7 +134,7 @@ class CheckpointConsumer {
      *         failure.
      */
     Expected<Messages<T>> receiveMulti(int maxMessages, std::chrono::milliseconds timeout) {
-        return toTypedBatch(core_.receiveMultiAsync(maxMessages, timeout.count()).get());
+        return toTypedBatch(core_.receiveMultiAsync(maxMessages, timeout).get());
     }
 
     /**
