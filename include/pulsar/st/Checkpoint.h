@@ -72,7 +72,7 @@ class PULSAR_PUBLIC Checkpoint {
      *
      * @return Reference to the shared earliest-position sentinel.
      */
-    static const Checkpoint& earliest();
+    [[nodiscard]] static const Checkpoint& earliest();
 
     /**
      * @brief Well-known sentinel positioned after the latest published message of
@@ -84,7 +84,7 @@ class PULSAR_PUBLIC Checkpoint {
      *
      * @return Reference to the shared latest-position sentinel.
      */
-    static const Checkpoint& latest();
+    [[nodiscard]] static const Checkpoint& latest();
 
     /**
      * @brief Serialize this checkpoint to a portable binary form for external
@@ -95,7 +95,7 @@ class PULSAR_PUBLIC Checkpoint {
      *
      * @return a byte vector encoding the cross-segment position.
      */
-    std::vector<std::byte> toByteArray() const;
+    [[nodiscard]] std::vector<std::byte> toByteArray() const;
 
     /**
      * @brief Restore a `Checkpoint` previously produced by `toByteArray()`.
@@ -103,7 +103,7 @@ class PULSAR_PUBLIC Checkpoint {
      * @param data bytes returned by an earlier `toByteArray()` call.
      * @return The reconstructed `Checkpoint`.
      */
-    static Checkpoint fromByteArray(std::span<const std::byte> data);
+    [[nodiscard]] static Checkpoint fromByteArray(std::span<const std::byte> data);
 
     /**
      * @brief Test whether this checkpoint holds a valid position.

@@ -51,16 +51,16 @@ class PULSAR_PUBLIC MessageId {
     MessageId();
 
     /** Sentinel: the earliest (oldest) message available in the topic. */
-    static const MessageId& earliest();
+    [[nodiscard]] static const MessageId& earliest();
 
     /** Sentinel: the latest (most recently published) message in the topic. */
-    static const MessageId& latest();
+    [[nodiscard]] static const MessageId& latest();
 
     /** Serialize to a portable binary form for external storage. */
-    std::vector<std::byte> toByteArray() const;
+    [[nodiscard]] std::vector<std::byte> toByteArray() const;
 
     /** Restore a `MessageId` previously produced by `toByteArray()`. */
-    static MessageId fromByteArray(std::span<const std::byte> data);
+    [[nodiscard]] static MessageId fromByteArray(std::span<const std::byte> data);
 
     // Totally ordered within a topic; `<=>` and `==` synthesize <, <=, >, >=, !=.
     /**
