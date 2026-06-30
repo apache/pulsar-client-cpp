@@ -46,6 +46,13 @@ namespace pulsar::st {
  * `StreamConsumerBuilder<T>` rather than populating this struct directly; the
  * builder enforces the invariants (notably that exactly one of topic vs.
  * namespace mode is selected and that `subscriptionName` is set).
+ *
+ * This POD can also express states the type system does not rule out — including
+ * its **default value**, which selects single-topic mode with an empty `topic`. A
+ * configuration with no target (empty `topic` while `useNamespace == false`, or
+ * empty `namespaceName` while `useNamespace == true`) or no `subscriptionName` is
+ * invalid: `create()` / `createAsync()` reject it with an `Error` instead of
+ * connecting. Fields not selected by `useNamespace` are ignored.
  */
 struct StreamConsumerConfig {
     /// Selects namespace mode over single-topic mode. When `false` (the default),
