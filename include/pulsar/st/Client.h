@@ -230,43 +230,6 @@ class PULSAR_PUBLIC PulsarClientBuilder {
     }
 
     /**
-     * Set the number of threads used for network IO.
-     *
-     * Optional. Defaults to 1 when unset.
-     *
-     * @param n the number of IO threads
-     * @return `*this`, for call chaining
-     */
-    PulsarClientBuilder& ioThreads(int n) {
-        ioThreads_ = n;
-        return *this;
-    }
-    /**
-     * Set the number of threads used to run message listeners.
-     *
-     * Optional. Defaults to 1 when unset.
-     *
-     * @param n the number of message-listener threads
-     * @return `*this`, for call chaining
-     */
-    PulsarClientBuilder& messageListenerThreads(int n) {
-        messageListenerThreads_ = n;
-        return *this;
-    }
-    /**
-     * Set the client-wide memory budget for pending (in-flight) messages.
-     *
-     * Optional. When unset, the client applies its built-in default limit.
-     *
-     * @param size the maximum memory, in bytes, for buffered messages
-     * @return `*this`, for call chaining
-     */
-    PulsarClientBuilder& memoryLimit(MemorySize size) {
-        memoryLimit_ = size;
-        return *this;
-    }
-
-    /**
      * Set connection-pool, lookup, and request-timeout tuning.
      *
      * Optional. Any field left unset within the policy falls back to the client
@@ -319,17 +282,29 @@ class PULSAR_PUBLIC PulsarClientBuilder {
     }
 
     /**
-     * Set the advertised listener name to use for broker discovery.
+     * Set IO- and listener-thread pool sizing.
      *
-     * Optional. Used in multi-listener deployments to select which set of
-     * advertised addresses the client connects through. When unset, the broker's
-     * default listener is used.
+     * Optional. Any field left unset within the policy falls back to the client
+     * default of a single thread. (The advertised `listenerName` for broker
+     * discovery now lives on `ConnectionPolicy`.)
      *
-     * @param name the configured listener name
+     * @param policy the thread policy to apply
      * @return `*this`, for call chaining
      */
-    PulsarClientBuilder& listenerName(std::string name) {
-        listenerName_ = std::move(name);
+    PulsarClientBuilder& threadPolicy(ThreadPolicy policy) {
+        threadPolicy_ = std::move(policy);
+        return *this;
+    }
+    /**
+     * Set the client-wide memory budget for pending (in-flight) messages.
+     *
+     * Optional. When unset, the client applies its built-in default limit.
+     *
+     * @param policy the memory policy to apply
+     * @return `*this`, for call chaining
+     */
+    PulsarClientBuilder& memoryPolicy(MemoryPolicy policy) {
+        memoryPolicy_ = std::move(policy);
         return *this;
     }
 
@@ -345,14 +320,12 @@ class PULSAR_PUBLIC PulsarClientBuilder {
    private:
     std::string serviceUrl_;
     AuthenticationPtr authentication_;
-    std::optional<int> ioThreads_;
-    std::optional<int> messageListenerThreads_;
-    std::optional<MemorySize> memoryLimit_;
     ConnectionPolicy connectionPolicy_;
+    ThreadPolicy threadPolicy_;
+    MemoryPolicy memoryPolicy_;
     BackoffPolicy backoffPolicy_;
     TlsPolicy tlsPolicy_;
     TransactionPolicy transactionPolicy_;
-    std::optional<std::string> listenerName_;
 };
 
 inline PulsarClientBuilder PulsarClient::builder() { return PulsarClientBuilder{}; }

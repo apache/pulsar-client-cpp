@@ -107,6 +107,9 @@ struct ConnectionPolicy {
     /** Time an idle pooled connection may stay open before being closed, in milliseconds. Unset uses the
      * client default. */
     std::optional<std::chrono::milliseconds> maxConnectionIdleTime = std::nullopt;
+    /** Advertised listener name for broker discovery (multi-listener deployments). Unset uses the
+     * broker's default listener. */
+    std::optional<std::string> listenerName = std::nullopt;
 };
 
 /**
@@ -161,6 +164,30 @@ struct TransactionPolicy {
     /** Default lifetime of a transaction before it is automatically aborted, in milliseconds. Unset uses the
      * client default. */
     std::optional<std::chrono::milliseconds> timeout = std::nullopt;
+};
+
+/**
+ * Client thread-pool sizing.
+ *
+ * Both fields are optional; when unset the client uses its built-in default of a
+ * single thread for that pool.
+ */
+struct ThreadPolicy {
+    /** Number of threads used for network I/O. Unset uses the client default (1). */
+    std::optional<int> ioThreads = std::nullopt;
+    /** Number of threads used to run message listeners. Unset uses the client default (1). */
+    std::optional<int> messageListenerThreads = std::nullopt;
+};
+
+/**
+ * Client-wide memory budget.
+ *
+ * Bounds the memory used for pending (in-flight) messages across the client. The
+ * field is optional; when unset the client applies its built-in default limit.
+ */
+struct MemoryPolicy {
+    /** Maximum memory for buffered messages. Unset uses the client default. */
+    std::optional<MemorySize> limit = std::nullopt;
 };
 
 }  // namespace pulsar::st
