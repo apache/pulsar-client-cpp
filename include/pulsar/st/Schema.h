@@ -250,7 +250,7 @@ struct SpanBytesCodec {
     Expected<BytesView> decode(std::span<const std::byte> d) const { return d; }
 };
 struct StringCodec {
-    SchemaInfo info() const { return SchemaInfo(SchemaType::STRING, "String", ""); }
+    SchemaInfo info() const { return SchemaInfo(SchemaType::STRING, "STRING", ""); }
     Expected<void> encode(const std::string& v, std::vector<std::byte>& out) const {
         const auto* p = reinterpret_cast<const std::byte*>(v.data());
         out.assign(p, p + v.size());
@@ -287,7 +287,7 @@ struct Int64Codec {
     }
 };
 struct DoubleCodec {
-    SchemaInfo info() const { return SchemaInfo(SchemaType::DOUBLE, "Double", ""); }
+    SchemaInfo info() const { return SchemaInfo(SchemaType::DOUBLE, "DOUBLE", ""); }
     Expected<void> encode(double v, std::vector<std::byte>& out) const {
         std::uint64_t bits;
         std::memcpy(&bits, &v, sizeof(bits));
