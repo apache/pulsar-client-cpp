@@ -344,9 +344,9 @@ class Producer {
     /** @return a view of the producer's name (broker-assigned when none was configured), valid
      *  while the producer is alive. */
     std::string_view producerName() const { return core_.producerName(); }
-    /** @return the sequence id of the most recently published message, or -1 if
-     *  none has been published yet. */
-    int64_t lastSequenceId() const { return core_.lastSequenceId(); }
+    /** @return the sequence id of the most recently published message, or
+     *  std::nullopt if none has been published yet. */
+    std::optional<int64_t> lastSequenceId() const { return core_.lastSequenceId(); }
 
     /**
      * Block until all sends issued before this call have completed. Takes a

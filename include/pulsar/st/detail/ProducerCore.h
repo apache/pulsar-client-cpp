@@ -24,6 +24,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -49,7 +50,7 @@ class PULSAR_PUBLIC ProducerCore {
     Future<MessageId> sendAsync(OutgoingMessage message) const;
     std::string_view topic() const;
     std::string_view producerName() const;
-    int64_t lastSequenceId() const;
+    std::optional<int64_t> lastSequenceId() const;
     Future<void> flushAsync() const;
     Future<void> closeAsync() const;
 
