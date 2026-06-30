@@ -21,10 +21,8 @@
 #include <pulsar/st/Schema.h>
 
 #include <cstddef>
-#include <exception>
 #include <rfl.hpp>
 #include <rfl/avro.hpp>
-#include <span>
 #include <string>
 
 // avroSchema<T>() is the Avro counterpart of jsonSchema<T>(): reflect-cpp derives
@@ -46,12 +44,8 @@ template <typename T>
 struct AvroSerDe {
     SchemaInfo info() const { return SchemaInfo(SchemaType::AVRO, "AVRO", rfl::avro::to_schema<T>()); }
     std::string encode(const T& value) const { return rfl::avro::write(value); }
-    Expected<T> decode(std::span<const char> data) const {
-        try {
-            return rfl::avro::read<T>(std::string(data.data(), data.size())).value();
-        } catch (const std::exception& e) {
-            return unexpected(pulsar::ResultInvalidMessage, e.what());
-        }
+    T decode(const char* data, std::size_t size) const {
+        return rfl::avro::read<T>(std::string(data, size)).value();
     }
 };
 }  // namespace detail
@@ -69,8 +63,9 @@ struct AvroSerDe {
  *
  * @tparam T the struct type to serialize as Avro; its fields must be reflectable
  *         by reflect-cpp.
- * @return a `Schema<T>` whose `encode`/`decode` use Avro. `decode` reports input
- *         that is not a valid Avro encoding for `T` as an `Error` rather than throwing.
+ * @return a `Schema<T>` whose `encode`/`decode` use Avro.
+ * @throws std::runtime_error (from reflect-cpp) at decode time if the input bytes
+ *         are not a valid Avro encoding for `T`.
  */
 template <typename T>
 Schema<T> avroSchema() {

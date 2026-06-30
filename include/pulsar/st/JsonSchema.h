@@ -21,10 +21,8 @@
 #include <pulsar/st/Schema.h>
 
 #include <cstddef>
-#include <exception>
 #include <rfl.hpp>
 #include <rfl/json.hpp>
-#include <span>
 #include <string>
 
 // jsonSchema<T>() derives BOTH the JSON SerDe and the declared schema from T's
@@ -43,12 +41,8 @@ template <typename T>
 struct JsonSerDe {
     SchemaInfo info() const { return SchemaInfo(SchemaType::JSON, "JSON", rfl::json::to_schema<T>()); }
     std::string encode(const T& value) const { return rfl::json::write(value); }
-    Expected<T> decode(std::span<const char> data) const {
-        try {
-            return rfl::json::read<T>(std::string(data.data(), data.size())).value();
-        } catch (const std::exception& e) {
-            return unexpected(pulsar::ResultInvalidMessage, e.what());
-        }
+    T decode(const char* data, std::size_t size) const {
+        return rfl::json::read<T>(std::string(data, size)).value();
     }
 };
 }  // namespace detail
@@ -69,8 +63,9 @@ struct JsonSerDe {
  *
  * @tparam T the struct type to serialize as JSON; its fields must be reflectable
  *         by reflect-cpp.
- * @return a `Schema<T>` whose `encode`/`decode` use JSON. `decode` reports input
- *         that is not valid JSON for `T` as an `Error` rather than throwing.
+ * @return a `Schema<T>` whose `encode`/`decode` use JSON.
+ * @throws std::runtime_error (from reflect-cpp) at decode time if the input bytes
+ *         are not valid JSON for `T`.
  */
 template <typename T>
 Schema<T> jsonSchema() {

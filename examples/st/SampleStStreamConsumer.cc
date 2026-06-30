@@ -53,12 +53,7 @@ int main() {
             std::cerr << "receive failed: " << msg.error() << "\n";
             break;
         }
-        auto value = msg->value();
-        if (!value) {
-            std::cerr << "decode failed: " << value.error() << "\n";
-            continue;
-        }
-        std::cout << "key=" << msg->key().value_or("<none>") << " value=" << *value << "\n";
+        std::cout << "key=" << msg->key().value_or("<none>") << " value=" << msg->value() << "\n";
         consumer.acknowledgeCumulative(msg->id());  // fire-and-forget; never blocks or errors
     }
 

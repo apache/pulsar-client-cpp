@@ -54,11 +54,7 @@ int main() {
             std::cerr << "receive failed: " << msg.error() << "\n";
             break;
         }
-        if (auto value = msg->value()) {
-            std::cout << "read: " << *value << "\n";
-        } else {
-            std::cerr << "decode failed: " << value.error() << "\n";
-        }
+        std::cout << "read: " << msg->value() << "\n";
     }
 
     // Atomic position snapshot across all segments. Store the bytes yourself
