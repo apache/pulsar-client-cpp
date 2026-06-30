@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace pulsar::st {
 
@@ -51,9 +52,9 @@ class PULSAR_PUBLIC QueueConsumerCore {
     void acknowledge(const MessageId& id, const Transaction& txn) const;
     void negativeAcknowledge(const MessageId& id) const;
     Future<void> closeAsync() const;
-    const std::string& topic() const;
-    const std::string& subscription() const;
-    const std::string& consumerName() const;
+    std::string_view topic() const;
+    std::string_view subscription() const;
+    std::string_view consumerName() const;
 
     explicit operator bool() const { return static_cast<bool>(impl_); }
 

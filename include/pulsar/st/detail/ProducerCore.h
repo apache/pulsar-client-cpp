@@ -25,6 +25,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace pulsar::st {
 
@@ -46,8 +47,8 @@ class PULSAR_PUBLIC ProducerCore {
     ProducerCore() = default;
 
     Future<MessageId> sendAsync(OutgoingMessage message) const;
-    const std::string& topic() const;
-    const std::string& name() const;
+    std::string_view topic() const;
+    std::string_view name() const;
     int64_t lastSequenceId() const;
     Future<void> flushAsync() const;
     Future<void> closeAsync() const;

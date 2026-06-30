@@ -27,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <string>
+#include <string_view>
 
 namespace pulsar::st {
 
@@ -55,17 +56,17 @@ class PULSAR_PUBLIC MessageCore {
     std::size_t size() const;
     MessageId id() const;
     bool hasKey() const;
-    const std::string& key() const;
+    std::string_view key() const;
     const Properties& properties() const;
     int64_t publishTimeMs() const;
     int64_t eventTimeMs() const;  // 0 if unset
     int64_t sequenceId() const;
     bool hasProducerName() const;
-    const std::string& producerName() const;
-    const std::string& topic() const;
+    std::string_view producerName() const;
+    std::string_view topic() const;
     int redeliveryCount() const;
     bool hasReplicatedFrom() const;
-    const std::string& replicatedFrom() const;
+    std::string_view replicatedFrom() const;
 
     explicit operator bool() const { return static_cast<bool>(impl_); }
 

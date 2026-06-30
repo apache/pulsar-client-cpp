@@ -36,6 +36,7 @@
 #include <optional>
 #include <span>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <vector>
 
@@ -333,10 +334,11 @@ class Producer {
      */
     Future<MessageId> sendAsync(const T& value) { return newMessage().value(value).sendAsync(); }
 
-    /** @return the topic this producer publishes to. */
-    const std::string& topic() const { return core_.topic(); }
-    /** @return the producer's name (broker-assigned when none was configured). */
-    const std::string& name() const { return core_.name(); }
+    /** @return a view of the topic this producer publishes to, valid while the producer is alive. */
+    std::string_view topic() const { return core_.topic(); }
+    /** @return a view of the producer's name (broker-assigned when none was configured), valid
+     *  while the producer is alive. */
+    std::string_view name() const { return core_.name(); }
     /** @return the sequence id of the most recently published message, or -1 if
      *  none has been published yet. */
     int64_t lastSequenceId() const { return core_.lastSequenceId(); }

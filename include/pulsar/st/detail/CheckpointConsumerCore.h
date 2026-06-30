@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace pulsar::st {
@@ -50,7 +51,7 @@ class PULSAR_PUBLIC CheckpointConsumerCore {
     Future<std::vector<MessageCore>> receiveMultiAsync(int maxMessages, int64_t timeoutMs) const;
     Checkpoint checkpoint() const;
     Future<void> closeAsync() const;
-    const std::string& topic() const;
+    std::string_view topic() const;
 
     explicit operator bool() const { return static_cast<bool>(impl_); }
 

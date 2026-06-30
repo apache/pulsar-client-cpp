@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace pulsar::st {
@@ -52,9 +53,9 @@ class PULSAR_PUBLIC StreamConsumerCore {
     void acknowledgeCumulative(const MessageId& id) const;
     void acknowledgeCumulative(const MessageId& id, const Transaction& txn) const;
     Future<void> closeAsync() const;
-    const std::string& topic() const;
-    const std::string& subscription() const;
-    const std::string& consumerName() const;
+    std::string_view topic() const;
+    std::string_view subscription() const;
+    std::string_view consumerName() const;
 
     explicit operator bool() const { return static_cast<bool>(impl_); }
 

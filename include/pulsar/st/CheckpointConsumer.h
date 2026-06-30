@@ -32,6 +32,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace pulsar::st {
@@ -169,9 +170,9 @@ class CheckpointConsumer {
     /**
      * @brief Return the topic this consumer reads from.
      *
-     * @return Reference to the topic name.
+     * @return a view of the topic name, valid while this consumer is alive.
      */
-    const std::string& topic() const { return core_.topic(); }
+    std::string_view topic() const { return core_.topic(); }
 
     /**
      * @brief Test whether this consumer is usable.

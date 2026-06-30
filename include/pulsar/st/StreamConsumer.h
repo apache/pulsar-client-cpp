@@ -34,6 +34,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace pulsar::st {
@@ -206,13 +207,14 @@ class StreamConsumer {
      */
     Future<void> closeAsync() { return core_.closeAsync(); }
 
-    /** @return the topic this consumer is subscribed to. In namespace mode this is the
-     *  namespace-derived subscription target. */
-    const std::string& topic() const { return core_.topic(); }
-    /** @return the subscription name. */
-    const std::string& subscription() const { return core_.subscription(); }
-    /** @return the consumer name (broker-assigned if none was set on the builder). */
-    const std::string& consumerName() const { return core_.consumerName(); }
+    /** @return a view of the topic this consumer is subscribed to (in namespace mode, the
+     *  namespace-derived subscription target), valid while the consumer is alive. */
+    std::string_view topic() const { return core_.topic(); }
+    /** @return a view of the subscription name, valid while the consumer is alive. */
+    std::string_view subscription() const { return core_.subscription(); }
+    /** @return a view of the consumer name (broker-assigned if none was set on the builder),
+     *  valid while the consumer is alive. */
+    std::string_view consumerName() const { return core_.consumerName(); }
 
     /** @return `true` if this is a live, subscribed consumer; `false` if it is an empty
      *  (default-constructed or closed/moved-from) handle. */
