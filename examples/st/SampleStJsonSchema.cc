@@ -72,9 +72,12 @@ int main() {
     if (consumerResult) {
         StreamConsumer<Order> consumer = std::move(consumerResult).value();
         if (auto msg = consumer.receive(std::chrono::seconds(5))) {
-            Order received = msg->value();  // decoded straight back into the struct
-            std::cout << received.orderId << " -> " << received.shipTo.city << "\n";
-            consumer.acknowledgeCumulative(msg->id());
+            if (auto received = msg->value()) {  // decoded straight back into the struct
+                std::cout << received->orderId << " -> " << received->shipTo.city << "\n";
+                consumer.acknowledgeCumulative(msg->id());
+            } else {
+                std::cerr << "decode failed: " << received.error() << "\n";
+            }
         }
         (void)consumer.close();
     }

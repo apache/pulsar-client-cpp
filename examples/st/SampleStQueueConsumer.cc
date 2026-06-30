@@ -54,7 +54,13 @@ int main() {
             break;
         }
 
-        const bool processed = !msg->value().empty();
+        auto value = msg->value();
+        if (!value) {
+            std::cerr << "decode failed: " << value.error() << "\n";
+            consumer.negativeAcknowledge(msg->id());  // bad payload; redeliver
+            continue;
+        }
+        const bool processed = !value->empty();
         if (processed) {
             consumer.acknowledge(msg->id());  // fire-and-forget; never blocks or errors
         } else {

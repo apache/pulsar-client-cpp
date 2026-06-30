@@ -22,6 +22,7 @@
 #include <pulsar/Schema.h>
 #include <pulsar/defines.h>
 #include <pulsar/st/Error.h>
+#include <pulsar/st/Expected.h>
 
 #include <concepts>
 #include <cstddef>
@@ -29,6 +30,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <string>
 #include <type_traits>
 #include <vector>
@@ -60,19 +62,21 @@ using Bytes = std::vector<char>;
  * - `SchemaInfo info() const` — the schema description sent to the broker for
  *   compatibility checking.
  * - `std::string encode(const T&) const` — serializes a value of `T` to bytes.
- * - `T decode(const char*, std::size_t) const` — deserializes bytes back to `T`.
+ * - `Expected<T> decode(std::span<const char>) const` — deserializes bytes back to
+ *   `T`, reporting malformed input as an error value. (A SerDe may also return a
+ *   plain `T` for an infallible decode; it converts implicitly to `Expected<T>`.)
  *
  * @tparam S the candidate SerDe type.
  * @tparam T the value type the SerDe handles.
  */
 template <typename S, typename T>
-concept SerDeFor = requires(const S& serde, const T& value, const char* data, std::size_t size) {
+concept SerDeFor = requires(const S& serde, const T& value, std::span<const char> data) {
     { serde.info() }
     ->std::convertible_to<SchemaInfo>;
     { serde.encode(value) }
     ->std::convertible_to<std::string>;
-    { serde.decode(data, size) }
-    ->std::convertible_to<T>;
+    { serde.decode(data) }
+    ->std::convertible_to<Expected<T>>;
 };
 
 /**
@@ -85,7 +89,7 @@ concept SerDeFor = requires(const S& serde, const T& value, const char* data, st
  * A SerDe is any copyable type providing three const members:
  *   SchemaInfo   info()                          const;  // describes T to the broker
  *   std::string  encode(const T& value)          const;  // T   -> bytes
- *   T            decode(const char* data, size_t) const;  // bytes -> T
+ *   Expected<T>  decode(std::span<const char>)   const;  // bytes -> T (or error)
  *
  * Construct a `Schema<T>` from a SerDe directly, or use a factory:
  *   - primitives: `Schema<std::string>{}`, `Schema<int64_t>{}`, `Schema<Bytes>{}` (default)
@@ -112,10 +116,10 @@ class Schema {
      * format for primitive schemas.
      *
      * For any other (non-primitive) `T` this installs an "unset" schema: it reports
-     * `SchemaType::BYTES` to the broker, but its `encode` and `decode` throw
-     * `ClientException` on use. Supply a real schema (`jsonSchema<T>()`,
-     * `avroSchema<T>()`, `protobufNativeSchema<T>()`, or a custom SerDe) before
-     * producing or consuming such a `T`.
+     * `SchemaType::BYTES` to the broker, but `encode` throws `ClientException` and
+     * `decode` returns an `Error` until you supply a real schema (`jsonSchema<T>()`,
+     * `avroSchema<T>()`, `protobufNativeSchema<T>()`, or a custom SerDe) for such a
+     * `T`.
      */
     Schema();
 
@@ -150,21 +154,19 @@ class Schema {
 
     /**
      * @brief Deserializes wire bytes back into a value of `T`.
-     * @param data pointer to the payload bytes.
-     * @param size number of bytes available at @p data.
-     * @return the decoded value.
-     * @throws ClientException if this is an unset schema (non-primitive `T` with no
-     *         SerDe supplied). A SerDe may also throw on malformed or incompatible
-     *         bytes.
+     * @param data a view over the payload bytes.
+     * @return the decoded value, or an `Error` if decoding fails — including an unset
+     *         schema (non-primitive `T` with no SerDe supplied) or bytes that are
+     *         malformed or incompatible with the schema.
      */
-    T decode(const char* data, std::size_t size) const { return self_->decode(data, size); }
+    Expected<T> decode(std::span<const char> data) const { return self_->decode(data); }
 
    private:
     struct Concept {
         virtual ~Concept() = default;
         virtual SchemaInfo info() const = 0;
         virtual std::string encode(const T&) const = 0;
-        virtual T decode(const char*, std::size_t) const = 0;
+        virtual Expected<T> decode(std::span<const char>) const = 0;
     };
     template <typename SerDe>
     struct Model final : Concept {
@@ -172,7 +174,7 @@ class Schema {
         explicit Model(SerDe s) : serde(std::move(s)) {}
         SchemaInfo info() const override { return serde.info(); }
         std::string encode(const T& v) const override { return serde.encode(v); }
-        T decode(const char* d, std::size_t n) const override { return serde.decode(d, n); }
+        Expected<T> decode(std::span<const char> d) const override { return serde.decode(d); }
     };
 
     std::shared_ptr<const Concept> self_;
@@ -204,11 +206,13 @@ inline U decodeBigEndian(const char* data, std::size_t size) {
     return static_cast<U>(u);
 }
 
+inline constexpr const char* kNoSchemaMsg =
+    "no schema configured for this value type — pass an explicit Schema "
+    "(jsonSchema/avroSchema/protobufNativeSchema, or a custom SerDe)";
+
 [[noreturn]] inline void throwNoSchema() {
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
-    throw ClientException(pulsar::ResultInvalidConfiguration,
-                          "no schema configured for this value type — pass an explicit Schema "
-                          "(jsonSchema/avroSchema/protobufNativeSchema, or a custom SerDe)");
+    throw ClientException(pulsar::ResultInvalidConfiguration, kNoSchemaMsg);
 #else
     std::abort();
 #endif
@@ -218,22 +222,30 @@ inline U decodeBigEndian(const char* data, std::size_t size) {
 struct BytesCodec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::BYTES, "BYTES", ""); }
     std::string encode(const Bytes& v) const { return std::string(v.begin(), v.end()); }
-    Bytes decode(const char* d, std::size_t n) const { return Bytes(d, d + n); }
+    Expected<Bytes> decode(std::span<const char> d) const { return Bytes(d.begin(), d.end()); }
 };
 struct StringCodec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::STRING, "String", ""); }
     std::string encode(const std::string& v) const { return v; }
-    std::string decode(const char* d, std::size_t n) const { return std::string(d, n); }
+    Expected<std::string> decode(std::span<const char> d) const { return std::string(d.data(), d.size()); }
 };
 struct Int32Codec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::INT32, "INT32", ""); }
     std::string encode(std::int32_t v) const { return encodeBigEndian(v); }
-    std::int32_t decode(const char* d, std::size_t n) const { return decodeBigEndian<std::int32_t>(d, n); }
+    Expected<std::int32_t> decode(std::span<const char> d) const {
+        if (d.size() < sizeof(std::int32_t))
+            return unexpected(pulsar::ResultInvalidMessage, "INT32 payload too short");
+        return decodeBigEndian<std::int32_t>(d.data(), d.size());
+    }
 };
 struct Int64Codec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::INT64, "INT64", ""); }
     std::string encode(std::int64_t v) const { return encodeBigEndian(v); }
-    std::int64_t decode(const char* d, std::size_t n) const { return decodeBigEndian<std::int64_t>(d, n); }
+    Expected<std::int64_t> decode(std::span<const char> d) const {
+        if (d.size() < sizeof(std::int64_t))
+            return unexpected(pulsar::ResultInvalidMessage, "INT64 payload too short");
+        return decodeBigEndian<std::int64_t>(d.data(), d.size());
+    }
 };
 struct DoubleCodec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::DOUBLE, "Double", ""); }
@@ -242,8 +254,10 @@ struct DoubleCodec {
         std::memcpy(&bits, &v, sizeof(bits));
         return encodeBigEndian(static_cast<std::int64_t>(bits));
     }
-    double decode(const char* d, std::size_t n) const {
-        auto bits = static_cast<std::uint64_t>(decodeBigEndian<std::int64_t>(d, n));
+    Expected<double> decode(std::span<const char> d) const {
+        if (d.size() < sizeof(double))
+            return unexpected(pulsar::ResultInvalidMessage, "DOUBLE payload too short");
+        auto bits = static_cast<std::uint64_t>(decodeBigEndian<std::int64_t>(d.data(), d.size()));
         double v;
         std::memcpy(&v, &bits, sizeof(v));
         return v;
@@ -253,7 +267,9 @@ template <typename T>
 struct UnsetCodec {
     SchemaInfo info() const { return SchemaInfo(SchemaType::BYTES, "BYTES", ""); }
     std::string encode(const T&) const { throwNoSchema(); }
-    T decode(const char*, std::size_t) const { throwNoSchema(); }
+    Expected<T> decode(std::span<const char>) const {
+        return unexpected(pulsar::ResultInvalidConfiguration, kNoSchemaMsg);
+    }
 };
 
 }  // namespace detail

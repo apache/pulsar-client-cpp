@@ -19,6 +19,7 @@
 #pragma once
 
 #include <pulsar/defines.h>
+#include <pulsar/st/Expected.h>
 #include <pulsar/st/MessageId.h>
 #include <pulsar/st/Schema.h>
 #include <pulsar/st/detail/MessageCore.h>
@@ -27,6 +28,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -61,12 +63,14 @@ class Message {
     /**
      * Decode the payload through `Schema<T>` and return the typed value.
      *
-     * Decoding happens on every call (the result is not cached). May throw if the
-     * payload bytes are malformed for the schema.
+     * Decoding happens on every call (the result is not cached). Returns an `Error`
+     * rather than throwing if the payload bytes are malformed for the schema, or if no
+     * schema was configured for `T`; the raw bytes remain available via `data()` /
+     * `size()`. Call `.value()` on the result to opt into throwing instead.
      *
-     * @return the decoded value of type `T`.
+     * @return the decoded value of type `T`, or an `Error` if decoding fails.
      */
-    T value() const { return schema_.decode(core_.data(), core_.size()); }
+    Expected<T> value() const { return schema_.decode(std::span<const char>(core_.data(), core_.size())); }
 
     /**
      * Pointer to the raw, undecoded payload bytes.

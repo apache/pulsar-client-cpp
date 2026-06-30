@@ -24,6 +24,7 @@
 #include <pulsar/st/Schema.h>
 
 #include <cstddef>
+#include <span>
 #include <string>
 #include <type_traits>
 
@@ -39,10 +40,12 @@ struct ProtobufNativeSerDe {
                   "protobufNativeSchema<T> requires T to be a generated protobuf Message");
     SchemaInfo info() const { return pulsar::createProtobufNativeSchema(T::descriptor()); }
     std::string encode(const T& value) const { return value.SerializeAsString(); }
-    T decode(const char* data, std::size_t size) const {
+    Expected<T> decode(std::span<const char> data) const {
         T message;
-        message.ParseFromArray(data, static_cast<int>(size));
-        return message;
+        if (message.ParseFromArray(data.data(), static_cast<int>(data.size()))) {
+            return message;
+        }
+        return unexpected(pulsar::ResultInvalidMessage, "failed to parse protobuf message");
     }
 };
 }  // namespace detail
