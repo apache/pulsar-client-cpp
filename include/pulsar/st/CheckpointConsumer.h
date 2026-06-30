@@ -176,6 +176,14 @@ class CheckpointConsumer {
     std::string_view topic() const { return core_.topic(); }
 
     /**
+     * @brief Return the consumer name (broker-assigned if none was set on the
+     * builder).
+     *
+     * @return a view of the consumer name, valid while this consumer is alive.
+     */
+    std::string_view consumerName() const { return core_.consumerName(); }
+
+    /**
      * @brief Test whether this consumer is usable.
      *
      * @return `true` for a consumer produced by the builder; `false` for a

@@ -52,6 +52,7 @@ class PULSAR_PUBLIC CheckpointConsumerCore {
     Checkpoint checkpoint() const;
     Future<void> closeAsync() const;
     std::string_view topic() const;
+    std::string_view consumerName() const;
 
     explicit operator bool() const { return static_cast<bool>(impl_); }
 
