@@ -314,7 +314,7 @@ class CheckpointConsumerBuilder {
         Schema<T> schema = schema_;
         CheckpointConsumerConfig config = config_;
         config.schema = schema.info();
-        return client_.createCheckpointAsync(std::move(config))
+        return client_.createCheckpointConsumerAsync(std::move(config))
             .thenApply([schema](const detail::CheckpointConsumerCore& core) {
                 return CheckpointConsumer<T>(core, schema);
             });

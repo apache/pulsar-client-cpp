@@ -55,7 +55,7 @@ class PULSAR_PUBLIC ClientCore {
     Future<ProducerCore> createProducerAsync(ProducerConfig config) const;
     Future<StreamConsumerCore> subscribeStreamAsync(StreamConsumerConfig config) const;
     Future<QueueConsumerCore> subscribeQueueAsync(QueueConsumerConfig config) const;
-    Future<CheckpointConsumerCore> createCheckpointAsync(CheckpointConsumerConfig config) const;
+    Future<CheckpointConsumerCore> createCheckpointConsumerAsync(CheckpointConsumerConfig config) const;
     Future<Transaction> newTransactionAsync() const;
     Future<void> closeAsync() const;
     void shutdown() const;
