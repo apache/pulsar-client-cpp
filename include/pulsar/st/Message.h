@@ -109,7 +109,7 @@ class Message {
     /**
      * The application-defined string properties attached to the message.
      *
-     * @return a reference to the properties map.
+     * @return a reference to the properties map, valid while this message is alive.
      */
     const Properties& properties() const { return core_.properties(); }
 
