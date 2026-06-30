@@ -22,6 +22,7 @@
 #include <pulsar/st/detail/Cxx20.h>
 
 #include <cstddef>
+#include <iosfwd>
 #include <memory>
 #include <span>
 #include <vector>
@@ -116,6 +117,18 @@ class PULSAR_PUBLIC Checkpoint {
    private:
     friend class CheckpointFactory;
     explicit Checkpoint(std::shared_ptr<CheckpointImpl> impl);
+
+    /**
+     * Write a human-readable representation of @p checkpoint to @p s.
+     *
+     * Intended for logging and debugging; the format is not a stable contract and
+     * must not be parsed (use `toByteArray()` for serialization).
+     *
+     * @param s the output stream to write to.
+     * @param checkpoint the checkpoint to format.
+     * @return the stream @p s, to allow chaining.
+     */
+    friend PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, const Checkpoint& checkpoint);
 
     std::shared_ptr<CheckpointImpl> impl_;
 };

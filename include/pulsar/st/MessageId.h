@@ -23,6 +23,7 @@
 
 #include <compare>
 #include <cstddef>
+#include <functional>
 #include <iosfwd>
 #include <memory>
 #include <span>
@@ -91,6 +92,7 @@ class PULSAR_PUBLIC MessageId {
 
    private:
     friend class MessageIdFactory;
+    friend struct std::hash<MessageId>;
     explicit MessageId(std::shared_ptr<MessageIdImpl> impl);
 
     /**
@@ -109,3 +111,13 @@ class PULSAR_PUBLIC MessageId {
 };
 
 }  // namespace pulsar::st
+
+/**
+ * Hash support so `MessageId` can be used as a key in unordered containers
+ * (`std::unordered_map`/`std::unordered_set`). Consistent with `operator==`: ids
+ * that compare equal hash equal. Defined in lib/st.
+ */
+template <>
+struct std::hash<pulsar::st::MessageId> {
+    std::size_t operator()(const pulsar::st::MessageId& messageId) const noexcept;
+};
