@@ -114,9 +114,11 @@ class QueueConsumer {
      * Block until the next message arrives and return it.
      *
      * Returns `Expected` because a receive can fail *without* yielding a message —
-     * the consumer was closed, the connection dropped, or the payload failed to
-     * decode. On such failures the result holds an `Error` instead of a message;
-     * call `.value()` on the result if you would rather throw a `ClientException`.
+     * the consumer was closed or the connection dropped. On such failures the result
+     * holds an `Error` instead of a message; call `.value()` on the result if you
+     * would rather throw a `ClientException`. (A message whose payload cannot be
+     * decoded is handled by the SDK and never delivered, so it is not a receive
+     * failure.)
      *
      * @return the next `Message<T>`, or an `Error` describing why no message could
      *         be delivered.
@@ -127,7 +129,7 @@ class QueueConsumer {
      *
      * @param timeout maximum time to wait for a message.
      * @return the next `Message<T>`; if no message arrives within `timeout`, an
-     *         `Error{ResultTimeout}`; or another `Error` on close/disconnect/decode
+     *         `Error{ResultTimeout}`; or another `Error` on close/disconnect
      *         failure.
      */
     Expected<Message<T>> receive(std::chrono::milliseconds timeout) {
@@ -138,7 +140,7 @@ class QueueConsumer {
      *
      * @return a `Future<Message<T>>` completed with the message when one is
      *         available, or completed with an `Error` (via the future's `Expected`
-     *         result) on close/disconnect/decode failure.
+     *         result) on close/disconnect failure.
      */
     Future<Message<T>> receiveAsync() {
         Schema<T> schema = schema_;

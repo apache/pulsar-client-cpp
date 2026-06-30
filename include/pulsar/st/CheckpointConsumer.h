@@ -88,8 +88,9 @@ class CheckpointConsumer {
      * Waits indefinitely for the next message at the current read position.
      *
      * @return `Expected<Message<T>>` holding the decoded message, or an `Error` if
-     *         the receive fails (e.g. the consumer is closed or disconnected, or the
-     *         payload cannot be decoded).
+     *         the receive fails (e.g. the consumer is closed or disconnected). A
+     *         message whose payload cannot be decoded is handled by the SDK and never
+     *         delivered, so it is not a receive failure.
      */
     Expected<Message<T>> receive() { return toTyped(core_.receiveAsync().get()); }
 
@@ -99,7 +100,7 @@ class CheckpointConsumer {
      * @param timeout Maximum time to wait (`std::chrono::milliseconds`).
      * @return `Expected<Message<T>>` holding the decoded message, or an `Error`; a
      *         timeout surfaces as `Error{ResultTimeout}`. May also fail on
-     *         close/disconnect or a decode error.
+     *         close/disconnect.
      */
     Expected<Message<T>> receive(std::chrono::milliseconds timeout) {
         return toTyped(core_.receiveAsync(timeout.count()).get());
