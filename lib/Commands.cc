@@ -55,6 +55,7 @@ using proto::CommandLookupTopic;
 using proto::CommandPartitionedTopicMetadata;
 using proto::CommandProducer;
 using proto::CommandRedeliverUnacknowledgedMessages;
+using proto::CommandScalableTopicLookup;
 using proto::CommandSeek;
 using proto::CommandSend;
 using proto::CommandSubscribe;
@@ -285,6 +286,7 @@ SharedBuffer Commands::newConnect(const AuthenticationPtr& authentication, const
     FeatureFlags* flags = connect->mutable_feature_flags();
     flags->set_supports_auth_refresh(true);
     flags->set_supports_broker_entry_metadata(true);
+    flags->set_supports_scalable_topics(true);
     if (connectingThroughProxy) {
         Url logicalAddressUrl;
         Url::parse(logicalAddress, logicalAddressUrl);
@@ -552,6 +554,24 @@ SharedBuffer Commands::newCloseConsumer(uint64_t consumerId, uint64_t requestId)
     return writeMessageWithSize(cmd);
 }
 
+SharedBuffer Commands::newScalableTopicLookup(uint64_t sessionId, const std::string& topic,
+                                              bool createIfMissing) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::SCALABLE_TOPIC_LOOKUP);
+    CommandScalableTopicLookup* lookup = cmd.mutable_scalabletopiclookup();
+    lookup->set_session_id(sessionId);
+    lookup->set_topic(topic);
+    lookup->set_create_if_missing(createIfMissing);
+    return writeMessageWithSize(cmd);
+}
+
+SharedBuffer Commands::newScalableTopicClose(uint64_t sessionId) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::SCALABLE_TOPIC_CLOSE);
+    cmd.mutable_scalabletopicclose()->set_session_id(sessionId);
+    return writeMessageWithSize(cmd);
+}
+
 SharedBuffer Commands::newPing() {
     BaseCommand cmd;
     cmd.set_type(BaseCommand::PING);
@@ -807,6 +827,42 @@ std::string Commands::messageType(BaseCommand_Type type) {
             break;
         case BaseCommand::WATCH_TOPIC_LIST_CLOSE:
             return "WATCH_TOPIC_LIST_CLOSE";
+            break;
+        case BaseCommand::SCALABLE_TOPIC_LOOKUP:
+            return "SCALABLE_TOPIC_LOOKUP";
+            break;
+        case BaseCommand::SCALABLE_TOPIC_UPDATE:
+            return "SCALABLE_TOPIC_UPDATE";
+            break;
+        case BaseCommand::SCALABLE_TOPIC_CLOSE:
+            return "SCALABLE_TOPIC_CLOSE";
+            break;
+        case BaseCommand::SCALABLE_TOPIC_SUBSCRIBE:
+            return "SCALABLE_TOPIC_SUBSCRIBE";
+            break;
+        case BaseCommand::SCALABLE_TOPIC_SUBSCRIBE_RESPONSE:
+            return "SCALABLE_TOPIC_SUBSCRIBE_RESPONSE";
+            break;
+        case BaseCommand::SCALABLE_TOPIC_ASSIGNMENT_UPDATE:
+            return "SCALABLE_TOPIC_ASSIGNMENT_UPDATE";
+            break;
+        case BaseCommand::WATCH_SCALABLE_TOPICS:
+            return "WATCH_SCALABLE_TOPICS";
+            break;
+        case BaseCommand::WATCH_SCALABLE_TOPICS_UPDATE:
+            return "WATCH_SCALABLE_TOPICS_UPDATE";
+            break;
+        case BaseCommand::WATCH_SCALABLE_TOPICS_CLOSE:
+            return "WATCH_SCALABLE_TOPICS_CLOSE";
+            break;
+        case BaseCommand::WATCH_TC_ASSIGNMENTS:
+            return "WATCH_TC_ASSIGNMENTS";
+            break;
+        case BaseCommand::WATCH_TC_ASSIGNMENTS_UPDATE:
+            return "WATCH_TC_ASSIGNMENTS_UPDATE";
+            break;
+        case BaseCommand::WATCH_TC_ASSIGNMENTS_CLOSE:
+            return "WATCH_TC_ASSIGNMENTS_CLOSE";
             break;
     };
     BOOST_THROW_EXCEPTION(std::logic_error("Invalid BaseCommand enumeration value"));

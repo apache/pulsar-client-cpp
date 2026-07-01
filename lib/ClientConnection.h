@@ -105,6 +105,7 @@ class CommandGetLastMessageIdResponse;
 class CommandLookupTopicResponse;
 class CommandPartitionedTopicMetadataResponse;
 class CommandProducerSuccess;
+class CommandScalableTopicUpdate;
 class CommandSendReceipt;
 class CommandSendError;
 class CommandSuccess;
@@ -186,6 +187,20 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
 
     void removeProducer(int producerId);
     void removeConsumer(int consumerId);
+
+    // Scalable topics (pulsar::st): a DAG-watch session registered on this
+    // connection. The listener is invoked with (ResultOk, &update) for every
+    // CommandScalableTopicUpdate whose session_id matches (the initial lookup
+    // response and later pushes alike), and with (error, nullptr) once when the
+    // connection closes, after which the registration is gone.
+    typedef std::function<void(Result, const proto::CommandScalableTopicUpdate*)> ScalableTopicUpdateListener;
+
+    /**
+     * Register a DAG-watch session. Returns false (without registering) if the
+     * connection is already closed — the caller should acquire a new connection.
+     */
+    bool registerScalableTopicSession(uint64_t sessionId, ScalableTopicUpdateListener listener);
+    void removeScalableTopicSession(uint64_t sessionId);
 
     /**
      * Send a request with a specific Id over the connection. The future will be
@@ -354,6 +369,10 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     typedef std::unordered_map<long, ConsumerImplWeakPtr> ConsumersMap;
     ConsumersMap consumers_;
 
+    // Scalable topics: DAG-watch sessions by client-assigned session id.
+    typedef std::map<uint64_t, ScalableTopicUpdateListener> ScalableTopicSessionsMap;
+    ScalableTopicSessionsMap scalableTopicSessions_;
+
     typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
     PendingConsumerStatsMap pendingConsumerStatsMap_;
 
@@ -436,6 +455,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleGetTopicOfNamespaceResponse(const proto::CommandGetTopicsOfNamespaceResponse&);
     void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
     void handleAckResponse(const proto::CommandAckResponse&);
+    void handleScalableTopicUpdate(const proto::CommandScalableTopicUpdate&);
     optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseProducer&);
     optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseConsumer&);
     std::string getMigratedBrokerServiceUrl(const proto::CommandTopicMigrated&);
