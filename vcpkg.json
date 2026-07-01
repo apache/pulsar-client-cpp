@@ -44,6 +44,10 @@
       "version>=": "6.33.4#1"
     },
     {
+      "name": "reflectcpp",
+      "version>=": "0.24.0"
+    },
+    {
       "name": "snappy",
       "version>=": "1.2.2"
     },
