@@ -202,6 +202,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     bool registerScalableTopicSession(uint64_t sessionId, ScalableTopicUpdateListener listener);
     void removeScalableTopicSession(uint64_t sessionId);
 
+    /** Whether the broker advertised scalable-topics support on CONNECTED. */
+    bool supportsScalableTopics() const { return supportsScalableTopics_.load(std::memory_order_acquire); }
+
     /**
      * Send a request with a specific Id over the connection. The future will be
      * triggered when the response for this request is received
@@ -372,6 +375,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     // Scalable topics: DAG-watch sessions by client-assigned session id.
     typedef std::map<uint64_t, ScalableTopicUpdateListener> ScalableTopicSessionsMap;
     ScalableTopicSessionsMap scalableTopicSessions_;
+    std::atomic<bool> supportsScalableTopics_{false};
 
     typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
     PendingConsumerStatsMap pendingConsumerStatsMap_;

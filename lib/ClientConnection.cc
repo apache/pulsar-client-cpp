@@ -313,6 +313,11 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         LOG_DEBUG("Current max message size is: " << maxMessageSize_);
     }
 
+    if (cmdConnected.has_feature_flags()) {
+        supportsScalableTopics_.store(cmdConnected.feature_flags().supports_scalable_topics(),
+                                      std::memory_order_release);
+    }
+
     Lock lock(mutex_);
 
     if (isClosed()) {
