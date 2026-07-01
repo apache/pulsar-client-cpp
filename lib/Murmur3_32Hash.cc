@@ -60,6 +60,8 @@ int32_t Murmur3_32Hash::makeHash(const std::string &key) {
     return static_cast<int32_t>(makeHash(&key.front(), key.length()) & std::numeric_limits<int32_t>::max());
 }
 
+uint32_t Murmur3_32Hash::makeRawHash(const void *key, int64_t len) { return makeHash(key, len); }
+
 uint32_t Murmur3_32Hash::makeHash(const void *key, const int64_t len) {
     const uint8_t *data = reinterpret_cast<const uint8_t *>(key);
     const int nblocks = len / MACRO_CHUNK_SIZE;

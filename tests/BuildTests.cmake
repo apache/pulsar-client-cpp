@@ -65,4 +65,5 @@ target_link_libraries(ExtensibleLoadManagerTest PRIVATE pulsarStatic ${GTEST_TAR
 file(GLOB ST_TEST_SOURCES st/*.cc)
 add_executable(pulsar-st-tests ${ST_TEST_SOURCES})
 set_target_properties(pulsar-st-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_include_directories(pulsar-st-tests PRIVATE ${AUTOGEN_DIR}/lib)
 target_link_libraries(pulsar-st-tests PRIVATE pulsarStatic ${GTEST_TARGETS})
