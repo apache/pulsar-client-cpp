@@ -1,7 +1,7 @@
 {
   "name": "reflectcpp",
   "version": "0.24.0",
-  "port-version": 1,
+  "port-version": 2,
   "description": "A C++ library for serialization and deserialization using reflection. Supports JSON, Avro, BSON, Cap'n Proto, CBOR, CSV, flexbuffers, msgpack, parquet, TOML, UBJSON, XML, YAML.",
   "homepage": "https://github.com/getml/reflect-cpp/",
   "license": "MIT",

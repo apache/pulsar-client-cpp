@@ -45,6 +45,16 @@ vcpkg_cmake_config_fixup(
     CONFIG_PATH "lib/cmake/${PORT}"
 )
 
+if("avro" IN_LIST FEATURES)
+    # The Avro backend links the static avro-c archive, whose link interface
+    # carries jansson::jansson — but the upstream config has no Avro
+    # find_dependency block, so consumers fail at generate time with
+    # "the target was not found". Define it before the exports are included.
+    vcpkg_replace_string("${CURRENT_PACKAGES_DIR}/share/${PORT}/${PORT}-config.cmake"
+        "include(\${CMAKE_CURRENT_LIST_DIR}/reflectcpp-exports.cmake)"
+        "include(CMakeFindDependencyMacro)\nfind_dependency(jansson CONFIG)\ninclude(\${CMAKE_CURRENT_LIST_DIR}/reflectcpp-exports.cmake)")
+endif()
+
 file(REMOVE_RECURSE
     "${CURRENT_PACKAGES_DIR}/debug/include"
     "${CURRENT_PACKAGES_DIR}/debug/share"
