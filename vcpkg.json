@@ -45,6 +45,9 @@
     },
     {
       "name": "reflectcpp",
+      "features": [
+        "avro"
+      ],
       "version>=": "0.24.0"
     },
     {

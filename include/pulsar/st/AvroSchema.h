@@ -45,10 +45,12 @@ namespace pulsar::st {
 namespace detail {
 template <typename T>
 struct AvroSerDe {
-    SchemaInfo info() const { return SchemaInfo(SchemaType::AVRO, "AVRO", rfl::avro::to_schema<T>()); }
+    SchemaInfo info() const {
+        return SchemaInfo(SchemaType::AVRO, "AVRO", rfl::avro::to_schema<T>().json_str());
+    }
     Expected<void> encode(const T& value, std::vector<std::byte>& out) const {
         try {
-            const std::string s = rfl::avro::write(value);
+            const std::vector<char> s = rfl::avro::write(value);
             const auto* p = reinterpret_cast<const std::byte*>(s.data());
             out.assign(p, p + s.size());
             return {};
@@ -58,8 +60,7 @@ struct AvroSerDe {
     }
     Expected<T> decode(std::span<const std::byte> data) const {
         try {
-            return rfl::avro::read<T>(std::string(reinterpret_cast<const char*>(data.data()), data.size()))
-                .value();
+            return rfl::avro::read<T>(reinterpret_cast<const char*>(data.data()), data.size()).value();
         } catch (const std::exception& e) {
             return unexpected(pulsar::ResultInvalidMessage, e.what());
         }
