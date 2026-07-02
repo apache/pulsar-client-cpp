@@ -37,6 +37,11 @@ class PULSAR_PUBLIC TopicDomain {
    public:
     static const std::string Persistent;
     static const std::string NonPersistent;
+    // The per-segment backing topics of a scalable topic (PIP-460):
+    // segment://<tenant>/<ns>/<parent-topic>/<hashStart>-<hashEnd>-<segmentId>.
+    // Internal to the pulsar::st client; the classic user-facing entry points
+    // reject this domain.
+    static const std::string Segment;
 };  // class TopicDomain
 
 class PULSAR_PUBLIC TopicName : public ServiceUnitId {
@@ -62,6 +67,7 @@ class PULSAR_PUBLIC TopicName : public ServiceUnitId {
     std::string getEncodedLocalName() const;
     std::string toString() const;
     bool isPersistent() const;
+    bool isSegment() const;
     NamespaceNamePtr getNamespaceName();
     int getPartitionIndex() const noexcept { return partition_; }
     static std::shared_ptr<TopicName> get(const std::string& topicName);
