@@ -89,7 +89,17 @@ set_property(TARGET ST_OBJECT_LIB PROPERTY POSITION_INDEPENDENT_CODE 1)
 set_target_properties(ST_OBJECT_LIB PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
 if (INTEGRATE_VCPKG)
     target_link_libraries(ST_OBJECT_LIB PROTO_OBJECTS)
+    # The st sources #include the generated PulsarApi.pb.h. Linking PROTO_OBJECTS
+    # propagates its include dir, but the OBJECT->OBJECT link does not reliably
+    # order the build under the Visual Studio generator, so the st sources can
+    # compile before the proto is generated. Force the ordering explicitly.
+    add_dependencies(ST_OBJECT_LIB PROTO_OBJECTS)
+else ()
+    # Legacy (non-vcpkg) build generates the proto as part of PULSAR_OBJECT_LIB;
+    # ensure it exists before the st sources that include it compile.
+    add_dependencies(ST_OBJECT_LIB PULSAR_OBJECT_LIB)
 endif ()
+target_include_directories(ST_OBJECT_LIB PRIVATE ${LIB_AUTOGEN_DIR})
 target_include_directories(ST_OBJECT_LIB PUBLIC
     "${CMAKE_SOURCE_DIR}"
     "${CMAKE_SOURCE_DIR}/include"

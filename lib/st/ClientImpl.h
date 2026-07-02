@@ -44,7 +44,7 @@ namespace pulsar::st {
  */
 class ClientImpl {
    public:
-    ClientImpl(pulsar::ClientImplPtr classicClient, TransactionPolicy transactionPolicy);
+    ClientImpl(pulsar::ClientImplPtr classicClient, const TransactionPolicy& transactionPolicy);
 
     Future<detail::ProducerCore> createProducerAsync(ProducerConfig config);
     Future<detail::StreamConsumerCore> subscribeStreamAsync(StreamConsumerConfig config);

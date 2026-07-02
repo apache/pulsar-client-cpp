@@ -38,21 +38,28 @@ Future<T> notImplementedYet(const char* what) {
 
 }  // namespace
 
-ClientImpl::ClientImpl(pulsar::ClientImplPtr classicClient, TransactionPolicy transactionPolicy)
-    : classic_(std::move(classicClient)), transactionPolicy_(std::move(transactionPolicy)) {}
+ClientImpl::ClientImpl(pulsar::ClientImplPtr classicClient, const TransactionPolicy& transactionPolicy)
+    : classic_(std::move(classicClient)), transactionPolicy_(transactionPolicy) {}
 
+// The producer/consumer/transaction paths land in follow-up phases. Each takes
+// its config by value (the sink the real implementation will move from), but as
+// a stub it does not consume the config yet — hence the value-param suppressions.
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 Future<detail::ProducerCore> ClientImpl::createProducerAsync(ProducerConfig) {
     return notImplementedYet<detail::ProducerCore>("createProducer");
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 Future<detail::StreamConsumerCore> ClientImpl::subscribeStreamAsync(StreamConsumerConfig) {
     return notImplementedYet<detail::StreamConsumerCore>("subscribeStream");
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 Future<detail::QueueConsumerCore> ClientImpl::subscribeQueueAsync(QueueConsumerConfig) {
     return notImplementedYet<detail::QueueConsumerCore>("subscribeQueue");
 }
 
+// NOLINTNEXTLINE(performance-unnecessary-value-param)
 Future<detail::CheckpointConsumerCore> ClientImpl::createCheckpointConsumerAsync(CheckpointConsumerConfig) {
     return notImplementedYet<detail::CheckpointConsumerCore>("createCheckpointConsumer");
 }
