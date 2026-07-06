@@ -20,6 +20,8 @@
 #include <pulsar/st/Checkpoint.h>
 #include <pulsar/st/MessageId.h>
 
+#include <utility>
+
 // These tests exercise symbols DEFINED in lib/st (not header-inline), proving
 // the ST_OBJECT_LIB objects are merged into the libpulsar artifact this test
 // binary links against.
@@ -38,10 +40,14 @@ TEST(StHandleTest, testDefaultCheckpointIsEmpty) {
 
 TEST(StHandleTest, testEmptyHandlesAreCopyable) {
     MessageId id;
-    MessageId copy = id;
-    ASSERT_FALSE(static_cast<bool>(copy));
+    MessageId idCopy{id};                  // exercise copy construction
+    MessageId idMoved{std::move(idCopy)};  // exercise move construction
+    ASSERT_FALSE(static_cast<bool>(id));
+    ASSERT_FALSE(static_cast<bool>(idMoved));
 
     Checkpoint checkpoint;
-    Checkpoint checkpointCopy = checkpoint;
-    ASSERT_FALSE(static_cast<bool>(checkpointCopy));
+    Checkpoint checkpointCopy{checkpoint};
+    Checkpoint checkpointMoved{std::move(checkpointCopy)};
+    ASSERT_FALSE(static_cast<bool>(checkpoint));
+    ASSERT_FALSE(static_cast<bool>(checkpointMoved));
 }

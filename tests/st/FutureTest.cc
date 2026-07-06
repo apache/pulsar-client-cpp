@@ -155,7 +155,10 @@ TEST(FutureTest, testAbandonedPromiseCopiesFailOnlyAfterLastCopyDies) {
     Promise<int> outer;
     Future<int> future = outer.getFuture();
     {
-        Promise<int> copy = outer;  // a copy dying must not break the promise
+        // Intentionally copy just to let it die: destroying one copy of a shared
+        // promise must not fail the future. The copy's whole purpose is its scope.
+        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
+        Promise<int> copy = outer;
     }
     ASSERT_FALSE(future.isReady());
     outer.setValue(9);

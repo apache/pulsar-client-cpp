@@ -105,7 +105,7 @@ PULSAR_PUBLIC const char* strResult(Result result);
 PULSAR_PUBLIC std::ostream& operator<<(std::ostream& s, pulsar::Result result);
 
 struct PULSAR_PUBLIC Error {
-    Result result;
+    Result result{};  // defaults to ResultOk; avoids an uninitialized field on default construction
     std::string message;
 };
 
