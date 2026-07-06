@@ -131,8 +131,13 @@ TEST(FutureTest, testThenApplyVoidMapper) {
 TEST(FutureTest, testThenApplyMoveOnlyMapper) {
     Promise<int> promise;
     auto bonus = std::make_unique<int>(100);
+    // The unique_ptr is moved into the mapper, which the Future's shared state owns and
+    // frees when the chain is destroyed; the analyzer can't trace that through
+    // std::function, so it false-positives a leak.
+    // NOLINTBEGIN(clang-analyzer-cplusplus.NewDeleteLeaks)
     Future<int> mapped =
         promise.getFuture().thenApply([b = std::move(bonus)](const int& x) { return x + *b; });
+    // NOLINTEND(clang-analyzer-cplusplus.NewDeleteLeaks)
     promise.setValue(5);
     auto r = mapped.get();
     ASSERT_TRUE(r);

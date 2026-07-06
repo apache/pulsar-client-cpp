@@ -124,15 +124,15 @@ class [[nodiscard]] Expected {
      * this aborts. Use `operator bool` + `operator*` for the non-throwing path.
      */
     const T& value() const& {
-        if (!has_value()) PULSAR_ST_THROW(ClientException(std::get<1>(storage_)));
+        if (!has_value()) PULSAR_ST_THROW(ClientException(error()));
         return std::get<0>(storage_);
     }
     T& value() & {
-        if (!has_value()) PULSAR_ST_THROW(ClientException(std::get<1>(storage_)));
+        if (!has_value()) PULSAR_ST_THROW(ClientException(error()));
         return std::get<0>(storage_);
     }
     T&& value() && {
-        if (!has_value()) PULSAR_ST_THROW(ClientException(std::get<1>(storage_)));
+        if (!has_value()) PULSAR_ST_THROW(ClientException(error()));
         return std::get<0>(std::move(storage_));
     }
 
@@ -170,9 +170,9 @@ class [[nodiscard]] Expected {
      * @pre `!has_value()`. Behaviour is undefined if this holds a value.
      * @return a reference to the contained `Error`.
      */
-    const Error& error() const& noexcept { return std::get<1>(storage_); }
+    const Error& error() const& noexcept { return *std::get_if<1>(&storage_); }
     /** @copydoc error() const& */
-    Error& error() & noexcept { return std::get<1>(storage_); }
+    Error& error() & noexcept { return *std::get_if<1>(&storage_); }
 
     /**
      * Return the contained value, or @p fallback if this holds an error.
