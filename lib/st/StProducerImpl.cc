@@ -247,7 +247,7 @@ Future<MessageId> StProducerImpl::sendAsync(OutgoingMessage message) {
 }
 
 void StProducerImpl::dispatchSend(OutgoingMessage message, std::uint64_t segmentId, int attempt,
-                                  detail::Promise<MessageId> userPromise) {
+                                  const detail::Promise<MessageId>& userPromise) {
     auto self = shared_from_this();
     getOrCreateSegmentProducerAsync(segmentId).addListener(
         [self, message = std::move(message), segmentId, attempt,
@@ -274,7 +274,7 @@ void StProducerImpl::dispatchSend(OutgoingMessage message, std::uint64_t segment
 }
 
 void StProducerImpl::handleSegmentFailure(Error error, OutgoingMessage message, std::uint64_t segmentId,
-                                          int attempt, detail::Promise<MessageId> userPromise) {
+                                          int attempt, const detail::Promise<MessageId>& userPromise) {
     if (!isSegmentGoneError(error.result, error.message) || attempt >= kSendRetryMaxAttempts ||
         closed_.load()) {
         userPromise.setError(std::move(error));

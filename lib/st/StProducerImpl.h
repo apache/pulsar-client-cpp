@@ -100,11 +100,11 @@ class StProducerImpl final : public ProducerImplBase, public std::enable_shared_
     void completeStart();
 
     void dispatchSend(OutgoingMessage message, std::uint64_t segmentId, int attempt,
-                      detail::Promise<MessageId> userPromise);
+                      const detail::Promise<MessageId>& userPromise);
     // On a send failure: retry after backoff on a fresh layout if the segment is gone and the
     // attempt budget remains, otherwise fail the user's future.
     void handleSegmentFailure(Error error, OutgoingMessage message, std::uint64_t segmentId, int attempt,
-                              detail::Promise<MessageId> userPromise);
+                              const detail::Promise<MessageId>& userPromise);
     pulsar::Message buildClassicMessage(const OutgoingMessage& message) const;
 
     std::shared_ptr<const SegmentLayout> snapshotLayout() const;
