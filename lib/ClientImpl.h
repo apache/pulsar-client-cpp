@@ -100,7 +100,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
      * topic, bypassing the segment-domain rejection applied to the public path.
      */
     void createSegmentProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
-                                    CreateProducerV2Callback callback);
+                                    CreateProducerV2Callback callback,
+                                    const std::optional<std::string>& assignedBrokerUrl = std::nullopt);
 
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
@@ -189,11 +190,13 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
    private:
     void createProducerAsyncImpl(const std::string& topic, const ProducerConfiguration& conf,
                                  CreateProducerV2Callback callback, bool autoDownloadSchema,
-                                 bool allowSegmentTopic);
+                                 bool allowSegmentTopic,
+                                 const std::optional<std::string>& assignedBrokerUrl = std::nullopt);
 
     void handleCreateProducer(const Error& error, const LookupDataResultPtr& partitionMetadata,
                               const TopicNamePtr& topicName, const ProducerConfiguration& conf,
-                              CreateProducerV2Callback callback);
+                              CreateProducerV2Callback callback,
+                              const std::optional<std::string>& assignedBrokerUrl = std::nullopt);
 
     void handleSubscribe(const Error& error, const LookupDataResultPtr& partitionMetadata,
                          const TopicNamePtr& topicName, const std::string& consumerName,

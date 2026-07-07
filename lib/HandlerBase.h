@@ -51,6 +51,13 @@ class HandlerBase : public std::enable_shared_from_this<HandlerBase> {
 
     void start();
 
+    /*
+     * Start and, on the initial connect, go straight to @p assignedBrokerUrl instead of
+     * doing a topic lookup. Used by scalable-topics per-segment producers pinned to the
+     * DAG-provided owner broker. An empty optional behaves exactly like start().
+     */
+    void start(const optional<std::string>& assignedBrokerUrl);
+
     ClientConnectionWeakPtr getCnx() const;
     void setCnx(const ClientConnectionPtr& cnx);
     void resetCnx() { setCnx(nullptr); }

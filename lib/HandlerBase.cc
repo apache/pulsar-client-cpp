@@ -54,11 +54,13 @@ HandlerBase::~HandlerBase() {
     cancelTimer(*creationTimer_);
 }
 
-void HandlerBase::start() {
+void HandlerBase::start() { start(std::nullopt); }
+
+void HandlerBase::start(const optional<std::string>& assignedBrokerUrl) {
     // guard against concurrent state changes such as closing
     State state = NotStarted;
     if (state_.compare_exchange_strong(state, Pending)) {
-        grabCnx();
+        grabCnx(assignedBrokerUrl);
     }
     creationTimer_->expires_after(operationTimeut_);
     auto weakSelf = weak_from_this();
