@@ -21,6 +21,8 @@
 #include <string>
 #include <utility>
 
+#include "StProducerImpl.h"
+
 namespace pulsar::st {
 
 namespace {
@@ -41,13 +43,23 @@ Future<T> notImplementedYet(const char* what) {
 ClientImpl::ClientImpl(pulsar::ClientImplPtr classicClient, const TransactionPolicy& transactionPolicy)
     : classic_(std::move(classicClient)), transactionPolicy_(transactionPolicy) {}
 
-// The producer/consumer/transaction paths land in follow-up phases. Each takes
-// its config by value (the sink the real implementation will move from), but as
-// a stub it does not consume the config yet — hence the value-param suppressions.
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
-Future<detail::ProducerCore> ClientImpl::createProducerAsync(ProducerConfig) {
-    return notImplementedYet<detail::ProducerCore>("createProducer");
+Future<detail::ProducerCore> ClientImpl::createProducerAsync(ProducerConfig config) {
+    auto impl = std::make_shared<StProducerImpl>(classic_, std::move(config));
+    detail::Promise<detail::ProducerCore> promise;
+    // Keep the impl alive until start() resolves; on success mint the public core over it.
+    impl->start().addListener([impl, promise](const Expected<void>& result) {
+        if (result) {
+            promise.setValue(detail::ProducerCore{impl});
+        } else {
+            promise.setError(result.error());
+        }
+    });
+    return promise.getFuture();
 }
+
+// The consumer/transaction paths land in follow-up phases. Each takes its config by
+// value (the sink the real implementation will move from), but as a stub it does not
+// consume the config yet — hence the value-param suppressions.
 
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
 Future<detail::StreamConsumerCore> ClientImpl::subscribeStreamAsync(StreamConsumerConfig) {

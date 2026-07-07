@@ -73,17 +73,6 @@ TEST(StClientTest, testBuildWithPoliciesWithoutBroker) {
     ASSERT_TRUE(client->close());
 }
 
-TEST(StClientTest, testProducerCreationReportsNotSupportedYet) {
-    auto client = PulsarClient::builder().serviceUrl("pulsar://localhost:6650").build();
-    ASSERT_TRUE(client);
-
-    auto producer = client->newProducer().topic("st-topic").create();
-    ASSERT_FALSE(producer);
-    ASSERT_EQ(producer.error().result, ResultOperationNotSupported);
-
-    ASSERT_TRUE(client->close());
-}
-
 TEST(StClientTest, testTransactionReportsNotSupportedYet) {
     auto client = PulsarClient::builder().serviceUrl("pulsar://localhost:6650").build();
     ASSERT_TRUE(client);
