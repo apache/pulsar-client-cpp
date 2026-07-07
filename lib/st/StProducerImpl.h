@@ -74,6 +74,8 @@ class StProducerImpl final : public ProducerImplBase, public std::enable_shared_
     Future<void> closeAsync() override;
 
    private:
+    friend struct StProducerTestAccess;  // broker-free access to the pure config/routing helpers
+
     // Number of send attempts once a segment is gone (seal/terminate), and the cap on
     // the per-attempt backoff — matches the Java v5 producer.
     static constexpr int kSendRetryMaxAttempts = 10;
