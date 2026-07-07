@@ -33,6 +33,7 @@ namespace pulsar::st {
 class ProducerImplBase;
 using ProducerImplPtr = std::shared_ptr<ProducerImplBase>;
 struct OutgoingMessage;
+class ClientImpl;  // lib/st — mints producer cores from createProducerAsync
 
 namespace detail {
 
@@ -58,6 +59,7 @@ class PULSAR_PUBLIC ProducerCore {
 
    private:
     friend class ClientCore;
+    friend class ::pulsar::st::ClientImpl;
     explicit ProducerCore(ProducerImplPtr impl) : impl_(std::move(impl)) {}
 
     ProducerImplPtr impl_;
