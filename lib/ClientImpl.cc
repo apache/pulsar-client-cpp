@@ -252,19 +252,19 @@ void ClientImpl::createProducerAsyncImpl(const std::string& topic, const Produce
     }
 
     if (autoDownloadSchema) {
-        getSchema(topicName).addListener([self{shared_from_this()}, topicName, callback{std::move(callback)},
-                                          assignedBrokerUrl](const Error& error,
-                                                             const SchemaInfo& topicSchema) mutable {
-            if (error.result != ResultOk) {
-                callback(error);
-                return;
-            }
-            ProducerConfiguration conf;
-            conf.setSchema(topicSchema);
-            self->getPartitionMetadataAsync(topicName).addListener(
-                std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
-                          std::placeholders::_2, topicName, conf, callback, assignedBrokerUrl));
-        });
+        getSchema(topicName).addListener(
+            [self{shared_from_this()}, topicName, callback{std::move(callback)}, assignedBrokerUrl](
+                const Error& error, const SchemaInfo& topicSchema) mutable {
+                if (error.result != ResultOk) {
+                    callback(error);
+                    return;
+                }
+                ProducerConfiguration conf;
+                conf.setSchema(topicSchema);
+                self->getPartitionMetadataAsync(topicName).addListener(
+                    std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
+                              std::placeholders::_2, topicName, conf, callback, assignedBrokerUrl));
+            });
     } else {
         getPartitionMetadataAsync(topicName).addListener(
             [this, conf, topicName, callback{std::move(callback)}, assignedBrokerUrl](
@@ -288,9 +288,10 @@ void ClientImpl::handleCreateProducer(const Error& error, const LookupDataResult
                 producer = std::make_shared<PartitionedProducerImpl>(
                     shared_from_this(), topicName, partitionMetadata->getPartitions(), conf, interceptors);
             } else {
-                producer = std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors,
-                                                          /* partition */ -1,
-                                                          /* retryOnCreationError */ false, assignedBrokerUrl);
+                producer =
+                    std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors,
+                                                   /* partition */ -1,
+                                                   /* retryOnCreationError */ false, assignedBrokerUrl);
             }
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create producer: " << e.what());

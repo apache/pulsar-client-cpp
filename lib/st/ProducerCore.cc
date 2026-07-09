@@ -16,9 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <pulsar/st/detail/ProducerCore.h>
-
 #include <pulsar/st/Producer.h>  // complete OutgoingMessage (moved into the impl)
+#include <pulsar/st/detail/ProducerCore.h>
 
 #include <utility>
 
