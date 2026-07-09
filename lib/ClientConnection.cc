@@ -313,6 +313,11 @@ void ClientConnection::handlePulsarConnected(const proto::CommandConnected& cmdC
         LOG_DEBUG("Current max message size is: " << maxMessageSize_);
     }
 
+    if (cmdConnected.has_feature_flags()) {
+        supportsScalableTopics_.store(cmdConnected.feature_flags().supports_scalable_topics(),
+                                      std::memory_order_release);
+    }
+
     Lock lock(mutex_);
 
     if (isClosed()) {
@@ -988,6 +993,10 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     handleAckResponse(incomingCmd.ackresponse());
                     break;
 
+                case BaseCommand::SCALABLE_TOPIC_UPDATE:
+                    handleScalableTopicUpdate(incomingCmd.scalabletopicupdate());
+                    break;
+
                 default:
                     LOG_WARN(cnxString() << "Received invalid message from server");
                     close(Error{ResultDisconnected, cnxString() + "Received invalid message from server"});
@@ -1267,6 +1276,7 @@ const std::future<void>& ClientConnection::close(Error&& error, bool switchClust
     auto pendingGetLastMessageIdRequests = std::move(pendingGetLastMessageIdRequests_);
     auto pendingGetNamespaceTopicsRequests = std::move(pendingGetNamespaceTopicsRequests_);
     auto pendingGetSchemaRequests = std::move(pendingGetSchemaRequests_);
+    auto scalableTopicSessions = std::move(scalableTopicSessions_);
 
     numOfPendingLookupRequest_ = 0;
 
@@ -1341,6 +1351,11 @@ const std::future<void>& ClientConnection::close(Error&& error, bool switchClust
     for (auto& kv : pendingLookupRequests) {
         kv.second->fail(error);
     }
+    // Notify scalable-topic DAG-watch sessions so they can re-establish on a
+    // new connection.
+    for (auto& kv : scalableTopicSessions) {
+        kv.second(error.result, nullptr);
+    }
     for (auto& kv : pendingConsumerStatsMap) {
         LOG_ERROR(cnxString() << " Closing Client Connection, please try again later");
         kv.second.setFailed(result);
@@ -1377,6 +1392,39 @@ void ClientConnection::removeProducer(int producerId) {
 void ClientConnection::removeConsumer(int consumerId) {
     Lock lock(mutex_);
     consumers_.erase(consumerId);
+}
+
+bool ClientConnection::registerScalableTopicSession(uint64_t sessionId,
+                                                    ScalableTopicUpdateListener listener) {
+    Lock lock(mutex_);
+    if (isClosed()) {
+        return false;
+    }
+    scalableTopicSessions_[sessionId] = std::move(listener);
+    return true;
+}
+
+void ClientConnection::removeScalableTopicSession(uint64_t sessionId) {
+    Lock lock(mutex_);
+    scalableTopicSessions_.erase(sessionId);
+}
+
+void ClientConnection::handleScalableTopicUpdate(const proto::CommandScalableTopicUpdate& update) {
+    ScalableTopicUpdateListener listener;
+    {
+        Lock lock(mutex_);
+        auto it = scalableTopicSessions_.find(update.session_id());
+        if (it != scalableTopicSessions_.end()) {
+            listener = it->second;
+        }
+    }
+    if (listener) {
+        listener(ResultOk, &update);
+    } else {
+        // A push may race with a just-closed session; drop it rather than
+        // treating it as a protocol violation.
+        LOG_WARN(cnxString() << "Received SCALABLE_TOPIC_UPDATE for unknown session " << update.session_id());
+    }
 }
 
 const std::string& ClientConnection::brokerAddress() const { return physicalAddress_; }

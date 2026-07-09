@@ -77,9 +77,37 @@ target_include_directories(PULSAR_OBJECT_LIB PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_BINARY_DIR}/include")
 
+# --- Scalable topics (pulsar::st) implementation ----------------------------
+# The st API (include/pulsar/st) targets C++20 while the classic client above
+# stays C++17, so its implementation compiles in a separate object library with
+# a per-target standard. The objects are merged into the same libpulsar
+# shared/static artifacts below; a C++20-compiled object archive links fine
+# into C++17 consumers of the classic API.
+file(GLOB PULSAR_ST_SOURCES st/*.cc st/*.h)
+add_library(ST_OBJECT_LIB OBJECT ${PULSAR_ST_SOURCES})
+set_property(TARGET ST_OBJECT_LIB PROPERTY POSITION_INDEPENDENT_CODE 1)
+set_target_properties(ST_OBJECT_LIB PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+if (INTEGRATE_VCPKG)
+    target_link_libraries(ST_OBJECT_LIB PROTO_OBJECTS)
+    # The st sources #include the generated PulsarApi.pb.h. Linking PROTO_OBJECTS
+    # propagates its include dir, but the OBJECT->OBJECT link does not reliably
+    # order the build under the Visual Studio generator, so the st sources can
+    # compile before the proto is generated. Force the ordering explicitly.
+    add_dependencies(ST_OBJECT_LIB PROTO_OBJECTS)
+else ()
+    # Legacy (non-vcpkg) build generates the proto as part of PULSAR_OBJECT_LIB;
+    # ensure it exists before the st sources that include it compile.
+    add_dependencies(ST_OBJECT_LIB PULSAR_OBJECT_LIB)
+endif ()
+target_include_directories(ST_OBJECT_LIB PRIVATE ${LIB_AUTOGEN_DIR})
+target_include_directories(ST_OBJECT_LIB PUBLIC
+    "${CMAKE_SOURCE_DIR}"
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_BINARY_DIR}/include")
+
 include(CheckCXXSymbolExists)
 if (BUILD_DYNAMIC_LIB)
-    add_library(pulsarShared SHARED $<TARGET_OBJECTS:PULSAR_OBJECT_LIB>)
+    add_library(pulsarShared SHARED $<TARGET_OBJECTS:PULSAR_OBJECT_LIB> $<TARGET_OBJECTS:ST_OBJECT_LIB>)
     set_property(TARGET pulsarShared PROPERTY OUTPUT_NAME ${LIB_NAME_SHARED})
     set_property(TARGET pulsarShared PROPERTY VERSION ${LIBRARY_VERSION})
     target_link_libraries(pulsarShared PRIVATE ${COMMON_LIBS} ${CMAKE_DL_LIBS})
@@ -102,7 +130,7 @@ if(HAVE_AUXV_GETAUXVAL)
 endif()
 
 if (BUILD_STATIC_LIB)
-    add_library(pulsarStatic STATIC $<TARGET_OBJECTS:PULSAR_OBJECT_LIB>)
+    add_library(pulsarStatic STATIC $<TARGET_OBJECTS:PULSAR_OBJECT_LIB> $<TARGET_OBJECTS:ST_OBJECT_LIB>)
     target_include_directories(pulsarStatic PUBLIC
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_SOURCE_DIR}
@@ -139,7 +167,7 @@ if (LINK_STATIC AND BUILD_STATIC_LIB)
             set(${OUTLIST} ${TEMP_OUT} PARENT_SCOPE)
         endfunction(remove_libtype)
 
-        add_library(pulsarStaticWithDeps STATIC ${PULSAR_SOURCES})
+        add_library(pulsarStaticWithDeps STATIC ${PULSAR_SOURCES} $<TARGET_OBJECTS:ST_OBJECT_LIB>)
         target_include_directories(pulsarStaticWithDeps PRIVATE ${dlfcn-win32_INCLUDE_DIRS})
         if (VCPKG_TRIPLET)
             # Collect ALL vcpkg-installed static archives so every transitive dependency

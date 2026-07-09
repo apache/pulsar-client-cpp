@@ -58,3 +58,12 @@ target_link_libraries(ChunkDedupTest pulsarStatic ${GTEST_TARGETS})
 
 add_executable(ExtensibleLoadManagerTest extensibleLM/ExtensibleLoadManagerTest.cc HttpHelper.cc)
 target_link_libraries(ExtensibleLoadManagerTest PRIVATE pulsarStatic ${GTEST_TARGETS})
+
+# --- Scalable topics (pulsar::st) unit tests --------------------------------
+# Pure client-side tests for the st API and its lib/st implementation; they do
+# not require a running broker. C++20 per-target, like the st API itself.
+file(GLOB ST_TEST_SOURCES st/*.cc)
+add_executable(pulsar-st-tests ${ST_TEST_SOURCES})
+set_target_properties(pulsar-st-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
+target_include_directories(pulsar-st-tests PRIVATE ${AUTOGEN_DIR}/lib)
+target_link_libraries(pulsar-st-tests PRIVATE pulsarStatic ${GTEST_TARGETS})

@@ -39,6 +39,11 @@ class PULSAR_PUBLIC Murmur3_32Hash : public Hash {
 
     int32_t makeHash(const std::string& key);
 
+    // The raw (unmasked) 32-bit hash. Unlike makeHash(), bit 31 is NOT cleared;
+    // the scalable-topics key hashing splits this into two independent 16-bit
+    // halves and needs the high half full-range.
+    uint32_t makeRawHash(const void* key, int64_t len);
+
    private:
     uint32_t seed;
 

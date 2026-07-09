@@ -147,6 +147,13 @@ class Commands {
     static SharedBuffer newRedeliverUnacknowledgedMessages(uint64_t consumerId,
                                                            const std::set<MessageId>& messageIds);
 
+    // Scalable topics (pulsar::st): open/close a DAG-watch session. The broker
+    // answers (and later pushes) CommandScalableTopicUpdate correlated by the
+    // client-assigned sessionId.
+    static SharedBuffer newScalableTopicLookup(uint64_t sessionId, const std::string& topic,
+                                               bool createIfMissing);
+    static SharedBuffer newScalableTopicClose(uint64_t sessionId);
+
     static std::string messageType(BaseCommand_Type type);
 
     static void initBatchMessageMetadata(const Message& msg, pulsar::proto::MessageMetadata& batchMetadata);

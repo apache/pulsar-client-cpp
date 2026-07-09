@@ -124,11 +124,11 @@ set(SAMPLE_ST_SOURCES
     st/SampleStQueueConsumer.cc
     st/SampleStCheckpointConsumer.cc
 )
-# reflect-cpp powers jsonSchema<T>() (reflection-based JSON SerDe + schema). It is
-# optional for this API-only PR: when the package is present the JSON sample is
-# added and linked against it; when absent, only that one sample is skipped. (The
-# reflectcpp vcpkg port does not yet ship an Avro backend, so it is not yet wired
-# into the manifest; it will be added with the lib/st implementation.)
+# reflect-cpp powers jsonSchema<T>() and avroSchema<T>() (reflection-based SerDe +
+# derived schema). The vcpkg manifest carries reflectcpp plus avro-c (the C library
+# behind reflect-cpp's header-only Avro backend); the find_package guard only
+# matters for non-manifest builds (e.g. the CodeQL job), where the JSON sample is
+# skipped.
 find_package(reflectcpp CONFIG QUIET)
 if (reflectcpp_FOUND)
     list(APPEND SAMPLE_ST_SOURCES st/SampleStJsonSchema.cc)
