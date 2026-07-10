@@ -590,6 +590,21 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
             increaseAvailablePermits(cnx);
         }
         lock.unlock();
+        // The uncached chunk cannot be assembled into a complete message.
+        // If the message has expired, acknowledge it directly to avoid ack holes;
+        // otherwise, track it in the unacked message tracker so it will be redelivered on timeout.
+        if (expireTimeOfIncompleteChunkedMessageMs_ > 0 &&
+            TimeUtils::currentTimeMillis() >
+                static_cast<long>(metadata.publish_time()) + expireTimeOfIncompleteChunkedMessageMs_) {
+            acknowledgeAsync(messageId, [uuid, messageId](Result result) {
+                if (result != ResultOk) {
+                    LOG_WARN("Failed to acknowledge uncached chunk, uuid: " << uuid
+                                                                            << ", messageId: " << messageId);
+                }
+            });
+        } else {
+            trackMessage(messageId);
+        }
         return {};
     }
 
@@ -656,6 +671,8 @@ optional<SharedBuffer> ConsumerImpl::processMessageChunk(const SharedBuffer& pay
                                                                        << ", messageId: " << messageId);
                 }
             });
+        } else {
+            trackMessage(messageId);
         }
         return {};
     }
