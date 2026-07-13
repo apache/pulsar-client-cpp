@@ -19,6 +19,7 @@
 #include <pulsar/st/MessageId.h>
 
 #include <cstdint>
+#include <cstring>
 #include <exception>
 #include <functional>
 #include <ostream>
@@ -58,8 +59,15 @@ void putInt64(std::vector<std::byte>& out, std::int64_t value) {
 }
 
 void putBytes(std::vector<std::byte>& out, const std::string& bytes) {
-    const auto* p = reinterpret_cast<const std::byte*>(bytes.data());
-    out.insert(out.end(), p, p + bytes.size());
+    // Append via resize + memcpy rather than insert(end, ptr, ptr+n): GCC 13's
+    // -Wstringop-overflow false-positives on vector::insert from a cast pointer range under
+    // the Alpine/musl release build (it loses the destination size through the inlined
+    // uninitialized_copy). resize gives the analyzer a known size and sidesteps that path.
+    const std::size_t offset = out.size();
+    out.resize(offset + bytes.size());
+    if (!bytes.empty()) {
+        std::memcpy(out.data() + offset, bytes.data(), bytes.size());
+    }
 }
 
 class Reader {
