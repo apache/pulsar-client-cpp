@@ -184,9 +184,16 @@ Future<pulsar::Producer> StProducerImpl::getOrCreateSegmentProducerAsync(std::ui
 
     pulsar::ProducerConfiguration conf = buildSegmentConfiguration(*segment);
     const std::string attachTopic = segment->attachTopicName();
+    // Pin to the DAG-provided owner broker, picking the address that matches how this client
+    // connects — the same choice the classic lookup makes (BinaryProtoLookupService uses
+    // `useTls() ? brokerUrlTls : brokerUrl`). If the DAG did not advertise the address we need,
+    // leave the pin unset and fall back to the normal segment:// lookup, which resolves it.
+    const bool useTls = classic_->getServiceInfo().useTls();
+    const std::string* url =
+        useTls ? currentLayout_->brokerUrlTls(segmentId) : currentLayout_->brokerUrl(segmentId);
     std::optional<std::string> assignedBrokerUrl;
-    if (const std::string* url = currentLayout_->brokerUrl(segmentId)) {
-        assignedBrokerUrl = *url;  // pin to the DAG-provided owner broker
+    if (url != nullptr) {
+        assignedBrokerUrl = *url;
     }
 
     auto future = promise.getFuture();
@@ -291,10 +298,14 @@ void StProducerImpl::handleSegmentFailure(Error error, OutgoingMessage message, 
     auto timer = classic_->getIOExecutorProvider()->get()->createDeadlineTimer();
     const std::int64_t delayMs = std::min<std::int64_t>(100 * (attempt + 1), kSendRetryMaxBackoffMs);
     timer->expires_from_now(std::chrono::milliseconds(delayMs));
-    auto self = shared_from_this();
-    timer->async_wait([self, message = std::move(message), attempt, userPromise,
+    // Capture a weak ref: closeAsync() does not cancel these timers, so a strong one would keep the
+    // producer alive until the backoff elapses. If the producer is gone by then, fail the send
+    // instead of resurrecting it. (`timer` is captured to keep itself alive until it fires.)
+    std::weak_ptr<StProducerImpl> weak = weak_from_this();
+    timer->async_wait([weak, message = std::move(message), attempt, userPromise,
                        timer](const ASIO_ERROR& ec) mutable {
-        if (ec || self->closed_.load()) {
+        auto self = weak.lock();
+        if (ec || !self || self->closed_.load()) {
             userPromise.setError(Error{ResultAlreadyClosed, "producer closed during send retry"});
             return;
         }
