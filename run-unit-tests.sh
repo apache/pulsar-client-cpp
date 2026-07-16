@@ -73,8 +73,9 @@ docker compose -f tests/chunkdedup/docker-compose.yml down
 # which publish to a scalable topic on a standalone broker (PULSAR_ST_E2E gates the e2e cases).
 docker compose -f tests/st/docker-compose.yml up -d
 until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
-# Scalable topics are a managed construct — unlike regular topics they are not auto-created on
-# lookup, so create the one the producer e2e publishes to once the namespace is ready.
+# The 5.0.0-M1 broker image pinned here does not auto-create a scalable topic on lookup (a bug
+# fixed in later releases), so pre-create the one the producer e2e publishes to. This is harmless
+# once the image carries the fix: the producer's create_if_missing lookup finds the topic either way.
 until curl -sf http://localhost:8080/admin/v2/namespaces/public/default > /dev/null 2>&1 ; do sleep 1; done
 # Retry: the scalable-topics controller may not be ready the moment the namespace is.
 for i in $(seq 1 30); do
