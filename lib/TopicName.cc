@@ -35,6 +35,7 @@ namespace pulsar {
 
 const std::string TopicDomain::Persistent = "persistent";
 const std::string TopicDomain::NonPersistent = "non-persistent";
+const std::string TopicDomain::Segment = "segment";
 static const std::string PARTITION_NAME_SUFFIX = "-partition-";
 
 typedef std::unique_lock<std::mutex> Lock;
@@ -105,7 +106,23 @@ bool TopicName::parse(const std::string& topicName, std::string& domain, std::st
     domain = pathTokens[0];
     size_t numSlashIndexes;
     bool isV2Topic;
-    if (pathTokens.size() == 4) {
+    if (domain == TopicDomain::Segment) {
+        // segment://<tenant>/<ns>/<parent-topic>/<descriptor>: always the new
+        // (cluster-less) format, with a '/' inside the local name — so the
+        // token-count heuristic below must not mistake it for a legacy V1 name.
+        if (pathTokens.size() < 5) {
+            LOG_ERROR(
+                "Segment topic name is not valid, expected "
+                "segment://<tenant>/<namespace>/<topic>/<descriptor> - "
+                << topicName);
+            return false;
+        }
+        property = pathTokens[1];
+        cluster = "";
+        namespacePortion = pathTokens[2];
+        numSlashIndexes = 3;
+        isV2Topic = true;
+    } else if (pathTokens.size() == 4) {
         // New topic name without cluster name
         property = pathTokens[1];
         cluster = "";
@@ -171,7 +188,12 @@ bool TopicName::operator==(const TopicName& other) const {
 bool TopicName::validate() {
     // Check if domain matches with TopicDomain::Persistent, in future check "memory" when server is
     // ready.
-    if (domain_.compare(TopicDomain::Persistent) != 0 && domain_.compare(TopicDomain::NonPersistent) != 0) {
+    if (domain_.compare(TopicDomain::Persistent) != 0 && domain_.compare(TopicDomain::NonPersistent) != 0 &&
+        domain_.compare(TopicDomain::Segment) != 0) {
+        return false;
+    }
+    if (domain_ == TopicDomain::Segment && !isV2Topic_) {
+        // Segment topics only exist in the new (cluster-less) format.
         return false;
     }
     // cluster_ can be empty
@@ -228,7 +250,13 @@ std::string TopicName::toString() const {
     return ss.str();
 }
 
-bool TopicName::isPersistent() const { return this->domain_ == TopicDomain::Persistent; }
+// A segment topic is the persistent backing topic of one scalable-topic segment,
+// so it counts as persistent (matching the Java TopicName).
+bool TopicName::isPersistent() const {
+    return this->domain_ == TopicDomain::Persistent || this->domain_ == TopicDomain::Segment;
+}
+
+bool TopicName::isSegment() const { return this->domain_ == TopicDomain::Segment; }
 
 std::string TopicName::getTopicPartitionName(unsigned int partition) const {
     std::stringstream topicPartitionName;

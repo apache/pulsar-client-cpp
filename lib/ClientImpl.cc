@@ -94,6 +94,15 @@ std::string generateRandomName() {
 
 typedef std::vector<std::string> StringList;
 
+// segment:// topics are the internal backing topics of a scalable topic and are
+// reachable only through the pulsar::st client, which bypasses this rejection.
+static Error segmentTopicRejected(const std::string& topic) {
+    return Error{ResultInvalidTopicName,
+                 "segment:// topics are the internal backing topics of a scalable topic; use the "
+                 "pulsar::st API instead: " +
+                     topic};
+}
+
 static LookupServicePtr defaultLookupServiceFactory(const ServiceInfo& serviceInfo,
                                                     const ClientConfiguration& clientConfiguration,
                                                     ConnectionPool& pool) {
@@ -204,6 +213,21 @@ LookupServicePtr ClientImpl::getLookup(const std::string& redirectedClusterURI) 
 
 void ClientImpl::createProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
                                      CreateProducerV2Callback callback, bool autoDownloadSchema) {
+    createProducerAsyncImpl(topic, conf, std::move(callback), autoDownloadSchema,
+                            /* allowSegmentTopic */ false);
+}
+
+void ClientImpl::createSegmentProducerAsync(const std::string& topic, const ProducerConfiguration& conf,
+                                            CreateProducerV2Callback callback,
+                                            const std::optional<std::string>& assignedBrokerUrl) {
+    createProducerAsyncImpl(topic, conf, std::move(callback), /* autoDownloadSchema */ false,
+                            /* allowSegmentTopic */ true, assignedBrokerUrl);
+}
+
+void ClientImpl::createProducerAsyncImpl(const std::string& topic, const ProducerConfiguration& conf,
+                                         CreateProducerV2Callback callback, bool autoDownloadSchema,
+                                         bool allowSegmentTopic,
+                                         const std::optional<std::string>& assignedBrokerUrl) {
     if (conf.isChunkingEnabled() && conf.getBatchingEnabled()) {
         throw std::invalid_argument("Batching and chunking of messages can't be enabled together");
     }
@@ -222,32 +246,38 @@ void ClientImpl::createProducerAsync(const std::string& topic, const ProducerCon
             return;
         }
     }
+    if (topicName->isSegment() && !allowSegmentTopic) {
+        callback(segmentTopicRejected(topic));
+        return;
+    }
 
     if (autoDownloadSchema) {
-        getSchema(topicName).addListener([self{shared_from_this()}, topicName, callback{std::move(callback)}](
-                                             const Error& error, const SchemaInfo& topicSchema) mutable {
-            if (error.result != ResultOk) {
-                callback(error);
-                return;
-            }
-            ProducerConfiguration conf;
-            conf.setSchema(topicSchema);
-            self->getPartitionMetadataAsync(topicName).addListener(
-                std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
-                          std::placeholders::_2, topicName, conf, callback));
-        });
+        getSchema(topicName).addListener(
+            [self{shared_from_this()}, topicName, callback{std::move(callback)}, assignedBrokerUrl](
+                const Error& error, const SchemaInfo& topicSchema) mutable {
+                if (error.result != ResultOk) {
+                    callback(error);
+                    return;
+                }
+                ProducerConfiguration conf;
+                conf.setSchema(topicSchema);
+                self->getPartitionMetadataAsync(topicName).addListener(
+                    std::bind(&ClientImpl::handleCreateProducer, self, std::placeholders::_1,
+                              std::placeholders::_2, topicName, conf, callback, assignedBrokerUrl));
+            });
     } else {
         getPartitionMetadataAsync(topicName).addListener(
-            [this, conf, topicName, callback{std::move(callback)}](
+            [this, conf, topicName, callback{std::move(callback)}, assignedBrokerUrl](
                 const Error& error, const LookupDataResultPtr& partitionMetadata) {
-                handleCreateProducer(error, partitionMetadata, topicName, conf, callback);
+                handleCreateProducer(error, partitionMetadata, topicName, conf, callback, assignedBrokerUrl);
             });
     }
 }
 
 void ClientImpl::handleCreateProducer(const Error& error, const LookupDataResultPtr& partitionMetadata,
                                       const TopicNamePtr& topicName, const ProducerConfiguration& conf,
-                                      CreateProducerV2Callback callback) {
+                                      CreateProducerV2Callback callback,
+                                      const std::optional<std::string>& assignedBrokerUrl) {
     if (!error.result) {
         ProducerImplBasePtr producer;
 
@@ -258,7 +288,10 @@ void ClientImpl::handleCreateProducer(const Error& error, const LookupDataResult
                 producer = std::make_shared<PartitionedProducerImpl>(
                     shared_from_this(), topicName, partitionMetadata->getPartitions(), conf, interceptors);
             } else {
-                producer = std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors);
+                producer =
+                    std::make_shared<ProducerImpl>(shared_from_this(), *topicName, conf, interceptors,
+                                                   /* partition */ -1,
+                                                   /* retryOnCreationError */ false, assignedBrokerUrl);
             }
         } catch (const std::runtime_error& e) {
             LOG_ERROR("Failed to create producer: " << e.what());
@@ -319,6 +352,10 @@ void ClientImpl::createReaderAsyncV2(const std::string& topic, const MessageId& 
             return;
         }
     }
+    if (topicName->isSegment()) {
+        callback(segmentTopicRejected(topic));
+        return;
+    }
 
     getPartitionMetadataAsync(topicName).addListener(
         [this, self{shared_from_this()}, topicName, startMessageId, conf, callback{std::move(callback)}](
@@ -347,6 +384,10 @@ void ClientImpl::createTableViewAsyncV2(const std::string& topic, const TableVie
             callback(Error{ResultInvalidTopicName, ""});
             return;
         }
+    }
+    if (topicName->isSegment()) {
+        callback(segmentTopicRejected(topic));
+        return;
     }
 
     TableViewImplPtr tableViewPtr =
@@ -586,6 +627,11 @@ void ClientImpl::subscribeToTopicsAsyncV2(const std::string& topic, const std::s
         }
     }
 
+    if (topicName->isSegment()) {
+        callback(segmentTopicRejected(topic));
+        return;
+    }
+
     getPartitionMetadataAsync(topicName).addListener(
         [this, self{shared_from_this()}, topicName, subscriptionName, conf, callback{std::move(callback)}](
             const auto& error, const auto& metadata) {
@@ -767,6 +813,11 @@ void ClientImpl::getPartitionsForTopicAsync(const std::string& topic, const GetP
             callback(ResultInvalidTopicName, StringList());
             return;
         }
+    }
+    if (topicName->isSegment()) {
+        LOG_ERROR(segmentTopicRejected(topic));
+        callback(ResultInvalidTopicName, StringList());
+        return;
     }
     getPartitionMetadataAsync(topicName).addListener(
         [this, self{shared_from_this()}, topicName, callback](const auto& error, const auto& metadata) {

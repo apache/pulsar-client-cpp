@@ -73,7 +73,8 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     ProducerImpl(const ClientImplPtr& client, const TopicName& topic,
                  const ProducerConfiguration& producerConfiguration,
                  const ProducerInterceptorsPtr& interceptors, int32_t partition = -1,
-                 bool retryOnCreationError = false);
+                 bool retryOnCreationError = false,
+                 const optional<std::string>& assignedBrokerUrl = std::nullopt);
     ~ProducerImpl();
 
     // overrided methods from ProducerImplBase
@@ -177,6 +178,9 @@ class ProducerImpl : public HandlerBase, public ProducerImplBase {
     std::list<std::unique_ptr<OpSendMsg>> pendingMessagesQueue_;
 
     const int32_t partition_;  // -1 if topic is non-partitioned
+    // When set, the initial connect goes straight to this broker (no lookup) — used by
+    // scalable-topics per-segment producers pinned to the DAG-provided owner broker.
+    const optional<std::string> assignedBrokerUrl_;
     std::string producerName_;
     bool userProvidedProducerName_;
     std::string producerStr_;

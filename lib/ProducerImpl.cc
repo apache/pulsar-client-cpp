@@ -50,7 +50,8 @@ using std::chrono::milliseconds;
 
 ProducerImpl::ProducerImpl(const ClientImplPtr& client, const TopicName& topicName,
                            const ProducerConfiguration& conf, const ProducerInterceptorsPtr& interceptors,
-                           int32_t partition, bool retryOnCreationError)
+                           int32_t partition, bool retryOnCreationError,
+                           const optional<std::string>& assignedBrokerUrl)
     : HandlerBase(client, (partition < 0) ? topicName.toString() : topicName.getTopicPartitionName(partition),
                   Backoff(milliseconds(client->getClientConfig().getInitialBackoffIntervalMs()),
                           milliseconds(client->getClientConfig().getMaxBackoffIntervalMs()),
@@ -58,6 +59,7 @@ ProducerImpl::ProducerImpl(const ClientImplPtr& client, const TopicName& topicNa
       conf_(conf),
       semaphore_(),
       partition_(partition),
+      assignedBrokerUrl_(assignedBrokerUrl),
       producerName_(conf_.getProducerName()),
       userProvidedProducerName_(false),
       producerStr_("[" + topic() + ", " + producerName_ + "] "),
@@ -1007,7 +1009,7 @@ void ProducerImpl::disconnectProducer(const optional<std::string>& assignedBroke
 void ProducerImpl::disconnectProducer() { disconnectProducer(std::nullopt); }
 
 void ProducerImpl::start() {
-    HandlerBase::start();
+    HandlerBase::start(assignedBrokerUrl_);
 
     if (conf_.getLazyStartPartitionedProducers() && conf_.getAccessMode() == ProducerConfiguration::Shared) {
         // we need to kick it off now as it is possible that the connection may take

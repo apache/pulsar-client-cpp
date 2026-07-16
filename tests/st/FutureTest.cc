@@ -27,6 +27,7 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 using namespace pulsar::st;
 using pulsar::st::detail::Promise;
@@ -80,6 +81,33 @@ TEST(FutureTest, testListenerAfterCompletionRunsSynchronously) {
     int seen = -1;
     promise.getFuture().addListener([&seen](const Expected<int>& r) { seen = r ? *r : -2; });
     ASSERT_EQ(seen, 9);
+}
+
+// The scalable-topics producer relies on listeners firing in registration order to
+// preserve send ordering to a segment without a per-segment dispatch chain (which
+// Java needs only because JDK CompletableFuture gives no fire-order guarantee). Lock
+// that guarantee in here.
+TEST(FutureTest, testListenersFireInRegistrationOrder) {
+    Promise<int> promise;
+    Future<int> future = promise.getFuture();
+    std::vector<int> order;
+    for (int i = 0; i < 5; i++) {
+        future.addListener([&order, i](const Expected<int>&) { order.push_back(i); });
+    }
+    promise.setValue(1);
+    ASSERT_EQ(order, (std::vector<int>{0, 1, 2, 3, 4}));
+}
+
+TEST(FutureTest, testListenerAddedAfterCompletionRunsAfterEarlierOnes) {
+    Promise<int> promise;
+    Future<int> future = promise.getFuture();
+    std::vector<int> order;
+    future.addListener([&order](const Expected<int>&) { order.push_back(0); });
+    promise.setValue(1);  // fires listener 0
+    // A listener registered after completion runs synchronously, and after the ones
+    // that were already registered — so a late same-segment send never jumps the queue.
+    future.addListener([&order](const Expected<int>&) { order.push_back(1); });
+    ASSERT_EQ(order, (std::vector<int>{0, 1}));
 }
 
 TEST(FutureTest, testCompleteIsFirstWriterWins) {
