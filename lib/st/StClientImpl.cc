@@ -21,6 +21,7 @@
 #include <string>
 #include <utility>
 
+#include "QueueConsumerImpl.h"
 #include "StProducerImpl.h"
 
 namespace pulsar::st {
@@ -66,9 +67,18 @@ Future<detail::StreamConsumerCore> ClientImpl::subscribeStreamAsync(StreamConsum
     return notImplementedYet<detail::StreamConsumerCore>("subscribeStream");
 }
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
-Future<detail::QueueConsumerCore> ClientImpl::subscribeQueueAsync(QueueConsumerConfig) {
-    return notImplementedYet<detail::QueueConsumerCore>("subscribeQueue");
+Future<detail::QueueConsumerCore> ClientImpl::subscribeQueueAsync(QueueConsumerConfig config) {
+    auto impl = std::make_shared<QueueConsumerImpl>(classic_, std::move(config));
+    detail::Promise<detail::QueueConsumerCore> promise;
+    // Keep the impl alive until start() resolves; on success mint the public core over it.
+    impl->start().addListener([impl, promise](const Expected<void>& result) {
+        if (result) {
+            promise.setValue(detail::QueueConsumerCore{impl});
+        } else {
+            promise.setError(result.error());
+        }
+    });
+    return promise.getFuture();
 }
 
 // NOLINTNEXTLINE(performance-unnecessary-value-param)
