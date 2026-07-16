@@ -43,7 +43,8 @@ namespace pulsar::st {
  */
 class MessageImpl {
    public:
-    MessageImpl(pulsar::Message message, MessageId id, std::optional<std::string> topicOverride = std::nullopt)
+    MessageImpl(pulsar::Message message, MessageId id,
+                std::optional<std::string> topicOverride = std::nullopt)
         : classic_(std::move(message)), id_(std::move(id)), topicOverride_(std::move(topicOverride)) {}
 
     std::span<const std::byte> data() const {

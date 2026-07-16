@@ -606,7 +606,8 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
 
 void ClientImpl::subscribeSegmentAsync(const std::string& topic, const std::string& subscriptionName,
                                        const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
-    subscribeToTopicsAsyncV2(topic, subscriptionName, conf, std::move(callback), /* allowSegmentTopic */ true);
+    subscribeToTopicsAsyncV2(topic, subscriptionName, conf, std::move(callback),
+                             /* allowSegmentTopic */ true);
 }
 
 void ClientImpl::subscribeToTopicsAsyncV2(const std::string& topic, const std::string& subscriptionName,
