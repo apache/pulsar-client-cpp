@@ -149,4 +149,84 @@ TEST(StProducerE2ETest, testProduceAcrossSplitSegments) {
     EXPECT_TRUE(client.close());
 }
 
+// Produce to a topic the harness has split and then merged back together. A merge seals the two
+// children and creates one full-range active segment, so every key routes to that merged segment;
+// this exercises the layout parser and router on a DAG that carries several sealed segments.
+TEST(StProducerE2ETest, testProduceAfterMerge) {
+    if (!e2eEnabled()) GTEST_SKIP() << "set PULSAR_ST_E2E=1 to run against a scalable-topics broker";
+
+    auto clientResult = PulsarClient::builder().serviceUrl(serviceUrl()).build();
+    ASSERT_TRUE(clientResult) << clientResult.error();
+    PulsarClient client = std::move(clientResult).value();
+
+    auto producerResult =
+        client.newProducer(Schema<std::string>{}).topic("topic://public/default/st-e2e-merge").create();
+    ASSERT_TRUE(producerResult) << producerResult.error();
+    Producer<std::string> producer = std::move(producerResult).value();
+
+    std::set<std::int64_t> segments;
+    for (int i = 0; i < 30; i++) {
+        auto sent =
+            producer.newMessage().key("key-" + std::to_string(i)).value("v-" + std::to_string(i)).send();
+        ASSERT_TRUE(sent) << "send " << i << " failed: " << sent.error();
+        segments.insert(segmentIdOf(*sent));
+    }
+    EXPECT_EQ(segments.size(), 1u) << "every key should route to the single active merged segment";
+
+    EXPECT_TRUE(producer.flush());
+    EXPECT_TRUE(producer.close());
+    EXPECT_TRUE(client.close());
+}
+
+// Split a segment out from under a live producer and assert publishing keeps working. This is the
+// segment-gone path: sends routed to the just-sealed segment fail with TopicTerminated and the
+// producer retries + re-routes onto the new layout the DAG watch delivers. The split is triggered
+// through the admin command the harness passes in PULSAR_ST_E2E_SPLIT_CMD (so the container name
+// stays out of the test); the exact moment a send races the seal is timing-dependent, but every
+// send must ultimately succeed and publishing must reach the post-split segments.
+TEST(StProducerE2ETest, testProduceContinuesAcrossLiveSplit) {
+    if (!e2eEnabled()) GTEST_SKIP() << "set PULSAR_ST_E2E=1 to run against a scalable-topics broker";
+    const char* splitCommand = std::getenv("PULSAR_ST_E2E_SPLIT_CMD");
+    if (splitCommand == nullptr) GTEST_SKIP() << "PULSAR_ST_E2E_SPLIT_CMD (admin split command) not set";
+
+    auto clientResult = PulsarClient::builder().serviceUrl(serviceUrl()).build();
+    ASSERT_TRUE(clientResult) << clientResult.error();
+    PulsarClient client = std::move(clientResult).value();
+
+    auto producerResult =
+        client.newProducer(Schema<std::string>{}).topic("topic://public/default/st-e2e-live-split").create();
+    ASSERT_TRUE(producerResult) << producerResult.error();
+    Producer<std::string> producer = std::move(producerResult).value();
+
+    // Warm up so a per-segment producer is cached on the single active segment before it is sealed.
+    for (int i = 0; i < 10; i++) {
+        ASSERT_TRUE(producer.send("warmup-" + std::to_string(i)));
+    }
+
+    // Seal the active segment (split it into two children) while publishing continues.
+    ASSERT_EQ(std::system(splitCommand), 0) << "split command failed: " << splitCommand;
+
+    // Burst of async sends spanning the split-propagation window; the producer must transparently
+    // retry the ones that hit the sealed segment and re-route onto the new layout.
+    constexpr int kBurst = 200;
+    std::vector<Future<MessageId>> futures;
+    futures.reserve(kBurst);
+    for (int i = 0; i < kBurst; i++) {
+        futures.push_back(
+            producer.newMessage().key("k-" + std::to_string(i)).value("b-" + std::to_string(i)).sendAsync());
+    }
+    std::set<std::int64_t> segments;
+    for (int i = 0; i < kBurst; i++) {
+        auto result = futures[i].get();
+        ASSERT_TRUE(result) << "burst send " << i << " failed across the live split: " << result.error();
+        segments.insert(segmentIdOf(*result));
+    }
+    // Publishing reached at least one segment created by the split (id > 0; the original was 0).
+    EXPECT_GT(*segments.rbegin(), 0) << "no send reached a post-split segment";
+
+    EXPECT_TRUE(producer.flush());
+    EXPECT_TRUE(producer.close());
+    EXPECT_TRUE(client.close());
+}
+
 }  // namespace

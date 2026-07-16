@@ -82,9 +82,16 @@ for i in $(seq 1 30); do
     docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-produce && break
     sleep 2
 done
-# A second topic split into two active segments, so the producer e2e exercises cross-segment routing.
+# A topic split into two active segments, so the producer e2e exercises cross-segment routing.
 docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-split
 docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics split-segment -s=0 persistent://public/default/st-e2e-split
+# A topic split then merged back, so the e2e exercises routing over a DAG carrying sealed segments.
+docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-merge
+docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics split-segment -s=0 persistent://public/default/st-e2e-merge
+docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics merge-segments --segment-id-1=1 --segment-id-2=2 persistent://public/default/st-e2e-merge
+# A single-segment topic the live-split test seals mid-publish; it triggers the split via this command.
+docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-live-split
+export PULSAR_ST_E2E_SPLIT_CMD="docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics split-segment -s=0 persistent://public/default/st-e2e-live-split"
 PULSAR_ST_E2E=1 $CMAKE_BUILD_DIRECTORY/tests/pulsar-st-tests
 docker compose -f tests/st/docker-compose.yml down
 
