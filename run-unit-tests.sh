@@ -69,6 +69,21 @@ sleep 5
 $CMAKE_BUILD_DIRECTORY/tests/ChunkDedupTest --gtest_repeat=10
 docker compose -f tests/chunkdedup/docker-compose.yml down
 
+# Run scalable-topics tests: the broker-free unit tests plus the producer end-to-end tests,
+# which publish to a scalable topic on a standalone broker (PULSAR_ST_E2E gates the e2e cases).
+docker compose -f tests/st/docker-compose.yml up -d
+until curl http://localhost:8080/metrics > /dev/null 2>&1 ; do sleep 1; done
+# Scalable topics are a managed construct — unlike regular topics they are not auto-created on
+# lookup, so create the one the producer e2e publishes to once the namespace is ready.
+until curl -sf http://localhost:8080/admin/v2/namespaces/public/default > /dev/null 2>&1 ; do sleep 1; done
+# Retry: the scalable-topics controller may not be ready the moment the namespace is.
+for i in $(seq 1 30); do
+    docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-produce && break
+    sleep 2
+done
+PULSAR_ST_E2E=1 $CMAKE_BUILD_DIRECTORY/tests/pulsar-st-tests
+docker compose -f tests/st/docker-compose.yml down
+
 ./pulsar-test-service-start.sh
 
 pushd $CMAKE_BUILD_DIRECTORY/tests
