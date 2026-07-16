@@ -82,6 +82,9 @@ for i in $(seq 1 30); do
     docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-produce && break
     sleep 2
 done
+# A second topic split into two active segments, so the producer e2e exercises cross-segment routing.
+docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics create persistent://public/default/st-e2e-split
+docker exec pulsar-st-standalone bin/pulsar-admin scalable-topics split-segment -s=0 persistent://public/default/st-e2e-split
 PULSAR_ST_E2E=1 $CMAKE_BUILD_DIRECTORY/tests/pulsar-st-tests
 docker compose -f tests/st/docker-compose.yml down
 

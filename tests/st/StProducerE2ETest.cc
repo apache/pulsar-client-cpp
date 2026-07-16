@@ -24,6 +24,7 @@
 #include <pulsar/st/Client.h>
 
 #include <cstdlib>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -112,6 +113,37 @@ TEST(StProducerE2ETest, testAsyncSendsAllComplete) {
         ASSERT_TRUE(result) << "async send " << i << " failed: " << result.error();
         EXPECT_GE(segmentIdOf(*result), 0);
     }
+    EXPECT_TRUE(producer.flush());
+    EXPECT_TRUE(producer.close());
+    EXPECT_TRUE(client.close());
+}
+
+// Produce to a topic the harness has split into two active segments and assert keys actually
+// distribute across both — the single-segment tests above route every key to the one segment,
+// so they never exercise cross-segment routing.
+TEST(StProducerE2ETest, testProduceAcrossSplitSegments) {
+    if (!e2eEnabled()) GTEST_SKIP() << "set PULSAR_ST_E2E=1 to run against a scalable-topics broker";
+
+    auto clientResult = PulsarClient::builder().serviceUrl(serviceUrl()).build();
+    ASSERT_TRUE(clientResult) << clientResult.error();
+    PulsarClient client = std::move(clientResult).value();
+
+    auto producerResult =
+        client.newProducer(Schema<std::string>{}).topic("topic://public/default/st-e2e-split").create();
+    ASSERT_TRUE(producerResult) << producerResult.error();
+    Producer<std::string> producer = std::move(producerResult).value();
+
+    // With 60 distinct keys over two half-range segments, both are hit with overwhelming
+    // probability (all landing on one segment would be ~2^-60).
+    std::set<std::int64_t> segments;
+    for (int i = 0; i < 60; i++) {
+        auto sent =
+            producer.newMessage().key("key-" + std::to_string(i)).value("v-" + std::to_string(i)).send();
+        ASSERT_TRUE(sent) << "send " << i << " failed: " << sent.error();
+        segments.insert(segmentIdOf(*sent));
+    }
+    EXPECT_GE(segments.size(), 2u) << "keys did not distribute across the split segments";
+
     EXPECT_TRUE(producer.flush());
     EXPECT_TRUE(producer.close());
     EXPECT_TRUE(client.close());
