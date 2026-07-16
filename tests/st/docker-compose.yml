@@ -17,16 +17,17 @@
 # under the License.
 #
 
-# A single standalone broker for the scalable-topics end-to-end tests. The image
-# (apachepulsar/pulsar:latest == the 5.0.0-M1 milestone) ships the scalable-topics
-# controller and wire protocol; no extra broker config is needed to enable them.
+# A single standalone broker for the scalable-topics end-to-end tests. Pinned to the
+# 5.0.0-M1 milestone, which ships the scalable-topics controller and wire protocol; the
+# moving :latest tag is a stable release that does not carry them yet. No extra broker
+# config is needed to enable them.
 version: '3'
 networks:
   pulsar:
     driver: bridge
 services:
   standalone:
-    image: apachepulsar/pulsar:latest
+    image: apachepulsar/pulsar:5.0.0-M1
     container_name: pulsar-st-standalone
     hostname: local
     restart: "no"
