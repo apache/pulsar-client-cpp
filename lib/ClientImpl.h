@@ -103,6 +103,14 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                                     CreateProducerV2Callback callback,
                                     const std::optional<std::string>& assignedBrokerUrl = std::nullopt);
 
+    /**
+     * Subscribe a consumer to a single `segment://` scalable-topic segment, bypassing the
+     * segment-domain rejection applied to the public subscribe path. The scalable-topics
+     * queue/stream consumers use this to attach a per-segment consumer.
+     */
+    void subscribeSegmentAsync(const std::string& topic, const std::string& subscriptionName,
+                               const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+
     void subscribeAsync(const std::string& topic, const std::string& subscriptionName,
                         const ConsumerConfiguration& conf, const SubscribeCallback& callback);
 
@@ -203,7 +211,8 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
                          ConsumerConfiguration conf, SubscribeV2Callback callback);
 
     void subscribeToTopicsAsyncV2(const std::string& topic, const std::string& subscriptionName,
-                                  const ConsumerConfiguration& conf, SubscribeV2Callback callback);
+                                  const ConsumerConfiguration& conf, SubscribeV2Callback callback,
+                                  bool allowSegmentTopic = false);
 
     void subscribeToTopicsAsyncV2(const std::vector<std::string>& topics, const std::string& subscriptionName,
                                   const ConsumerConfiguration& conf, SubscribeV2Callback callback);

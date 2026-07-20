@@ -866,6 +866,57 @@ TEST(ConsumerTest, testIsConnected) {
     ASSERT_FALSE(consumer.isConnected());
 }
 
+// A consumer of a terminated topic drains the backlog and then reports ResultTopicTerminated on the
+// async receive path, rather than dropping the connection (the pre-fix behaviour, which treated the
+// broker's CommandReachedEndOfTopic as an invalid message) or parking the receive forever.
+TEST(ConsumerTest, testReceiveAsyncAfterTopicTerminated) {
+    const std::string topicName = "testReceiveAsyncAfterTopicTerminated-" + std::to_string(time(nullptr));
+    const std::string topic = "persistent://public/default/" + topicName;
+
+    Client client(lookupUrl);
+
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", consumer));
+
+    constexpr int kCount = 5;
+    for (int i = 0; i < kCount; i++) {
+        ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent("m-" + std::to_string(i)).build()));
+    }
+
+    const int httpCode =
+        makePostRequest(adminUrl + "admin/v2/persistent/public/default/" + topicName + "/terminate", "");
+    ASSERT_EQ(200, httpCode) << "httpCode: " << httpCode;
+
+    auto receiveWithin = [&consumer](std::chrono::seconds timeout, Message& out) {
+        auto promise = std::make_shared<std::promise<std::pair<Result, Message>>>();
+        consumer.receiveAsync([promise](Result result, const Message& msg) {
+            promise->set_value({result, msg});
+        });
+        auto future = promise->get_future();
+        if (future.wait_for(timeout) != std::future_status::ready) return ResultTimeout;
+        auto pair = future.get();
+        out = pair.second;
+        return pair.first;
+    };
+
+    // The backlog drains first...
+    for (int i = 0; i < kCount; i++) {
+        Message msg;
+        ASSERT_EQ(ResultOk, receiveWithin(std::chrono::seconds(10), msg)) << "message " << i;
+        ASSERT_EQ(ResultOk, consumer.acknowledge(msg));
+    }
+    // ...then the terminated topic reports its end instead of hanging.
+    Message ignored;
+    ASSERT_EQ(ResultTopicTerminated, receiveWithin(std::chrono::seconds(10), ignored));
+
+    ASSERT_EQ(ResultOk, consumer.close());
+    ASSERT_EQ(ResultOk, producer.close());
+    client.close();
+}
+
 TEST(ConsumerTest, testPartitionsWithCloseUnblock) {
     Client client(lookupUrl);
     const std::string partitionedTopic = "testPartitionsWithCloseUnblock" + std::to_string(time(nullptr));

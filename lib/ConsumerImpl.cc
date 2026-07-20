@@ -823,6 +823,24 @@ void ConsumerImpl::activeConsumerChanged(bool isActive) {
     }
 }
 
+void ConsumerImpl::reachedEndOfTopic() {
+    hasReachedEndOfTopic_ = true;
+    // If nothing is buffered there is nothing left to deliver, so complete any waiting async
+    // receives with ResultTopicTerminated now. When messages are still buffered they drain through
+    // the normal path first, and the next receive observes the flag (see receiveAsync).
+    Lock lock(pendingReceiveMutex_);
+    if (incomingMessages_.empty()) {
+        Message msg;
+        while (!pendingReceives_.empty()) {
+            ReceiveCallback callback = pendingReceives_.front();
+            pendingReceives_.pop();
+            listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
+                                                  get_shared_this_ptr(), ResultTopicTerminated, msg,
+                                                  callback));
+        }
+    }
+}
+
 void ConsumerImpl::internalConsumerChangeListener(bool isActive) {
     try {
         if (isActive) {
@@ -1189,6 +1207,14 @@ void ConsumerImpl::receiveAsync(const ReceiveCallback& callback) {
         messageProcessed(msg);
         msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         callback(ResultOk, msg);
+    } else if (hasReachedEndOfTopic_) {
+        // Terminated topic with nothing left buffered: fail the receive rather than parking it
+        // forever waiting for a message that will never arrive.
+        pendingReceiveMutexLock.unlock();
+        if (config_.getReceiverQueueSize() == 0) {
+            mutexlock.unlock();
+        }
+        callback(ResultTopicTerminated, msg);
     } else if (config_.getReceiverQueueSize() == 0) {
         pendingReceives_.push(callback);
         // If connection_ is nullptr, sendFlowPermitsToBroker does nothing.
