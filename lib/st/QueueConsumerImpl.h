@@ -30,6 +30,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 
 #include "DagWatchSession.h"
 #include "ReceiveQueue.h"
@@ -100,6 +101,10 @@ class QueueConsumerImpl : public std::enable_shared_from_this<QueueConsumerImpl>
     bool sawFirstLayout_ = false;                                                   // guarded by mutex_
     std::shared_ptr<const SegmentLayout> currentLayout_;                            // guarded by mutex_
     std::unordered_map<std::uint64_t, Future<pulsar::Consumer>> segmentConsumers_;  // guarded by mutex_
+    // Segments that have reported end-of-topic and been drained; kept so a reconcile does not
+    // re-subscribe a still-in-DAG sealed segment (which would redeliver its unacked messages).
+    // Pruned when a segment leaves the DAG. Guarded by mutex_.
+    std::unordered_set<std::uint64_t> drainedSegments_;
 };
 
 using QueueConsumerImplPtr = std::shared_ptr<QueueConsumerImpl>;

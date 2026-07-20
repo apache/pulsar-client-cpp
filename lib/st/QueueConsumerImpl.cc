@@ -97,8 +97,14 @@ void QueueConsumerImpl::onLayoutChange(const SegmentLayout& newLayout, const Seg
                 ++it;
             }
         }
+        // Forget segments that have left the DAG so a future segment id can never be mistaken for a
+        // previously-drained one.
+        for (auto it = drainedSegments_.begin(); it != drainedSegments_.end();) {
+            it = targetIds.count(*it) ? std::next(it) : drainedSegments_.erase(it);
+        }
         for (const auto& segment : target) {
-            if (segmentConsumers_.find(segment.segmentId) == segmentConsumers_.end())
+            if (segmentConsumers_.find(segment.segmentId) == segmentConsumers_.end() &&
+                drainedSegments_.find(segment.segmentId) == drainedSegments_.end())
                 toAdd.push_back(segment);
         }
     }
@@ -172,9 +178,11 @@ Future<pulsar::Consumer> QueueConsumerImpl::getOrCreateSegmentConsumerAsync(cons
         attachTopic, config_.subscriptionName, conf,
         [self, promise, segmentId](std::variant<pulsar::Error, pulsar::Consumer> result) {
             if (auto* consumer = std::get_if<pulsar::Consumer>(&result)) {
-                pulsar::Consumer c = std::move(*consumer);
+                // pulsar::Consumer is a copyable handle (its virtual dtor suppresses the move ctor),
+                // so this is a shared-impl copy, not a deep copy.
+                pulsar::Consumer c = *consumer;
                 self->startReceiveLoop(c, segmentId);
-                promise.setValue(std::move(c));
+                promise.setValue(c);
             } else {
                 // Evict the failed subscribe so a later reconcile retries this segment.
                 {
@@ -193,10 +201,13 @@ void QueueConsumerImpl::startReceiveLoop(pulsar::Consumer consumer, std::uint64_
     consumer.receiveAsync([self, consumer, segmentId](pulsar::Result result, const pulsar::Message& message) {
         if (result != pulsar::ResultOk) {
             if (result == pulsar::ResultTopicTerminated) {
-                // A sealed segment fully drained: close its consumer and drop it from the cache.
+                // A sealed segment fully drained: close its consumer, drop it from the cache, and
+                // remember it drained so a later reconcile does not re-subscribe the still-in-DAG
+                // sealed segment (which would redeliver its unacked messages as duplicates).
                 {
                     std::lock_guard<std::mutex> lock(self->mutex_);
                     self->segmentConsumers_.erase(segmentId);
+                    self->drainedSegments_.insert(segmentId);
                 }
                 pulsar::Consumer done = consumer;
                 done.closeAsync([](pulsar::Result) {});
