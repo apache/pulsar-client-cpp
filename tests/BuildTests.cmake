@@ -62,6 +62,8 @@ target_link_libraries(ExtensibleLoadManagerTest PRIVATE pulsarStatic ${GTEST_TAR
 # --- Scalable topics (pulsar::st) unit tests --------------------------------
 # Pure client-side tests for the st API and its lib/st implementation; they do
 # not require a running broker. C++20 per-target, like the st API itself.
+# HttpHelper.cc gives the end-to-end tests the admin REST client they use to create scalable topics
+# and drive split/merge; it is linked here (not globbed under st/) because it lives in tests/.
 file(GLOB ST_TEST_SOURCES st/*.cc)
 add_executable(pulsar-st-tests ${ST_TEST_SOURCES} HttpHelper.cc)
 set_target_properties(pulsar-st-tests PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON)
