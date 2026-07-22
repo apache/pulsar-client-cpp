@@ -507,7 +507,7 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     const std::string& getProperty(const std::string& name) const;
 
     /**
-     * Get all the properties attached to this producer.
+     * Get all the properties attached to this consumer.
      */
     std::map<std::string, std::string>& getProperties() const;
 
@@ -524,14 +524,17 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     ConsumerConfiguration& setProperties(const std::map<std::string, std::string>& properties);
 
     /**
-     * Get all the subscription properties attached to this subscription.
+     * Get all the subscription properties configured for this consumer.
      */
     std::map<std::string, std::string>& getSubscriptionProperties() const;
 
     /**
-     * Sets a new subscription properties for this subscription.
-     * Notice: SubscriptionProperties are immutable, and consumers under the same subscription will fail to
-     * create a subscription if they use different properties.
+     * Set subscription properties to send when creating or attaching to a subscription.
+     *
+     * If the subscription does not exist, the broker stores these properties when
+     * the subscription is created. If the subscription already exists, these
+     * properties do not update the existing subscription properties and the client
+     * does not validate them against the broker-side properties.
      *
      * @param subscriptionProperties all the subscription properties in the provided map
      */
