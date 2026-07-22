@@ -52,8 +52,11 @@ execute_process(COMMAND cat ${PROJECT_SOURCE_DIR}/version.txt OUTPUT_STRIP_TRAIL
             OUTPUT_VARIABLE PULSAR_CLIENT_VERSION)
 message(STATUS "Pulsar Client version: ${PULSAR_CLIENT_VERSION}")
 
-execute_process(COMMAND ${PROJECT_SOURCE_DIR}/build-support/gen-pulsar-version-macro.py OUTPUT_STRIP_TRAILING_WHITESPACE
-        OUTPUT_VARIABLE PULSAR_CLIENT_VERSION_MACRO)
+if (NOT PULSAR_CLIENT_VERSION MATCHES "^([0-9]+)\\.([0-9]+)\\.([0-9]+)")
+    message(FATAL_ERROR "Invalid Pulsar Client version: ${PULSAR_CLIENT_VERSION}")
+endif ()
+math(EXPR PULSAR_CLIENT_VERSION_MACRO
+        "${CMAKE_MATCH_1} * 1000000 + ${CMAKE_MATCH_2} * 1000 + ${CMAKE_MATCH_3}")
 message(STATUS "Pulsar Client version macro: ${PULSAR_CLIENT_VERSION_MACRO}")
 
 set(PVM_COMMENT "This is generated from Version.h.in by CMAKE. DO NOT EDIT DIRECTLY")
