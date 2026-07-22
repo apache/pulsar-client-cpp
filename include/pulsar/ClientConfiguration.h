@@ -401,6 +401,7 @@ class PULSAR_PUBLIC ClientConfiguration {
 
     friend class ClientImpl;
     friend class PulsarWrapper;
+    friend class SameAuthParamsLookupAutoClusterFailover;
 
    private:
     const AuthenticationPtr& getAuthPtr() const;
