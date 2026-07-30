@@ -524,7 +524,7 @@ class PULSAR_PUBLIC ConsumerConfiguration {
     ConsumerConfiguration& setProperties(const std::map<std::string, std::string>& properties);
 
     /**
-     * Get all the subscription properties configured for this consumer.
+     * Get all the subscription properties configured for this subscription.
      */
     std::map<std::string, std::string>& getSubscriptionProperties() const;
 
