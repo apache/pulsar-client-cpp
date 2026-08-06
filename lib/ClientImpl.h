@@ -232,7 +232,7 @@ class ClientImpl : public std::enable_shared_from_this<ClientImpl> {
     void handleConsumerCreated(Result result, const ConsumerImplBaseWeakPtr& consumerWeakPtr,
                                const SubscribeV2Callback& callback, const ConsumerImplBasePtr& consumer);
 
-    typedef std::shared_ptr<int> SharedInt;
+    typedef std::shared_ptr<std::atomic<int>> SharedInt;
 
     void handleClose(Result result, const SharedInt& remaining, const ResultCallback& callback);
 
