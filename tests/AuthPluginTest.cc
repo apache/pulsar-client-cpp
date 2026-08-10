@@ -548,11 +548,13 @@ static const auto mockServerTimeout = std::chrono::seconds(10);
 class MockOauth2Server {
    public:
     MockOauth2Server(const std::string& responseBody, const std::string& responseContentType, int listenPort,
-                     bool requireClientCert = true)
+                     bool requireClientCert = true,
+                     std::chrono::milliseconds responseDelay = std::chrono::milliseconds::zero())
         : responseBody_(responseBody),
           responseContentType_(responseContentType),
           acceptor_(io_, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), static_cast<uint16_t>(listenPort))),
-          sslCtx_(ASIO::ssl::context::sslv23) {
+          sslCtx_(ASIO::ssl::context::sslv23),
+          responseDelay_(responseDelay) {
         sslCtx_.set_options(ASIO::ssl::context::default_workarounds | ASIO::ssl::context::no_sslv2 |
                             ASIO::ssl::context::no_sslv3);
         sslCtx_.use_certificate_chain_file(brokerPublicKeyPath);
@@ -564,6 +566,8 @@ class MockOauth2Server {
     }
 
     const std::string& request() const { return request_; }
+
+    int port() const { return acceptor_.local_endpoint().port(); }
 
     bool mockServe() {
         ASIO_ERROR error;
@@ -586,6 +590,7 @@ class MockOauth2Server {
             return false;
         }
 
+        std::this_thread::sleep_for(responseDelay_);
         const std::string response = "HTTP/1.1 200 OK\r\nContent-Type: " + responseContentType_ +
                                      "\r\nContent-Length: " + std::to_string(responseBody_.size()) +
                                      "\r\nConnection: close\r\n\r\n" + responseBody_;
@@ -652,6 +657,7 @@ class MockOauth2Server {
     ASIO::io_context io_;
     ASIO::ip::tcp::acceptor acceptor_;
     ASIO::ssl::context sslCtx_;
+    const std::chrono::milliseconds responseDelay_;
     std::shared_ptr<ASIO::ip::tcp::socket> activeSocket_;
     std::mutex mutex_;
 };
@@ -677,6 +683,109 @@ static bool awaitMockServeResult(std::future<bool>& future, MockOauth2Server& se
 }
 
 }  // namespace testOauth2Tls
+
+TEST(AuthPluginTest, testOauth2IssuerDiscoveryRequestTimeout) {
+    using testOauth2Tls::MockOauth2Server;
+
+    const std::string tokenBody = R"({"access_token":"mockToken","expires_in":3600,"token_type":"Bearer"})";
+    MockOauth2Server tokenServer(tokenBody, "application/json", 0, false);
+
+    std::ostringstream wellKnownBody;
+    wellKnownBody << R"({"token_endpoint":"https://localhost:)" << tokenServer.port() << R"(/oauth/token"})";
+    MockOauth2Server wellKnownServer(wellKnownBody.str(), "application/json", 0, false,
+                                     std::chrono::seconds(3));
+
+    std::thread tokenThread([&tokenServer]() { tokenServer.mockServe(); });
+    std::thread wellKnownThread([&wellKnownServer]() { wellKnownServer.mockServe(); });
+
+    ParamMap params;
+    params["issuer_url"] = "https://localhost:" + std::to_string(wellKnownServer.port());
+    params["client_id"] = "test-client";
+    params["client_secret"] = "test-secret";
+    params["connect_timeout_seconds"] = "1";
+    params["request_timeout_seconds"] = "1";
+
+    AuthenticationDataPtr data =
+        std::static_pointer_cast<AuthenticationDataProvider>(std::make_shared<InitialAuthData>(caPath));
+    AuthenticationPtr auth = AuthOauth2::create(params);
+
+    const auto start = std::chrono::steady_clock::now();
+    const Result result = auth->getAuthData(data);
+    const auto elapsedMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start)
+            .count();
+
+    wellKnownServer.stop();
+    tokenServer.stop();
+    wellKnownThread.join();
+    tokenThread.join();
+
+    EXPECT_EQ(result, ResultAuthenticationError);
+    EXPECT_LT(elapsedMs, 2500);
+    EXPECT_NE(wellKnownServer.request().find("GET /.well-known/openid-configuration "), std::string::npos);
+}
+
+TEST(AuthPluginTest, testOauth2TokenRequestTimeout) {
+    using testOauth2Tls::MockOauth2Server;
+
+    const std::string tokenBody = R"({"access_token":"mockToken","expires_in":3600,"token_type":"Bearer"})";
+    MockOauth2Server tokenServer(tokenBody, "application/json", 0, false, std::chrono::seconds(3));
+
+    std::ostringstream wellKnownBody;
+    wellKnownBody << R"({"token_endpoint":"https://localhost:)" << tokenServer.port() << R"(/oauth/token"})";
+    MockOauth2Server wellKnownServer(wellKnownBody.str(), "application/json", 0, false);
+
+    std::thread tokenThread([&tokenServer]() { tokenServer.mockServe(); });
+    std::thread wellKnownThread([&wellKnownServer]() { wellKnownServer.mockServe(); });
+
+    ParamMap params;
+    params["issuer_url"] = "https://localhost:" + std::to_string(wellKnownServer.port());
+    params["client_id"] = "test-client";
+    params["client_secret"] = "test-secret";
+    params["connect_timeout_seconds"] = "1";
+    params["request_timeout_seconds"] = "1";
+
+    AuthenticationDataPtr data =
+        std::static_pointer_cast<AuthenticationDataProvider>(std::make_shared<InitialAuthData>(caPath));
+    AuthenticationPtr auth = AuthOauth2::create(params);
+
+    const auto start = std::chrono::steady_clock::now();
+    const Result result = auth->getAuthData(data);
+    const auto elapsedMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - start)
+            .count();
+
+    wellKnownServer.stop();
+    tokenServer.stop();
+    wellKnownThread.join();
+    tokenThread.join();
+
+    EXPECT_EQ(result, ResultAuthenticationError);
+    EXPECT_LT(elapsedMs, 2500);
+    EXPECT_NE(wellKnownServer.request().find("GET /.well-known/openid-configuration "), std::string::npos);
+    EXPECT_NE(tokenServer.request().find("POST /oauth/token "), std::string::npos);
+    EXPECT_NE(tokenServer.request().find("grant_type=client_credentials"), std::string::npos);
+}
+
+TEST(AuthPluginTest, testOauth2HttpTimeoutValidation) {
+    ParamMap validParams;
+    validParams["issuer_url"] = "https://localhost";
+    validParams["client_id"] = "test-client";
+    validParams["client_secret"] = "test-secret";
+
+    for (const std::string key : {"connect_timeout_seconds", "request_timeout_seconds"}) {
+        for (const std::string value : {"not-a-number", "0", "-1", "999999999999999999999999"}) {
+            SCOPED_TRACE(key + "=" + value);
+            auto params = validParams;
+            params[key] = value;
+            EXPECT_THROW(AuthOauth2::create(params), std::invalid_argument);
+        }
+    }
+
+    validParams["connect_timeout_seconds"] = "1";
+    validParams["request_timeout_seconds"] = "2";
+    EXPECT_NO_THROW(AuthOauth2::create(validParams));
+}
 
 TEST(AuthPluginTest, testOauth2) {
     // test success get token from oauth2 server.

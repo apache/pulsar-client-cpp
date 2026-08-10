@@ -51,6 +51,13 @@ class KeyFile {
     static KeyFile fromBase64(const std::string& encoded);
 };
 
+struct Oauth2HttpTimeouts {
+    explicit Oauth2HttpTimeouts(const ParamMap& params);
+
+    int connectTimeoutInSeconds;
+    int requestTimeoutInSeconds;
+};
+
 class ClientCredentialFlow : public Oauth2Flow {
    public:
     ClientCredentialFlow(ParamMap& params);
@@ -66,6 +73,7 @@ class ClientCredentialFlow : public Oauth2Flow {
     }
 
    private:
+    const Oauth2HttpTimeouts httpTimeouts_;
     std::string tokenEndPoint_;
     const std::string issuerUrl_;
     const KeyFile keyFile_;
@@ -94,6 +102,7 @@ class TlsClientAuthFlow : public Oauth2Flow {
     }
 
    private:
+    const Oauth2HttpTimeouts httpTimeouts_;
     std::string tokenEndPoint_;
     const std::string issuerUrl_;
     const std::string clientId_;
