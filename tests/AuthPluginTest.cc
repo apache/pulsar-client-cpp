@@ -23,6 +23,7 @@
 #include <array>
 #include <boost/algorithm/string.hpp>
 #include <chrono>
+#include <condition_variable>
 #include <future>
 #include <mutex>
 #include <sstream>
@@ -577,10 +578,38 @@ class MockOauth2Server {
             activeSocket_ = socket;
         }
 
-        acceptor_.accept(*socket, error);
+        // Closing a synchronous accept from another thread does not reliably unblock it on all platforms.
+        // Poll in non-blocking mode so stop() can terminate a server that never receives a connection.
+        acceptor_.non_blocking(true, error);
         if (error) {
             clearActiveSocket();
             return false;
+        }
+        while (true) {
+            acceptor_.accept(*socket, error);
+            if (!error) {
+                break;
+            }
+            if (error != ASIO::error::would_block && error != ASIO::error::try_again) {
+                clearActiveSocket();
+                return false;
+            }
+
+            std::unique_lock<std::mutex> lock(mutex_);
+            if (stopCondition_.wait_for(lock, std::chrono::milliseconds(10), [this]() { return stopped_; })) {
+                activeSocket_.reset();
+                return false;
+            }
+        }
+
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            connectionAccepted_ = true;
+            if (stopped_) {
+                activeSocket_.reset();
+                connectionAccepted_ = false;
+                return false;
+            }
         }
 
         ASIO::ssl::stream<ASIO::ip::tcp::socket&> sslStream(*socket, sslCtx_);
@@ -590,7 +619,14 @@ class MockOauth2Server {
             return false;
         }
 
-        std::this_thread::sleep_for(responseDelay_);
+        {
+            std::unique_lock<std::mutex> lock(mutex_);
+            if (stopCondition_.wait_for(lock, responseDelay_, [this]() { return stopped_; })) {
+                activeSocket_.reset();
+                connectionAccepted_ = false;
+                return false;
+            }
+        }
         const std::string response = "HTTP/1.1 200 OK\r\nContent-Type: " + responseContentType_ +
                                      "\r\nContent-Length: " + std::to_string(responseBody_.size()) +
                                      "\r\nConnection: close\r\n\r\n" + responseBody_;
@@ -604,15 +640,14 @@ class MockOauth2Server {
         ASIO_ERROR error;
         {
             std::lock_guard<std::mutex> lock(mutex_);
-            if (acceptor_.is_open()) {
-                acceptor_.close(error);
-            }
-            if (activeSocket_ && activeSocket_->is_open()) {
+            stopped_ = true;
+            if (connectionAccepted_ && activeSocket_ && activeSocket_->is_open()) {
                 activeSocket_->cancel(error);
                 activeSocket_->shutdown(ASIO::ip::tcp::socket::shutdown_both, error);
                 activeSocket_->close(error);
             }
         }
+        stopCondition_.notify_all();
         io_.stop();
     }
 
@@ -620,6 +655,7 @@ class MockOauth2Server {
     void clearActiveSocket() {
         std::lock_guard<std::mutex> lock(mutex_);
         activeSocket_.reset();
+        connectionAccepted_ = false;
     }
 
     bool readRequest(ASIO::ssl::stream<ASIO::ip::tcp::socket&>& sslStream) {
@@ -660,6 +696,9 @@ class MockOauth2Server {
     const std::chrono::milliseconds responseDelay_;
     std::shared_ptr<ASIO::ip::tcp::socket> activeSocket_;
     std::mutex mutex_;
+    std::condition_variable stopCondition_;
+    bool stopped_{false};
+    bool connectionAccepted_{false};
 };
 
 static bool awaitMockServeResult(std::future<bool>& future, MockOauth2Server& server, std::thread& thread,
