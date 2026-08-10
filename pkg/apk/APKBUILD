@@ -38,7 +38,14 @@ build() {
 	if [ "$CBUILD" != "$CHOST" ]; then
 		CMAKE_CROSSOPTS="-DCMAKE_SYSTEM_NAME=Linux -DCMAKE_HOST_SYSTEM_NAME=Linux"
 	fi
+    VCPKG_BASELINE=$(sed -n 's/.*"builtin-baseline"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' \
+        "$ROOT_DIR/vcpkg.json")
+    if [ -z "$VCPKG_BASELINE" ]; then
+        echo "Failed to read builtin-baseline from vcpkg.json" >&2
+        return 1
+    fi
     git clone https://github.com/microsoft/vcpkg.git
+    git -C vcpkg checkout "$VCPKG_BASELINE"
     mv vcpkg $ROOT_DIR/
     export VCPKG_FORCE_SYSTEM_BINARIES=1
     # On aarch64 musl, vcpkg has no prebuilt binary and builds from source.
