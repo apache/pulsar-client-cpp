@@ -55,6 +55,7 @@
 namespace pulsar {
 
 class PulsarFriend;
+class MockServer;
 
 using TcpResolverPtr = std::shared_ptr<ASIO::ip::tcp::resolver>;
 
@@ -209,6 +210,13 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     Future<Result, SchemaInfo> newGetSchema(const std::string& topicName, const std::string& version,
                                             uint64_t requestId);
 
+    void attachMockServer(const std::shared_ptr<MockServer>& mockServer) {
+        mockServer_ = mockServer;
+        mockingRequests_.store(true, std::memory_order_release);
+    }
+
+    void handleKeepAliveTimeout();
+
    private:
     struct PendingRequestData {
         Promise<Result, ResponseData> promise;
@@ -272,8 +280,6 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleLookupTimeout(const ASIO_ERROR&, LookupRequestData);
 
     void handleGetLastMessageIdTimeout(const ASIO_ERROR&, LastMessageIdRequestData data);
-
-    void handleKeepAliveTimeout();
 
     template <typename Handler>
     inline AllocHandler<Handler> customAllocReadHandler(Handler h) {
@@ -391,6 +397,9 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     DeadlineTimerPtr keepAliveTimer_;
     DeadlineTimerPtr consumerStatsRequestTimer_;
 
+    std::atomic_bool mockingRequests_{false};
+    std::shared_ptr<MockServer> mockServer_;
+
     void handleConsumerStatsTimeout(const ASIO_ERROR& ec, std::vector<uint64_t> consumerStatsRequests);
 
     void startConsumerStatsTimer(std::vector<uint64_t> consumerStatsRequests);
@@ -404,6 +413,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     const size_t poolIndex_;
 
     friend class PulsarFriend;
+    friend class MockServer;
     friend class ConsumerTest;
 
     void checkServerError(ServerError error, const std::string& message);

@@ -20,9 +20,12 @@
 #include <pulsar/Client.h>
 
 #include <chrono>
+#include <thread>
 
 #include "ThreadSafeMessages.h"
+#include "PulsarFriend.h"
 #include "lib/LogUtils.h"
+#include "lib/MockServer.h"
 
 static const std::string lookupUrl = "pulsar://localhost:6650";
 
@@ -101,5 +104,40 @@ TEST(MultiTopicsConsumerTest, testSeekToNewerPosition) {
     ASSERT_TRUE(messages.wait(std::chrono::seconds(3)));
     ASSERT_EQ(messages.getSortedValues(), (std::vector<std::string>{"1-1", "2-1"}));
 
+    client.close();
+}
+
+TEST(MultiTopicsConsumerTest, testGetConsumerStatsFail) {
+    Client client{lookupUrl};
+    std::vector<std::string> topics{"testGetConsumerStatsFail0", "testGetConsumerStatsFail1"};
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topics, "sub", consumer));
+
+    auto connection = *PulsarFriend::getConnections(client).begin();
+    auto mockServer = std::make_shared<MockServer>(connection);
+    connection->attachMockServer(mockServer);
+
+    mockServer->setRequestDelay({{"CONSUMER_STATS", 3000}});
+
+    std::atomic<int> callbackCount{0};
+    Result callbackResult{ResultOk};
+
+    consumer.getBrokerConsumerStatsAsync([&](Result result, const BrokerConsumerStats& stats) {
+        callbackCount++;
+        callbackResult = result;
+    });
+
+    // Wait for the CONSUMER_STATS requests to be dispatched to MockServer
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+    connection->close(ResultDisconnected);
+
+    // With the bug: handleGetConsumerStats calls the callback on each failure,
+    // so callbackCount = 2 (once per internal consumer).
+    // With the fix: callback is called only once after all consumers complete.
+    ASSERT_EQ(1, callbackCount.load());
+    ASSERT_NE(ResultOk, callbackResult);
+
+    mockServer->close();
     client.close();
 }

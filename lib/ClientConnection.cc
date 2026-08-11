@@ -32,6 +32,7 @@
 #include "ConsumerImpl.h"
 #include "ExecutorService.h"
 #include "LogUtils.h"
+#include "MockServer.h"
 #include "OpSendMsg.h"
 #include "ProducerImpl.h"
 #include "PulsarApi.pb.h"
@@ -1011,9 +1012,14 @@ Future<Result, BrokerConsumerStatsImpl> ClientConnection::newConsumerStats(uint6
         lock.unlock();
         LOG_ERROR(cnxString_ << " Client is not connected to the broker");
         promise.setFailed(ResultNotConnected);
+        return promise.getFuture();
     }
     pendingConsumerStatsMap_.insert(std::make_pair(requestId, promise));
     lock.unlock();
+    if (mockingRequests_.load(std::memory_order_acquire) && mockServer_ != nullptr &&
+        mockServer_->sendRequest("CONSUMER_STATS", requestId)) {
+        return promise.getFuture();
+    }
     sendCommand(Commands::newConsumerStats(consumerId, requestId));
     return promise.getFuture();
 }
