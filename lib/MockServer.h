@@ -18,6 +18,9 @@
  */
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <functional>
 #include <initializer_list>
 #include <memory>
 #include <mutex>

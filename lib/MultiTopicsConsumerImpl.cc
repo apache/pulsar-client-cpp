@@ -18,6 +18,7 @@
  */
 #include "MultiTopicsConsumerImpl.h"
 
+#include <atomic>
 #include <chrono>
 #include <stdexcept>
 

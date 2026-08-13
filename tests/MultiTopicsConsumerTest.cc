@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <atomic>
 #include <chrono>
 #include <thread>
 
