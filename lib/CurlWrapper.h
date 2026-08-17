@@ -52,7 +52,10 @@ class CurlWrapper {
         std::string method;
         std::string postFields;
         std::string userAgent;
+        // The maximum time the whole request is allowed to take. 0 means no limit.
         int timeoutInSeconds{0};
+        // The maximum time the connection phase is allowed to take. 0 means libcurl's default (300s).
+        int connectTimeoutInSeconds{0};
         int maxLookupRedirects{-1};
         bool authAllowRedirect{false};
     };
@@ -120,7 +123,10 @@ inline CurlWrapper::Result CurlWrapper::get(const std::string& url, const std::s
     // Without this config, Curl_resolv_timeout might crash in multi-threads environment
     curl_easy_setopt(handle_, CURLOPT_NOSIGNAL, 1L);
 
-    curl_easy_setopt(handle_, CURLOPT_TIMEOUT, options.timeoutInSeconds);
+    curl_easy_setopt(handle_, CURLOPT_TIMEOUT, static_cast<long>(options.timeoutInSeconds));
+    if (options.connectTimeoutInSeconds > 0) {
+        curl_easy_setopt(handle_, CURLOPT_CONNECTTIMEOUT, static_cast<long>(options.connectTimeoutInSeconds));
+    }
     if (!options.userAgent.empty()) {
         curl_easy_setopt(handle_, CURLOPT_USERAGENT, options.userAgent.c_str());
     }

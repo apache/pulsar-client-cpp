@@ -51,6 +51,31 @@ class KeyFile {
     static KeyFile fromBase64(const std::string& encoded);
 };
 
+/**
+ * The timeouts applied to the HTTP requests sent to the OAuth 2.0 issuer.
+ *
+ * Without them, an issuer that accepts the connection but never replies would block the caller of
+ * Authentication::getAuthData() forever.
+ */
+struct Oauth2TimeoutSettings {
+    // The maximum time to wait for the connection to the issuer to be established.
+    static constexpr int DEFAULT_CONNECT_TIMEOUT_SECONDS = 10;
+    // The maximum time to wait for a whole request to the issuer to complete, including the connection.
+    static constexpr int DEFAULT_REQUEST_TIMEOUT_SECONDS = 30;
+
+    int connectTimeoutSeconds{DEFAULT_CONNECT_TIMEOUT_SECONDS};
+    int requestTimeoutSeconds{DEFAULT_REQUEST_TIMEOUT_SECONDS};
+
+    /**
+     * Read the "connect_timeout_seconds" and "request_timeout_seconds" keys from `params`.
+     *
+     * A key that is missing, or whose value is not a non-negative integer, falls back to the default
+     * above. 0 falls back to the underlying libcurl default, i.e. 300 seconds to connect and no
+     * limit for the whole request.
+     */
+    static Oauth2TimeoutSettings fromParamMap(const ParamMap& params);
+};
+
 class ClientCredentialFlow : public Oauth2Flow {
    public:
     ClientCredentialFlow(ParamMap& params);
@@ -73,6 +98,7 @@ class ClientCredentialFlow : public Oauth2Flow {
     const std::string scope_;
     const std::string tlsCertFilePath_;
     const std::string tlsKeyFilePath_;
+    const Oauth2TimeoutSettings timeouts_;
     std::string tlsTrustCertsFilePath_;
     std::once_flag initializeOnce_;
 };
@@ -101,6 +127,7 @@ class TlsClientAuthFlow : public Oauth2Flow {
     const std::string scope_;
     const std::string tlsCertFilePath_;
     const std::string tlsKeyFilePath_;
+    const Oauth2TimeoutSettings timeouts_;
     std::string tlsTrustCertsFilePath_;
     std::once_flag initializeOnce_;
 };

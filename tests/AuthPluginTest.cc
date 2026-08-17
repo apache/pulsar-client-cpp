@@ -1036,6 +1036,72 @@ TEST(AuthPluginTest, testOauth2UnknownTokenEndpointAuthMethod) {
     ASSERT_THROW(AuthOauth2::create(params), std::invalid_argument);
 }
 
+namespace testOauth2Timeout {
+
+// An issuer that accepts the TCP connection but never sends a response back. Without any timeout
+// configured on the OAuth2 HTTP requests, talking to such an issuer blocks the caller forever.
+//
+// The connection is never accepted by the application: the kernel completes the handshake from the
+// listen backlog, so the client connects and then waits for a response that never comes.
+class UnresponsiveServer {
+   public:
+    UnresponsiveServer() : acceptor_(io_, ASIO::ip::tcp::endpoint(ASIO::ip::tcp::v4(), 0)) {}
+
+    uint16_t port() const { return acceptor_.local_endpoint().port(); }
+
+   private:
+    ASIO::io_context io_;
+    ASIO::ip::tcp::acceptor acceptor_;
+};
+
+}  // namespace testOauth2Timeout
+
+TEST(AuthPluginTest, testOauth2TimeoutSettings) {
+    ParamMap params;
+    auto settings = Oauth2TimeoutSettings::fromParamMap(params);
+    ASSERT_EQ(settings.connectTimeoutSeconds, Oauth2TimeoutSettings::DEFAULT_CONNECT_TIMEOUT_SECONDS);
+    ASSERT_EQ(settings.requestTimeoutSeconds, Oauth2TimeoutSettings::DEFAULT_REQUEST_TIMEOUT_SECONDS);
+
+    // 0 is accepted and falls back to libcurl's own defaults
+    params["connect_timeout_seconds"] = "5";
+    params["request_timeout_seconds"] = "0";
+    settings = Oauth2TimeoutSettings::fromParamMap(params);
+    ASSERT_EQ(settings.connectTimeoutSeconds, 5);
+    ASSERT_EQ(settings.requestTimeoutSeconds, 0);
+
+    // Invalid values fall back to the defaults
+    params["connect_timeout_seconds"] = "-1";
+    params["request_timeout_seconds"] = "not-a-number";
+    settings = Oauth2TimeoutSettings::fromParamMap(params);
+    ASSERT_EQ(settings.connectTimeoutSeconds, Oauth2TimeoutSettings::DEFAULT_CONNECT_TIMEOUT_SECONDS);
+    ASSERT_EQ(settings.requestTimeoutSeconds, Oauth2TimeoutSettings::DEFAULT_REQUEST_TIMEOUT_SECONDS);
+}
+
+TEST(AuthPluginTest, testOauth2UnresponsiveIssuer) {
+    testOauth2Timeout::UnresponsiveServer server;
+    const std::string issuerUrl = "http://127.0.0.1:" + std::to_string(server.port());
+
+    const int requestTimeoutSeconds = 2;
+    ParamMap params;
+    params["issuer_url"] = issuerUrl;
+    params["client_id"] = "client-id";
+    params["client_secret"] = "client-secret";
+    params["audience"] = "audience";
+    params["request_timeout_seconds"] = std::to_string(requestTimeoutSeconds);
+
+    AuthenticationPtr auth = AuthOauth2::create(params);
+    AuthenticationDataPtr data;
+
+    const auto start = std::chrono::steady_clock::now();
+    ASSERT_EQ(auth->getAuthData(data), ResultAuthenticationError);
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+
+    // The request must be cut off by the timeout, not by a connection failure
+    ASSERT_GE(elapsed, std::chrono::seconds(requestTimeoutSeconds - 1));
+    // Before the timeout was configured, getAuthData() never returned
+    ASSERT_LT(elapsed, std::chrono::seconds(15));
+}
+
 TEST(AuthPluginTest, testInvalidPlugin) {
     Client client("pulsar://localhost:6650", ClientConfiguration{}.setAuth(AuthFactory::create("invalid")));
     Producer producer;

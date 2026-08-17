@@ -531,6 +531,10 @@ typedef std::shared_ptr<CachedToken> CachedTokenPtr;
  *   "tls_cert_file": "/path/to/cert.pem",
  *   "tls_key_file": "/path/to/key.pem"
  * ```
+ *
+ * Both forms accept the optional "connect_timeout_seconds" and "request_timeout_seconds" keys, see
+ * AuthOauth2::create(ParamMap&).
+ *
  *  If passed in as std::string, it should be in Json format.
  */
 class PULSAR_PUBLIC AuthOauth2 : public Authentication {
@@ -549,6 +553,11 @@ class PULSAR_PUBLIC AuthOauth2 : public Authentication {
      * `issuer_url`, `tls_cert_file`, and `tls_key_file`.
      * Optional keys: `client_id`, `audience`, `scope`. If `client_id` is omitted, the client
      * uses `pulsar-client`.
+     *
+     * Both methods accept the optional keys `connect_timeout_seconds` (default: 10) and
+     * `request_timeout_seconds` (default: 30), which bound the HTTP requests sent to the issuer so
+     * that an unresponsive issuer cannot block the client forever. 0 falls back to the underlying
+     * libcurl defaults: 300 seconds to connect and no limit for the whole request.
      *
      * @param parameters the key-value to create OAuth 2.0 client credentials
      * @see http://pulsar.apache.org/docs/en/security-oauth2/#client-credentials
