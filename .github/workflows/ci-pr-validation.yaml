@@ -35,7 +35,9 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Run clang-format style check for C/C++/Protobuf programs.
-      uses: jidicula/clang-format-action@v4.11.0
+      # v4.11.0, pinned to its commit SHA per the ASF GitHub Actions policy (external actions
+      # must be pinned to a git hash; a tag reference fails workflow startup validation).
+      uses: jidicula/clang-format-action@f62da5e3d3a2d88ff364771d9d938773a618ab5e
       with:
         clang-format-version: '11'
         exclude-regex: '.*\.(proto|hpp)'
