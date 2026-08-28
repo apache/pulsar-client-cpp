@@ -28,10 +28,7 @@
 #include <memory>
 #include <mutex>
 
-namespace pulsar {
-class ExecutorService;
-using ExecutorServicePtr = std::shared_ptr<ExecutorService>;
-}  // namespace pulsar
+#include "lib/ExecutorService.h"
 
 namespace pulsar::st {
 
@@ -65,15 +62,22 @@ class ReceiveQueue : public std::enable_shared_from_this<ReceiveQueue> {
     // the returned promises must be completed after releasing it.
     std::deque<detail::Promise<void>> takeCapacityWaitersIfRoomLocked();
 
+    // A parked receive: the promise to complete and — for timed receives — the timeout timer,
+    // cancelled when a message (or close) wins the race so idle timers don't accumulate.
+    struct PendingReceive {
+        detail::Promise<MessageImplPtr> promise;
+        DeadlineTimerPtr timer;
+    };
+
     const pulsar::ExecutorServicePtr executor_;
     const std::size_t capacity_;
 
     std::mutex mutex_;
-    std::deque<MessageImplPtr> buffer_;                                         // guarded by mutex_
-    std::map<std::uint64_t, detail::Promise<MessageImplPtr>> pendingReceives_;  // guarded; FIFO by id
-    std::deque<detail::Promise<void>> capacityWaiters_;                         // guarded by mutex_
-    std::uint64_t nextReceiveId_ = 0;                                           // guarded by mutex_
-    bool closed_ = false;                                                       // guarded by mutex_
+    std::deque<MessageImplPtr> buffer_;                        // guarded by mutex_
+    std::map<std::uint64_t, PendingReceive> pendingReceives_;  // guarded; FIFO by id
+    std::deque<detail::Promise<void>> capacityWaiters_;        // guarded by mutex_
+    std::uint64_t nextReceiveId_ = 0;                          // guarded by mutex_
+    bool closed_ = false;                                      // guarded by mutex_
 };
 
 using ReceiveQueuePtr = std::shared_ptr<ReceiveQueue>;

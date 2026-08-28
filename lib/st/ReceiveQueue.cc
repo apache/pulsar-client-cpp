@@ -52,7 +52,7 @@ Future<MessageImplPtr> ReceiveQueue::receiveAsync() {
             buffer_.pop_front();
             toSignal = takeCapacityWaitersIfRoomLocked();
         } else {
-            pendingReceives_.emplace(nextReceiveId_++, promise);
+            pendingReceives_.emplace(nextReceiveId_++, PendingReceive{promise, nullptr});
         }
     }
     for (auto& waiter : toSignal) waiter.setSuccess();
@@ -78,7 +78,7 @@ Future<MessageImplPtr> ReceiveQueue::receiveAsync(std::chrono::milliseconds time
             toSignal = takeCapacityWaitersIfRoomLocked();
         } else {
             receiveId = nextReceiveId_++;
-            pendingReceives_.emplace(receiveId, promise);
+            pendingReceives_.emplace(receiveId, PendingReceive{promise, nullptr});
             parked = true;
         }
     }
@@ -88,25 +88,40 @@ Future<MessageImplPtr> ReceiveQueue::receiveAsync(std::chrono::milliseconds time
         return promise.getFuture();
     }
     if (parked) {
+        // Attach the timer to the parked entry so delivery (or close) can cancel it — otherwise
+        // every timed receive would leave a live timer (holding this queue) until its deadline.
         auto timer = executor_->createDeadlineTimer();
-        timer->expires_from_now(timeout);
-        auto self = shared_from_this();  // keep the queue alive until the timer fires
-        timer->async_wait([self, receiveId, promise, timer](const ASIO_ERROR& ec) {
-            if (ec) return;  // cancelled
-            {
-                std::lock_guard<std::mutex> lock(self->mutex_);
-                auto it = self->pendingReceives_.find(receiveId);
-                if (it == self->pendingReceives_.end()) return;  // a message was delivered first
-                self->pendingReceives_.erase(it);
+        bool armed = false;
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto it = pendingReceives_.find(receiveId);
+            if (it != pendingReceives_.end()) {
+                it->second.timer = timer;
+                armed = true;
             }
-            promise.setError(Error{ResultTimeout, "receive timed out"});
-        });
+        }
+        // If a message (or close) already completed the receive, the timer is never started.
+        if (armed) {
+            timer->expires_from_now(timeout);
+            auto self = shared_from_this();  // keep the queue alive until the timer fires
+            timer->async_wait([self, receiveId, promise, timer](const ASIO_ERROR& ec) {
+                if (ec) return;  // cancelled: a message (or close) won the race
+                {
+                    std::lock_guard<std::mutex> lock(self->mutex_);
+                    auto it = self->pendingReceives_.find(receiveId);
+                    if (it == self->pendingReceives_.end()) return;  // a message was delivered first
+                    self->pendingReceives_.erase(it);
+                }
+                promise.setError(Error{ResultTimeout, "receive timed out"});
+            });
+        }
     }
     return promise.getFuture();
 }
 
 Future<void> ReceiveQueue::offer(MessageImplPtr message) {
     detail::Promise<MessageImplPtr> receiver;
+    DeadlineTimerPtr receiverTimer;
     bool deliver = false;
     detail::Promise<void> capacityPromise;
     bool hasRoom = false;
@@ -117,7 +132,8 @@ Future<void> ReceiveQueue::offer(MessageImplPtr message) {
         } else {
             if (!pendingReceives_.empty()) {
                 auto oldest = pendingReceives_.begin();  // FIFO: lowest id
-                receiver = std::move(oldest->second);
+                receiver = std::move(oldest->second.promise);
+                receiverTimer = std::move(oldest->second.timer);
                 pendingReceives_.erase(oldest);
                 deliver = true;
             } else {
@@ -130,6 +146,10 @@ Future<void> ReceiveQueue::offer(MessageImplPtr message) {
             }
         }
     }
+    if (receiverTimer) {
+        ASIO_ERROR ignored;
+        receiverTimer->cancel(ignored);
+    }
     if (deliver) receiver.setValue(std::move(message));
     if (hasRoom) {
         detail::Promise<void> ready;
@@ -140,7 +160,7 @@ Future<void> ReceiveQueue::offer(MessageImplPtr message) {
 }
 
 void ReceiveQueue::close() {
-    std::map<std::uint64_t, detail::Promise<MessageImplPtr>> pending;
+    std::map<std::uint64_t, PendingReceive> pending;
     std::deque<detail::Promise<void>> waiters;
     {
         std::lock_guard<std::mutex> lock(mutex_);
@@ -150,7 +170,13 @@ void ReceiveQueue::close() {
         waiters.swap(capacityWaiters_);
         buffer_.clear();
     }
-    for (auto& [id, promise] : pending) promise.setError(Error{ResultAlreadyClosed, "consumer is closed"});
+    for (auto& [id, entry] : pending) {
+        if (entry.timer) {
+            ASIO_ERROR ignored;
+            entry.timer->cancel(ignored);
+        }
+        entry.promise.setError(Error{ResultAlreadyClosed, "consumer is closed"});
+    }
     for (auto& waiter : waiters) waiter.setSuccess();  // let segment loops re-arm and see closed
 }
 
