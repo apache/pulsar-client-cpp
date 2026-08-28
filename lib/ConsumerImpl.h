@@ -188,8 +188,9 @@ class ConsumerImpl : public ConsumerImplBase {
 
    private:
     std::atomic_bool waitingForZeroQueueSizeMessage;
-    // Set once the broker sends CommandReachedEndOfTopic; a drained receive then yields
-    // ResultTopicTerminated instead of parking forever.
+    // Set when the broker sends CommandReachedEndOfTopic and cleared again on each new broker
+    // session (termination does not cancel redelivery of unacked messages); a drained receive
+    // then yields ResultTopicTerminated instead of parking forever.
     std::atomic_bool hasReachedEndOfTopic_{false};
     std::shared_ptr<ConsumerImpl> get_shared_this_ptr();
     bool uncompressMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::MessageIdData& messageIdData,

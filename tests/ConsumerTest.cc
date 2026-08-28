@@ -912,6 +912,12 @@ TEST(ConsumerTest, testReceiveAsyncAfterTopicTerminated) {
     Message ignored;
     ASSERT_EQ(ResultTopicTerminated, receiveWithin(std::chrono::seconds(10), ignored));
 
+    // The sync paths agree with the async path once the topic is drained: both the timed and the
+    // untimed receive fail fast with ResultTopicTerminated instead of waiting.
+    Message drained;
+    ASSERT_EQ(ResultTopicTerminated, consumer.receive(drained, 1000));
+    ASSERT_EQ(ResultTopicTerminated, consumer.receive(drained));
+
     ASSERT_EQ(ResultOk, consumer.close());
     ASSERT_EQ(ResultOk, producer.close());
     client.close();

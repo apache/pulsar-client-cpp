@@ -337,6 +337,11 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             backoff_.reset();
+            // Re-derive end-of-topic from the new session: termination stops new publications, not
+            // redelivery of unacked messages, so a stale flag would report ResultTopicTerminated in
+            // the window before redeliveries arrive. The broker re-sends CommandReachedEndOfTopic
+            // once this consumer's read position reaches the terminate marker again.
+            hasReachedEndOfTopic_ = false;
             if (!messageListener_ && config_.getReceiverQueueSize() == 0) {
                 // Complicated logic since we don't have a isLocked() function for mutex
                 if (waitingForZeroQueueSizeMessage) {
@@ -1243,6 +1248,13 @@ Result ConsumerImpl::receiveHelper(Message& msg) {
         return fetchSingleMessageFromBroker(msg);
     }
 
+    // A drained terminated topic has nothing left to deliver: fail fast instead of blocking
+    // forever, matching the async path. (A receive already parked in pop() when end-of-topic
+    // arrives still waits — the queue only wakes on a message or on close.)
+    if (hasReachedEndOfTopic_ && incomingMessages_.empty()) {
+        return ResultTopicTerminated;
+    }
+
     if (!incomingMessages_.pop(msg)) {
         return ResultInterrupted;
     }
@@ -1273,6 +1285,10 @@ Result ConsumerImpl::receiveHelper(Message& msg, int timeout) {
         return ResultInvalidConfiguration;
     }
 
+    if (hasReachedEndOfTopic_ && incomingMessages_.empty()) {
+        return ResultTopicTerminated;
+    }
+
     if (incomingMessages_.pop(msg, std::chrono::milliseconds(timeout))) {
         messageProcessed(msg);
         msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
@@ -1280,6 +1296,10 @@ Result ConsumerImpl::receiveHelper(Message& msg, int timeout) {
     } else {
         if (state_ != Ready) {
             return ResultAlreadyClosed;
+        }
+        // Waking up empty on a terminated topic means drained, not merely idle.
+        if (hasReachedEndOfTopic_ && incomingMessages_.empty()) {
+            return ResultTopicTerminated;
         }
         return ResultTimeout;
     }
