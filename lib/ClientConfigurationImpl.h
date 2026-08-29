@@ -54,6 +54,7 @@ struct ClientConfigurationImpl {
     std::string proxyServiceUrl;
     ClientConfiguration::ProxyProtocol proxyProtocol;
     bool httpLookupAuthAllowRedirect{false};
+    ClientConfiguration::ConnectionValidator connectionValidator;
 
     std::unique_ptr<LoggerFactory> takeLogger() { return std::move(loggerFactory); }
 

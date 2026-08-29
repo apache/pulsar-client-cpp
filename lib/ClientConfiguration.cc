@@ -178,6 +178,15 @@ ClientConfiguration& ClientConfiguration::setLogger(LoggerFactory* loggerFactory
     return *this;
 }
 
+ClientConfiguration& ClientConfiguration::setConnectionValidator(ConnectionValidator validator) {
+    impl_->connectionValidator = std::move(validator);
+    return *this;
+}
+
+const ClientConfiguration::ConnectionValidator& ClientConfiguration::getConnectionValidator() const {
+    return impl_->connectionValidator;
+}
+
 ClientConfiguration& ClientConfiguration::setStatsIntervalInSeconds(
     const unsigned int& statsIntervalInSeconds) {
     impl_->statsIntervalInSeconds = statsIntervalInSeconds;
