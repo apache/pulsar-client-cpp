@@ -20,6 +20,7 @@
 
 #include <functional>
 
+#include "ChunkMessageIdImpl.h"
 #include "ClientConnection.h"
 #include "ClientImpl.h"
 #include "ConsumerImplBase.h"
@@ -108,7 +109,18 @@ void UnAckedMessageTrackerEnabled::start() { timeoutHandler(); }
 
 bool UnAckedMessageTrackerEnabled::add(const MessageId& msgId) {
     std::lock_guard<std::recursive_mutex> acquire(lock_);
-    auto id = discardBatch(msgId);
+    // For ChunkMessageId, skip discardBatch to preserve the original ChunkMessageIdImpl.
+    //
+    // ChunkMessageIdImpl stores all chunk entries internally (chunkedMessageIds_), and its
+    // ledgerId/entryId are set to the last chunk's position. If discardBatch is applied, a
+    // new plain MessageIdImpl would be created, losing all chunk entries information.
+    //
+    // Although the set/map key only reflects the last chunk's position, the MessageId object
+    // itself retains the full ChunkMessageIdImpl via its impl_ pointer. So when ackTimeout
+    // triggers and the MessageId is passed to redeliverMessages(), it can be expanded into
+    // all chunk entries for redelivery, ensuring the broker redelivers the complete chunked
+    // message.
+    auto id = std::dynamic_pointer_cast<ChunkMessageIdImpl>(msgId.impl_) ? msgId : discardBatch(msgId);
     if (messageIdPartitionMap.count(id) == 0) {
         std::set<MessageId>& partition = timePartitions.back();
         bool emplace = messageIdPartitionMap.emplace(id, partition).second;
@@ -125,7 +137,9 @@ bool UnAckedMessageTrackerEnabled::isEmpty() {
 
 bool UnAckedMessageTrackerEnabled::remove(const MessageId& msgId) {
     std::lock_guard<std::recursive_mutex> acquire(lock_);
-    auto id = discardBatch(msgId);
+    // Keep consistent with add(): skip discardBatch for ChunkMessageId to ensure
+    // the same key is used for lookup and removal.
+    auto id = std::dynamic_pointer_cast<ChunkMessageIdImpl>(msgId.impl_) ? msgId : discardBatch(msgId);
     bool removed = false;
 
     std::map<MessageId, std::set<MessageId>&>::iterator exist = messageIdPartitionMap.find(id);

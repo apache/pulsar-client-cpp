@@ -18,14 +18,17 @@
  */
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
+#include <pulsar/DeadLetterPolicyBuilder.h>
 #include <pulsar/MessageIdBuilder.h>
 
 #include <ctime>
 #include <random>
+#include <sstream>
 
 #include "PulsarFriend.h"
 #include "WaitUtils.h"
 #include "lib/ChunkMessageIdImpl.h"
+#include "lib/ConsumerImpl.h"
 #include "lib/LogUtils.h"
 
 DECLARE_LOG_OBJECT()
@@ -452,6 +455,153 @@ TEST_P(MessageChunkingTest, testResendChunkWithAckHoleMessages) {
 
     producer.close();
     consumer.close();
+}
+
+// Aligned with Go TestChunkAckAndNAck and Java testNegativeAckChunkedMessage
+TEST_P(MessageChunkingTest, testNegativeAckChunkedMessage) {
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic =
+        "MessageChunkingTest-testNegativeAckChunkedMessage-" + std::to_string(time(nullptr));
+
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setConsumerType(ConsumerShared);
+    consumerConf.setNegativeAckRedeliveryDelayMs(1000);
+    createConsumer(topic, consumer, consumerConf);
+
+    Producer producer;
+    createProducer(topic, producer);
+
+    // Send a chunked message
+    MessageId sendMsgId;
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeMessage).build(), sendMsgId));
+
+    // Receive and nack
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 5000));
+    ASSERT_EQ(msg.getDataAsString(), largeMessage);
+    consumer.negativeAcknowledge(msg);
+
+    // The message should be redelivered after nack delay
+    Message redeliveredMsg;
+    ASSERT_EQ(ResultOk, consumer.receive(redeliveredMsg, 5000));
+    ASSERT_EQ(redeliveredMsg.getDataAsString(), largeMessage);
+    consumer.acknowledge(redeliveredMsg);
+
+    // Verify no more messages
+    Message noMsg;
+    ASSERT_NE(ResultOk, consumer.receive(noMsg, 2000));
+
+    producer.close();
+    consumer.close();
+}
+
+// Aligned with Java testLargeMessageAckTimeOut
+TEST_P(MessageChunkingTest, testAckTimeoutChunkedMessage) {
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic =
+        "MessageChunkingTest-testAckTimeoutChunkedMessage-" + std::to_string(time(nullptr));
+
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setConsumerType(ConsumerShared);
+    // Set ack timeout to 2 seconds
+    PulsarFriend::setConsumerUnAckMessagesTimeoutMs(consumerConf, 2000);
+    createConsumer(topic, consumer, consumerConf);
+
+    Producer producer;
+    createProducer(topic, producer);
+
+    // Send a chunked message
+    MessageId sendMsgId;
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeMessage).build(), sendMsgId));
+
+    // Receive but do NOT acknowledge - let ack timeout trigger redelivery
+    Message msg;
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 5000));
+    ASSERT_EQ(msg.getDataAsString(), largeMessage);
+
+    // Wait for ack timeout to trigger redelivery
+    // The message should be redelivered after ack timeout (2s)
+    Message redeliveredMsg;
+    ASSERT_EQ(ResultOk, consumer.receive(redeliveredMsg, 5000));
+    ASSERT_EQ(redeliveredMsg.getDataAsString(), largeMessage);
+    consumer.acknowledge(redeliveredMsg);
+
+    // Verify no more messages
+    Message noMsg;
+    ASSERT_NE(ResultOk, consumer.receive(noMsg, 2000));
+
+    producer.close();
+    consumer.close();
+}
+
+TEST_P(MessageChunkingTest, testChunkedMessageDLQ) {
+    if (toString(GetParam()) != "None") {
+        return;
+    }
+    const std::string topic = "persistent://public/default/MessageChunkingTest-testChunkedMessageDLQ-" +
+                              std::to_string(time(nullptr));
+    const std::string subName = "my-sub";
+    const std::string dlqTopic = topic + "-" + subName + "-DLQ";
+
+    Client client(lookupUrl);
+
+    auto dlqPolicy =
+        DeadLetterPolicyBuilder().maxRedeliverCount(2).initialSubscriptionName("dlq-init-sub").build();
+
+    Consumer consumer;
+    ConsumerConfiguration consumerConf;
+    consumerConf.setConsumerType(ConsumerShared);
+    consumerConf.setNegativeAckRedeliveryDelayMs(100);
+    consumerConf.setDeadLetterPolicy(dlqPolicy);
+    ASSERT_EQ(ResultOk, client.subscribe(topic, subName, consumerConf, consumer));
+
+    // Subscribe to DLQ topic to verify messages arrive there
+    Consumer dlqConsumer;
+    ConsumerConfiguration dlqConsumerConf;
+    dlqConsumerConf.setConsumerType(ConsumerShared);
+    ASSERT_EQ(ResultOk, client.subscribe(dlqTopic, "dlq-sub", dlqConsumerConf, dlqConsumer));
+
+    Producer producer;
+    createProducer(topic, producer);
+
+    // Send a chunked message
+    MessageId sendMsgId;
+    ASSERT_EQ(ResultOk, producer.send(MessageBuilder().setContent(largeMessage).build(), sendMsgId));
+
+    // Nack the message maxRedeliverCount + 1 times to trigger DLQ
+    Message msg;
+    for (int i = 0; i < dlqPolicy.getMaxRedeliverCount() + 1; i++) {
+        ASSERT_EQ(ResultOk, consumer.receive(msg, 5000));
+        ASSERT_EQ(msg.getDataAsString(), largeMessage);
+        consumer.negativeAcknowledge(msg);
+    }
+
+    // Verify the message arrives in DLQ with correct content
+    Message dlqMsg;
+    ASSERT_EQ(ResultOk, dlqConsumer.receive(dlqMsg, 10000));
+    ASSERT_EQ(dlqMsg.getDataAsString(), largeMessage);
+    std::stringstream expectedOriginMsgId;
+    expectedOriginMsgId << sendMsgId;
+    ASSERT_EQ(dlqMsg.getProperty(PROPERTY_ORIGIN_MESSAGE_ID), expectedOriginMsgId.str());
+    ASSERT_EQ(dlqMsg.getProperty(SYSTEM_PROPERTY_REAL_TOPIC), topic);
+
+    // Verify no more messages in DLQ
+    Message noMsg;
+    ASSERT_NE(ResultOk, dlqConsumer.receive(noMsg, 2000));
+
+    // Verify original consumer has no more messages (message was acked after DLQ send)
+    ASSERT_NE(ResultOk, consumer.receive(noMsg, 2000));
+
+    producer.close();
+    consumer.close();
+    dlqConsumer.close();
+    client.close();
 }
 
 // The CI env is Ubuntu 16.04, the gtest-dev version is 1.8.0 that doesn't have INSTANTIATE_TEST_SUITE_P
