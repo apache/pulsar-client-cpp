@@ -47,10 +47,10 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/vcpkg/archives
           key: vcpkg-linux-${{matrix.pkg.type}}-${{matrix.cpu.platform}}-${{hashFiles('vcpkg.json')}}
@@ -60,10 +60,10 @@ jobs:
       - name: Package Pulsar source
         run: build-support/generate-source-archive.sh
 
-      - uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build dependencies Docker image
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: ./pkg/${{matrix.pkg.type}}
           load: true
@@ -80,7 +80,7 @@ jobs:
         run: zip -r ${{matrix.pkg.type}}-${{matrix.cpu.platform}}.zip ${{matrix.pkg.path}}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v7
         with:
           name: ${{matrix.pkg.type}}-${{matrix.cpu.platform}}
           path: ${{matrix.pkg.path}}
@@ -111,10 +111,10 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
 
       - name: Restore vcpkg and its artifacts.
-        uses: actions/cache@v3
+        uses: actions/cache@v6
         id: vcpkg-cache
         with:
           path: |
@@ -166,7 +166,7 @@ jobs:
         run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}.zip ${{ env.INSTALL_DIR }}/*
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.triplet }}
           path: ${{ env.INSTALL_DIR }}
@@ -194,7 +194,7 @@ jobs:
         run: 7z a -tzip pulsar-client-cpp-${{ matrix.triplet }}-Debug.zip ${{ env.INSTALL_DIR }}-Debug/*
 
       - name: Upload artifacts (Debug)
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.triplet }}-Debug
           path: ${{ env.INSTALL_DIR }}-Debug
@@ -211,13 +211,13 @@ jobs:
 
     steps:
       - name: checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           submodules: recursive
 
       - name: Restore vcpkg binary cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/Library/Caches/vcpkg/archives
           key: vcpkg-macos-${{ matrix.arch }}-${{ hashFiles('vcpkg.json') }}
@@ -236,7 +236,7 @@ jobs:
           cp macos-${{ matrix.arch }}.zip ../../../
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@master
+        uses: actions/upload-artifact@v7
         with:
           name: macos-${{ matrix.arch }}.zip
           path: macos-${{ matrix.arch }}.zip
