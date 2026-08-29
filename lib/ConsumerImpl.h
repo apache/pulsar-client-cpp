@@ -103,6 +103,9 @@ class ConsumerImpl : public ConsumerImplBase {
                          proto::MessageMetadata& msgMetadata, SharedBuffer& payload);
     void messageProcessed(Message& msg, bool track = true);
     void activeConsumerChanged(bool isActive);
+    // The broker signalled that this (terminated) topic has no more messages beyond what has already
+    // been delivered. Surface ResultTopicTerminated to receivers once the prefetch queue drains.
+    void reachedEndOfTopic();
     inline CommandSubscribe_SubType getSubType();
     inline CommandSubscribe_InitialPosition getInitialPosition();
 
@@ -185,6 +188,10 @@ class ConsumerImpl : public ConsumerImplBase {
 
    private:
     std::atomic_bool waitingForZeroQueueSizeMessage;
+    // Set when the broker sends CommandReachedEndOfTopic and cleared again on each new broker
+    // session (termination does not cancel redelivery of unacked messages); a drained receive
+    // then yields ResultTopicTerminated instead of parking forever.
+    std::atomic_bool hasReachedEndOfTopic_{false};
     std::shared_ptr<ConsumerImpl> get_shared_this_ptr();
     bool uncompressMessageIfNeeded(const ClientConnectionPtr& cnx, const proto::MessageIdData& messageIdData,
                                    const proto::MessageMetadata& metadata, SharedBuffer& payload,

@@ -853,6 +853,27 @@ void ClientConnection::handleActiveConsumerChange(const proto::CommandActiveCons
     }
 }
 
+void ClientConnection::handleReachedEndOfTopic(const proto::CommandReachedEndOfTopic& reachedEndOfTopic) {
+    LOG_DEBUG(cnxString() << "Received reached-end-of-topic, consumer_id: "
+                          << reachedEndOfTopic.consumer_id());
+    Lock lock(mutex_);
+    ConsumersMap::iterator it = consumers_.find(reachedEndOfTopic.consumer_id());
+    if (it != consumers_.end()) {
+        ConsumerImplPtr consumer = it->second.lock();
+        if (consumer) {
+            lock.unlock();
+            consumer->reachedEndOfTopic();
+        } else {
+            consumers_.erase(reachedEndOfTopic.consumer_id());
+            LOG_DEBUG(cnxString() << "Ignoring reached-end-of-topic for already destroyed consumer "
+                                  << reachedEndOfTopic.consumer_id());
+        }
+    } else {
+        LOG_DEBUG(cnxString() << "Got invalid consumer Id in reached-end-of-topic "
+                              << reachedEndOfTopic.consumer_id());
+    }
+}
+
 void ClientConnection::handleIncomingMessage(const proto::CommandMessage& msg, bool isChecksumValid,
                                              proto::BrokerEntryMetadata& brokerEntryMetadata,
                                              proto::MessageMetadata& msgMetadata, SharedBuffer& payload) {
@@ -995,6 +1016,10 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
 
                 case BaseCommand::SCALABLE_TOPIC_UPDATE:
                     handleScalableTopicUpdate(incomingCmd.scalabletopicupdate());
+                    break;
+
+                case BaseCommand::REACHED_END_OF_TOPIC:
+                    handleReachedEndOfTopic(incomingCmd.reachedendoftopic());
                     break;
 
                 default:

@@ -33,6 +33,7 @@ namespace pulsar::st {
 class QueueConsumerImpl;
 using QueueConsumerImplPtr = std::shared_ptr<QueueConsumerImpl>;
 class Transaction;
+class ClientImpl;  // lib/st — mints consumer cores from subscribeQueueAsync
 
 namespace detail {
 
@@ -60,6 +61,7 @@ class PULSAR_PUBLIC QueueConsumerCore {
 
    private:
     friend class ClientCore;
+    friend class ::pulsar::st::ClientImpl;
     explicit QueueConsumerCore(QueueConsumerImplPtr impl) : impl_(std::move(impl)) {}
 
     QueueConsumerImplPtr impl_;

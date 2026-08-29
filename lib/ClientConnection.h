@@ -105,6 +105,7 @@ class CommandGetLastMessageIdResponse;
 class CommandLookupTopicResponse;
 class CommandPartitionedTopicMetadataResponse;
 class CommandProducerSuccess;
+class CommandReachedEndOfTopic;
 class CommandScalableTopicUpdate;
 class CommandSendReceipt;
 class CommandSendError;
@@ -265,6 +266,7 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
                         proto::BaseCommand& incomingCmd);
 
     void handleActiveConsumerChange(const proto::CommandActiveConsumerChange& change);
+    void handleReachedEndOfTopic(const proto::CommandReachedEndOfTopic& reachedEndOfTopic);
     void handleIncomingCommand(proto::BaseCommand& incomingCmd);
     void handleIncomingMessage(const proto::CommandMessage& msg, bool isChecksumValid,
                                proto::BrokerEntryMetadata& brokerEntryMetadata,

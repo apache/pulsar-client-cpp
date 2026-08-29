@@ -604,8 +604,15 @@ void ClientImpl::subscribeAsync(const std::string& topic, const std::string& sub
                      [callback](const auto& value) { invokeLegacyCallback<Consumer>(callback, value); });
 }
 
+void ClientImpl::subscribeSegmentAsync(const std::string& topic, const std::string& subscriptionName,
+                                       const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
+    subscribeToTopicsAsyncV2(topic, subscriptionName, conf, std::move(callback),
+                             /* allowSegmentTopic */ true);
+}
+
 void ClientImpl::subscribeToTopicsAsyncV2(const std::string& topic, const std::string& subscriptionName,
-                                          const ConsumerConfiguration& conf, SubscribeV2Callback callback) {
+                                          const ConsumerConfiguration& conf, SubscribeV2Callback callback,
+                                          bool allowSegmentTopic) {
     LOG_INFO("Subscribing on Topic :" << topic);
     TopicNamePtr topicName;
     {
@@ -627,7 +634,7 @@ void ClientImpl::subscribeToTopicsAsyncV2(const std::string& topic, const std::s
         }
     }
 
-    if (topicName->isSegment()) {
+    if (topicName->isSegment() && !allowSegmentTopic) {
         callback(segmentTopicRejected(topic));
         return;
     }

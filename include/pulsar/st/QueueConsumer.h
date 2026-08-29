@@ -81,7 +81,8 @@ struct QueueConsumerConfig {
      *  redelivery delay). Default-constructed `AckPolicy` when unset. */
     AckPolicy ackPolicy;
     /** Optional dead-letter policy: route messages to a dead-letter topic after
-     *  repeated redelivery. Default unset (no dead-lettering). */
+     *  repeated redelivery. Default unset (no dead-lettering). Not implemented yet:
+     *  setting it fails the subscribe with `ResultOperationNotSupported`. */
     std::optional<DeadLetterPolicy> deadLetterPolicy;
     /** Arbitrary client-side consumer properties (reported in topic stats). Default empty. */
     Properties properties;
@@ -327,6 +328,9 @@ class QueueConsumerBuilder {
     /**
      * Route messages to a dead-letter topic after repeated redelivery (spec §7.2).
      * QueueConsumer only.
+     *
+     * Not implemented yet: setting a policy currently fails the subscribe with
+     * `ResultOperationNotSupported` rather than silently ignoring it.
      *
      * @param policy the dead-letter policy (max redeliveries, DLQ topic name, etc.).
      *        Default unset (no dead-lettering).

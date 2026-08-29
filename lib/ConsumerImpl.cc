@@ -337,6 +337,11 @@ Result ConsumerImpl::handleCreateConsumer(const ClientConnectionPtr& cnx, Result
             incomingMessages_.clear();
             possibleSendToDeadLetterTopicMessages_.clear();
             backoff_.reset();
+            // Re-derive end-of-topic from the new session: termination stops new publications, not
+            // redelivery of unacked messages, so a stale flag would report ResultTopicTerminated in
+            // the window before redeliveries arrive. The broker re-sends CommandReachedEndOfTopic
+            // once this consumer's read position reaches the terminate marker again.
+            hasReachedEndOfTopic_ = false;
             if (!messageListener_ && config_.getReceiverQueueSize() == 0) {
                 // Complicated logic since we don't have a isLocked() function for mutex
                 if (waitingForZeroQueueSizeMessage) {
@@ -823,6 +828,24 @@ void ConsumerImpl::activeConsumerChanged(bool isActive) {
     }
 }
 
+void ConsumerImpl::reachedEndOfTopic() {
+    hasReachedEndOfTopic_ = true;
+    // If nothing is buffered there is nothing left to deliver, so complete any waiting async
+    // receives with ResultTopicTerminated now. When messages are still buffered they drain through
+    // the normal path first, and the next receive observes the flag (see receiveAsync).
+    Lock lock(pendingReceiveMutex_);
+    if (incomingMessages_.empty()) {
+        Message msg;
+        while (!pendingReceives_.empty()) {
+            ReceiveCallback callback = pendingReceives_.front();
+            pendingReceives_.pop();
+            listenerExecutor_->postWork(std::bind(&ConsumerImpl::notifyPendingReceivedCallback,
+                                                  get_shared_this_ptr(), ResultTopicTerminated, msg,
+                                                  callback));
+        }
+    }
+}
+
 void ConsumerImpl::internalConsumerChangeListener(bool isActive) {
     try {
         if (isActive) {
@@ -1189,6 +1212,14 @@ void ConsumerImpl::receiveAsync(const ReceiveCallback& callback) {
         messageProcessed(msg);
         msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
         callback(ResultOk, msg);
+    } else if (hasReachedEndOfTopic_) {
+        // Terminated topic with nothing left buffered: fail the receive rather than parking it
+        // forever waiting for a message that will never arrive.
+        pendingReceiveMutexLock.unlock();
+        if (config_.getReceiverQueueSize() == 0) {
+            mutexlock.unlock();
+        }
+        callback(ResultTopicTerminated, msg);
     } else if (config_.getReceiverQueueSize() == 0) {
         pendingReceives_.push(callback);
         // If connection_ is nullptr, sendFlowPermitsToBroker does nothing.
@@ -1215,6 +1246,13 @@ Result ConsumerImpl::receiveHelper(Message& msg) {
 
     if (config_.getReceiverQueueSize() == 0) {
         return fetchSingleMessageFromBroker(msg);
+    }
+
+    // A drained terminated topic has nothing left to deliver: fail fast instead of blocking
+    // forever, matching the async path. (A receive already parked in pop() when end-of-topic
+    // arrives still waits — the queue only wakes on a message or on close.)
+    if (hasReachedEndOfTopic_ && incomingMessages_.empty()) {
+        return ResultTopicTerminated;
     }
 
     if (!incomingMessages_.pop(msg)) {
@@ -1247,6 +1285,10 @@ Result ConsumerImpl::receiveHelper(Message& msg, int timeout) {
         return ResultInvalidConfiguration;
     }
 
+    if (hasReachedEndOfTopic_ && incomingMessages_.empty()) {
+        return ResultTopicTerminated;
+    }
+
     if (incomingMessages_.pop(msg, std::chrono::milliseconds(timeout))) {
         messageProcessed(msg);
         msg = interceptors_->beforeConsume(Consumer(shared_from_this()), msg);
@@ -1254,6 +1296,10 @@ Result ConsumerImpl::receiveHelper(Message& msg, int timeout) {
     } else {
         if (state_ != Ready) {
             return ResultAlreadyClosed;
+        }
+        // Waking up empty on a terminated topic means drained, not merely idle.
+        if (hasReachedEndOfTopic_ && incomingMessages_.empty()) {
+            return ResultTopicTerminated;
         }
         return ResultTimeout;
     }
