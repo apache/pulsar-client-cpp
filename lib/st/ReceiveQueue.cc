@@ -171,8 +171,8 @@ Future<std::vector<MessageImplPtr>> ReceiveQueue::receiveMultiAsync(int maxMessa
     return promise.getFuture();
 }
 
-void ReceiveQueue::collectMulti(detail::Promise<std::vector<MessageImplPtr>> promise,
-                                std::shared_ptr<std::vector<MessageImplPtr>> batch, int maxMessages,
+void ReceiveQueue::collectMulti(const detail::Promise<std::vector<MessageImplPtr>>& promise,
+                                const std::shared_ptr<std::vector<MessageImplPtr>>& batch, int maxMessages,
                                 std::chrono::steady_clock::time_point deadline) {
     std::deque<detail::Promise<void>> toSignal;
     bool closed = false;

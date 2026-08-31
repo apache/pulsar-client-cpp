@@ -73,8 +73,8 @@ class ReceiveQueue : public std::enable_shared_from_this<ReceiveQueue> {
 
     // One receiveMultiAsync collection round: greedily drain what is buffered, then
     // wait for the next message with the remaining deadline and go again.
-    void collectMulti(detail::Promise<std::vector<MessageImplPtr>> promise,
-                      std::shared_ptr<std::vector<MessageImplPtr>> batch, int maxMessages,
+    void collectMulti(const detail::Promise<std::vector<MessageImplPtr>>& promise,
+                      const std::shared_ptr<std::vector<MessageImplPtr>>& batch, int maxMessages,
                       std::chrono::steady_clock::time_point deadline);
 
     // A parked receive: the promise to complete and — for timed receives — the timeout timer,

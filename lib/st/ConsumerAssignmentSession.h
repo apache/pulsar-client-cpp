@@ -104,8 +104,9 @@ class ConsumerAssignmentSession : public std::enable_shared_from_this<ConsumerAs
    private:
     // One connect-register-subscribe attempt; completes the promise with the
     // controller's assignment or the first failure. Used by start() and reconnect().
-    void connectAndSubscribe(detail::Promise<ConsumerAssignment> promise);
-    void subscribeOn(const pulsar::ClientConnectionPtr& cnx, detail::Promise<ConsumerAssignment> promise);
+    void connectAndSubscribe(const detail::Promise<ConsumerAssignment>& promise);
+    void subscribeOn(const pulsar::ClientConnectionPtr& cnx,
+                     const detail::Promise<ConsumerAssignment>& promise);
     void handleSessionEvent(pulsar::Result result,
                             const pulsar::proto::CommandScalableTopicAssignmentUpdate* update);
     // Epoch-gated apply + listener notification; used for the initial assignment,

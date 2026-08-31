@@ -97,7 +97,7 @@ Future<std::vector<AssignedSegment>> ConsumerAssignmentSession::start() {
     return initialAssignmentPromise_.getFuture();
 }
 
-void ConsumerAssignmentSession::connectAndSubscribe(detail::Promise<ConsumerAssignment> promise) {
+void ConsumerAssignmentSession::connectAndSubscribe(const detail::Promise<ConsumerAssignment>& promise) {
     // Resolve the controller leader through a one-shot DAG-watch lookup: scalable
     // topic URIs are not resolvable through the classic lookup service, and the
     // controller pushes assignment updates itself, so no long-lived layout watch is
@@ -138,7 +138,7 @@ void ConsumerAssignmentSession::connectAndSubscribe(detail::Promise<ConsumerAssi
 }
 
 void ConsumerAssignmentSession::subscribeOn(const pulsar::ClientConnectionPtr& cnx,
-                                            detail::Promise<ConsumerAssignment> promise) {
+                                            const detail::Promise<ConsumerAssignment>& promise) {
     if (closed_.load()) {
         promise.setError(Error{ResultAlreadyClosed, "consumer session closed"});
         return;
