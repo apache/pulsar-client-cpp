@@ -159,6 +159,67 @@ Future<void> ReceiveQueue::offer(MessageImplPtr message) {
     return capacityPromise.getFuture();
 }
 
+Future<std::vector<MessageImplPtr>> ReceiveQueue::receiveMultiAsync(int maxMessages,
+                                                                    std::chrono::milliseconds timeout) {
+    detail::Promise<std::vector<MessageImplPtr>> promise;
+    if (maxMessages <= 0) {
+        promise.setValue({});
+        return promise.getFuture();
+    }
+    collectMulti(promise, std::make_shared<std::vector<MessageImplPtr>>(), maxMessages,
+                 std::chrono::steady_clock::now() + timeout);
+    return promise.getFuture();
+}
+
+void ReceiveQueue::collectMulti(detail::Promise<std::vector<MessageImplPtr>> promise,
+                                std::shared_ptr<std::vector<MessageImplPtr>> batch, int maxMessages,
+                                std::chrono::steady_clock::time_point deadline) {
+    std::deque<detail::Promise<void>> toSignal;
+    bool closed = false;
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        closed = closed_;
+        while (static_cast<int>(batch->size()) < maxMessages && !buffer_.empty()) {
+            batch->push_back(std::move(buffer_.front()));
+            buffer_.pop_front();
+        }
+        if (!closed) toSignal = takeCapacityWaitersIfRoomLocked();
+    }
+    for (auto& waiter : toSignal) waiter.setSuccess();
+
+    if (closed && batch->empty()) {
+        promise.setError(Error{ResultAlreadyClosed, "consumer is closed"});
+        return;
+    }
+    const auto now = std::chrono::steady_clock::now();
+    if (closed || static_cast<int>(batch->size()) >= maxMessages || now >= deadline) {
+        promise.setValue(std::move(*batch));
+        return;
+    }
+    // Wait for the next message with whatever deadline remains, then collect again.
+    // The continuation hops through the executor: receiveAsync can complete inline
+    // when a message races in, and an inline continuation would recurse per message.
+    auto self = shared_from_this();
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+    receiveAsync(remaining).addListener(
+        [self, promise, batch, maxMessages, deadline](const Expected<MessageImplPtr>& result) {
+            if (result) {
+                batch->push_back(*result);
+                self->executor_->postWork([self, promise, batch, maxMessages, deadline] {
+                    self->collectMulti(promise, batch, maxMessages, deadline);
+                });
+                return;
+            }
+            if (result.error().result == ResultTimeout || !batch->empty()) {
+                // A quiet deadline (or a close racing a partial batch): hand over what
+                // was collected — possibly nothing.
+                promise.setValue(std::move(*batch));
+            } else {
+                promise.setError(result.error());
+            }
+        });
+}
+
 void ReceiveQueue::close() {
     std::map<std::uint64_t, PendingReceive> pending;
     std::deque<detail::Promise<void>> waiters;

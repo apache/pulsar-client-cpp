@@ -34,6 +34,7 @@ namespace pulsar::st {
 class StreamConsumerImpl;
 using StreamConsumerImplPtr = std::shared_ptr<StreamConsumerImpl>;
 class Transaction;
+class ClientImpl;  // lib/st — mints consumer cores from subscribeStreamAsync
 
 namespace detail {
 
@@ -62,6 +63,7 @@ class PULSAR_PUBLIC StreamConsumerCore {
 
    private:
     friend class ClientCore;
+    friend class ::pulsar::st::ClientImpl;
     explicit StreamConsumerCore(StreamConsumerImplPtr impl) : impl_(std::move(impl)) {}
 
     StreamConsumerImplPtr impl_;

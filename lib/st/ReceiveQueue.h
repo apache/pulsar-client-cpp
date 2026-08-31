@@ -27,6 +27,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <vector>
 
 #include "lib/ExecutorService.h"
 
@@ -51,6 +52,15 @@ class ReceiveQueue : public std::enable_shared_from_this<ReceiveQueue> {
     Future<MessageImplPtr> receiveAsync();
     Future<MessageImplPtr> receiveAsync(std::chrono::milliseconds timeout);
 
+    /**
+     * Receive up to maxMessages messages: wait (up to the deadline) for the first
+     * one, then opportunistically drain whatever is already buffered, repeating
+     * until the batch is full or the deadline elapses. May complete with fewer
+     * than maxMessages — including zero on a quiet timeout.
+     */
+    Future<std::vector<MessageImplPtr>> receiveMultiAsync(int maxMessages,
+                                                          std::chrono::milliseconds timeout);
+
     /** Deliver a message; the returned future completes when there is room for the next offer. */
     Future<void> offer(MessageImplPtr message);
 
@@ -61,6 +71,12 @@ class ReceiveQueue : public std::enable_shared_from_this<ReceiveQueue> {
     // Signal capacity waiters if the buffer has drained below capacity. Caller holds mutex_;
     // the returned promises must be completed after releasing it.
     std::deque<detail::Promise<void>> takeCapacityWaitersIfRoomLocked();
+
+    // One receiveMultiAsync collection round: greedily drain what is buffered, then
+    // wait for the next message with the remaining deadline and go again.
+    void collectMulti(detail::Promise<std::vector<MessageImplPtr>> promise,
+                      std::shared_ptr<std::vector<MessageImplPtr>> batch, int maxMessages,
+                      std::chrono::steady_clock::time_point deadline);
 
     // A parked receive: the promise to complete and — for timed receives — the timeout timer,
     // cancelled when a message (or close) wins the race so idle timers don't accumulate.

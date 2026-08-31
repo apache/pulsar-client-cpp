@@ -70,6 +70,20 @@ class MessageIdFactory {
         return MessageId(std::move(impl));
     }
 
+    /**
+     * The stream-consumer path: an id that also carries a snapshot of every
+     * segment's latest-delivered position, so one cumulative ack advances all
+     * of them.
+     */
+    static MessageId create(const pulsar::MessageId& v4MessageId, std::int64_t segmentId,
+                            std::map<std::int64_t, pulsar::MessageId> positionVector) {
+        auto impl = std::make_shared<MessageIdImpl>();
+        impl->v4MessageId = v4MessageId;
+        impl->segmentId = segmentId;
+        impl->positionVector = std::move(positionVector);
+        return MessageId(std::move(impl));
+    }
+
     static const std::shared_ptr<MessageIdImpl>& impl(const MessageId& id) { return id.impl_; }
 };
 
