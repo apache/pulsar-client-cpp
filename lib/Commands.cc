@@ -554,6 +554,22 @@ SharedBuffer Commands::newCloseConsumer(uint64_t consumerId, uint64_t requestId)
     return writeMessageWithSize(cmd);
 }
 
+SharedBuffer Commands::newScalableTopicSubscribe(uint64_t requestId, const std::string& topic,
+                                                 const std::string& subscription,
+                                                 const std::string& consumerName, uint64_t consumerId,
+                                                 ScalableConsumerType consumerType) {
+    BaseCommand cmd;
+    cmd.set_type(BaseCommand::SCALABLE_TOPIC_SUBSCRIBE);
+    proto::CommandScalableTopicSubscribe* subscribe = cmd.mutable_scalabletopicsubscribe();
+    subscribe->set_request_id(requestId);
+    subscribe->set_topic(topic);
+    subscribe->set_subscription(subscription);
+    subscribe->set_consumer_name(consumerName);
+    subscribe->set_consumer_id(consumerId);
+    subscribe->set_consumer_type(static_cast<proto::ScalableConsumerType>(consumerType));
+    return writeMessageWithSize(cmd);
+}
+
 SharedBuffer Commands::newScalableTopicLookup(uint64_t sessionId, const std::string& topic,
                                               bool createIfMissing) {
     BaseCommand cmd;
