@@ -25,63 +25,17 @@
 
 #include <chrono>
 #include <cstdint>
-#include <cstdlib>
-#include <ctime>
 #include <set>
 #include <string>
-#include <thread>
 #include <vector>
 
 #include "lib/st/MessageIdImpl.h"
-#include "tests/HttpHelper.h"
+#include "tests/st/StE2EAdmin.h"
 
 using namespace pulsar::st;
+using namespace st_e2e;
 
 namespace {
-
-bool e2eEnabled() { return std::getenv("PULSAR_ST_E2E") != nullptr; }
-
-std::string serviceUrl() {
-    const char* url = std::getenv("PULSAR_ST_E2E_SERVICE_URL");
-    return url != nullptr ? url : "pulsar://localhost:6650";
-}
-
-std::string adminUrl() {
-    const char* url = std::getenv("PULSAR_ST_E2E_ADMIN_URL");
-    return url != nullptr ? url : "http://localhost:8080";
-}
-
-// A fresh topic name per test run so tests never collide with one another or with a topic left on a
-// reused broker (the same convention the classic tests use).
-std::string uniqueName(const std::string& prefix) {
-    static int counter = 0;
-    return prefix + "-" + std::to_string(std::time(nullptr)) + "-" + std::to_string(counter++);
-}
-
-std::string topicUrl(const std::string& name) { return "topic://public/default/" + name; }
-
-// The admin REST base for a scalable topic under public/default.
-std::string scalablePath(const std::string& name) {
-    return adminUrl() + "/admin/v2/scalable/public/default/" + name;
-}
-
-// Create a scalable topic with the given number of initial segments. Retries while the
-// scalable-topics controller finishes coming up after broker start (only the first test waits).
-bool createScalableTopic(const std::string& name, int numInitialSegments = 1) {
-    const std::string url = scalablePath(name) + "?numInitialSegments=" + std::to_string(numInitialSegments);
-    for (int attempt = 0; attempt < 30; attempt++) {
-        const int code = makePutRequest(url, "");
-        if (code >= 200 && code < 300) return true;
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-    }
-    return false;
-}
-
-// Split a segment into two half-range children (POST .../split/{segmentId}).
-bool splitSegment(const std::string& name, std::int64_t segmentId) {
-    const int code = makePostRequest(scalablePath(name) + "/split/" + std::to_string(segmentId), "");
-    return code >= 200 && code < 300;
-}
 
 // The segment id carried by a received message id — the fan-in stamps it on every message.
 std::int64_t segmentIdOf(const MessageId& id) {
