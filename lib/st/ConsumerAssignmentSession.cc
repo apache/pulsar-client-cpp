@@ -115,15 +115,13 @@ void ConsumerAssignmentSession::connectAndSubscribe(detail::Promise<ConsumerAssi
             return;
         }
         const bool useTls = self->client_->getServiceInfo().useTls();
-        const auto& controllerUrl =
-            useTls ? result->controllerBrokerUrlTls() : result->controllerBrokerUrl();
+        const auto& controllerUrl = useTls ? result->controllerBrokerUrlTls() : result->controllerBrokerUrl();
         // Behind a proxy the controller's advertised address is not directly reachable,
         // and before leader election completes there is no address at all: in both
         // cases connect through the regular lookup path — any broker forwards the
         // subscribe to the controller and relays assignment updates back.
-        const bool useDirect =
-            controllerUrl.has_value() && !controllerUrl->empty() &&
-            self->client_->getClientConfig().getProxyServiceUrl().empty();
+        const bool useDirect = controllerUrl.has_value() && !controllerUrl->empty() &&
+                               self->client_->getClientConfig().getProxyServiceUrl().empty();
         auto connectionFuture =
             useDirect ? self->client_->connect("", *controllerUrl, static_cast<size_t>(self->consumerId_))
                       : self->client_->getConnection("", DagWatchSession::lookupCompatibleTopic(self->topic_),
@@ -166,16 +164,16 @@ void ConsumerAssignmentSession::subscribeOn(const pulsar::ClientConnectionPtr& c
     }
     const std::uint64_t requestId = client_->newRequestId();
     bool added = cnx->addScalableSubscribeRequest(
-        requestId,
-        [promise](pulsar::Result result, const pulsar::proto::CommandScalableTopicSubscribeResponse* response) {
+        requestId, [promise](pulsar::Result result,
+                             const pulsar::proto::CommandScalableTopicSubscribeResponse* response) {
             if (result != pulsar::ResultOk) {
                 promise.setError(Error{result, "connection closed before the subscribe response"});
                 return;
             }
             if (response->has_error()) {
-                promise.setError(Error{toSubscribeResult(response->error()),
-                                       response->has_message() ? response->message()
-                                                               : "scalable-topic subscribe failed"});
+                promise.setError(
+                    Error{toSubscribeResult(response->error()),
+                          response->has_message() ? response->message() : "scalable-topic subscribe failed"});
                 return;
             }
             if (!response->has_assignment()) {

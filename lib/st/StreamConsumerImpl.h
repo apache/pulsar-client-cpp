@@ -73,8 +73,7 @@ class StreamConsumerImpl : public std::enable_shared_from_this<StreamConsumerImp
 
     Future<MessageImplPtr> receiveAsync();
     Future<MessageImplPtr> receiveAsync(std::chrono::milliseconds timeout);
-    Future<std::vector<MessageImplPtr>> receiveMultiAsync(int maxMessages,
-                                                          std::chrono::milliseconds timeout);
+    Future<std::vector<MessageImplPtr>> receiveMultiAsync(int maxMessages, std::chrono::milliseconds timeout);
     void acknowledgeCumulative(const MessageId& id);
     void acknowledgeCumulative(const MessageId& id, const Transaction& txn);
     Future<void> closeAsync();

@@ -92,9 +92,9 @@ Future<void> StreamConsumerImpl::start() {
                                      "scalable-topics client"});
         return startPromise_.getFuture();
     }
-    session_ = std::make_shared<ConsumerAssignmentSession>(
-        classic_, config_.topic, config_.subscriptionName, consumerName_,
-        pulsar::ScalableConsumerType_STREAM);
+    session_ =
+        std::make_shared<ConsumerAssignmentSession>(classic_, config_.topic, config_.subscriptionName,
+                                                    consumerName_, pulsar::ScalableConsumerType_STREAM);
     std::weak_ptr<StreamConsumerImpl> weak = weak_from_this();
     session_->setListener([weak](const std::vector<AssignedSegment>& newSegments,
                                  const std::vector<AssignedSegment>& oldSegments) {
@@ -259,40 +259,39 @@ bool StreamConsumerImpl::isSegmentStillAssignedLocked(std::uint64_t segmentId) c
 
 void StreamConsumerImpl::subscribeSegmentWithRetry(const AssignedSegment& assigned, int attempt) {
     std::weak_ptr<StreamConsumerImpl> weak = weak_from_this();
-    getOrCreateSegmentConsumerAsync(assigned).addListener(
-        [weak, assigned, attempt](const Expected<pulsar::Consumer>& result) {
+    getOrCreateSegmentConsumerAsync(assigned).addListener([weak, assigned, attempt](
+                                                              const Expected<pulsar::Consumer>& result) {
+        auto self = weak.lock();
+        if (result || !self || self->closed_.load()) return;
+        if (!isRebalanceCollision(result.error().result)) {
+            LOG_ERROR("[" << self->topic_ << "] segment " << assigned.segment.segmentId
+                          << " subscribe failed (" << result.error()
+                          << "); not a rebalance collision, waiting for the next assignment");
+            return;
+        }
+        if (attempt + 1 >= kSubscribeRetryMaxAttempts) {
+            LOG_ERROR("[" << self->topic_ << "] segment " << assigned.segment.segmentId
+                          << " subscribe still colliding after " << kSubscribeRetryMaxAttempts
+                          << " attempts; giving up until the next assignment: " << result.error());
+            return;
+        }
+        {
+            std::lock_guard<std::mutex> lock(self->mutex_);
+            if (!self->isSegmentStillAssignedLocked(assigned.segment.segmentId)) return;
+        }
+        LOG_INFO("[" << self->topic_ << "] segment " << assigned.segment.segmentId
+                     << " is still held by its previous owner; retrying, attempt " << (attempt + 1) << " of "
+                     << kSubscribeRetryMaxAttempts);
+        auto timer = self->executor_->createDeadlineTimer();
+        const std::int64_t delayMs = std::min<std::int64_t>(100 * (attempt + 1), kSubscribeRetryMaxBackoffMs);
+        timer->expires_from_now(std::chrono::milliseconds(delayMs));
+        // Weak ref: closeAsync() does not cancel these timers (`timer` keeps itself alive).
+        timer->async_wait([weak, assigned, attempt, timer](const ASIO_ERROR& ec) {
             auto self = weak.lock();
-            if (result || !self || self->closed_.load()) return;
-            if (!isRebalanceCollision(result.error().result)) {
-                LOG_ERROR("[" << self->topic_ << "] segment " << assigned.segment.segmentId
-                              << " subscribe failed (" << result.error()
-                              << "); not a rebalance collision, waiting for the next assignment");
-                return;
-            }
-            if (attempt + 1 >= kSubscribeRetryMaxAttempts) {
-                LOG_ERROR("[" << self->topic_ << "] segment " << assigned.segment.segmentId
-                              << " subscribe still colliding after " << kSubscribeRetryMaxAttempts
-                              << " attempts; giving up until the next assignment: " << result.error());
-                return;
-            }
-            {
-                std::lock_guard<std::mutex> lock(self->mutex_);
-                if (!self->isSegmentStillAssignedLocked(assigned.segment.segmentId)) return;
-            }
-            LOG_INFO("[" << self->topic_ << "] segment " << assigned.segment.segmentId
-                         << " is still held by its previous owner; retrying, attempt " << (attempt + 1)
-                         << " of " << kSubscribeRetryMaxAttempts);
-            auto timer = self->executor_->createDeadlineTimer();
-            const std::int64_t delayMs =
-                std::min<std::int64_t>(100 * (attempt + 1), kSubscribeRetryMaxBackoffMs);
-            timer->expires_from_now(std::chrono::milliseconds(delayMs));
-            // Weak ref: closeAsync() does not cancel these timers (`timer` keeps itself alive).
-            timer->async_wait([weak, assigned, attempt, timer](const ASIO_ERROR& ec) {
-                auto self = weak.lock();
-                if (ec || !self || self->closed_.load()) return;
-                self->subscribeSegmentWithRetry(assigned, attempt + 1);
-            });
+            if (ec || !self || self->closed_.load()) return;
+            self->subscribeSegmentWithRetry(assigned, attempt + 1);
         });
+    });
 }
 
 void StreamConsumerImpl::startReceiveLoop(pulsar::Consumer consumer, std::uint64_t segmentId) {
@@ -346,8 +345,8 @@ Future<MessageImplPtr> StreamConsumerImpl::receiveAsync(std::chrono::millisecond
     return receiveQueue_->receiveAsync(timeout);
 }
 
-Future<std::vector<MessageImplPtr>> StreamConsumerImpl::receiveMultiAsync(
-    int maxMessages, std::chrono::milliseconds timeout) {
+Future<std::vector<MessageImplPtr>> StreamConsumerImpl::receiveMultiAsync(int maxMessages,
+                                                                          std::chrono::milliseconds timeout) {
     return receiveQueue_->receiveMultiAsync(maxMessages, timeout);
 }
 

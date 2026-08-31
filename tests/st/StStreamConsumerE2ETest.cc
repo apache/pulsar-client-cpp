@@ -74,7 +74,8 @@ TEST(StStreamConsumerE2ETest, testOrderedRoundTripAndCumulativeAck) {
 
     constexpr int kCount = 25;
     for (int i = 0; i < kCount; i++) {
-        auto sent = producer.newMessage().key("key-" + std::to_string(i % 4)).value("v-" + std::to_string(i)).send();
+        auto sent =
+            producer.newMessage().key("key-" + std::to_string(i % 4)).value("v-" + std::to_string(i)).send();
         ASSERT_TRUE(sent) << "send " << i << " failed: " << sent.error();
     }
     ASSERT_TRUE(producer.flush());
@@ -266,8 +267,8 @@ TEST(StStreamConsumerE2ETest, testCumulativeAckCoversAllSegments) {
     ASSERT_TRUE(verifierResult) << verifierResult.error();
     StreamConsumer<std::string> verifier = std::move(verifierResult).value();
     auto redelivered = verifier.receive(std::chrono::seconds(3));
-    ASSERT_FALSE(redelivered) << "the position vector did not cover every segment: \""
-                              << redelivered->value() << "\" was redelivered";
+    ASSERT_FALSE(redelivered) << "the position vector did not cover every segment: \"" << redelivered->value()
+                              << "\" was redelivered";
     EXPECT_EQ(redelivered.error().result, pulsar::ResultTimeout);
     EXPECT_TRUE(verifier.close());
     EXPECT_TRUE(client.close());

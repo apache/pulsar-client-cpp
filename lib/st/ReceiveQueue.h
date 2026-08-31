@@ -58,8 +58,7 @@ class ReceiveQueue : public std::enable_shared_from_this<ReceiveQueue> {
      * until the batch is full or the deadline elapses. May complete with fewer
      * than maxMessages — including zero on a quiet timeout.
      */
-    Future<std::vector<MessageImplPtr>> receiveMultiAsync(int maxMessages,
-                                                          std::chrono::milliseconds timeout);
+    Future<std::vector<MessageImplPtr>> receiveMultiAsync(int maxMessages, std::chrono::milliseconds timeout);
 
     /** Deliver a message; the returned future completes when there is room for the next offer. */
     Future<void> offer(MessageImplPtr message);
