@@ -55,7 +55,7 @@ TEST(ConsumerAssignmentSessionTest, testSessionLifecycleWithoutConnection) {
     classic->shutdown();
 }
 
-TEST(ConsumerAssignmentSessionTest, testSetListenerReplaysCurrentAssignment) {
+TEST(ConsumerAssignmentSessionTest, testSetListenerDoesNotReplayBeforeFirstAssignment) {
     auto classic =
         std::make_shared<pulsar::ClientImpl>("pulsar://localhost:6650", pulsar::ClientConfiguration{});
     classic->initialize();
@@ -63,18 +63,14 @@ TEST(ConsumerAssignmentSessionTest, testSetListenerReplaysCurrentAssignment) {
     auto session = std::make_shared<ConsumerAssignmentSession>(
         classic, "topic://public/default/orders", "sub", "consumer-1", pulsar::ScalableConsumerType_STREAM);
 
-    // Before any assignment the replay still fires (with empty old == new), so an
-    // applier registered late cannot miss the registration race window.
+    // Before any assignment there is nothing to replay: a listener registered early
+    // must not be handed an empty "assignment" (a consumer would take that as a
+    // successful, segment-less start). The replay of a received assignment is
+    // exercised by the stream-consumer integration tests.
     int calls = 0;
-    std::vector<AssignedSegment> seenNew;
-    session->setListener([&](const std::vector<AssignedSegment>& newSegments,
-                             const std::vector<AssignedSegment>& oldSegments) {
-        calls++;
-        seenNew = newSegments;
-        ASSERT_EQ(newSegments.size(), oldSegments.size());
-    });
-    ASSERT_EQ(calls, 1);
-    ASSERT_TRUE(seenNew.empty());
+    session->setListener(
+        [&](const std::vector<AssignedSegment>&, const std::vector<AssignedSegment>&) { calls++; });
+    ASSERT_EQ(calls, 0);
 
     session->close();
     classic->shutdown();

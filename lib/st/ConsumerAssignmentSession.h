@@ -25,6 +25,7 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -90,9 +91,10 @@ class ConsumerAssignmentSession : public std::enable_shared_from_this<ConsumerAs
     std::vector<AssignedSegment> currentAssignment() const;
 
     /**
-     * Register the listener notified on every accepted assignment update. Replays the
-     * current assignment immediately (newSegments == oldSegments) so an update that
-     * raced the registration is not lost; appliers must be idempotent.
+     * Register the listener notified on every accepted assignment update. If an
+     * assignment has already been received, it is replayed immediately (newSegments ==
+     * oldSegments) so an update that raced the registration is not lost; appliers must
+     * be idempotent. Nothing is replayed before the first assignment.
      */
     void setListener(AssignmentChangeListener listener);
 
@@ -130,9 +132,11 @@ class ConsumerAssignmentSession : public std::enable_shared_from_this<ConsumerAs
 
     mutable std::mutex mutex_;
     std::vector<AssignedSegment> currentAssignment_;  // guarded by mutex_
-    std::int64_t currentEpoch_ = -1;                  // guarded by mutex_
+    std::int64_t currentEpoch_ = -1;                  // guarded by mutex_; -1 until the first assignment
     AssignmentChangeListener listener_;               // guarded by mutex_
     pulsar::ClientConnectionWeakPtr cnx_;             // guarded by mutex_
+    // The subscribe request awaiting its response on cnx_, so close() can withdraw it.
+    std::optional<std::uint64_t> pendingSubscribeRequestId_;  // guarded by mutex_
 };
 
 using ConsumerAssignmentSessionPtr = std::shared_ptr<ConsumerAssignmentSession>;

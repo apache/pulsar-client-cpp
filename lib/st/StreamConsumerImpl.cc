@@ -95,31 +95,74 @@ Future<void> StreamConsumerImpl::start() {
     session_ =
         std::make_shared<ConsumerAssignmentSession>(classic_, config_.topic, config_.subscriptionName,
                                                     consumerName_, pulsar::ScalableConsumerType_STREAM);
+    // Same order as the Java client: subscribe the initial assignment from start()'s
+    // own result, and register the update listener only afterwards — so nothing but
+    // the initial subscribes can complete startPromise_, and their failures (or the
+    // PIP-486 gate) reach the caller.
+    std::weak_ptr<StreamConsumerImpl> weak = weak_from_this();
+    session_->start().addListener([weak](const Expected<std::vector<AssignedSegment>>& result) {
+        auto self = weak.lock();
+        if (!self) return;
+        if (!result) {
+            self->startPromise_.setError(result.error());
+            return;
+        }
+        self->applyInitialAssignment(*result);
+    });
+    return startPromise_.getFuture();
+}
+
+void StreamConsumerImpl::applyInitialAssignment(const std::vector<AssignedSegment>& segments) {
+    if (closed_.load()) {
+        startPromise_.setError(Error{ResultAlreadyClosed, "consumer is closed"});
+        return;
+    }
+    for (const auto& assigned : segments) {
+        if (!assigned.ownedBucketRanges.empty()) {
+            // PIP-486 bucket-sharing (consumers outnumbering segments) is not supported yet.
+            startPromise_.setError(
+                Error{ResultOperationNotSupported,
+                      "bucket-shared segment assignments (PIP-486) are not supported yet in the "
+                      "scalable-topics client; use at most one stream consumer per segment"});
+            return;
+        }
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        currentAssignment_ = segments;
+    }
+    if (segments.empty()) {
+        startPromise_.setSuccess();
+    } else {
+        auto remaining = std::make_shared<std::atomic<int>>(static_cast<int>(segments.size()));
+        for (const auto& assigned : segments) {
+            getOrCreateSegmentConsumerAsync(assigned).addListener(
+                [self = shared_from_this(), remaining](const Expected<pulsar::Consumer>& result) {
+                    if (!result) {
+                        self->startPromise_.setError(result.error());  // first error wins (idempotent)
+                        return;
+                    }
+                    if (remaining->fetch_sub(1) == 1) self->startPromise_.setSuccess();
+                });
+        }
+    }
+    // Now that every initial segment has its entry, updates (and the session's replay
+    // of the initial assignment) reconcile against them — a no-op for the same set.
     std::weak_ptr<StreamConsumerImpl> weak = weak_from_this();
     session_->setListener([weak](const std::vector<AssignedSegment>& newSegments,
                                  const std::vector<AssignedSegment>& oldSegments) {
         if (auto self = weak.lock()) self->onAssignmentChange(newSegments, oldSegments);
     });
-    // The listener drives the success path (the session applies the initial assignment
-    // through it before this future resolves); here only a failure is surfaced.
-    session_->start().addListener([weak](const Expected<std::vector<AssignedSegment>>& result) {
-        if (!result) {
-            if (auto self = weak.lock()) self->startPromise_.setError(result.error());
-        }
-    });
-    return startPromise_.getFuture();
 }
 
 void StreamConsumerImpl::onAssignmentChange(const std::vector<AssignedSegment>& newSegments,
                                             const std::vector<AssignedSegment>& /*oldSegments*/) {
     std::vector<Future<pulsar::Consumer>> retired;
     std::vector<AssignedSegment> toAdd;
-    std::vector<std::uint64_t> bucketShared;
-    bool first = false;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        first = !sawFirstAssignment_;
-        sawFirstAssignment_ = true;
+        // An update racing closeAsync() must not create consumers nobody will close.
+        if (closed_.load()) return;
         currentAssignment_ = newSegments;
 
         std::unordered_set<std::uint64_t> targetIds;
@@ -128,7 +171,7 @@ void StreamConsumerImpl::onAssignmentChange(const std::vector<AssignedSegment>& 
             if (targetIds.find(it->first) == targetIds.end()) {
                 // Released by a rebalance: close immediately. Unacked in-flight messages
                 // are redelivered to the segment's next owner from the shared cursor.
-                retired.push_back(std::move(it->second));
+                retired.push_back(std::move(it->second.future));
                 latestDelivered_.erase(static_cast<std::int64_t>(it->first));
                 it = segmentConsumers_.erase(it);
             } else {
@@ -140,50 +183,18 @@ void StreamConsumerImpl::onAssignmentChange(const std::vector<AssignedSegment>& 
                 continue;
             }
             if (!assigned.ownedBucketRanges.empty()) {
-                bucketShared.push_back(assigned.segment.segmentId);
-            } else {
-                toAdd.push_back(assigned);
+                // PIP-486 bucket-sharing (consumers outnumbering segments) is not supported yet.
+                LOG_ERROR("[" << topic_ << "] segment " << assigned.segment.segmentId
+                              << " was assigned bucket-shared (PIP-486), which is not supported yet; "
+                                 "skipping it");
+                continue;
             }
+            toAdd.push_back(assigned);
         }
     }
 
     for (auto& future : retired) closeWhenReady(future);
-
-    if (!bucketShared.empty()) {
-        // PIP-486 bucket-sharing (consumers outnumbering segments) is not supported yet.
-        if (first) {
-            startPromise_.setError(
-                Error{ResultOperationNotSupported,
-                      "bucket-shared segment assignments (PIP-486) are not supported yet in the "
-                      "scalable-topics client; use at most one stream consumer per segment"});
-            return;
-        }
-        for (auto segmentId : bucketShared) {
-            LOG_ERROR("[" << topic_ << "] segment " << segmentId
-                          << " was assigned bucket-shared (PIP-486), which is not supported yet; "
-                             "skipping it");
-        }
-    }
-
-    if (first) {
-        if (toAdd.empty()) {
-            startPromise_.setSuccess();
-            return;
-        }
-        auto remaining = std::make_shared<std::atomic<int>>(static_cast<int>(toAdd.size()));
-        for (const auto& assigned : toAdd) {
-            getOrCreateSegmentConsumerAsync(assigned).addListener(
-                [self = shared_from_this(), remaining](const Expected<pulsar::Consumer>& result) {
-                    if (!result) {
-                        self->startPromise_.setError(result.error());  // first error wins (idempotent)
-                        return;
-                    }
-                    if (remaining->fetch_sub(1) == 1) self->startPromise_.setSuccess();
-                });
-        }
-    } else {
-        for (const auto& assigned : toAdd) subscribeSegmentWithRetry(assigned, /*attempt*/ 0);
-    }
+    for (const auto& assigned : toAdd) subscribeSegmentWithRetry(assigned, /*attempt*/ 0);
 }
 
 pulsar::ConsumerConfiguration StreamConsumerImpl::buildSegmentConfiguration(
@@ -217,12 +228,20 @@ Future<pulsar::Consumer> StreamConsumerImpl::getOrCreateSegmentConsumerAsync(
     const AssignedSegment& assigned) {
     detail::Promise<pulsar::Consumer> promise;
     const std::uint64_t segmentId = assigned.segment.segmentId;
+    std::uint64_t generation = 0;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        if (auto it = segmentConsumers_.find(segmentId); it != segmentConsumers_.end()) {
-            return it->second;
+        // closeAsync() has already snapshotted (or will never see) this entry: refuse
+        // rather than create a consumer that nothing closes.
+        if (closed_.load()) {
+            promise.setError(Error{ResultAlreadyClosed, "consumer is closed"});
+            return promise.getFuture();
         }
-        segmentConsumers_.insert_or_assign(segmentId, promise.getFuture());
+        if (auto it = segmentConsumers_.find(segmentId); it != segmentConsumers_.end()) {
+            return it->second.future;
+        }
+        generation = nextSegmentGeneration_++;
+        segmentConsumers_.insert_or_assign(segmentId, SegmentEntry{promise.getFuture(), generation});
     }
 
     const pulsar::ConsumerConfiguration conf = buildSegmentConfiguration(assigned);
@@ -230,19 +249,19 @@ Future<pulsar::Consumer> StreamConsumerImpl::getOrCreateSegmentConsumerAsync(
     auto self = shared_from_this();
     classic_->subscribeSegmentAsync(
         attachTopic, config_.subscriptionName, conf,
-        [self, promise, segmentId](std::variant<pulsar::Error, pulsar::Consumer> result) {
+        [self, promise, segmentId, generation](std::variant<pulsar::Error, pulsar::Consumer> result) {
             if (auto* consumer = std::get_if<pulsar::Consumer>(&result)) {
                 // pulsar::Consumer is a copyable handle (its virtual dtor suppresses the
                 // move ctor), so this is a shared-impl copy, not a deep copy.
                 pulsar::Consumer c = *consumer;
-                self->startReceiveLoop(c, segmentId);
+                self->startReceiveLoop(c, segmentId, generation);
                 promise.setValue(c);
             } else {
                 // Evict the failed subscribe so a later attempt (retry or assignment
                 // push) can re-create it.
                 {
                     std::lock_guard<std::mutex> lock(self->mutex_);
-                    self->segmentConsumers_.erase(segmentId);
+                    self->dropSegmentLocked(segmentId, generation);
                 }
                 promise.setError(std::get<pulsar::Error>(result));
             }
@@ -255,6 +274,15 @@ bool StreamConsumerImpl::isSegmentStillAssignedLocked(std::uint64_t segmentId) c
         if (assigned.segment.segmentId == segmentId) return true;
     }
     return false;
+}
+
+void StreamConsumerImpl::dropSegmentLocked(std::uint64_t segmentId, std::uint64_t generation) {
+    auto it = segmentConsumers_.find(segmentId);
+    // A different generation is the live entry of a later re-assignment (the segment
+    // was released and handed back in between): leave it alone.
+    if (it == segmentConsumers_.end() || it->second.generation != generation) return;
+    segmentConsumers_.erase(it);
+    latestDelivered_.erase(static_cast<std::int64_t>(segmentId));
 }
 
 void StreamConsumerImpl::subscribeSegmentWithRetry(const AssignedSegment& assigned, int attempt) {
@@ -294,49 +322,51 @@ void StreamConsumerImpl::subscribeSegmentWithRetry(const AssignedSegment& assign
     });
 }
 
-void StreamConsumerImpl::startReceiveLoop(pulsar::Consumer consumer, std::uint64_t segmentId) {
+void StreamConsumerImpl::startReceiveLoop(pulsar::Consumer consumer, std::uint64_t segmentId,
+                                          std::uint64_t generation) {
     if (closed_.load()) return;
     auto self = shared_from_this();
-    consumer.receiveAsync([self, consumer, segmentId](pulsar::Result result, const pulsar::Message& message) {
-        if (result != pulsar::ResultOk) {
-            if (result == pulsar::ResultTopicTerminated) {
-                // The sealed segment is fully drained: close immediately and drop its
-                // bookkeeping. A late cumulative ack carrying this segment's position is
-                // a no-op — the cursor is already at the end. (The queue consumer's
-                // deferred close does not transfer here: one cumulative ack settles an
-                // unbounded prefix, so there is no per-message outstanding count.)
-                {
-                    std::lock_guard<std::mutex> lock(self->mutex_);
-                    self->segmentConsumers_.erase(segmentId);
-                    self->latestDelivered_.erase(static_cast<std::int64_t>(segmentId));
+    consumer.receiveAsync(
+        [self, consumer, segmentId, generation](pulsar::Result result, const pulsar::Message& message) {
+            if (result != pulsar::ResultOk) {
+                if (result == pulsar::ResultTopicTerminated) {
+                    // The sealed segment is fully drained: close immediately and drop its
+                    // bookkeeping. A late cumulative ack carrying this segment's position is
+                    // a no-op — the cursor is already at the end. (The queue consumer's
+                    // deferred close does not transfer here: one cumulative ack settles an
+                    // unbounded prefix, so there is no per-message outstanding count.)
+                    {
+                        std::lock_guard<std::mutex> lock(self->mutex_);
+                        self->dropSegmentLocked(segmentId, generation);
+                    }
+                    pulsar::Consumer done = consumer;
+                    done.closeAsync([](pulsar::Result) {});
                 }
-                pulsar::Consumer done = consumer;
-                done.closeAsync([](pulsar::Result) {});
+                // Otherwise (AlreadyClosed / consumer closing) just stop the loop.
+                return;
             }
-            // Otherwise (AlreadyClosed / consumer closing) just stop the loop.
-            return;
-        }
-        // Snapshot the position vector AT DELIVERY TIME, inside the segment loop: every
-        // delivered message carries where all segments stood when it was handed over, so
-        // acknowledging it cumulatively advances exactly what had been delivered by then.
-        std::map<std::int64_t, pulsar::MessageId> positionVector;
-        {
-            std::lock_guard<std::mutex> lock(self->mutex_);
-            self->latestDelivered_[static_cast<std::int64_t>(segmentId)] = message.getMessageId();
-            positionVector = self->latestDelivered_;
-        }
-        MessageId id = MessageIdFactory::create(message.getMessageId(), static_cast<std::int64_t>(segmentId),
-                                                std::move(positionVector));
-        // Report the scalable topic as the source, not the internal segment:// backing topic.
-        auto messageImpl = std::make_shared<MessageImpl>(message, std::move(id), self->topic_);
-        // Re-arm only once the fan-in queue has room, and hop through the executor so
-        // the per-message chain is a loop rather than recursion (see QueueConsumerImpl).
-        self->receiveQueue_->offer(std::move(messageImpl))
-            .addListener([self, consumer, segmentId](const Expected<void>&) {
-                self->executor_->postWork(
-                    [self, consumer, segmentId] { self->startReceiveLoop(consumer, segmentId); });
-            });
-    });
+            // Snapshot the position vector AT DELIVERY TIME, inside the segment loop: every
+            // delivered message carries where all segments stood when it was handed over, so
+            // acknowledging it cumulatively advances exactly what had been delivered by then.
+            std::map<std::int64_t, pulsar::MessageId> positionVector;
+            {
+                std::lock_guard<std::mutex> lock(self->mutex_);
+                self->latestDelivered_[static_cast<std::int64_t>(segmentId)] = message.getMessageId();
+                positionVector = self->latestDelivered_;
+            }
+            MessageId id = MessageIdFactory::create(
+                message.getMessageId(), static_cast<std::int64_t>(segmentId), std::move(positionVector));
+            // Report the scalable topic as the source, not the internal segment:// backing topic.
+            auto messageImpl = std::make_shared<MessageImpl>(message, std::move(id), self->topic_);
+            // Re-arm only once the fan-in queue has room, and hop through the executor so
+            // the per-message chain is a loop rather than recursion (see QueueConsumerImpl).
+            self->receiveQueue_->offer(std::move(messageImpl))
+                .addListener([self, consumer, segmentId, generation](const Expected<void>&) {
+                    self->executor_->postWork([self, consumer, segmentId, generation] {
+                        self->startReceiveLoop(consumer, segmentId, generation);
+                    });
+                });
+        });
 }
 
 Future<MessageImplPtr> StreamConsumerImpl::receiveAsync() { return receiveQueue_->receiveAsync(); }
@@ -367,7 +397,7 @@ void StreamConsumerImpl::acknowledgeCumulative(const MessageId& id) {
         {
             std::lock_guard<std::mutex> lock(mutex_);
             auto it = segmentConsumers_.find(static_cast<std::uint64_t>(segmentId));
-            if (it != segmentConsumers_.end()) future = it->second;
+            if (it != segmentConsumers_.end()) future = it->second.future;
         }
         if (!future) continue;  // drained or released: the cursor no longer needs this ack
         const pulsar::MessageId v4 = position;
@@ -399,7 +429,7 @@ Future<void> StreamConsumerImpl::closeAsync() {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         consumers.reserve(segmentConsumers_.size());
-        for (auto& [segmentId, future] : segmentConsumers_) consumers.push_back(future);
+        for (auto& [segmentId, entry] : segmentConsumers_) consumers.push_back(entry.future);
         segmentConsumers_.clear();
         latestDelivered_.clear();
         currentAssignment_.clear();

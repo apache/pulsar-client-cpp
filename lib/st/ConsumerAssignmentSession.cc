@@ -163,9 +163,17 @@ void ConsumerAssignmentSession::subscribeOn(const pulsar::ClientConnectionPtr& c
         return;
     }
     const std::uint64_t requestId = client_->newRequestId();
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        pendingSubscribeRequestId_ = requestId;
+    }
     bool added = cnx->addScalableSubscribeRequest(
-        requestId, [promise](pulsar::Result result,
-                             const pulsar::proto::CommandScalableTopicSubscribeResponse* response) {
+        requestId, [weakSelf, promise](pulsar::Result result,
+                                       const pulsar::proto::CommandScalableTopicSubscribeResponse* response) {
+            if (auto self = weakSelf.lock()) {
+                std::lock_guard<std::mutex> lock(self->mutex_);
+                self->pendingSubscribeRequestId_.reset();
+            }
             if (result != pulsar::ResultOk) {
                 promise.setError(Error{result, "connection closed before the subscribe response"});
                 return;
@@ -184,6 +192,10 @@ void ConsumerAssignmentSession::subscribeOn(const pulsar::ClientConnectionPtr& c
             promise.setValue(fromProto(response->assignment()));
         });
     if (!added) {
+        {
+            std::lock_guard<std::mutex> lock(mutex_);
+            pendingSubscribeRequestId_.reset();
+        }
         promise.setError(Error{ResultNotConnected, "connection closed before the subscribe request"});
         return;
     }
@@ -304,8 +316,12 @@ void ConsumerAssignmentSession::setListener(AssignmentChangeListener listener) {
     {
         std::lock_guard<std::mutex> lock(mutex_);
         listener_ = std::move(listener);
-        current = currentAssignment_;
-        toReplay = listener_;
+        // Replay only once an assignment exists: before the first one there is nothing
+        // to apply, and a replay of "nothing" must not look like an (empty) assignment.
+        if (currentEpoch_ >= 0) {
+            current = currentAssignment_;
+            toReplay = listener_;
+        }
     }
     // Replay the current assignment: an update that raced the registration would
     // otherwise be lost — there is no periodic refresh to recover it. Appliers are
@@ -323,16 +339,23 @@ void ConsumerAssignmentSession::close() {
     reconnectTimer_->cancel(ignored);
 
     pulsar::ClientConnectionPtr cnx;
+    std::optional<std::uint64_t> pendingRequestId;
     {
         std::lock_guard<std::mutex> lock(mutex_);
         cnx = cnx_.lock();
         cnx_.reset();
+        pendingRequestId.swap(pendingSubscribeRequestId_);
     }
     if (cnx) {
         // No wire command: the broker reaps the registration through its grace timer
-        // on disconnect (Java parity).
+        // on disconnect (Java parity). A subscribe still in flight is withdrawn so its
+        // late response cannot revive anything on this connection.
+        if (pendingRequestId) cnx->removeScalableSubscribeRequest(*pendingRequestId);
         cnx->removeScalableConsumerSession(consumerId_);
     }
+    // A start() still waiting on that withdrawn request must not hang (no-op once
+    // the initial assignment or a failure already completed it).
+    initialAssignmentPromise_.setError(Error{ResultAlreadyClosed, "consumer session closed"});
 }
 
 }  // namespace pulsar::st

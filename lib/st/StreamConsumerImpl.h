@@ -91,17 +91,30 @@ class StreamConsumerImpl : public std::enable_shared_from_this<StreamConsumerImp
     static constexpr int kSubscribeRetryMaxAttempts = 10;
     static constexpr std::int64_t kSubscribeRetryMaxBackoffMs = 500;
 
+    // One entry per assigned segment. The generation tells a stale completion (a
+    // failed subscribe or a drained segment from an earlier assignment) apart from
+    // the live entry a later re-assignment created under the same segment id.
+    struct SegmentEntry {
+        Future<pulsar::Consumer> future;
+        std::uint64_t generation;
+    };
+
     pulsar::ConsumerConfiguration buildSegmentConfiguration(const AssignedSegment& assigned) const;
     Future<pulsar::Consumer> getOrCreateSegmentConsumerAsync(const AssignedSegment& assigned);
     // getOrCreateSegmentConsumerAsync plus a bounded backoff retry on the rebalance
     // collisions (ConsumerBusy / ConsumerAssignError), used off the start path.
     void subscribeSegmentWithRetry(const AssignedSegment& assigned, int attempt);
-    void startReceiveLoop(pulsar::Consumer consumer, std::uint64_t segmentId);
+    void startReceiveLoop(pulsar::Consumer consumer, std::uint64_t segmentId, std::uint64_t generation);
 
+    // Subscribe the initial assignment (completing startPromise_), then register for updates.
+    void applyInitialAssignment(const std::vector<AssignedSegment>& segments);
     void onAssignmentChange(const std::vector<AssignedSegment>& newSegments,
                             const std::vector<AssignedSegment>& oldSegments);
     // Whether the segment is still in the current assignment. Caller holds mutex_.
     bool isSegmentStillAssignedLocked(std::uint64_t segmentId) const;
+    // Drop the segment's entry and delivery bookkeeping, unless a re-assignment has
+    // since replaced the entry (different generation). Caller holds mutex_.
+    void dropSegmentLocked(std::uint64_t segmentId, std::uint64_t generation);
 
     pulsar::ClientImplPtr classic_;
     const StreamConsumerConfig config_;
@@ -117,9 +130,9 @@ class StreamConsumerImpl : public std::enable_shared_from_this<StreamConsumerImp
     std::atomic<bool> closed_{false};
 
     mutable std::mutex mutex_;
-    bool sawFirstAssignment_ = false;                                               // guarded by mutex_
-    std::vector<AssignedSegment> currentAssignment_;                                // guarded by mutex_
-    std::unordered_map<std::uint64_t, Future<pulsar::Consumer>> segmentConsumers_;  // guarded by mutex_
+    std::vector<AssignedSegment> currentAssignment_;                    // guarded by mutex_
+    std::unordered_map<std::uint64_t, SegmentEntry> segmentConsumers_;  // guarded by mutex_
+    std::uint64_t nextSegmentGeneration_ = 0;                           // guarded by mutex_
     // Every segment's latest-delivered position, snapshotted into each delivered
     // message's position vector at delivery time. Guarded by mutex_.
     std::map<std::int64_t, pulsar::MessageId> latestDelivered_;

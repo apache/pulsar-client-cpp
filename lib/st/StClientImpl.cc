@@ -70,9 +70,12 @@ Future<detail::StreamConsumerCore> ClientImpl::subscribeStreamAsync(StreamConsum
     impl->start().addListener([impl, promise](const Expected<void>& result) {
         if (result) {
             promise.setValue(detail::StreamConsumerCore{impl});
-        } else {
-            promise.setError(result.error());
+            return;
         }
+        // No core will ever close it: release the controller registration and any
+        // segment consumer that did come up before failing the subscribe.
+        const Error& error = result.error();
+        impl->closeAsync().addListener([promise, error](const Expected<void>&) { promise.setError(error); });
     });
     return promise.getFuture();
 }
