@@ -852,7 +852,8 @@ TEST_F(ReaderSeekTest, testSeekInProgress) {
 }
 
 TEST_P(ReaderSeekTest, testHasMessageAvailableAfterSeekToEnd) {
-    const auto topic = "test-has-message-available-after-seek-to-end-" + std::to_string(time(nullptr));
+    const auto topic = "test-has-message-available-after-seek-to-end-" + std::to_string(time(nullptr)) +
+                       std::to_string(GetParam());
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
     Reader reader;
@@ -980,7 +981,8 @@ TEST_F(ReaderSeekTest, testSeekInclusiveChunkMessage) {
 }
 
 TEST_P(ReaderSeekTest, testSeekToEndByTimestamp) {
-    auto topic = "test-seek-to-end-by-timestamp-" + std::to_string(time(nullptr));
+    auto topic =
+        "test-seek-to-end-by-timestamp-" + std::to_string(time(nullptr)) + std::to_string(GetParam());
     Producer producer;
     ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
 
