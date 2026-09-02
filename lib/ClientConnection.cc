@@ -1018,6 +1018,14 @@ void ClientConnection::handleIncomingCommand(BaseCommand& incomingCmd) {
                     handleScalableTopicUpdate(incomingCmd.scalabletopicupdate());
                     break;
 
+                case BaseCommand::SCALABLE_TOPIC_SUBSCRIBE_RESPONSE:
+                    handleScalableTopicSubscribeResponse(incomingCmd.scalabletopicsubscriberesponse());
+                    break;
+
+                case BaseCommand::SCALABLE_TOPIC_ASSIGNMENT_UPDATE:
+                    handleScalableTopicAssignmentUpdate(incomingCmd.scalabletopicassignmentupdate());
+                    break;
+
                 case BaseCommand::REACHED_END_OF_TOPIC:
                     handleReachedEndOfTopic(incomingCmd.reachedendoftopic());
                     break;
@@ -1302,6 +1310,8 @@ const std::future<void>& ClientConnection::close(Error&& error, bool switchClust
     auto pendingGetNamespaceTopicsRequests = std::move(pendingGetNamespaceTopicsRequests_);
     auto pendingGetSchemaRequests = std::move(pendingGetSchemaRequests_);
     auto scalableTopicSessions = std::move(scalableTopicSessions_);
+    auto scalableConsumerSessions = std::move(scalableConsumerSessions_);
+    auto pendingScalableSubscribeRequests = std::move(pendingScalableSubscribeRequests_);
 
     numOfPendingLookupRequest_ = 0;
 
@@ -1381,6 +1391,12 @@ const std::future<void>& ClientConnection::close(Error&& error, bool switchClust
     for (auto& kv : scalableTopicSessions) {
         kv.second(error.result, nullptr);
     }
+    for (auto& kv : scalableConsumerSessions) {
+        kv.second(error.result, nullptr);
+    }
+    for (auto& kv : pendingScalableSubscribeRequests) {
+        kv.second(error.result, nullptr);
+    }
     for (auto& kv : pendingConsumerStatsMap) {
         LOG_ERROR(cnxString() << " Closing Client Connection, please try again later");
         kv.second.setFailed(result);
@@ -1432,6 +1448,75 @@ bool ClientConnection::registerScalableTopicSession(uint64_t sessionId,
 void ClientConnection::removeScalableTopicSession(uint64_t sessionId) {
     Lock lock(mutex_);
     scalableTopicSessions_.erase(sessionId);
+}
+
+bool ClientConnection::registerScalableConsumerSession(uint64_t consumerId,
+                                                       ScalableConsumerAssignmentListener listener) {
+    Lock lock(mutex_);
+    if (isClosed()) {
+        return false;
+    }
+    scalableConsumerSessions_[consumerId] = std::move(listener);
+    return true;
+}
+
+void ClientConnection::removeScalableConsumerSession(uint64_t consumerId) {
+    Lock lock(mutex_);
+    scalableConsumerSessions_.erase(consumerId);
+}
+
+bool ClientConnection::addScalableSubscribeRequest(uint64_t requestId,
+                                                   ScalableSubscribeResponseCallback callback) {
+    Lock lock(mutex_);
+    if (isClosed()) {
+        return false;
+    }
+    pendingScalableSubscribeRequests_[requestId] = std::move(callback);
+    return true;
+}
+
+void ClientConnection::removeScalableSubscribeRequest(uint64_t requestId) {
+    Lock lock(mutex_);
+    pendingScalableSubscribeRequests_.erase(requestId);
+}
+
+void ClientConnection::handleScalableTopicSubscribeResponse(
+    const proto::CommandScalableTopicSubscribeResponse& response) {
+    ScalableSubscribeResponseCallback callback;
+    {
+        Lock lock(mutex_);
+        auto it = pendingScalableSubscribeRequests_.find(response.request_id());
+        if (it != pendingScalableSubscribeRequests_.end()) {
+            callback = std::move(it->second);
+            pendingScalableSubscribeRequests_.erase(it);
+        }
+    }
+    if (callback) {
+        callback(ResultOk, &response);
+    } else {
+        LOG_WARN(cnxString() << "Received SCALABLE_TOPIC_SUBSCRIBE_RESPONSE for unknown request "
+                             << response.request_id());
+    }
+}
+
+void ClientConnection::handleScalableTopicAssignmentUpdate(
+    const proto::CommandScalableTopicAssignmentUpdate& update) {
+    ScalableConsumerAssignmentListener listener;
+    {
+        Lock lock(mutex_);
+        auto it = scalableConsumerSessions_.find(update.consumer_id());
+        if (it != scalableConsumerSessions_.end()) {
+            listener = it->second;
+        }
+    }
+    if (listener) {
+        listener(ResultOk, &update);
+    } else {
+        // A push may race with a just-closed session; drop it rather than
+        // treating it as a protocol violation.
+        LOG_WARN(cnxString() << "Received SCALABLE_TOPIC_ASSIGNMENT_UPDATE for unknown consumer "
+                             << update.consumer_id());
+    }
 }
 
 void ClientConnection::handleScalableTopicUpdate(const proto::CommandScalableTopicUpdate& update) {

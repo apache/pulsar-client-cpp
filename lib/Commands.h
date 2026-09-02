@@ -150,6 +150,10 @@ class Commands {
     // Scalable topics (pulsar::st): open/close a DAG-watch session. The broker
     // answers (and later pushes) CommandScalableTopicUpdate correlated by the
     // client-assigned sessionId.
+    static SharedBuffer newScalableTopicSubscribe(uint64_t requestId, const std::string& topic,
+                                                  const std::string& subscription,
+                                                  const std::string& consumerName, uint64_t consumerId,
+                                                  ScalableConsumerType consumerType);
     static SharedBuffer newScalableTopicLookup(uint64_t sessionId, const std::string& topic,
                                                bool createIfMissing);
     static SharedBuffer newScalableTopicClose(uint64_t sessionId);

@@ -23,6 +23,7 @@
 
 #include "QueueConsumerImpl.h"
 #include "StProducerImpl.h"
+#include "StreamConsumerImpl.h"
 
 namespace pulsar::st {
 
@@ -62,9 +63,21 @@ Future<detail::ProducerCore> ClientImpl::createProducerAsync(ProducerConfig conf
 // value (the sink the real implementation will move from), but as a stub it does not
 // consume the config yet — hence the value-param suppressions.
 
-// NOLINTNEXTLINE(performance-unnecessary-value-param)
-Future<detail::StreamConsumerCore> ClientImpl::subscribeStreamAsync(StreamConsumerConfig) {
-    return notImplementedYet<detail::StreamConsumerCore>("subscribeStream");
+Future<detail::StreamConsumerCore> ClientImpl::subscribeStreamAsync(StreamConsumerConfig config) {
+    auto impl = std::make_shared<StreamConsumerImpl>(classic_, std::move(config));
+    detail::Promise<detail::StreamConsumerCore> promise;
+    // Keep the impl alive until start() resolves; on success mint the public core over it.
+    impl->start().addListener([impl, promise](const Expected<void>& result) {
+        if (result) {
+            promise.setValue(detail::StreamConsumerCore{impl});
+            return;
+        }
+        // No core will ever close it: release the controller registration and any
+        // segment consumer that did come up before failing the subscribe.
+        const Error& error = result.error();
+        impl->closeAsync().addListener([promise, error](const Expected<void>&) { promise.setError(error); });
+    });
+    return promise.getFuture();
 }
 
 Future<detail::QueueConsumerCore> ClientImpl::subscribeQueueAsync(QueueConsumerConfig config) {

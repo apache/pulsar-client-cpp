@@ -158,4 +158,8 @@ constexpr BaseCommand_Type BaseCommand_Type_WATCH_TOPIC_LIST_SUCCESS = 65;
 constexpr BaseCommand_Type BaseCommand_Type_WATCH_TOPIC_UPDATE = 66;
 constexpr BaseCommand_Type BaseCommand_Type_WATCH_TOPIC_LIST_CLOSE = 67;
 
+using ScalableConsumerType = int;
+constexpr ScalableConsumerType ScalableConsumerType_STREAM = 0;
+constexpr ScalableConsumerType ScalableConsumerType_CHECKPOINT = 1;
+
 }  // namespace pulsar

@@ -106,6 +106,8 @@ class CommandLookupTopicResponse;
 class CommandPartitionedTopicMetadataResponse;
 class CommandProducerSuccess;
 class CommandReachedEndOfTopic;
+class CommandScalableTopicAssignmentUpdate;
+class CommandScalableTopicSubscribeResponse;
 class CommandScalableTopicUpdate;
 class CommandSendReceipt;
 class CommandSendError;
@@ -202,6 +204,34 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
      */
     bool registerScalableTopicSession(uint64_t sessionId, ScalableTopicUpdateListener listener);
     void removeScalableTopicSession(uint64_t sessionId);
+
+    // Scalable topics (pulsar::st): a stream/checkpoint consumer session registered with
+    // the controller through this connection. The listener is invoked with
+    // (ResultOk, &update) for every CommandScalableTopicAssignmentUpdate whose
+    // consumer_id matches, and with (error, nullptr) once when the connection closes,
+    // after which the registration is gone.
+    typedef std::function<void(Result, const proto::CommandScalableTopicAssignmentUpdate*)>
+        ScalableConsumerAssignmentListener;
+    // One-shot callback for a CommandScalableTopicSubscribeResponse, correlated by
+    // request_id: (ResultOk, &response) when the response arrives — the response may
+    // itself carry a broker error — or (error, nullptr) once if the connection closes
+    // first. Removed from the registry when fired.
+    typedef std::function<void(Result, const proto::CommandScalableTopicSubscribeResponse*)>
+        ScalableSubscribeResponseCallback;
+
+    /**
+     * Register a consumer session for pushed assignment updates. Returns false
+     * (without registering) if the connection is already closed.
+     */
+    bool registerScalableConsumerSession(uint64_t consumerId, ScalableConsumerAssignmentListener listener);
+    void removeScalableConsumerSession(uint64_t consumerId);
+
+    /**
+     * Register a one-shot callback for the subscribe response with this request id.
+     * Returns false (without registering) if the connection is already closed.
+     */
+    bool addScalableSubscribeRequest(uint64_t requestId, ScalableSubscribeResponseCallback callback);
+    void removeScalableSubscribeRequest(uint64_t requestId);
 
     /** Whether the broker advertised scalable-topics support on CONNECTED. */
     bool supportsScalableTopics() const { return supportsScalableTopics_.load(std::memory_order_acquire); }
@@ -377,6 +407,10 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     // Scalable topics: DAG-watch sessions by client-assigned session id.
     typedef std::map<uint64_t, ScalableTopicUpdateListener> ScalableTopicSessionsMap;
     ScalableTopicSessionsMap scalableTopicSessions_;
+    typedef std::map<uint64_t, ScalableConsumerAssignmentListener> ScalableConsumerSessionsMap;
+    ScalableConsumerSessionsMap scalableConsumerSessions_;
+    typedef std::map<uint64_t, ScalableSubscribeResponseCallback> ScalableSubscribeRequestsMap;
+    ScalableSubscribeRequestsMap pendingScalableSubscribeRequests_;
     std::atomic<bool> supportsScalableTopics_{false};
 
     typedef std::map<uint64_t, Promise<Result, BrokerConsumerStatsImpl>> PendingConsumerStatsMap;
@@ -462,6 +496,8 @@ class PULSAR_PUBLIC ClientConnection : public std::enable_shared_from_this<Clien
     void handleGetSchemaResponse(const proto::CommandGetSchemaResponse&);
     void handleAckResponse(const proto::CommandAckResponse&);
     void handleScalableTopicUpdate(const proto::CommandScalableTopicUpdate&);
+    void handleScalableTopicSubscribeResponse(const proto::CommandScalableTopicSubscribeResponse&);
+    void handleScalableTopicAssignmentUpdate(const proto::CommandScalableTopicAssignmentUpdate&);
     optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseProducer&);
     optional<std::string> getAssignedBrokerServiceUrl(const proto::CommandCloseConsumer&);
     std::string getMigratedBrokerServiceUrl(const proto::CommandTopicMigrated&);

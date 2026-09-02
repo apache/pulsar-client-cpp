@@ -625,9 +625,13 @@ void ClientImpl::subscribeToTopicsAsyncV2(const std::string& topic, const std::s
             lock.unlock();
             callback(Error{ResultInvalidTopicName, ""});
             return;
-        } else if (conf.isReadCompacted() && (topicName->getDomain().compare("persistent") != 0 ||
-                                              (conf.getConsumerType() != ConsumerExclusive &&
-                                               conf.getConsumerType() != ConsumerFailover))) {
+        } else if (conf.isReadCompacted() &&
+                   // Segment backing topics are persistent in all but the scheme, so the
+                   // scalable-topics consumers may read them compacted too.
+                   ((topicName->getDomain().compare("persistent") != 0 &&
+                     !(allowSegmentTopic && topicName->isSegment())) ||
+                    (conf.getConsumerType() != ConsumerExclusive &&
+                     conf.getConsumerType() != ConsumerFailover))) {
             lock.unlock();
             callback(Error{ResultInvalidConfiguration, ""});
             return;
