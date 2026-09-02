@@ -125,19 +125,13 @@ TEST(StStreamConsumerE2ETest, testDrainsSealedParentBeforeChildren) {
     ASSERT_TRUE(clientResult) << clientResult.error();
     PulsarClient client = std::move(clientResult).value();
 
-    // Create the durable subscription up front (and detach) so the pre-split backlog
-    // is retained for it.
-    {
-        auto subscriberResult = client.newStreamConsumer(Schema<std::string>{})
-                                    .topic(topic)
-                                    .subscriptionName("sub")
-                                    .subscriptionInitialPosition(SubscriptionInitialPosition::Earliest)
-                                    .subscribe();
-        ASSERT_TRUE(subscriberResult) << subscriberResult.error();
-        StreamConsumer<std::string> subscriber = std::move(subscriberResult).value();
-        ASSERT_TRUE(subscriber.close());
-    }
-
+    // No subscription is created up front (mirroring the Java V5StreamConsumerDagReplayTest):
+    // the sealed parent's entries stay on its ledger, and the fresh EARLIEST consumer below
+    // — subscribing for the first time only after both batches and the split — reads that
+    // sealed backlog through the controller assignment. Pre-creating a throwaway consumer
+    // would leave its controller registration alive on the shared connection (the broker only
+    // evicts a member on a transport drop plus grace timer, there is no unsubscribe command),
+    // and that dead member would keep the sealed parent assigned to it, starving this consumer.
     auto producerResult = client.newProducer(Schema<std::string>{}).topic(topic).create();
     ASSERT_TRUE(producerResult) << producerResult.error();
     Producer<std::string> producer = std::move(producerResult).value();
