@@ -61,6 +61,7 @@ class MessageImpl {
 
     uint64_t getPublishTimestamp() const;
     uint64_t getEventTimestamp() const;
+    bool hasEventTimestamp() const;
 
     /**
      * Get the topic Name from which this message originated from

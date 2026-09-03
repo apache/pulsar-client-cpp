@@ -55,6 +55,8 @@ uint64_t MessageImpl::getEventTimestamp() const {
     }
 }
 
+bool MessageImpl::hasEventTimestamp() const { return metadata.has_event_time(); }
+
 void MessageImpl::setReplicationClusters(const std::vector<std::string>& clusters) {
     google::protobuf::RepeatedPtrField<std::string> r(clusters.begin(), clusters.end());
     r.Swap(metadata.mutable_replicate_to());

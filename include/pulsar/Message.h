@@ -182,6 +182,17 @@ class PULSAR_PUBLIC Message {
     uint64_t getEventTimestamp() const;
 
     /**
+     * Check whether the event timestamp was set by the client producer.
+     *
+     * @return true if the event timestamp was set while creating the message
+     *         false if the event timestamp was not set while creating the message
+     *
+     * This is distinct from `getEventTimestamp() != 0`, because a producer may legitimately set an
+     * event timestamp of 0 (the Unix epoch).
+     */
+    bool hasEventTimestamp() const;
+
+    /**
      * Get the topic Name from which this message originated from
      */
     const std::string& getTopicName() const;
