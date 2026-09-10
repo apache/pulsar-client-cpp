@@ -20,9 +20,11 @@
 
 #include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
+#include <charconv>
 #include <cstdint>
 #include <sstream>
 #include <stdexcept>
+#include <system_error>
 
 #include "InitialAuthData.h"
 #include "lib/Base64Utils.h"
@@ -34,6 +36,11 @@ namespace pulsar {
 
 const std::string TlsClientAuthFlow::DEFAULT_CLIENT_ID = "pulsar-client";
 namespace {
+constexpr int DEFAULT_OAUTH2_CONNECT_TIMEOUT_SECONDS = 10;
+constexpr int DEFAULT_OAUTH2_REQUEST_TIMEOUT_SECONDS = 30;
+constexpr char CONNECT_TIMEOUT_PARAM[] = "connect_timeout_seconds";
+constexpr char REQUEST_TIMEOUT_PARAM[] = "request_timeout_seconds";
+
 enum class OAuth2TokenEndpointAuthMethod : std::uint8_t
 {
     ClientSecretPost,
@@ -60,7 +67,36 @@ std::string toFlowName(OAuth2TokenEndpointAuthMethod authMethod) {
             return "ClientCredentialFlow";
     }
 }
+
+int parsePositiveTimeout(const ParamMap& params, const char* name, int defaultValue) {
+    const auto it = params.find(name);
+    if (it == params.end()) {
+        return defaultValue;
+    }
+
+    const auto& rawValue = it->second;
+    int value = 0;
+    const auto result = std::from_chars(rawValue.data(), rawValue.data() + rawValue.size(), value);
+    if (rawValue.empty() || result.ec != std::errc() || result.ptr != rawValue.data() + rawValue.size() ||
+        value <= 0) {
+        throw std::invalid_argument(std::string("OAuth2 parameter ") + name + " must be a positive integer");
+    }
+    return value;
+}
+
+CurlWrapper::Options createHttpOptions(const Oauth2HttpTimeouts& timeouts) {
+    CurlWrapper::Options options;
+    options.connectTimeoutInSeconds = timeouts.connectTimeoutInSeconds;
+    options.timeoutInSeconds = timeouts.requestTimeoutInSeconds;
+    return options;
+}
 }  // namespace
+
+Oauth2HttpTimeouts::Oauth2HttpTimeouts(const ParamMap& params)
+    : connectTimeoutInSeconds(
+          parsePositiveTimeout(params, CONNECT_TIMEOUT_PARAM, DEFAULT_OAUTH2_CONNECT_TIMEOUT_SECONDS)),
+      requestTimeoutInSeconds(
+          parsePositiveTimeout(params, REQUEST_TIMEOUT_PARAM, DEFAULT_OAUTH2_REQUEST_TIMEOUT_SECONDS)) {}
 
 // AuthDataOauth2
 
@@ -265,8 +301,8 @@ static std::unique_ptr<CurlWrapper::TlsContext> createTlsContext(const std::stri
     return tlsContext;
 }
 
-static std::string fetchTokenEndpoint(const std::string& issuerUrl,
-                                      const CurlWrapper::TlsContext* tlsContext) {
+static std::string fetchTokenEndpoint(const std::string& issuerUrl, const CurlWrapper::TlsContext* tlsContext,
+                                      const Oauth2HttpTimeouts& timeouts) {
     const auto wellKnownUrl = getWellKnownUrl(issuerUrl);
     CurlWrapper curl;
     if (!curl.init()) {
@@ -274,7 +310,8 @@ static std::string fetchTokenEndpoint(const std::string& issuerUrl,
         return "";
     }
 
-    auto result = curl.get(wellKnownUrl, "Accept: application/json", {}, tlsContext);
+    const auto options = createHttpOptions(timeouts);
+    auto result = curl.get(wellKnownUrl, "Accept: application/json", options, tlsContext);
     if (!result.error.empty()) {
         LOG_ERROR("Failed to get the well-known configuration " << issuerUrl << ": " << result.error);
         return "";
@@ -305,6 +342,11 @@ static std::string fetchTokenEndpoint(const std::string& issuerUrl,
                           << issuerUrl << ". response Code " << responseCode);
             }
             break;
+        case CURLE_OPERATION_TIMEDOUT:
+            LOG_ERROR("Timed out retrieving OAuth2 issuer metadata from "
+                      << issuerUrl << " (connect timeout: " << timeouts.connectTimeoutInSeconds
+                      << " seconds, request timeout: " << timeouts.requestTimeoutInSeconds << " seconds)");
+            break;
         default:
             LOG_ERROR("Response failed for getting the well-known configuration "
                       << issuerUrl << ". Error Code " << res << ": " << errorBuffer);
@@ -315,7 +357,8 @@ static std::string fetchTokenEndpoint(const std::string& issuerUrl,
 
 static Oauth2TokenResultPtr fetchOauth2Token(const std::string& tokenEndpoint, const ParamMap& params,
                                              const CurlWrapper::TlsContext* tlsContext,
-                                             OAuth2TokenEndpointAuthMethod authMethod) {
+                                             OAuth2TokenEndpointAuthMethod authMethod,
+                                             const Oauth2HttpTimeouts& timeouts) {
     Oauth2TokenResultPtr resultPtr = Oauth2TokenResultPtr(new Oauth2TokenResult());
     if (tokenEndpoint.empty()) {
         return resultPtr;
@@ -333,7 +376,7 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& tokenEndpoint, c
     }
     LOG_DEBUG("Generate URL encoded body for " << toFlowName(authMethod) << ": " << postData);
 
-    CurlWrapper::Options options;
+    auto options = createHttpOptions(timeouts);
     options.postFields = std::move(postData);
     auto result =
         curl.get(tokenEndpoint, "Content-Type: application/x-www-form-urlencoded", options, tlsContext);
@@ -379,6 +422,11 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& tokenEndpoint, c
                                                                 << responseCode);
             }
             break;
+        case CURLE_OPERATION_TIMEDOUT:
+            LOG_ERROR("Timed out fetching OAuth2 token from "
+                      << tokenEndpoint << " (connect timeout: " << timeouts.connectTimeoutInSeconds
+                      << " seconds, request timeout: " << timeouts.requestTimeoutInSeconds << " seconds)");
+            break;
         default:
             LOG_ERROR("Response failed for token endpoint " << tokenEndpoint << ". ErrorCode " << res << ": "
                                                             << errorBuffer);
@@ -389,7 +437,8 @@ static Oauth2TokenResultPtr fetchOauth2Token(const std::string& tokenEndpoint, c
 }
 
 ClientCredentialFlow::ClientCredentialFlow(ParamMap& params)
-    : issuerUrl_(params["issuer_url"]),
+    : httpTimeouts_(params),
+      issuerUrl_(params["issuer_url"]),
       keyFile_(KeyFile::fromParamMap(params)),
       audience_(params["audience"]),
       scope_(params["scope"]),
@@ -408,7 +457,7 @@ void ClientCredentialFlow::initialize() {
     }
 
     const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_);
-    this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get());
+    this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get(), httpTimeouts_);
     if (!this->tokenEndPoint_.empty()) {
         LOG_DEBUG("Get token endpoint: " << this->tokenEndPoint_);
     }
@@ -466,11 +515,12 @@ Oauth2TokenResultPtr ClientCredentialFlow::authenticate() {
     const auto params = generateParamMap();
     const auto tlsContext = createTlsContext(tlsTrustCertsFilePath_, tlsCertFilePath_, tlsKeyFilePath_);
     return fetchOauth2Token(tokenEndPoint_, params, tlsContext.get(),
-                            OAuth2TokenEndpointAuthMethod::ClientSecretPost);
+                            OAuth2TokenEndpointAuthMethod::ClientSecretPost, httpTimeouts_);
 }
 
 TlsClientAuthFlow::TlsClientAuthFlow(ParamMap& params)
-    : issuerUrl_(params["issuer_url"]),
+    : httpTimeouts_(params),
+      issuerUrl_(params["issuer_url"]),
       clientId_(params["client_id"].empty() ? DEFAULT_CLIENT_ID : params["client_id"]),
       audience_(params["audience"]),
       scope_(params["scope"]),
@@ -494,7 +544,7 @@ void TlsClientAuthFlow::initialize() {
         LOG_ERROR("Failed to initialize TlsClientAuthFlow: tls_cert_file or tls_key_file is not set");
         return;
     }
-    this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get());
+    this->tokenEndPoint_ = fetchTokenEndpoint(issuerUrl_, tlsContext.get(), httpTimeouts_);
     if (!this->tokenEndPoint_.empty()) {
         LOG_DEBUG("Get token endpoint: " << this->tokenEndPoint_);
     }
@@ -523,7 +573,7 @@ Oauth2TokenResultPtr TlsClientAuthFlow::authenticate() {
         return resultPtr;
     }
     return fetchOauth2Token(tokenEndPoint_, params, tlsContext.get(),
-                            OAuth2TokenEndpointAuthMethod::TlsClientAuth);
+                            OAuth2TokenEndpointAuthMethod::TlsClientAuth, httpTimeouts_);
 }
 
 // AuthOauth2

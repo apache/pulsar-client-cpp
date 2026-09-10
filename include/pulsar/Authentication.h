@@ -519,7 +519,9 @@ typedef std::shared_ptr<CachedToken> CachedTokenPtr;
  *   "issuer_url": "https://accounts.google.com",
  *   "client_id": "d9ZyX97q1ef8Cr81WHVC4hFQ64vSlDK3",
  *   "client_secret": "on1uJ...k6F6R",
- *   "audience": "https://broker.example.com"
+ *   "audience": "https://broker.example.com",
+ *   "connect_timeout_seconds": "10",
+ *   "request_timeout_seconds": "30"
  *  ```
  *
  * For `tokenEndpointAuthMethod = "tls_client_auth"`:
@@ -543,12 +545,17 @@ class PULSAR_PUBLIC AuthOauth2 : public Authentication {
      *
      * For `tokenEndpointAuthMethod = "client_secret_post"` (default), the required parameter
      * keys are “issuer_url”, “private_key”, and “audience”.
-     * Optional keys: `scope`, `tls_cert_file`, `tls_key_file`.
+     * Optional keys: `scope`, `tls_cert_file`, `tls_key_file`, `connect_timeout_seconds`,
+     * and `request_timeout_seconds`.
      *
      * For `tokenEndpointAuthMethod = "tls_client_auth"`, the required parameter keys are
      * `issuer_url`, `tls_cert_file`, and `tls_key_file`.
-     * Optional keys: `client_id`, `audience`, `scope`. If `client_id` is omitted, the client
-     * uses `pulsar-client`.
+     * Optional keys: `client_id`, `audience`, `scope`, `connect_timeout_seconds`, and
+     * `request_timeout_seconds`. If `client_id` is omitted, the client uses `pulsar-client`.
+     *
+     * `connect_timeout_seconds` controls the OAuth HTTP connection timeout and defaults to 10 seconds.
+     * `request_timeout_seconds` controls the total OAuth HTTP request timeout and defaults to 30 seconds.
+     * Both values must be positive integers and apply to issuer discovery and token requests.
      *
      * @param parameters the key-value to create OAuth 2.0 client credentials
      * @see http://pulsar.apache.org/docs/en/security-oauth2/#client-credentials
