@@ -34,6 +34,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v7
+    - name: Check ASF action allowlist
+      uses: apache/infrastructure-actions/allowlist-check@main
+      with:
+        scan-glob: '.github/**/*.y*ml'
     - name: Run clang-format style check for C/C++/Protobuf programs.
       uses: jidicula/clang-format-action@v4.18.0
       with:
