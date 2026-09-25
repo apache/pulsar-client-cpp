@@ -171,6 +171,40 @@ class ServiceInfoHolder {
     mutable std::mutex mutex_;
 };
 
+TEST(AutoClusterFailoverTest, testDefaultTimingConfig) {
+    AutoClusterFailover::Config config{ServiceInfo("pulsar://primary:6650"),
+                                       {ServiceInfo("pulsar://secondary:6650")}};
+
+    ASSERT_EQ(30s, config.checkInterval);
+    ASSERT_EQ(30s, config.failoverDelay);
+    ASSERT_EQ(60s, config.switchBackDelay);
+    ASSERT_EQ(1u, config.failoverThreshold);
+    ASSERT_EQ(2u, config.switchBackThreshold);
+}
+
+TEST(AutoClusterFailoverTest, testBuilderConvertsDelaysToProbeThresholds) {
+    ProbeTcpServer primary;
+    const auto primaryUrl = primary.getServiceUrl();
+    primary.stop();
+
+    ProbeTcpServer secondary;
+    const auto secondaryUrl = secondary.getServiceUrl();
+
+    auto provider = AutoClusterFailover::Builder(ServiceInfo(primaryUrl), {ServiceInfo(secondaryUrl)})
+                        .withCheckInterval(20ms)
+                        .withFailoverDelay(70ms)
+                        .withSwitchBackDelay(90ms)
+                        .build();
+
+    ServiceUrlObserver observer;
+    ASSERT_EQ(primaryUrl, provider.initialServiceInfo().serviceUrl());
+    observer.onUpdate(provider.initialServiceInfo());
+    provider.initialize([&observer](const ServiceInfo &serviceInfo) { observer.onUpdate(serviceInfo); });
+
+    ASSERT_FALSE(waitUntil(60ms, [&observer, &secondaryUrl] { return observer.last() == secondaryUrl; }));
+    ASSERT_TRUE(waitUntil(2s, [&observer, &secondaryUrl] { return observer.last() == secondaryUrl; }));
+}
+
 class TestServiceInfoProvider : public ServiceInfoProvider {
    public:
     TestServiceInfoProvider(ServiceInfoHolder &serviceInfo) : serviceInfo_(serviceInfo) {}
