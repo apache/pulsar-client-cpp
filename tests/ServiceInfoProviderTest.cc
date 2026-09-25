@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <pulsar/AutoClusterFailover.h>
 #include <pulsar/Client.h>
+#include <pulsar/SameAuthParamsLookupAutoClusterFailover.h>
 
 #include <atomic>
 #include <chrono>
@@ -309,6 +310,59 @@ TEST(AutoClusterFailoverTest, testFailoverToAnotherSecondaryWhenCurrentSecondary
     ASSERT_EQ(updates[0], primaryUrl);
     ASSERT_EQ(updates[1], firstSecondaryUrl);
     ASSERT_EQ(updates[2], secondSecondaryUrl);
+}
+
+TEST(SameAuthParamsLookupAutoClusterFailoverTest, testDefaultConfig) {
+    SameAuthParamsLookupAutoClusterFailover::Config config{
+        {"pulsar://primary:6650", "pulsar://secondary:6650"}};
+
+    ASSERT_EQ(5u, config.failoverThreshold);
+    ASSERT_EQ(5u, config.recoverThreshold);
+    ASSERT_EQ(1000ms, config.checkHealthyInterval);
+    ASSERT_TRUE(config.markTopicNotFoundAsAvailable);
+    ASSERT_EQ("public/default/tp_test", config.testTopic);
+}
+
+TEST(SameAuthParamsLookupAutoClusterFailoverTest, testRejectInvalidServiceUrls) {
+    ASSERT_THROW(SameAuthParamsLookupAutoClusterFailover::Config({}), std::invalid_argument);
+    ASSERT_THROW(SameAuthParamsLookupAutoClusterFailover::Config({" "}), std::invalid_argument);
+    ASSERT_THROW(SameAuthParamsLookupAutoClusterFailover::Config({"http://localhost:8080"}),
+                 std::invalid_argument);
+    ASSERT_THROW(SameAuthParamsLookupAutoClusterFailover::Config(
+                     {"pulsar://localhost:6650", "pulsar://localhost:6650"}),
+                 std::invalid_argument);
+}
+
+TEST(SameAuthParamsLookupAutoClusterFailoverTest, testInitialServiceInfoUsesSameAuthParams) {
+    auto auth = AuthToken::createWithToken("token");
+    ClientConfiguration clientConfiguration;
+    clientConfiguration.setAuth(auth).setTlsTrustCertsFilePath("/path/to/ca.pem");
+
+    auto provider = SameAuthParamsLookupAutoClusterFailover::Builder(
+                        {"pulsar+ssl://primary:6651", "pulsar+ssl://secondary:6651"}, clientConfiguration)
+                        .withFailoverThreshold(2)
+                        .withRecoverThreshold(3)
+                        .withCheckHealthyInterval(20ms)
+                        .withMarkTopicNotFoundAsAvailable(false)
+                        .withTestTopic("public/default/probe")
+                        .build();
+
+    const auto serviceInfo = provider.initialServiceInfo();
+    ASSERT_EQ("pulsar+ssl://primary:6651", serviceInfo.serviceUrl());
+    ASSERT_TRUE(serviceInfo.useTls());
+    ASSERT_EQ(auth, serviceInfo.authentication());
+    ASSERT_TRUE(serviceInfo.tlsTrustCertsFilePath().has_value());
+    ASSERT_EQ("/path/to/ca.pem", *serviceInfo.tlsTrustCertsFilePath());
+}
+
+TEST(SameAuthParamsLookupAutoClusterFailoverTest, testRejectInvalidBuilderOptions) {
+    SameAuthParamsLookupAutoClusterFailover::Builder builder({"pulsar://localhost:6650"});
+
+    ASSERT_THROW(builder.withFailoverThreshold(0), std::invalid_argument);
+    ASSERT_THROW(builder.withRecoverThreshold(0), std::invalid_argument);
+    ASSERT_THROW(builder.withCheckHealthyInterval(0ms), std::invalid_argument);
+    ASSERT_THROW(builder.withTestTopic(" "), std::invalid_argument);
+    ASSERT_THROW(builder.withTestTopic("://invalid"), std::invalid_argument);
 }
 
 TEST(ServiceInfoProviderTest, testSwitchCluster) {
