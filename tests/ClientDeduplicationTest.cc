@@ -19,8 +19,12 @@
 #include <gtest/gtest.h>
 #include <pulsar/Client.h>
 
+#include <future>
+#include <memory>
+#include <set>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "HttpHelper.h"
 
@@ -149,3 +153,80 @@ TEST(ClientDeduplicationTest, testProducerDeduplication) {
 
     client.close();
 }
+
+class ClientDeduplicationBatchingTest : public ::testing::TestWithParam<ProducerConfiguration::BatchingType> {
+};
+
+TEST_P(ClientDeduplicationBatchingTest, testBatchedMessagesBeforeDelayedMessage) {
+    Client client(serviceUrl);
+
+    std::string topicName = "persistent://public/dedup-3/testBatchedMessagesBeforeDelayedMessage-" +
+                            std::to_string(static_cast<int>(GetParam())) + "-" + std::to_string(time(NULL));
+
+    std::string url = adminUrl + "admin/v2/namespaces/public/dedup-3";
+    int res = makePutRequest(url, R"({"replication_clusters": ["standalone"]})");
+    ASSERT_TRUE(res == 204 || res == 409);
+
+    url = adminUrl + "admin/v2/namespaces/public/dedup-3/permissions/anonymous";
+    res = makePostRequest(url, R"(["produce","consume"])");
+    ASSERT_TRUE(res == 204 || res == 409);
+
+    url = adminUrl + "admin/v2/namespaces/public/dedup-3/deduplication";
+    res = makePostRequest(url, "true");
+    ASSERT_TRUE(res == 204 || res == 409);
+
+    // Ensure dedup status was refreshed
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+    Producer producer;
+    ProducerConfiguration producerConf;
+    producerConf.setBatchingEnabled(true);
+    producerConf.setBatchingType(GetParam());
+    // Long enough for the batch to be still pending when the delayed message is sent
+    producerConf.setBatchingMaxPublishDelayMs(3000);
+    ASSERT_EQ(client.createProducer(topicName, producerConf, producer), ResultOk);
+
+    constexpr int numBatchedMessages = 10;
+    std::vector<std::shared_ptr<std::promise<Result>>> promises;
+    for (int i = 0; i < numBatchedMessages; i++) {
+        auto promise = std::make_shared<std::promise<Result>>();
+        promises.emplace_back(promise);
+        producer.sendAsync(MessageBuilder()
+                               .setContent("batched-" + std::to_string(i))
+                               .setPartitionKey("key-" + std::to_string(i % 2))
+                               .build(),
+                           [promise](Result result, const MessageId&) { promise->set_value(result); });
+    }
+
+    // A delayed message is never batched, and it takes the next sequence id
+    ASSERT_EQ(
+        producer.send(
+            MessageBuilder().setContent("delayed").setDeliverAfter(std::chrono::milliseconds(1)).build()),
+        ResultOk);
+
+    for (auto& promise : promises) {
+        ASSERT_EQ(promise->get_future().get(), ResultOk);
+    }
+
+    // Every message must have been stored, none dropped as a duplicate
+    Reader reader;
+    ASSERT_EQ(client.createReader(topicName, MessageId::earliest(), {}, reader), ResultOk);
+
+    std::set<std::string> received;
+    Message msg;
+    while (reader.readNext(msg, 3000) == ResultOk) {
+        received.emplace(msg.getDataAsString());
+    }
+
+    ASSERT_EQ(received.size(), numBatchedMessages + 1);
+    for (int i = 0; i < numBatchedMessages; i++) {
+        ASSERT_EQ(received.count("batched-" + std::to_string(i)), 1u);
+    }
+    ASSERT_EQ(received.count("delayed"), 1u);
+
+    client.close();
+}
+
+INSTANTIATE_TEST_SUITE_P(Pulsar, ClientDeduplicationBatchingTest,
+                         ::testing::Values(ProducerConfiguration::DefaultBatching,
+                                           ProducerConfiguration::KeyBasedBatching));

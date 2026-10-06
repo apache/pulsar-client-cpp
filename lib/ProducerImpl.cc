@@ -609,6 +609,10 @@ void ProducerImpl::sendAsyncWithStatsUpdate(const Message& msg, SendCallback&& c
             failures.complete();
         }
     } else {
+        if (batchMessageContainer_) {
+            batchMessageAndSend().complete();
+        }
+
         const bool sendChunks = (totalChunks > 1);
         ChunkMessageIdListPtr chunkMessageIdList;
         if (sendChunks) {
