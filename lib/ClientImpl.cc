@@ -78,11 +78,12 @@ void invokeLegacyCallback(const std::function<void(Result, T)>& callback,
 
 static const char hexDigits[] = {'0', '1', '2', '3', '4', '5', '6', '7',
                                  '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-static std::uniform_int_distribution<> hexDigitsDist(0, sizeof(hexDigits) - 1);
-static std::mt19937 randomEngine =
-    std::mt19937(std::chrono::high_resolution_clock::now().time_since_epoch().count());
 
 std::string generateRandomName() {
+    // Called concurrently by all the clients of the process, so the generator state must not be shared.
+    thread_local std::uniform_int_distribution<> hexDigitsDist(0, sizeof(hexDigits) - 1);
+    thread_local std::mt19937 randomEngine(std::random_device{}());
+
     const int randomNameLength = 10;
 
     std::string randomName;
