@@ -64,6 +64,12 @@ HTTPLookupService::HTTPLookupService(const ServiceInfo &serviceInfo,
       tlsValidateHostname_(clientConfiguration.isValidateHostName()),
       httpLookupAuthAllowRedirect_(clientConfiguration.isHttpLookupAuthAllowRedirect()) {}
 
+HTTPLookupService::~HTTPLookupService() {
+    // The last reference can be released by an HTTP lookup task on this executor.
+    // Stop without waiting for the current thread to exit.
+    executorProvider_->close(0);
+}
+
 auto HTTPLookupService::getBroker(const TopicName &topicName) -> LookupResultFuture {
     LookupResultPromise promise;
 

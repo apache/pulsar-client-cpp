@@ -31,6 +31,7 @@
 #include "HttpHelper.h"
 #include "PulsarFriend.h"
 #include "PulsarWrapper.h"
+#include "WaitUtils.h"
 #include "lib/AtomicSharedPtr.h"
 #include "lib/BinaryProtoLookupService.h"
 #include "lib/ClientConnection.h"
@@ -70,6 +71,16 @@ class LookupServiceTest : public ::testing::TestWithParam<std::string> {
                isEmpty(*service.namespaceLookupCache_) && isEmpty(*service.getSchemaCache_);
     }
 
+    static ExecutorServicePtr getExecutor(HTTPLookupService& service) {
+        return service.executorProvider_->get();
+    }
+
+    static std::shared_ptr<HTTPLookupService> getHttpLookup(Client& client) {
+        auto retryable = std::static_pointer_cast<RetryableLookupService>(
+            PulsarFriend::getLookupService(client));
+        return std::static_pointer_cast<HTTPLookupService>(retryable->lookupService_);
+    }
+
    protected:
     std::string serviceUrl_;
     Client client_{httpLookupUrl};
@@ -78,6 +89,91 @@ class LookupServiceTest : public ::testing::TestWithParam<std::string> {
 }  // namespace pulsar
 
 using namespace pulsar;
+
+// These lifecycle tests need no broker. Observe executor destruction rather than process-wide thread counts.
+TEST(LookupServiceTest, httpLookupDestructorClosesExecutor) {
+    const ServiceInfo serviceInfo{"http://localhost:8080"};
+    for (int i = 0; i < 5; ++i) {
+        auto lookup = std::make_shared<HTTPLookupService>(serviceInfo, ClientConfiguration{});
+        auto executor = LookupServiceTest::getExecutor(*lookup);
+        std::weak_ptr<ExecutorService> weakExecutor = executor;
+        auto started = std::make_shared<std::promise<void>>();
+        auto future = started->get_future();
+        executor->postWork([started] { started->set_value(); });
+        ASSERT_EQ(std::future_status::ready, future.wait_for(std::chrono::seconds(1)));
+
+        // No test-owned strong reference may keep the executor alive.
+        executor.reset();
+        lookup.reset();
+        waitUntil(std::chrono::seconds(1), [&] { return weakExecutor.expired(); });
+        ASSERT_TRUE(weakExecutor.expired());
+    }
+}
+
+TEST(LookupServiceTest, httpLookupDestructorOnWorker) {
+    const ServiceInfo serviceInfo{"http://localhost:8080"};
+    auto lookup = std::make_shared<HTTPLookupService>(serviceInfo, ClientConfiguration{});
+    std::weak_ptr<HTTPLookupService> weakLookup = lookup;
+    auto executor = LookupServiceTest::getExecutor(*lookup);
+    std::weak_ptr<ExecutorService> weakExecutor = executor;
+    auto release = std::make_shared<std::promise<void>>();
+    auto gate = release->get_future().share();
+    auto started = std::make_shared<std::promise<void>>();
+    auto startedFuture = started->get_future();
+    executor->postWork([lookup, gate, started] {
+        (void)lookup;  // Keep the service alive throughout this task.
+        started->set_value();
+        // Bound the wait even if the test fails before releasing the worker.
+        gate.wait_for(std::chrono::seconds(5));
+    });
+    for (int i = 0; i < 8; ++i) {
+        // Match the strong service reference held by each real HTTP lookup task.
+        executor->postWork([lookup] { (void)lookup; });
+    }
+    auto completed = std::make_shared<std::promise<void>>();
+    auto completedFuture = completed->get_future();
+    executor->postWork([lookup, completed] {
+        (void)lookup;
+        completed->set_value();
+    });
+
+    ASSERT_EQ(std::future_status::ready, startedFuture.wait_for(std::chrono::seconds(1)));
+    executor.reset();
+    lookup.reset();
+    EXPECT_FALSE(weakLookup.expired());
+    release->set_value();
+    ASSERT_EQ(std::future_status::ready, completedFuture.wait_for(std::chrono::seconds(1)));
+    // The final queued task releases the service on its own worker. A default close()
+    // would wait for itself for 3 seconds; an infinite wait would deadlock.
+    waitUntil(std::chrono::seconds(1), [&] { return weakExecutor.expired(); });
+    EXPECT_TRUE(weakLookup.expired());
+    EXPECT_TRUE(weakExecutor.expired());
+}
+
+TEST(LookupServiceTest, httpLookupExecutorClosesWithClient) {
+    for (bool explicitlyClose : {false, true}) {
+        std::weak_ptr<ExecutorService> weakExecutor;
+        {
+            Client client("http://localhost:8080");
+            auto lookup = LookupServiceTest::getHttpLookup(client);
+            auto executor = LookupServiceTest::getExecutor(*lookup);
+            weakExecutor = executor;
+            auto started = std::make_shared<std::promise<void>>();
+            auto future = started->get_future();
+            executor->postWork([started] { started->set_value(); });
+            ASSERT_EQ(std::future_status::ready, future.wait_for(std::chrono::seconds(1)));
+            executor.reset();
+            lookup.reset();
+            if (explicitlyClose) {
+                ASSERT_EQ(ResultOk, client.close());
+            }
+        }
+        // ClientImpl -> RetryableLookupService -> HTTPLookupService destruction must
+        // close the fourth provider, including when Client::close() was not called.
+        waitUntil(std::chrono::seconds(1), [&] { return weakExecutor.expired(); });
+        ASSERT_TRUE(weakExecutor.expired());
+    }
+}
 
 TEST(LookupServiceTest, basicLookup) {
     ExecutorServiceProviderPtr service = std::make_shared<ExecutorServiceProvider>(1);
