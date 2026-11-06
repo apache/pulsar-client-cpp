@@ -35,6 +35,8 @@ using NamespaceTopicsPromisePtr = std::shared_ptr<NamespaceTopicsPromise>;
 using GetSchemaPromise = Promise<Error, SchemaInfo>;
 
 class HTTPLookupService : public LookupService, public std::enable_shared_from_this<HTTPLookupService> {
+    friend class LookupServiceTest;
+
     enum RequestType : uint8_t
     {
         Lookup,
@@ -71,6 +73,8 @@ class HTTPLookupService : public LookupService, public std::enable_shared_from_t
 
    public:
     HTTPLookupService(const ServiceInfo& serviceInfo, const ClientConfiguration& config);
+
+    ~HTTPLookupService() override;
 
     LookupResultFuture getBroker(const TopicName& topicName) override;
 
