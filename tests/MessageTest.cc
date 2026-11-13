@@ -63,6 +63,20 @@ bool compareMaps(const Map& lhs, const Map& rhs) {
     return lhs.size() == rhs.size() && std::equal(lhs.begin(), lhs.end(), rhs.begin());
 }
 
+TEST(MessageTest, testHasEventTimestamp) {
+    ASSERT_FALSE(Message().hasEventTimestamp());
+    ASSERT_FALSE(MessageBuilder().setContent("msg").build().hasEventTimestamp());
+
+    // The Unix epoch is a valid event time, so it must not be reported as an unset one.
+    Message msg = MessageBuilder().setContent("msg").setEventTimestamp(0).build();
+    ASSERT_TRUE(msg.hasEventTimestamp());
+    ASSERT_EQ(msg.getEventTimestamp(), 0u);
+
+    msg = MessageBuilder().setContent("msg").setEventTimestamp(1234).build();
+    ASSERT_TRUE(msg.hasEventTimestamp());
+    ASSERT_EQ(msg.getEventTimestamp(), 1234u);
+}
+
 TEST(MessageTest, testProperties) {
     MessageBuilder msgBuilder1;
     msgBuilder1.setProperty("property1", "value1");
