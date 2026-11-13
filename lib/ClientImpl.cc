@@ -856,7 +856,8 @@ void ClientImpl::closeAsync(const CloseCallback& callback) {
     auto producers = producers_.move();
     auto consumers = consumers_.move();
 
-    SharedInt numberOfOpenHandlers = std::make_shared<int>(producers.size() + consumers.size());
+    SharedInt numberOfOpenHandlers =
+        std::make_shared<std::atomic<int>>(static_cast<int>(producers.size() + consumers.size()));
     LOG_INFO("Closing Pulsar client with " << producers.size() << " producers and " << consumers.size()
                                            << " consumers");
 
@@ -896,10 +897,13 @@ void ClientImpl::handleClose(Result result, const SharedInt& numberOfOpenHandler
                   << expected << ". This means multiple errors have occurred while closing the client");
     }
 
-    if (*numberOfOpenHandlers > 0) {
-        --(*numberOfOpenHandlers);
+    // Decrement the counter atomically and let only the call that observes it reaching zero proceed,
+    // otherwise concurrent close callbacks may race on the counter and both (or neither) shut down.
+    int remaining = numberOfOpenHandlers->load(std::memory_order_acquire);
+    while (remaining > 0 && !numberOfOpenHandlers->compare_exchange_weak(remaining, remaining - 1,
+                                                                         std::memory_order_acq_rel)) {
     }
-    if (*numberOfOpenHandlers == 0) {
+    if (remaining <= 1) {
         std::unique_lock lock(mutex_);
         if (state_ == Closed) {
             LOG_DEBUG("Client is already shutting down, possible race condition in handleClose");
