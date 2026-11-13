@@ -255,6 +255,56 @@ TEST_F(AcknowledgeTest, testBatchIndexAck) {
     ASSERT_EQ(subMessageIdList(msgIds, {4}), consumers[2].messageIdList());
 }
 
+TEST_F(AcknowledgeTest, testPermitsAfterPartialBatchRedelivery) {
+    Client client(lookupUrl);
+    const auto topic = "test-partial-batch-redelivery-permits-" + unique_str();
+    constexpr int batchSize = 8;
+    constexpr int queueSize = 2 * batchSize;
+
+    ConsumerConfiguration conf;
+    conf.setConsumerType(ConsumerShared);
+    conf.setReceiverQueueSize(queueSize);
+    conf.setBatchIndexAckEnabled(true);
+    conf.setAckGroupingTimeMs(0);
+    conf.setAckReceiptEnabled(true);
+    conf.setNegativeAckRedeliveryDelayMs(100);
+    Consumer consumer;
+    ASSERT_EQ(ResultOk, client.subscribe(topic, "sub", conf, consumer));
+
+    ProducerConfiguration producerConf;
+    producerConf.setBatchingEnabled(true);
+    producerConf.setBatchingMaxMessages(batchSize);
+    producerConf.setBatchingMaxPublishDelayMs(60000);
+    Producer producer;
+    ASSERT_EQ(ResultOk, client.createProducer(topic, producerConf, producer));
+    for (int i = 0; i < batchSize; ++i) {
+        producer.sendAsync(MessageBuilder().setContent(std::to_string(i)).build(), nullptr);
+    }
+    ASSERT_EQ(ResultOk, producer.flush());
+
+    Message msg;
+    for (int i = 0; i < batchSize; ++i) {
+        ASSERT_EQ(ResultOk, consumer.receive(msg, 5000));
+        ASSERT_EQ(i, msg.getMessageId().batchIndex());
+        if (i < batchSize - 1) {
+            ASSERT_EQ(ResultOk, consumer.acknowledge(msg));
+        }
+    }
+
+    const auto lastId = msg.getMessageId();
+    consumer.negativeAcknowledge(msg);
+    ASSERT_EQ(ResultOk, consumer.receive(msg, 10000));
+    ASSERT_EQ(lastId, msg.getMessageId());
+    ASSERT_GT(msg.getRedeliveryCount(), 0);
+    ASSERT_EQ(ResultOk, consumer.acknowledge(msg));
+
+    // Consuming the original batch refilled the queue. Only the redelivered index used a permit,
+    // and consuming that one message is below the threshold for sending another FLOW.
+    BrokerConsumerStats stats;
+    ASSERT_EQ(ResultOk, consumer.getBrokerConsumerStats(stats));
+    EXPECT_EQ(queueSize - 1, stats.getAvailablePermits());
+}
+
 TEST_F(AcknowledgeTest, testMixedCumulativeAck) {
     Client client(lookupUrl);
     const std::string topic = "test-mixed-cumulative-ack-" + unique_str();
