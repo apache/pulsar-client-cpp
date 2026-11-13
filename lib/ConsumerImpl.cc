@@ -941,6 +941,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
     const auto startMessageId = getStartMessageId();
 
     int skippedMessages = 0;
+    int alreadyAckedMessages = 0;
 
     auto acker = BatchMessageAckerImpl::create(batchSize);
     std::vector<Message> possibleToDeadLetter;
@@ -953,6 +954,11 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
         if (msg.impl_->brokerEntryMetadata.has_index()) {
             msg.impl_->brokerEntryMetadata.set_index(msg.impl_->brokerEntryMetadata.index() - batchSize + i +
                                                      1);
+        }
+
+        const bool alreadyAcked = !ackSet.isEmpty() && !ackSet.get(i);
+        if (alreadyAcked) {
+            ++alreadyAckedMessages;
         }
 
         if (redeliveryCount >= deadLetterPolicy_.getMaxRedeliverCount()) {
@@ -978,7 +984,7 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
             }
         }
 
-        if (!ackSet.isEmpty() && !ackSet.get(i)) {
+        if (alreadyAcked) {
             LOG_DEBUG(getName() << "Ignoring message from " << i
                                 << "th message, which has been acknowledged");
             ++skippedMessages;
@@ -995,8 +1001,10 @@ uint32_t ConsumerImpl::receiveIndividualMessagesFromBatch(const ClientConnection
         }
     }
 
-    if (skippedMessages > 0) {
-        increaseAvailablePermits(cnx, skippedMessages);
+    // The broker only charged permits for unacknowledged batch indexes.
+    const int permitsToReturn = skippedMessages - alreadyAckedMessages;
+    if (permitsToReturn > 0) {
+        increaseAvailablePermits(cnx, permitsToReturn);
     }
 
     return batchSize - skippedMessages;
