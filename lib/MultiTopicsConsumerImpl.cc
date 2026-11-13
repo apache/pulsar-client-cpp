@@ -262,7 +262,7 @@ void MultiTopicsConsumerImpl::subscribeTopicPartitions(
             &MultiTopicsConsumerImpl::handleSingleConsumerCreated, get_shared_this_ptr(),
             std::placeholders::_1, std::placeholders::_2, partitionsNeedCreate, topicSubResultPromise));
         consumers_.put(topicName->toString(), consumer);
-        LOG_DEBUG("Creating Consumer for - " << topicName << " - " << consumerStr_);
+        LOG_DEBUG("Creating Consumer for - " << topicName->toString() << " - " << consumerStr_);
         consumer->start();
 
     } else {
