@@ -232,6 +232,8 @@ uint64_t Message::getPublishTimestamp() const { return impl_ ? impl_->getPublish
 
 uint64_t Message::getEventTimestamp() const { return impl_ ? impl_->getEventTimestamp() : 0ull; }
 
+bool Message::hasEventTimestamp() const { return impl_ ? impl_->hasEventTimestamp() : false; }
+
 const std::string& Message::getProducerName() const noexcept {
     if (!impl_) {
         return emptyString;
