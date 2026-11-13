@@ -25,9 +25,11 @@
 #include <atomic>
 #include <chrono>
 #include <future>
+#include <mutex>
 #include <sstream>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include "MockClientImpl.h"
 #include "PulsarAdminHelper.h"
@@ -701,4 +703,41 @@ TEST(ClientTest, testNoRetry) {
         ASSERT_EQ(ResultAuthenticationError, result.result);
         ASSERT_TRUE(result.timeMs < 1000) << "consumer: " << result.timeMs << " ms";
     }
+}
+
+TEST(ClientTest, testConnectionValidator) {
+    std::mutex mutex;
+    std::vector<std::string> addresses;
+    auto makeValidator = [&](bool allow) {
+        return [&mutex, &addresses, allow](const std::string &address) {
+            std::lock_guard<std::mutex> lock(mutex);
+            addresses.emplace_back(address);
+            return allow;
+        };
+    };
+    const std::string topic = "client-test-connection-validator-" + std::to_string(time(nullptr));
+
+    {
+        Client client(lookupUrl, ClientConfiguration().setConnectionValidator(makeValidator(true)));
+        Producer producer;
+        ASSERT_EQ(ResultOk, client.createProducer(topic, producer));
+        client.close();
+    }
+    {
+        std::lock_guard<std::mutex> lock(mutex);
+        ASSERT_FALSE(addresses.empty());
+        for (const auto &address : addresses) {
+            ASSERT_EQ(lookupUrl, address);
+        }
+        addresses.clear();
+    }
+
+    {
+        Client client(lookupUrl, ClientConfiguration().setConnectionValidator(makeValidator(false)));
+        Producer producer;
+        ASSERT_EQ(ResultConnectError, client.createProducer(topic, producer));
+        client.close();
+    }
+    std::lock_guard<std::mutex> lock(mutex);
+    ASSERT_EQ(addresses, std::vector<std::string>{lookupUrl});
 }
