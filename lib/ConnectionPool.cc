@@ -116,13 +116,12 @@ Future<Error, ClientConnectionWeakPtr> ConnectionPool::getConnectionAsync(const 
 
         if (!cnx->isClosed()) {
             // Found a valid or pending connection in the pool
-            LOG_DEBUG("Got connection from pool for " << key << " use_count: "  //
-                                                      << (cnx.use_count()) << " @ " << cnx.get());
+            LOG_DEBUG("Got connection from pool for " << key << " use_count: " << (cnx.use_count()));
             return cnx->getConnectFuture();
         } else {
             // The closed connection should have been removed from the pool in ClientConnection::close
-            LOG_WARN("Deleting stale connection from pool for " << key << " use_count: " << (cnx.use_count())
-                                                                << " @ " << cnx.get());
+            LOG_WARN("Deleting stale connection from pool for " << key
+                                                                << " use_count: " << (cnx.use_count()));
             pool_.erase(key);
         }
     }
